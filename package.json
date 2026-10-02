@@ -10,7 +10,6 @@
   "scripts": {
     "backup": "node tools/operational-backup.mjs",
     "board:import": "node tools/board/import.mjs",
-    "board:init": "node tools/board/init.mjs",
     "bootstrap:init": "node tools/bootstrap.mjs --init",
     "candidate:check": "node tools/candidate/cli.mjs --check",
     "ci": "node tools/ci.mjs",
@@ -29,9 +28,6 @@
     "proxies:check": "node tools/sync-agent-proxies.mjs --check",
     "publishability": "node tools/publishability/cli.mjs",
     "records:import": "node tools/letter-corrections/import.mjs",
-    "task:worktree": "node tools/task-worktree.mjs",
-    "telegram:collect": "node tools/telegram-collect/cli.mjs",
-    "workspace:reset": "node tools/workspace-reset.mjs",
-    "public:export": "node tools/public-export.mjs"
+    "telegram:collect": "node tools/telegram-collect/cli.mjs"
   }
 }

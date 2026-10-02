@@ -3,10 +3,8 @@
 /**
  * Is this tree ready to be published, and by how much is it not.
  *
- * Report mode is the default and prints counts; it does not refuse. That is the point of the first
- * stage: a number that falls as the cleanup tasks land, rather than a wall nobody can get past
- * while the tree is still half moved. `--blocking` is the same scan with a verdict, and turning it
- * on inside the aggregate gate belongs to the export task, not here.
+ * Report mode is the default and prints counts without refusing findings. `--blocking` adds a
+ * verdict, and the aggregate gate uses that verdict for every tracked public path.
  *
  * The candidate root is an explicit argument with no default. A reader that resolved the layer by
  * itself would read the operator's real candidate from a check, which is the rule
@@ -15,9 +13,7 @@
  * was looked for, not because nothing is there.
  *
  * The file list comes from `git ls-files -z`, spawned with an argv array, no shell, and the
- * environment this repository's runner scrubs. The area — which of those paths the export keeps —
- * comes from `config/export-exclusions.json` through its own reader, so this tool carries no
- * second copy of that answer.
+ * environment this repository's runner scrubs. Every tracked path of the public repository is scanned.
  */
 
 import { spawnSync } from "node:child_process";
@@ -25,7 +21,6 @@ import { readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { childEnvironment } from "../ci.mjs";
-import { isExcluded, loadExportExclusions } from "../export-exclusions.mjs";
 import {
   PUBLIC_ALLOWANCES,
   PUBLIC_MARKERS,
@@ -153,12 +148,10 @@ export function assembleContract({ candidateRoot, dataRoot = null }) {
 
 function treeReport({ candidateRoot, dataRoot, list, root, spawn }) {
   const contract = assembleContract({ candidateRoot, dataRoot });
-  const exclusions = loadExportExclusions({ root });
   const paths = trackedPaths({ root, spawn });
   const scan = scanTree({
     allow: contract.allow,
     cyrillicData: contract.cyrillicData,
-    isExported: (path) => !isExcluded(path, exclusions),
     markers: contract.markers,
     paths,
     root,

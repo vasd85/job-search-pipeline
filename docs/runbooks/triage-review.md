@@ -9,8 +9,8 @@ Owners this runbook does not replace: terminal codes and the Decision Trace —
 preferences — `candidate/profile.md#3-career-target--priorities` in the candidate layer; the batch
 procedure —
 [instructions/skills/score-jobs.md](../../instructions/skills/score-jobs.md); the format of
-development tasks — the backlog's README, per
-[ADR 0014](../adr/0014-development-backlog-replaces-remediation-queue.md).
+development tasks — the private board README, per
+[ADR 0024](../adr/0024-two-repositories-one-snapshot.md).
 
 ## 0. What is fixed here (measurements of the 2026-08-18 run)
 
@@ -25,24 +25,12 @@ development tasks — the backlog's README, per
 
 ## 1. Ledger
 
-`triage-ledger.json` at the root of the checkout that runs the batch: for production triage this is
-the operational checkout, for a measurement a rehearsal worktree with its own ledger
-(the gitflow roles of branches and worktrees (in the private pre-switch archive)).
-The rows of a rehearsal ledger do not move into the operational one: they die with its worktree
-(the gitflow invariants (in the private pre-switch archive), invariant 6). This
-is **operational state of one checkout**, like `process-log.json`: untracked, created explicitly,
-and the read path never creates it.
-
-Why untracked rather than git-tracked. Production runs of `/score-jobs` go only from the
-`ops/current` worktree (the gitflow runbook's
-roles of branches and worktrees (in the private pre-switch archive)), and that
-branch receives a new version of the source exclusively through a cutover, which requires that the
-source update not touch unrelated operational files ([ops-cutover.md](ops-cutover.md)) — today the
-branch carries not a single commit of its own, so a cutover stays a transfer without any merging of
-data. A tracked ledger would mean data commits in `ops/current` (or, alternatively, a permanently
-dirty tree that breaks the operational preflight of [ops-pipeline-codex.md](ops-pipeline-codex.md)).
-The same choice was already made for `process-log.json` (commit `86ced2d`, "chore: untrack
-operational process ledger").
+`triage-ledger.json` belongs to the folder running the batch: the operational folder for
+production, or a sealed rehearsal folder for measurement. Rehearsal rows die with that folder
+and never move into production ([rehearsal](development-flow.md#10-rehearsal)). The ledger is
+untracked operational state, like `process-log.json`; it is created explicitly and never by a read.
+The operational folder contains no git repository. Its release changes through
+[cutover](ops-cutover.md), which preserves state separately from the exported sources.
 
 ```sh
 node tools/triage-ledger.mjs init
@@ -151,8 +139,7 @@ record yet.
 The ledger is an index: one mutable row per vacancy, and after `recordBatch` the earlier decision is
 gone from it. The history lives beside it: **`triage-batches/<batch_id>/` at the root of the same
 checkout as the ledger itself** (in a rehearsal tree — `.rehearsal/batches/<batch-label>/`, and it
-dies with the tree, the gitflow invariants (in the private pre-switch archive),
-invariant 6). The batch directory is created **before** the first fetch and handed to the transport
+dies with the tree, [rehearsal](development-flow.md#10-rehearsal)). The batch directory is created **before** the first fetch and handed to the transport
 as `--out-dir`: the batch is built in the store, not copied into it afterwards.
 
 Inside the directory is the artifacts contract of
@@ -484,9 +471,8 @@ An answer that became neither counts as not received: the next batch will ask th
 
 - The ledger does not hold traces, raw pages or evidence quotes: they are in
   [the batch store](#11-batch-store-the-history-beside-the-index).
-- The ledger and the store live in one checkout — the one that runs the batch — and have no
-  independent copy: the same durability boundary as `process-log.json` (the gitflow runbook's
-  durability boundary (in the private pre-switch archive)).
+- The ledger and the store live in one folder — the one that runs the batch — and have no
+  independent copy: the same durability boundary as `process-log.json` ([durability boundary](development-flow.md#11-backup-and-what-it-does-not-cover)).
   Backup is a separate procedure: [operational-backup.md](operational-backup.md).
 - The tool does not know the policy: it groups flags, and from the decisions it reads one value —
   `BLOCKED`, on which the plan returns `retry_blocked`. The meaning of a flag and the decision on a

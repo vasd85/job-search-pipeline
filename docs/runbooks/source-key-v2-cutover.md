@@ -227,4 +227,4 @@ keys (no record is re-keyed, rows 11 and 28 of the ADR). Its role is shared by t
   here too.
 - The backup is a copy of the ledger next to the ledger, in the same failure domain. An independent
   backup remains the separate, deliberate boundary of
-  the gitflow (in the private pre-switch archive).
+  [development flow](development-flow.md).

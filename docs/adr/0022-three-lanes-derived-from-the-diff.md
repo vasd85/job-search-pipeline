@@ -41,7 +41,7 @@ whose first principle is that Git is the source of truth.
    decision. ADR 0014's rule — the lane is decided by the touched paths, not by a self-assessed
    field — is preserved verbatim and is what makes the field safe.
 2. **The protected zone is a list of literal path globs**, owned by `docs/backlog/README.md`,
-   extended with the write-boundary hook and settings, `tools/workspace-reset.mjs` and
+   extended with the write-boundary hook and settings, the former workspace reset tool and
    `tools/vacancy-fetch/`. "`tests/` pins" becomes a named list of the suites that assert the
    literal content of a governed document; adding a new test file for non-core code stays the
    standard lane.
@@ -84,7 +84,7 @@ plan set, and the ownership rows in `knowledge/precedence.md`.
 
 - A docs-only task costs a gate measured in seconds — 0.2 s for the format stage, 0.4 s for the
   mandatory pin floor, and about 6 s more when the edited document also reaches
-  `tests/operational-write-boundary.test.mjs`, which the runbook itself does — instead of a
+  the former boundary suite, which the runbook itself does — instead of a
   2 min 09 s aggregate run, and it lands without a worktree. Accepted risk: it writes into the shared `main` before any full run. The
   compensations are entry by `D0`/`D1` globs with upward escalation, a mandatory focused pin run
   whose floor is `tests/instruction-contracts.test.mjs`, and the `fresh-archive` stage of the next

@@ -14,8 +14,7 @@
  *   there. That guard proved a tree *has* a ledger, not that it is *the* one: pointed at a scratch
  *   directory somebody had run `bootstrap --init` in, it archived it and reported success, and a
  *   rehearsal worktree legitimately holds both ledgers too. `requireOperationalRoot` below states
- *   what replaced it: the operational folder's marker, and until the day of the switch the
- *   primary worktree.
+ *   what replaced it: the operational folder's marker, with no checkout fallback.
  * - **A snapshot is consistent or refused, never a plausible-looking corrupt copy.** Each member
  *   pair is copied while holding the very lock its writers take: `withLogV3Lock` for
  *   `process-log.json` together with `output/`, `withLedgerLock` for `triage-ledger.json`
@@ -107,9 +106,9 @@ const BOOLEAN_FLAGS = ["help"];
 
 /**
  * The members, in copy order, each with the lock that makes it consistent. `process-log.json` is
- * the required one: its presence is what proves `--source` is an operational checkout rather
- * than a development worktree, whose protection is precisely that this file is absent there
- * (docs/runbooks/write-boundary-map.md#map-of-the-operational-write-boundary).
+ * the required one: its presence proves that the marked folder carries operational state;
+ * development trees carry no such ledger
+ * (docs/runbooks/development-flow.md#3-rules-that-do-not-bend).
  *
  * The members with `lock: "none"` are written by nobody who takes either lock, so holding one
  * while copying them would buy nothing. `telegram-sweep-state.json` and `ops-manifest.json` are
@@ -117,9 +116,7 @@ const BOOLEAN_FLAGS = ["help"];
  * `telegram-sources.json` is edited by hand; a corpus record in `records/` is written once; a
  * draft in `outbox/` is written by a session and removed by `board:import`. A record or a draft
  * caught mid-write is the remainder, and the next night's copy replaces it. `json: true` members
- * are parsed after the copy, the way their owners parse them. `candidate/research` is temporary:
- * it holds the letter-corrections corpus until the corpus is written to `records/`, and task 182
- * removes it after the switch.
+ * are parsed after the copy, the way their owners parse them.
  */
 export const MEMBERS = Object.freeze([
   Object.freeze({ id: "process-log.json", kind: "file", lock: "process-log", required: true }),
@@ -130,7 +127,6 @@ export const MEMBERS = Object.freeze([
   Object.freeze({ id: "telegram-sweep-state.json", kind: "file", lock: "none", required: false, json: true }),
   Object.freeze({ id: "records", kind: "tree", lock: "none", required: false }),
   Object.freeze({ id: "outbox", kind: "tree", lock: "none", required: false }),
-  Object.freeze({ id: "candidate/research", kind: "tree", lock: "none", required: false }),
   Object.freeze({ id: "ops-manifest.json", kind: "file", lock: "none", required: false, json: true }),
 ]);
 
@@ -505,8 +501,7 @@ function readManifest(directory) {
 /**
  * The tree this tool copies, and what makes it the right one.
  *
- * Nothing here is a value anybody types. The root is the directory the tool itself lives in — the
- * `workspace-reset` discipline, so that "which tree" is never an argument — but derived from the
+ * Nothing here is a value anybody types. The root is the directory the tool itself lives in, derived from the
  * script's own resolved location rather than from `process.cwd()`, because a scheduled job's
  * working directory is whatever the scheduler hands it and the installed job declares none.
  *
@@ -518,14 +513,9 @@ function readManifest(directory) {
  * members, and the snapshot after an interrupted cutover is the one most worth having. A marker
  * decides even in a git checkout: the marker is what the folder says it is.
  *
- * Without a marker, one tree is still accepted until the day of the switch: the primary worktree,
- * which today is the operational checkout. A primary worktree's `.git` is a directory; a linked
- * one's is a file holding a `gitdir:` pointer, so `main`, every task tree and every rehearsal tree
- * are refused — read from the filesystem rather than from `git rev-parse`, because a tool meant
- * to outlive a damaged checkout should not need git to be runnable. This path is transitional:
- * task 182 removes it, and the first snapshot after the switch reports `source_identity: marker`.
+ * An unmarked tree is refused, regardless of git topology.
  *
- * Either way the tree must hold `process-log.json`: a tree that carries no operational state is
+ * The tree must hold `process-log.json`: a tree that carries no operational state is
  * refused rather than archived, because in a development worktree the absence of that file is the
  * protection itself.
  */
@@ -548,14 +538,12 @@ function requireOperationalRoot(root) {
     }
     folder = { kind: manifest.kind, state: manifest.state };
     identity = "marker";
-  } else if (isPrimaryWorktree(root)) {
-    identity = "primary-worktree";
   } else {
     fail(
       "backup_root_unmarked",
-      `${root} carries no operational-folder marker (ops-manifest.json) and is not the primary `
-        + "worktree. The backup copies the tree it lives in, and a linked worktree — the "
-        + "integration tree, a task tree, a rehearsal tree — is never the one to copy.",
+      `${root} carries no operational-folder marker (ops-manifest.json). `
+        + "The backup copies only the marked operational folder it lives in; "
+        + "development and rehearsal trees are never backed up.",
     );
   }
   if (!existsSync(join(root, "process-log.json"))) {
@@ -569,13 +557,6 @@ function requireOperationalRoot(root) {
   return { folder, identity, root };
 }
 
-function isPrimaryWorktree(root) {
-  try {
-    return lstatSync(join(root, ".git")).isDirectory();
-  } catch {
-    return false;
-  }
-}
 
 /** Every snapshot this tool owns in a destination, newest first. Nothing else is ever listed. */
 export function ownedSnapshots(destination) {
@@ -920,7 +901,7 @@ export function printPlist(options, { nodePath }) {
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
-  // Null-prototype, for the reason `tools/workspace-reset.mjs` states: on a plain object
+  // Null-prototype: on a plain object
   // `--__proto__ x` assigns through an inherited setter and the unknown-option check never sees it.
   const options = Object.create(null);
   for (let index = 0; index < rest.length;) {
@@ -975,13 +956,12 @@ export function usage() {
 
 run backs up THE TREE THIS FILE LIVES IN, and no flag can point it elsewhere: which tree gets
 copied is never a value anybody types. The tree is taken by its marker, an ops-manifest.json of
-kind operational; until the day of the switch a primary worktree without a marker is taken too
-(a linked worktree's .git is a file, not a directory). Either way it must hold process-log.json,
+kind operational. It must also hold process-log.json,
 so the integration tree, a task tree, a rehearsal tree and a rehearsal folder are all refused.
 
 It copies process-log.json with output/ under the process log lock, and triage-ledger.json with
 the recorded batches of triage-batches/ under the triage ledger lock. Then, under no lock,
-telegram-sources.json, telegram-sweep-state.json, records/, outbox/, candidate/research/ and
+telegram-sources.json, telegram-sweep-state.json, records/, outbox/ and
 ops-manifest.json, each when present. A held lock, an unreadable ledger or a JSON member that does
 not parse refuses the whole snapshot, and rotation runs only after one succeeds, so a refusing day
 keeps the older copies instead of ageing one out. Rotation removes only dated directories carrying

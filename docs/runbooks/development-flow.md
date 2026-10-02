@@ -1,10 +1,7 @@
 # Development flow
 
-**Status: takes effect on the day of the switch** — the day the operational folder is first built
-from two tags and the board moves into the private repository. Until that day
-development-gitflow.md (in the private pre-switch archive) governs every development task and this document
-governs none. From that day this is the one development runbook. The decisions it carries out are
-recorded in [ADR 0024](../adr/0024-two-repositories-one-snapshot.md).
+The one development runbook. The decisions it carries out are recorded in
+[ADR 0024](../adr/0024-two-repositories-one-snapshot.md).
 
 ## 1. Where things are
 

@@ -28,18 +28,18 @@ into a measurement on a full batch; the outcome is
 
 A real batch is a run over live links, not part of a task worktree.
 
-- The measured batch runs from a **rehearsal worktree** pinned to the measured sha (the
+- The measured batch runs from a **rehearsal folder** pinned to the measured sha (the
   `rehearsal/<label>` role), with its preflight — both in
-  [rehearsal-worktree.md](rehearsal-worktree.md). That is its proper place: a measured run is a
+  [development-flow rehearsal](development-flow.md#10-rehearsal). That is its proper place: a measured run is a
   measurement, not the processing of vacancies, so its state must not reach the operational ledger.
 - `main` and task worktrees do not use real vacancy URLs for a run; how a run differs from reading a
   live page is set by invariant 6 of
-  the gitflow invariants (in the private pre-switch archive). The task's
+  the [development flow rules](development-flow.md#3-rules-that-do-not-bend). The task's
   deterministic gate stays offline: live network probes are not part of it.
 - The tool does not write to `process-log.json` and publishes nothing to `output/`, so batch triage
   is still not a per-role process and is not logged.
 - `--out-dir` is the batch's working directory, always as an absolute path (the CLI resolves a
-  relative one against the caller's cwd). In a rehearsal worktree it is
+  relative one against the caller's cwd). In a rehearsal folder it is
   `<abs-rehearsal-path>/.rehearsal/batches/<batch-label>/`. Never the reserved
   `output/<company-role>/`.
 

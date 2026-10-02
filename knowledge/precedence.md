@@ -88,8 +88,8 @@ concern governs that concern:
 | Targeted cover letter | ledger-committed `output/<company-role>/cover-letter.txt` |
 | Values a rule names by key and supplies per candidate | `candidate/config.json`, schema and loader in `tools/candidate/` |
 | Product decisions on how the application should evolve | the ADR under `docs/adr/` that records an accepted decision; a question still under analysis governs nothing until it is decided |
-| Development-task tracking, statuses, and task format | `docs/backlog/` (format owned by its `README.md`, decision in ADR 0014); from the day of the switch, the board of the private repository (format owned by the board's `README.md`, decision in ADR 0024) |
-| How a development task is executed: lanes, preflight, gates, integration | `docs/runbooks/development-gitflow.md` (protected zone owned by `docs/backlog/README.md`, decision in ADR 0022); from the day of the switch, `docs/runbooks/development-flow.md` (decision in ADR 0024) |
+| Development-task tracking, statuses, and task format | The board of the private repository (format owned by its `README.md`, decision in ADR 0024) |
+| How a development task is executed: level, preflight, gates, integration | [development-flow.md](../docs/runbooks/development-flow.md) (decision in ADR 0024) |
 
 `application-brief.json` is a derived handoff, not candidate canon. Within a valid application it is
 the sole source for application-specific choices such as evidence priority, selected levers, ATS

@@ -47,8 +47,7 @@ export const CANDIDATE_DIRECTORY_NAME = "candidate";
 /**
  * Paths of the private repository that never enter the folder. The board, the personal decision
  * records, the archive, the research and the machine templates are not read by any run, and
- * `candidate/research/` of the folder holds the corrections corpus a run wrote before the corpus
- * moved to `records/`.
+ * corrections written by a run live in `records/`.
  * The list is the engine's, not the private repository's `.gitattributes`: that file lives in each
  * commit separately, and a tag cut from a commit without it would bring the whole board silently.
  */
@@ -93,7 +92,6 @@ export const ZONE_TABLE = Object.freeze({
   stateNested: Object.freeze([
     ".claude/.cc-writes",
     ".claude/settings.local.json",
-    "candidate/research",
   ]),
   statePrefixes: Object.freeze([
     "process-log.backup-",

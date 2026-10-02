@@ -8,8 +8,7 @@ replaces its pair of tags and puts the previous pair back. The decision is
 [ADR 0024](../../docs/adr/0024-two-repositories-one-snapshot.md), decision 1; the operator's
 procedure is [docs/runbooks/ops-cutover.md](../../docs/runbooks/ops-cutover.md).
 
-Until the day of the switch nothing uses it: today's operational checkout carries no manifest, and
-every check below reads a tree without one as "not an operational folder" and does nothing.
+
 
 ## Commands
 
@@ -32,13 +31,14 @@ zone table adds `.rehearsal/` to the state zone; the backup refuses it.
 ## Zones
 
 Paths are relative to the folder root. The table is written into every manifest, and a folder is
-always checked against the table in its own manifest.
+always checked against the table in its own manifest. Historical tables can retain a mutable
+`candidate/research/` exception; new builds omit it, and private research is never exported.
 
 | Zone | Paths | Digested |
 | --- | --- | --- |
 | `candidate` | `candidate/` — the layer tag without `archive/`, `board/`, `decisions/`, `machine/`, `research/` | yes |
 | `dependencies` | `tools/cv-builder/node_modules/`, installed by `npm ci` at build | yes |
-| `state` | root entries starting `process-log.json`, `process-log.backup-`, `triage-ledger.json`, `telegram-sweep-state.json`; `output/`, `triage-batches/`, `telegram-sources.json`, `telegram-sweeps/`, `records/`, `.pipeline-input/`, `.temp-docs/`, `.playwright-mcp/`, `pkcs11.txt`, `.vscode/`, `.idea/`; nested `candidate/research/`, `.claude/settings.local.json`, `.claude/.cc-writes/`; `.rehearsal/` in a rehearsal folder | no |
+| `state` | root entries starting `process-log.json`, `process-log.backup-`, `triage-ledger.json`, `telegram-sweep-state.json`; `output/`, `triage-batches/`, `telegram-sources.json`, `telegram-sweeps/`, `records/`, `.pipeline-input/`, `.temp-docs/`, `.playwright-mcp/`, `pkcs11.txt`, `.vscode/`, `.idea/`; nested `.claude/settings.local.json`, `.claude/.cc-writes/`; `.rehearsal/` in a rehearsal folder | no |
 | `handover` | `outbox/` | no |
 | service | `ops-manifest.json` and its temporary siblings, `.ops-tree/` | no |
 | metadata | any `.DS_Store` | no |

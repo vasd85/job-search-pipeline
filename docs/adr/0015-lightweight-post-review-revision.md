@@ -92,7 +92,7 @@ A publication closing a revision attempt records the operation and the edit chan
 ### 2. Ledger schema event: v3 → v4
 
 Waivers, conflict journaling, and revision provenance need ledger fields; the strict v3
-schema and gitflow invariant 9 (no meaning change under an unchanged schemaVersion) make this
+schema and the [artifact contract](../../instructions/pipeline-artifacts.md) rule (no meaning change under an unchanged schemaVersion) make this
 a versioned event. The precedent is ADR 0010 §9's v2→v3 cutover: bump the top-level number,
 existing records stay byte-for-byte compatible, cutover is one-way with no rollback writer.
 ADR 0013 contributes the owner list a schema event edits together:
@@ -337,7 +337,7 @@ records remain byte-compatible per §2.
 Accepted by the user with the recommended option standing on every point:
 
 1. Schema event as v4 bump (recommended; ADR 0010 §9 precedent) vs additive-in-v3 with an
-   ADR amendment (rejected here: violates gitflow invariant 9).
+   ADR amendment (rejected here: violates the [artifact contract](../../instructions/pipeline-artifacts.md) rule).
 2. Brief-digest match as a hard prerequisite for `revise-step` (recommended) vs allowing
    revisions against a superseded brief with a warning.
 3. CV revision visual check = changed pages only (recommended) vs none at all.

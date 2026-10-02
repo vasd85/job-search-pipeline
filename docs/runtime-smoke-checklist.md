@@ -1,7 +1,7 @@
 # Claude Code / Codex runtime smoke checklist
 
 Use this checklist when a change touches any of these paths. The globs are the trigger the
-development gitflow runbook pre-switch development procedure (in the private archive) reads; prose that has to be interpreted is not a trigger.
+[development flow](runbooks/development-flow.md) reads; prose that has to be interpreted is not a trigger.
 
 ```text
 instructions/operating-contract.md
@@ -11,9 +11,9 @@ tools/sync-agent-proxies.mjs
 ```
 
 Every step below is marked with where it can actually run. The mark is a fact about the step, not
-a preference: a development session owns no real `process-log.json` (gitflow invariant 2) and may
-not invoke a pipeline skill for real (invariant 6), so the steps that need either of those are
-executable only at cutover, in the operational checkout.
+a preference: a development session owns no real `process-log.json` ([development flow rules](runbooks/development-flow.md#3-rules-that-do-not-bend)) and may
+not invoke a pipeline skill for real, so the steps that need either of those are
+executable only at cutover, in the operational folder.
 
 1. **[gate]** Run `node tools/sync-agent-proxies.mjs --check`. Already enforced on every
    aggregate run: `tests/proxies.test.mjs` executes it against the repository root and requires
@@ -32,11 +32,10 @@ executable only at cutover, in the operational checkout.
    to `codex`.
 7. **[cutover]** Confirm `process-log.json` is byte-for-byte unchanged and no output directory was
    created.
-8. **[cutover]** Run `npm run candidate:check` in the operational checkout. Expect `status: ready`
+8. **[cutover]** Run `npm run candidate:check` in the operational folder. Expect `status: ready`
    and the real candidate's counts — the example has five levers, one letter sample and seven
    rules, so those counts are what tells the real layer from a copied example. The layer's files
-   arrive by the transfer step of [docs/runbooks/ops-cutover.md](runbooks/ops-cutover.md), which
-   runs before this check.
+   arrive from the candidate tag during [cutover](runbooks/ops-cutover.md), before this check.
 
 So a development session whose diff matches the globs above owes one line in its `## Result`: the
 globs matched, the gate covered step 1, and steps 2-8 are owed by the next cutover. That is the

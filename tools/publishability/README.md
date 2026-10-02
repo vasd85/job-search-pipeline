@@ -2,13 +2,9 @@
 
 Whether this tree is ready to be published, as a number rather than a reading.
 
-Publication is an export of one commit without its history (ADR 0023, decision 1). Until that
-commit exists, "ready" has to be something a command can answer, and something that falls as the
-cleanup lands. This tool scans the tracked tree, and the same scanner reads a piece of text such as
-a commit message before it reaches a history that will be published.
-
-Report mode is the default and does not block findings. `--blocking` is the same scan with a verdict;
-switching the aggregate gate over to it belongs to the export task, not here.
+This tool scans every tracked public path and also reads text such as a commit message before it
+reaches public history. Report mode is the default and does not block findings. `--blocking` adds
+a verdict; the aggregate gate uses it with the fictional layer's data-only allowances.
 
 ## What it looks for
 
@@ -77,8 +73,7 @@ validated only by this tool.
 
 A place is waived by the pair (marker, path), never by the path alone: one line can match two
 markers whose verdicts differ, and a path-only key would silence both. A path ending in a slash is
-a directory and matches on a segment boundary, the same reading `config/export-exclusions.json`
-uses. Every entry carries a reason, because a waiver nobody can review is a waiver nobody will
+a directory and matches on a segment boundary. Every entry carries a reason, because a waiver nobody can review is a waiver nobody will
 narrow again.
 
 Line numbers are deliberately not part of the key. A number goes stale on any edit above it, and
@@ -95,12 +90,11 @@ the waiver the check would report on every commit and, in blocking mode, refuse 
 there is. The waiver removes its literal and scans what is left, so a real address beside the
 trailer is still reported.
 
-## The area is not decided here
+## Every tracked public path
 
-Which paths the export keeps is answered by `config/export-exclusions.json`, and this tool asks its
-reader rather than carrying a second copy. Every count is reported three ways — total, in the
-exported part, in the excluded part — and the exported number is the one that matters. A file
-dropped from the export disappears from the report with no work here at all.
+The production CLI scans every path returned by `git ls-files`. No export filter hides files.
+The report retains total/exported/excluded fields for API compatibility; tracked public findings
+are exported findings, and blocking mode refuses them. Absent or unreadable tracked files refuse.
 
 ## A marker source is never read by a public marker
 
@@ -153,27 +147,11 @@ printed rather than hidden: the stage reports `personal_marker` as empty and
 `"markers":{"personal":null}`, which means nothing was looked for, not that nothing is there. The
 full scan is an operator command with `--candidate-root`.
 
-## The commit-message hook
+## Commit and push protection
 
-Not installed by anything here, and documented with its limits rather than recommended flatly.
-
-```sh
-# in the operational checkout only
-cat > "$(git rev-parse --git-path hooks/commit-msg)" <<'HOOK'
-#!/bin/sh
-test -f tools/publishability/cli.mjs || exit 0
-exec node tools/publishability/cli.mjs --commit-msg "$1" --blocking \
-  --candidate-root "$(pwd)/candidate"
-HOOK
-chmod +x "$(git rev-parse --git-path hooks/commit-msg)"
-```
-
-Two things to know before installing it. Linked worktrees share one hooks directory with the
-primary checkout, so one install reaches every tree — including trees where this tool does not
-exist, which is what the first line guards. And without `--candidate-root` the hook checks only the
-shared templates; over this repository's own history those are almost entirely the attribution
-trailer, while what actually leaks through commit messages is company names, countries and time
-zones. A hook without the layer is a hook that reports nothing and looks like protection.
+The [pre-push guard](../push-guard/README.md) scans commits, diffs and the branch name with the
+private markers. Development sessions also scan PR titles and bodies before opening a PR. The
+operational folder contains no git repository and installs no commit hook.
 
 ## Refusal codes
 
@@ -197,7 +175,6 @@ those paths remains blocking. Public marker allowances name individual marker/fi
 reviewable reasons; they never silence personal markers. Missing tracked files also refuse the
 aggregate gate. Ordinary diagnostics without either root load no candidate configuration.
 
-Publication uses [the public exporter](../public-export.mjs) and
-[the migration runbook](../../docs/runbooks/publication-switch.md). That separate gate requires
-an explicit real private marker set, checks personal markers even in marker-source files, and
-refuses a ready target until publishability, all local Markdown links and the full CI pass.
+Before pushing, the pre-push guard also scans personal markers, commit messages and the branch
+name. Development sessions scan PR titles and bodies with the private marker set before opening
+a PR, as [the development flow](../../docs/runbooks/development-flow.md#66-commit-push-pull-request) requires.

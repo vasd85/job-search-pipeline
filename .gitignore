@@ -10,10 +10,10 @@ process-log.json.*.tmp
 /process-log.backup-*.json
 /.pipeline-input/
 
-# Rehearsal worktree state: pinned base and unharvested batch evidence (gitflow runbook)
+# Disposable rehearsal batch evidence
 /.rehearsal/
 
-# Scratch files of a session's own worktree, never committed (gitflow runbook, invariant 6)
+# Session scratch files, never committed
 /.temp-docs/
 
 # Batch-triage ledger (local, per-worktree) and transient writer files

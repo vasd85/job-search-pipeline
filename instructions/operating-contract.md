@@ -113,22 +113,11 @@ not permission to reconstruct unsafe shell commands.
 
 ## Source-of-truth map
 
-- **Changes to this project itself** — a development task in
-  the pre-switch development board, executed by the
-  **development gitflow runbook (in the private pre-switch archive)**. The runbook's
-  pre-switch integration gate (in the private pre-switch archive)
-  derives one of three lanes from the diff and owns what each one runs; the backlog README owns
-  the task format and the protected zone. An ad-hoc edit outside that route has no gate and no
-  history.
-  **A change the user asks for directly — in chat, mid-session, in any session type — is a change
-  like any other and takes the same route.** Filing the task is a cheap `D0` commit in `main` that
-  does not itself start the work, so routing the request and carrying it out are not in conflict.
-  **From the day of the switch** the sentences above that name `docs/backlog/`, the gitflow
-  runbook's lanes and the `D0` commit in `main` stop applying. A task then lives on the board of
-  the private repository; filing it is a commit there, or a draft in the operational folder's
-  outbox when an operational session files it; and it is carried out by the
-  **[development flow](../docs/runbooks/development-flow.md)**. A direct request still takes that
-  route.
+- **Changes to this project itself** — a task on the board of the private repository, carried out
+  by the **[development flow](../docs/runbooks/development-flow.md)**. Filing is a commit in that
+  repository, or a draft in the operational folder's outbox when an operational session files it.
+  **A change the user asks for directly — in chat, mid-session, in any session type — takes the
+  same route.** Filing does not itself start the work.
 - **[docs/project-understanding.md](../docs/project-understanding.md)** — owner of product goals and
   practical change-level criteria. It does not own candidate facts, writing policy, or lifecycle
   schema; the concern-specific owners below remain authoritative for those responsibilities.

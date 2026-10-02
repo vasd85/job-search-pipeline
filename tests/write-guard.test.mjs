@@ -37,7 +37,6 @@ const settingsPath = resolve(repoRoot, ".claude/settings.json");
 
 // Frozen literally rather than read back from the module under test.
 const EXPECTED_V2_COMMAND = 'node "${CLAUDE_PROJECT_DIR}/.claude/hooks/write-guard.mjs"';
-const EXPECTED_V1_COMMAND = 'node "${CLAUDE_PROJECT_DIR}/.claude/hooks/operational-write-boundary.mjs"';
 
 // A directory that exists and holds no executables: the hook runs with it as its whole PATH.
 function emptyPathDirectory(base) {
@@ -234,7 +233,6 @@ test(`run -> its own artifacts: allowed; not closed: nothing, this is the permit
     "process-log.json.lock",
     "records/letter-corrections/r1.json",
     ".temp-docs/page.txt",
-    "candidate/research/letter-corrections/r2.json",
     "outbox/tasks/new-draft.md",
     "triage-batches/b1/plan.json",
   ]) {
@@ -254,6 +252,7 @@ test(`run -> engine sources: refused; not closed: ${SHELL_AND_CODEX}, hard links
     ".ops-tree/lock": "read_only_zone",
     "tools/cv-builder/node_modules/pkg/index.js": "read_only_zone",
     "stray-file-at-root.md": "read_only_zone",
+    "candidate/research/new.json": "read_only_zone",
     ".DS_Store": "read_only_zone",
     ".claude/settings.local.json": "settings_local",
   };
@@ -661,18 +660,30 @@ test("the tracked settings register only the current guard", () => {
   assert.deepEqual(commands, [EXPECTED_V2_COMMAND]);
 });
 
-test("both registered guards refuse together: either one's refusal refuses", (t) => {
+
+test("runtime sandbox and test invocations retain the current boundary", () => {
+  const raw = readFileSync(settingsPath, "utf8");
+  const settings = JSON.parse(raw);
+  assert.deepEqual(settings.sandbox, {
+    allowUnsandboxedCommands: false,
+    enabled: true,
+    excludedCommands: ["npm run " + "ci", "npm run test:browser"],
+    failIfUnavailable: true,
+    network: { allowLocalBinding: true },
+  });
+  assert.doesNotMatch(raw, /\/Users\//);
+  assert.doesNotMatch(raw, /job-search-pipeline/);
+  assert.equal(settings.sandbox.filesystem, undefined);
+  const { scripts } = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
+  assert.equal(scripts.test, 'node --test "tests/!(process-search-browser).test.mjs"');
+  assert.equal(scripts["test:browser"], "node --test tests/process-search-browser.test.mjs");
+  for (const command of ["ci", "test:browser"]) assert.equal(typeof scripts[command], "string");
+});
+
+test("historical manifest retains its research write zone", (t) => {
   const env = layout(t);
-  const previous = resolve(repoRoot, ".claude/hooks/operational-write-boundary.mjs");
-  const run = (hook, cwd, target) => spawnSync(process.execPath, [hook], {
-    encoding: "utf8",
-    env: { ...process.env, HOME: env.home },
-    input: JSON.stringify(payloadFor(cwd, target)),
-  }).status;
-  // Today's operational checkout carries no marker: only the previous guard refuses.
-  assert.equal(run(previous, env.outside, join(env.engine, "tools", "build.mjs")), 2);
-  assert.equal(run(hookPath, env.outside, join(env.engine, "tools", "build.mjs")), 0);
-  // The marked folder has no git: only this guard refuses.
-  assert.equal(run(previous, env.outside, join(env.ops, "output", "x.md")), 0);
-  assert.equal(run(hookPath, env.outside, join(env.ops, "output", "x.md")), 2);
+  const marker = JSON.parse(readFileSync(join(env.ops, "ops-manifest.json"), "utf8"));
+  marker.zones.stateNested.push("candidate/research");
+  writeFileSync(join(env.ops, "ops-manifest.json"), JSON.stringify(marker));
+  assertAllowed(runHook(env, { cwd: env.ops, target: join(env.ops, "candidate/research/note.json") }));
 });

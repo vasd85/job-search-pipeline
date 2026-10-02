@@ -31,7 +31,7 @@ export const candidateKeyReferencePattern = /candidate\.config\.([a-z][a-z0-9_]*
 const MAX_SCANNED_FILE_BYTES = 4 * 1024 * 1024;
 
 // Operating-system metadata a file browser drops into any directory. It is not content of this
-// tree — `.gitignore` keeps it out of the repository and `tools/operational-fingerprint.mjs`
+// tree — `.gitignore` keeps it out of the repository and the operational manifest
 // holds the same basename apart from the tree it hashes — so the scan steps over it. Everything
 // else it cannot read is a refusal: `.DS_Store` carries NUL bytes, and refusing it would turn
 // the check red on whichever machine last opened the folder, for a reason having nothing to do
