@@ -101,11 +101,38 @@ function waitForJsonLine(child, label) {
   });
 }
 
-async function waitForDevTools(profilePath, child) {
+async function waitForDevTools(profilePath, child, { timeoutMs = 10_000 } = {}) {
+  let stderr = "";
+  let truncated = false;
+  let spawnError = null;
+  let closed = child.exitCode !== null || child.signalCode !== null;
+  const onStderr = (chunk) => {
+    stderr += chunk;
+    if (stderr.length > 8_192) {
+      truncated = true;
+      stderr = stderr.slice(-8_192);
+    }
+  };
+  // Drain for the child's whole lifetime, including after DevTools becomes ready.
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", onStderr);
+  child.once("error", (error) => { spawnError = error; });
+  child.once("close", () => {
+    closed = true;
+    child.stderr.off("data", onStderr);
+  });
+  const failure = (message) => new Error(
+    `${message}; exit code: ${child.exitCode}; signal: ${child.signalCode}`
+      + `; stderr${truncated ? " (tail)" : ""}: ${stderr.trim() || "<empty>"}`,
+  );
   const activePortPath = join(profilePath, "DevToolsActivePort");
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    if (child.exitCode !== null) {
-      throw new Error(`browser exited before DevTools was ready (${child.exitCode})`);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (spawnError) {
+      throw failure(`browser could not start (${spawnError.code ?? spawnError.message})`);
+    }
+    if (closed) {
+      throw failure("browser exited before DevTools was ready");
     }
     if (existsSync(activePortPath)) {
       const [port] = readFileSync(activePortPath, "utf8").trim().split("\n");
@@ -113,8 +140,78 @@ async function waitForDevTools(profilePath, child) {
     }
     await delay(50);
   }
-  throw new Error("browser DevTools endpoint did not become ready");
+  throw failure("browser DevTools endpoint did not become ready");
 }
+
+function startupFixture(t, source) {
+  const profile = mkdtempSync(join(tmpdir(), "job-pipeline-startup-"));
+  const child = spawn(process.execPath, ["-e", source], {
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  t.after(async () => {
+    await terminateChild(child, "startup fixture");
+    rmSync(profile, { recursive: true, force: true });
+  });
+  return { profile, child };
+}
+
+test("browser startup reports fatal stderr and exit code", async (t) => {
+  const { profile, child } = startupFixture(t,
+    'process.stderr.write("fatal browser startup\\n"); process.exitCode = 42;');
+  await assert.rejects(waitForDevTools(profile, child), (error) => {
+    assert.match(error.message, /browser exited before DevTools was ready/);
+    assert.match(error.message, /exit code: 42/);
+    assert.match(error.message, /fatal browser startup/);
+    return true;
+  });
+});
+
+test("browser startup reports a signal instead of hiding it as a timeout", async (t) => {
+  const { profile, child } = startupFixture(t,
+    'process.stderr.write("sandbox startup failed\\n", () => process.kill(process.pid, "SIGTERM"));');
+  await assert.rejects(waitForDevTools(profile, child), (error) => {
+    assert.match(error.message, /browser exited before DevTools was ready/);
+    assert.match(error.message, /signal: SIGTERM/);
+    assert.match(error.message, /sandbox startup failed/);
+    return true;
+  });
+});
+
+test("browser startup drains large stderr and retains a bounded tail", async (t) => {
+  const { profile, child } = startupFixture(t,
+    'process.stderr.write("discard-this-prefix" + "x".repeat(512 * 1024) + "fatal-tail", () => { process.exitCode = 43; });');
+  await assert.rejects(waitForDevTools(profile, child), (error) => {
+    assert.match(error.message, /exit code: 43/);
+    assert.match(error.message, /fatal-tail/);
+    assert.doesNotMatch(error.message, /discard-this-prefix/);
+    assert.ok(error.message.length < 9_000);
+    return true;
+  });
+});
+
+test("browser startup timeout reports stderr and the running process", async (t) => {
+  const { profile, child } = startupFixture(t,
+    'process.stderr.write("startup stalled\\n"); setInterval(() => {}, 1000);');
+  await assert.rejects(waitForDevTools(profile, child, { timeoutMs: 2_000 }), (error) => {
+    assert.match(error.message, /browser DevTools endpoint did not become ready/);
+    assert.match(error.message, /exit code: null; signal: null/);
+    assert.match(error.message, /startup stalled/);
+    return true;
+  });
+});
+
+test("browser startup reports a missing executable", async (t) => {
+  const profile = mkdtempSync(join(tmpdir(), "job-pipeline-startup-"));
+  t.after(() => rmSync(profile, { recursive: true, force: true }));
+  const child = spawn(join(profile, "missing-browser"), [], {
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  await assert.rejects(waitForDevTools(profile, child), (error) => {
+    assert.match(error.message, /browser could not start/);
+    assert.match(error.message, /ENOENT/);
+    return true;
+  });
+});
 
 class CdpClient {
   constructor(socket) {
