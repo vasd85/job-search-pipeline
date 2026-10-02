@@ -18,10 +18,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/operational-write-boundary.mjs\""
-          },
-          {
-            "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/write-guard.mjs\""
           }
         ]

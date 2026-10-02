@@ -655,10 +655,10 @@ test("the local settings path the guard refuses is a state path of the zone tabl
   assert.deepEqual([...guard.WRITABLE_ZONES], ["handover", "state"]);
 });
 
-test("the tracked settings register this guard beside the previous one", () => {
+test("the tracked settings register only the current guard", () => {
   const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
   const commands = settings.hooks.PreToolUse.flatMap((entry) => entry.hooks.map((hook) => hook.command));
-  assert.deepEqual(commands, [EXPECTED_V1_COMMAND, EXPECTED_V2_COMMAND]);
+  assert.deepEqual(commands, [EXPECTED_V2_COMMAND]);
 });
 
 test("both registered guards refuse together: either one's refusal refuses", (t) => {
