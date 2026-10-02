@@ -155,6 +155,7 @@ function startupFixture(t, source) {
   return { profile, child };
 }
 
+function registerStartupRegressions() {
 test("browser startup reports fatal stderr and exit code", async (t) => {
   const { profile, child } = startupFixture(t,
     'process.stderr.write("fatal browser startup\\n"); process.exitCode = 42;');
@@ -212,6 +213,7 @@ test("browser startup reports a missing executable", async (t) => {
     return true;
   });
 });
+}
 
 class CdpClient {
   constructor(socket) {
@@ -861,3 +863,5 @@ test(
     assert.doesNotMatch(body, /CV ready|ready to send|ready_to_send/i);
   },
 );
+
+registerStartupRegressions();
