@@ -1412,7 +1412,7 @@ test("the ledger is operational state: untracked, named by canon, owned by the r
   assert.match(precedence, /\| Batch-triage vacancy state[^|]*\| `triage-ledger\.json`[^|]*\|/);
   assert.match(
     precedence,
-    /\| Flagged-triage review procedure[^|]*\| `docs\/runbooks\/triage-review\.md` \|/,
+    /\| Flagged-triage review procedure[^|]*\| `docs\/runbooks\/triage-review\.md`[ \t]+\|/,
   );
 
   const skill = readFileSync(join(repoRoot, "instructions/skills/score-jobs.md"), "utf8");

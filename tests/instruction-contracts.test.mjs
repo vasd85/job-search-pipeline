@@ -59,7 +59,11 @@ const exampleLetterLanguages = coverLetterLanguagesFor({
 });
 
 function read(path) {
-  return readFileSync(resolve(repoRoot, path), "utf8");
+  const text = readFileSync(resolve(repoRoot, path), "utf8");
+  // Table alignment is presentation; keep every cell and row boundary intact.
+  return path.endsWith(".md")
+    ? text.replace(/^\|.*$/gm, (row) => row.replace(/[ \t]+\|/g, " |").replace(/\|[ \t]+/g, "| "))
+    : text;
 }
 
 function markdownBelow(path) {
@@ -2546,7 +2550,7 @@ test("the policy digests carry acting rules and point at the owners they must no
     // The ordering rule read forward. Written as history it would stop binding a future version.
     "The same constraint binds any later change of the computed version",
     // The clause the implementation had to add, which no matrix row states.
-    "share the computed key *or* the stored key",
+    "share the computed key _or_ the stored key",
     "Read the module for the sets",
   ]) {
     assert.equal(sourceKey.includes(literal), true, `source-key digest: ${literal}`);
@@ -3309,7 +3313,7 @@ test("residence exclusions are judged against the whole feasible-residence set",
   // Rule 4 gets its own fallback clause: a region can never answer "is it an excluded country".
   assert.match(
     rubric,
-    /- \*\*Rule 4\*\* - the exclusion of `candidate\.config\.mobility\.excluded_destinations` reads a named\s+country \*or\* a stated residence requirement/,
+    /- \*\*Rule 4\*\* - the exclusion of `candidate\.config\.mobility\.excluded_destinations` reads a named\s+country _or_ a stated residence requirement/,
   );
   assert.match(
     rubric,
@@ -3545,7 +3549,7 @@ test("the accepted triage record removes every information-driven terminal state
   }
   assert.match(rubric, /a region stands in only if every member shares a tier/);
   assert.match(rubric, /otherwise use\s+`relocation.unknown`/);
-  assert.match(rubric, /A missing \*feasibility\* fact is not\s+covered by this sentence at all/);
+  assert.match(rubric, /A missing _feasibility_ fact is not\s+covered by this sentence at all/);
   assert.match(
     rubric,
     /its absence is closing sign 3, the\s+one deliberate exception, and the vacancy is skipped/,
@@ -3601,7 +3605,7 @@ test("the accepted triage record removes every information-driven terminal state
     rubric,
     /It\s+is\s+never\s+`null`\s+and\s+never\s+`unknown`\s+on\s+a\s+scored\s+trace/,
   );
-  assert.match(rubric, /where the reason \*is\* the absence of text and\s+no quote can support it/);
+  assert.match(rubric, /where the reason _is_ the absence of text and\s+no quote can support it/);
   // knowledge/job-match-rules.md#62-skip-codes must keep rule 3's contractor qualifier, or it diverges from knowledge/job-match-rules.md#31-m--mobility--work-feasibility again.
   assert.match(
     rubric,
@@ -4061,7 +4065,7 @@ test("the scorer carries no value of the candidate, and the config schema valida
   assert.deepEqual(taxonomyNumbers, []);
   assert.match(
     decider,
-    /scoreSkills\(input\.role, input\.candidateScoring\.tool_match, input\.candidateScoring\.scoring\.s\)/,
+    /scoreSkills\(\s*input\.role,\s*input\.candidateScoring\.tool_match,\s*input\.candidateScoring\.scoring\.s,?\s*\)/,
   );
   assert.match(decider, /language \? toolMatch\.languages : toolMatch\.frameworks/);
   assert.doesNotMatch(decider, /known_modern|optionalModernBonus|TOOL_PRICE_LISTS/);
@@ -4078,7 +4082,7 @@ test("the scorer carries no value of the candidate, and the config schema valida
   assert.deepEqual(domainNamesSpelled, ["irrelevant", "unclear"]);
   assert.match(
     decider,
-    /scoreDomain\(input\.role, input\.candidateScoring\.domain_fit, input\.candidateScoring\.scoring\.d\)/,
+    /scoreDomain\(\s*input\.role,\s*input\.candidateScoring\.domain_fit,\s*input\.candidateScoring\.scoring\.d,?\s*\)/,
   );
   assert.match(decider, /score: domainFit\[role\.domain\]/);
   // The input accepts the config's own names and no list of its own.
@@ -4842,7 +4846,7 @@ test("the contract resolves the default language of an engine message, and keeps
   // different surfaces, and a rule that governs the first never names a language itself.
   assert.match(
     engine,
-    /A rule that governs an engine message never names a language of its own: it says \*the default language\* and this section resolves it\./,
+    /A rule that governs an engine message never names a language of its own: it says _the default language_ and this section resolves it\./,
   );
 
   // The artifact contract and every per-step skill now defer rather than naming a language.
@@ -5384,7 +5388,10 @@ test("the candidate's rules: a read point in each skill, a rank below the engine
     if (index === 0 || number === numbers[index - 1] + 1) return;
     const at = generation.findIndex((line) => line.startsWith(`${number}. `));
     assert.equal(
-      generation[at - 1],
+      generation
+        .slice(0, at)
+        .filter((line) => line.trim() !== "")
+        .at(-1),
       gapComment,
       `rule ${number} follows a gap without the comment that ends the list`,
     );

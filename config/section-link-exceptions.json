@@ -7,43 +7,43 @@
   },
   {
     "file": "tests/candidate.test.mjs",
-    "text": "  assert.equal(refusal(\"levers.md\", (text) => text.replace(link, \"profile §6.5.1\")), `levers.md line ${line}: names a section by number${tail}`);",
+    "text": "  assert.equal(\n    refusal(\"levers.md\", (text) => text.replace(link, \"profile §6.5.1\")),\n    `levers.md line ${line}: names a section by number${tail}`,\n  );",
     "count": 1,
     "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
   },
   {
     "file": "tests/candidate.test.mjs",
-    "text": "  assert.equal(refusal(\"levers.md\", (text) => text.replace(link, \"`profile.md#651-nowhere`\")), `levers.md line ${line}: #651-nowhere names no heading of profile.md${tail}`);",
+    "text": "  assert.equal(\n    refusal(\"levers.md\", (text) => text.replace(link, \"`profile.md#651-nowhere`\")),\n    `levers.md line ${line}: #651-nowhere names no heading of profile.md${tail}`,\n  );",
     "count": 1,
     "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
   },
   {
     "file": "tests/candidate.test.mjs",
-    "text": "  assert.equal(refusal(\"levers.md\", (text) => text.replace(link, \"`knowledge/impact-levers.md#nowhere`\")), `levers.md line ${line}: #nowhere names no heading of knowledge/impact-levers.md${tail}`);",
+    "text": "  assert.equal(\n    refusal(\"levers.md\", (text) => text.replace(link, \"`knowledge/impact-levers.md#nowhere`\")),\n    `levers.md line ${line}: #nowhere names no heading of knowledge/impact-levers.md${tail}`,\n  );",
     "count": 1,
     "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
   },
   {
     "file": "tests/candidate.test.mjs",
-    "text": "  assert.equal(refusal(\"rules.md\", (text) => `${text}\\nAs in section 3.\\n`)?.startsWith(\"rules.md line \"), true);",
+    "text": "  assert.equal(\n    refusal(\"rules.md\", (text) => `${text}\\nAs in section 3.\\n`)?.startsWith(\"rules.md line \"),\n    true,\n  );",
     "count": 1,
     "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
   },
   {
     "file": "tests/candidate.test.mjs",
-    "text": "  assert.equal(refusal(\"profile.md\", (text) => `${text}\\nSee [the gaps](#7-explicit-gaps-do-not-oversell).\\n`)?.includes(\"#7-explicit-gaps-do-not-oversell names no heading of this document\"), true);",
+    "text": "  assert.equal(\n    refusal(\n      \"profile.md\",\n      (text) => `${text}\\nSee [the gaps](#7-explicit-gaps-do-not-oversell).\\n`,\n    )?.includes(\"#7-explicit-gaps-do-not-oversell names no heading of this document\"),\n    true,\n  );",
     "count": 1,
     "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
   },
   {
     "file": "tests/candidate.test.mjs",
-    "text": "  assert.equal(refusal(\"languages/Greek/language-rules.md\", (text) => `${text}\\nΚαι §2.\\n`)?.startsWith(\"languages/Greek/language-rules.md line \"), true);",
+    "text": "  assert.equal(\n    refusal(\"languages/Greek/language-rules.md\", (text) => `${text}\\nΚαι §2.\\n`)?.startsWith(\n      \"languages/Greek/language-rules.md line \",\n    ),\n    true,\n  );",
     "count": 1,
     "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
   },
   {
     "file": "tests/candidate.test.mjs",
-    "text": "  assert.equal(refusal(\"memory.md\", (text) => `${text}\\nprofile §7\\n`), null);",
+    "text": "  assert.equal(\n    refusal(\"memory.md\", (text) => `${text}\\nprofile §7\\n`),\n    null,\n  );",
     "count": 1,
     "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
   },
@@ -251,7 +251,7 @@
   },
   {
     "file": "tests/instruction-contracts.test.mjs",
-    "text": "    assert.doesNotMatch(line, /(?:§|Section )10\\.\\d/u, `rule ${number} addresses a project entry by number`);",
+    "text": "    assert.doesNotMatch(\n      line,\n      /(?:§|Section )10\\.\\d/u,\n      `rule ${number} addresses a project entry by number`,\n    );",
     "count": 1,
     "reason": "Regular expression that rejects the legacy reference form."
   },
@@ -264,67 +264,67 @@
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "  const text = 'Section 3\\nsubsection 2\\nSec. 4\\nраздела 5\\n§7\\n> section\\n> 9\\n```text\\nsection 6\\n```\\n// section\\n// 8\\n';",
+    "text": "  const text =\n    \"Section 3\\nsubsection 2\\nSec. 4\\nраздела 5\\n§7\\n> section\\n> 9\\n```text\\nsection 6\\n```\\n// section\\n// 8\\n\";",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "  const workspace = fixture(t, { 'README.md': text, 'tools/new.js': 'throw Error(\"section 4\");\\n' });",
+    "text": "  const workspace = fixture(t, {\n    \"README.md\": text,\n    \"tools/new.js\": 'throw Error(\"section 4\");\\n',\n  });",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "    'docs/runbooks/new.md': '# Start\\n[own](#start)\\n[other](../../README.md#root)\\n```text\\nREADME.md#root\\n```\\n',",
+    "text": "    \"docs/runbooks/new.md\":\n      \"# Start\\n[own](#start)\\n[other](../../README.md#root)\\n```text\\nREADME.md#root\\n```\\n\",",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "    'tools/new.js': '// README.md#caf%C3%A9--tea\\nconst message = \"README.md#root-1\";\\n',",
+    "text": "\"tools/new.js\": '// README.md#caf%C3%A9--tea\\nconst message = \"README.md#root-1\";\\n',",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "  const workspace = fixture(t, { 'README.md': '# Root\\n[bad](missing.md#absent)\\n[bad](#absent)\\n[bad](#%ZZ)\\n[bad](../outside.md#heading)\\n' });",
+    "text": "  const workspace = fixture(t, {\n    \"README.md\":\n      \"# Root\\n[bad](missing.md#absent)\\n[bad](#absent)\\n[bad](#%ZZ)\\n[bad](../outside.md#heading)\\n\",\n  });",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "    'README.md': 'candidate/profile.md#profile\\n[profile](candidate/profile.md#profile)\\n',",
+    "text": "\"README.md\": \"candidate/profile.md#profile\\n[profile](candidate/profile.md#profile)\\n\",",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "  const workspace = fixture(t, { 'README.md': 'section 4\\nsection 5\\n' });",
+    "text": "const workspace = fixture(t, { \"README.md\": \"section 4\\nsection 5\\n\" });",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "  const exception = { file: 'README.md', text: 'section 4', count: 1, reason: 'negative syntax example' };",
+    "text": "  const exception = {\n    file: \"README.md\",\n    text: \"section 4\",\n    count: 1,\n    reason: \"negative syntax example\",\n  };",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "  for (const text of ['', 'section 4\\nsection 4\\n']) {",
+    "text": "for (const text of [\"\", \"section 4\\nsection 4\\n\"]) {",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "  const workspace = fixture(t, { 'README.md': '# Root\\n', 'tests/new.mjs': 'const pin = \"[root](#root)\";\\n' });",
+    "text": "  const workspace = fixture(t, {\n    \"README.md\": \"# Root\\n\",\n    \"tests/new.mjs\": 'const pin = \"[root](#root)\";\\n',\n  });",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
   {
     "file": "tests/section-links.test.mjs",
-    "text": "  const exception = { file: 'tests/new.mjs', text: '[root](#root)', count: 1, reason: 'quoted document pin', document: 'README.md' };",
+    "text": "  const exception = {\n    file: \"tests/new.mjs\",\n    text: \"[root](#root)\",\n    count: 1,\n    reason: \"quoted document pin\",\n    document: \"README.md\",\n  };",
     "count": 1,
     "reason": "Synthetic section-link checker input or expected fixture pin."
   },
@@ -342,7 +342,7 @@
   },
   {
     "file": "tools/candidate/manifest.mjs",
-    "text": "const SECTION_NUMBER = /§|(?<![\\p{L}\\p{N}_-])(?:(?:sub)?sections?\\s+|secs?\\.\\s*|(?:под)?раздел\\p{L}*\\s+)\\d/giu;",
+    "text": "const SECTION_NUMBER =\n  /§|(?<![\\p{L}\\p{N}_-])(?:(?:sub)?sections?\\s+|secs?\\.\\s*|(?:под)?раздел\\p{L}*\\s+)\\d/giu;",
     "count": 1,
     "reason": "The number scanner defines and documents the forbidden section sign."
   },
@@ -366,31 +366,31 @@
   },
   {
     "file": "tests/public-links.test.mjs",
-    "text": " const root=tree(t,{\"README.md\":\"[ADR](docs/adr/a.md#heading)\\n[space](docs/with%20space.md)\\n[ref]: docs/adr/a.md#heading\\n[web](https://example.org/missing)\\n\",\"docs/adr/a.md\":\"# Heading\\n\",\"docs/with space.md\":\"# Space\\n\"});",
+    "text": "  const root = tree(t, {\n    \"README.md\":\n      \"[ADR](docs/adr/a.md#heading)\\n[space](docs/with%20space.md)\\n[ref]: docs/adr/a.md#heading\\n[web](https://example.org/missing)\\n\",\n    \"docs/adr/a.md\": \"# Heading\\n\",\n    \"docs/with space.md\": \"# Space\\n\",\n  });",
     "count": 1,
     "reason": "Synthetic local-link checker fixture, validated in its disposable root."
   },
   {
     "file": "tests/public-links.test.mjs",
-    "text": " writeFileSync(join(root,\"docs/adr/a.md\"),\"# Renamed\\n[missing](absent.md)\\n\");",
+    "text": "writeFileSync(join(root, \"docs/adr/a.md\"), \"# Renamed\\n[missing](absent.md)\\n\");",
     "count": 1,
     "reason": "Synthetic local-link checker fixture, validated in its disposable root."
   },
   {
     "file": "tests/public-links.test.mjs",
-    "text": " const root=tree(t,{\"README.md\":\"[private](private/a.md)\\n[missing](absent.md)\\n[escape](../a.md)\\n[encoding](%XX.md)\\n[heading](#missing)\\n\",\"private/a.md\":\"# Private\\n\"});",
+    "text": "  const root = tree(t, {\n    \"README.md\":\n      \"[private](private/a.md)\\n[missing](absent.md)\\n[escape](../a.md)\\n[encoding](%XX.md)\\n[heading](#missing)\\n\",\n    \"private/a.md\": \"# Private\\n\",\n  });",
     "count": 1,
     "reason": "Synthetic local-link checker fixture, validated in its disposable root."
   },
   {
     "file": "tests/public-links.test.mjs",
-    "text": " const root=tree(t,{\"README.md\":\"[layer](candidate/profile.md#profile)\\n\",\"candidate.example/profile.md\":\"# Profile\\n\",\"candidate/profile.md\":\"# Wrong\\n\"});",
+    "text": "  const root = tree(t, {\n    \"README.md\": \"[layer](candidate/profile.md#profile)\\n\",\n    \"candidate.example/profile.md\": \"# Profile\\n\",\n    \"candidate/profile.md\": \"# Wrong\\n\",\n  });",
     "count": 1,
     "reason": "Synthetic local-link checker fixture, validated in its disposable root."
   },
   {
     "file": "tests/public-links.test.mjs",
-    "text": " const root=tree(t,{\"README.md\":\"[link](alias.md)\\n\",\"target.md\":\"# Heading\\n\"});symlinkSync(\"target.md\",join(root,\"alias.md\"));",
+    "text": "  const root = tree(t, { \"README.md\": \"[link](alias.md)\\n\", \"target.md\": \"# Heading\\n\" });\n  symlinkSync(\"target.md\", join(root, \"alias.md\"));",
     "count": 1,
     "reason": "Synthetic local-link checker fixture, validated in its disposable root."
   }

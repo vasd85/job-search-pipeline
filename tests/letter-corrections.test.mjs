@@ -719,7 +719,7 @@ test("the class codes and the refusal codes match the README, in both directions
   // into the public README instead, and the two lists are frozen against each other here - a code
   // without a line, or a line without a code, is a defect either way round.
   const readme = readFileSync(join(repoRoot, "tools/letter-corrections/README.md"), "utf8");
-  const documented = [...readme.matchAll(/^\| `(class-\d+)` \| /gmu)].map((match) => match[1]);
+  const documented = [...readme.matchAll(/^\|\s+`(class-\d+)`\s+\| /gmu)].map((match) => match[1]);
   assert.equal(documented.length, 11);
   assert.deepEqual([...CLASS_CODES].sort(), [...documented].sort());
 

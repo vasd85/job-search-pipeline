@@ -2290,7 +2290,7 @@ test("the tool README states the same numbers the code enforces", () => {
     "| `--max-redirects` | `5` |",
     "| `--on-rate-limit` | `stop` |",
   ]) {
-    assert.ok(readme.includes(claim), claim);
+    assert.ok(flat.includes(claim), claim);
   }
   assert.equal(transportDefaults.timeoutMs, 20_000);
   assert.equal(transportDefaults.maxBytes, 5_242_880);

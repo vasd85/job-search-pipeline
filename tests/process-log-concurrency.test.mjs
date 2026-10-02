@@ -1973,7 +1973,7 @@ test("legacy and stale lock recovery compare exact device and inode identity", (
   const source = readFileSync(resolve(repoRoot, "tools/lib/process-log-core.mjs"), "utf8");
   assert.match(
     source,
-    /return left\.stats\.dev === right\.stats\.dev\s*&& left\.stats\.ino === right\.stats\.ino/,
+    /return\s+\(?\s*left\.stats\.dev === right\.stats\.dev\s*&&\s*left\.stats\.ino === right\.stats\.ino/,
   );
   assert.match(
     source,

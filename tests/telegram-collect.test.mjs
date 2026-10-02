@@ -4451,7 +4451,7 @@ test("every bounded code a collector module can fail with is in the error list",
   const dir = join(repoRoot, "tools", "telegram-collect");
   const used = new Set();
   for (const name of readdirSync(dir).filter((entry) => entry.endsWith(".mjs"))) {
-    for (const match of readFileSync(join(dir, name), "utf8").matchAll(/fail\("([a-z_]+)"/gu))
+    for (const match of readFileSync(join(dir, name), "utf8").matchAll(/fail\(\s*"([a-z_]+)"/gu))
       used.add(match[1]);
   }
   assert.deepEqual([...used].sort(), [...errorCodes].sort());

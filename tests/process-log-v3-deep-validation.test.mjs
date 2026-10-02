@@ -2643,7 +2643,7 @@ test("staging ownership and active-attempt guards route through all five steps",
   assert.match(ownershipOwner, /for \(const stepName of fileBackedStepNames\)/);
   assert.match(
     activeOwner,
-    /return fileBackedStepNames\.some\(\s*\(stepName\) => record\.steps\[stepName\]\.active_attempt !== null,\s*\);/,
+    /return fileBackedStepNames\.some\(\s*\(stepName\) => record\.steps\[stepName\]\.active_attempt !== null,?\s*\);/,
   );
   for (const stepName of EXPECTED_FILE_BACKED_STEP_NAMES) {
     assert.doesNotMatch(ownershipOwner, new RegExp(`\\b${stepName}\\b`));
