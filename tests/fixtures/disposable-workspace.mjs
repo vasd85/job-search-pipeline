@@ -79,12 +79,20 @@ function inspectDirectory(path, code, message) {
   return stats;
 }
 
-function inspectRegularFile(path, code, message, { singleLink = false } = {}) {
+function inspectRegularFile(path, code, message, {
+  singleLink = false,
+  resampleUnlinked = false,
+} = {}) {
   let stats;
-  try {
-    stats = lstatSync(path);
-  } catch {
-    fail(code, message);
+  for (let sample = 0; sample < (resampleUnlinked ? 4 : 1); sample += 1) {
+    try {
+      stats = lstatSync(path);
+    } catch {
+      fail(code, message);
+    }
+    // An atomic ledger replacement can unlink the inode lstat just looked up.
+    // Resample that transient snapshot; never accept a zero-link file itself.
+    if (!stats.isFile() || stats.isSymbolicLink() || stats.nlink !== 0) break;
   }
   if (
     stats.isSymbolicLink()
@@ -238,7 +246,7 @@ export function assertDisposableWorkspace(
       ledgerPath,
       "invalid_disposable_ledger",
       "disposable ledger must be a single-link regular file",
-      { singleLink: true },
+      { singleLink: true, resampleUnlinked: true },
     );
     assertRealPath(
       ledgerPath,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import {
+import fileSystem, {
   copyFileSync,
   existsSync,
   linkSync,
@@ -8,11 +8,13 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,6 +42,68 @@ function emptyLog() {
     processes: [],
   };
 }
+
+test("ledger inspection resamples an unlinked inode during atomic replacement", (t) => {
+  const environment = createDisposableWorkspace(t, { ledger: emptyLog() });
+  const originalLstat = fileSystem.lstatSync;
+  let samples = 0;
+  let replacedInode;
+  const mocked = t.mock.method(fileSystem, "lstatSync", (path, ...args) => {
+    const stats = originalLstat(path, ...args);
+    if (path !== environment.ledgerPath || ++samples !== 1) return stats;
+    replacedInode = stats.ino;
+    const replacement = `${path}.replacement`;
+    writeFileSync(replacement, readFileSync(path));
+    renameSync(replacement, path);
+    // lstat can sample the old inode after rename has unlinked it.
+    return Object.assign(Object.create(stats), { nlink: 0 });
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.equal(assertDisposableWorkspace(environment), environment);
+    assert.equal(samples, 2);
+    assert.notEqual(originalLstat(environment.ledgerPath).ino, replacedInode);
+  } finally {
+    mocked.mock.restore();
+    syncBuiltinESMExports();
+  }
+});
+
+test("ledger metadata retries remain bounded and reject unsafe replacements", async (t) => {
+  for (const kind of ["persistent-zero", "hardlink", "symlink", "marker-zero"]) {
+    await t.test(kind, (t) => {
+      const environment = createDisposableWorkspace(t, { ledger: emptyLog() });
+      const target = kind === "marker-zero"
+        ? join(environment.workspaceRoot, disposableMarkerFileName)
+        : environment.ledgerPath;
+      const originalLstat = fileSystem.lstatSync;
+      let samples = 0;
+      const mocked = t.mock.method(fileSystem, "lstatSync", (path, ...args) => {
+        const stats = originalLstat(path, ...args);
+        if (path !== target) return stats;
+        samples += 1;
+        if (samples === 1 || kind === "persistent-zero") {
+          if (kind === "hardlink") linkSync(path, `${path}.alias`);
+          if (kind === "symlink") {
+            renameSync(path, `${path}.original`);
+            symlinkSync(`${path}.original`, path);
+          }
+          return Object.assign(Object.create(stats), { nlink: 0 });
+        }
+        return stats;
+      });
+      syncBuiltinESMExports();
+      try {
+        assert.throws(() => assertDisposableWorkspace(environment), (error) =>
+          error.code === (kind === "marker-zero" ? "invalid_disposable_marker" : "invalid_disposable_ledger"));
+        assert.equal(samples, kind === "persistent-zero" ? 4 : kind === "marker-zero" ? 1 : 2);
+      } finally {
+        mocked.mock.restore();
+        syncBuiltinESMExports();
+      }
+    });
+  }
+});
 
 test("CLI child rejects an unmarked synthetic root before mutation", (t) => {
   const workspaceRoot = mkdtempSync(join(tmpdir(), "disposable-root-red-"));

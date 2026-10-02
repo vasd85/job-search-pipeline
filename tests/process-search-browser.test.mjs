@@ -138,10 +138,10 @@ async function waitForDevTools(profilePath, child, { timeoutMs = 10_000 } = {}) 
     let executable = child.spawnfile;
     try { executable = realpathSync(executable); } catch { /* Keep the attempted executable. */ }
     return new Error(
-    `${message}; exit code: ${child.exitCode}; signal: ${child.signalCode}`
-      + `; executable: ${executable}; pid: ${child.pid ?? "<none>"}`
-      + `; process state: ${browserProcessState(child)}`
-      + `; stderr${truncated ? " (tail)" : ""}: ${stderr.trim() || "<empty>"}`,
+      `${message}; exit code: ${child.exitCode}; signal: ${child.signalCode}`
+        + `; executable: ${executable}; pid: ${child.pid ?? "<none>"}`
+        + `; process state: ${browserProcessState(child)}`
+        + `; stderr${truncated ? " (tail)" : ""}: ${stderr.trim() || "<empty>"}`,
     );
   };
   const activePortPath = join(profilePath, "DevToolsActivePort");
