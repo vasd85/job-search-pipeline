@@ -530,6 +530,10 @@ function formatStage(context) {
     command: "git",
     env,
   });
+  runStep(context, {
+    args: [join("tools", "format.mjs"), "--check"],
+    command: process.execPath,
+  });
 }
 
 /**

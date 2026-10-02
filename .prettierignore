@@ -1,0 +1,15 @@
+# Byte-sensitive samples, negative cases, and fixtures with recorded digests.
+**/fixtures/**
+
+# Candidate example bytes are referenced by fixtures and language pins.
+candidate.example/**
+
+# Generated runtime proxies: update with tools/sync-agent-proxies.mjs.
+.agents/**
+.claude/skills/**
+.claude/agents/**
+AGENTS.md
+CLAUDE.md
+
+# npm owns the lockfile serialization.
+**/package-lock.json

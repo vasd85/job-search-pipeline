@@ -18,12 +18,14 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { formatTrackedFiles } from "../tools/format.mjs";
 import {
   CI_STAGES,
   CiError,
@@ -566,6 +568,8 @@ test("every stage executes its exact argv in order", (t) => {
     && entry.command === "git")) {
     assert.equal(call.options.env.GIT_ATTR_NOSYSTEM, "1");
   }
+
+  assert.ok(commands.some((command) => command.endsWith("tools/format.mjs --check")));
 
   const suiteCalls = driven.calls.filter((call) => call.args[0] === "--test");
   const fullCall = suiteCalls.find((call) => call.args[1] !== "--test-concurrency=1"
@@ -1407,6 +1411,7 @@ test("the format stage fails on committed whitespace errors", (t) => {
     const result = spawnSync("git", args, { cwd: fixtureRoot, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
   };
+  prepareFormatFixture(fixtureRoot);
   git("init", "--quiet", ".");
   git("config", "user.email", "ci@example.invalid");
   git("config", "user.name", "ci");
@@ -1630,4 +1635,102 @@ test("blocking publishability refuses findings and absent tracked files even on 
   for (const detail of [{ places_exported: 1 }, { absent: 1 }]) {
     assert.throws(() => runStages({ workspaceRoot: repoRoot, stageIds: ["publishability"], spawn: () => ({ status: 0, stdout: JSON.stringify({ by_class: {}, ...detail }) }) }), e => e.code === "ci_publishability_findings");
   }
+});
+
+
+// A copied CLI in a disposable repository resolves the installed formatter
+// dependency through a read-only link; every source write stays in the fixture.
+function prepareFormatFixture(root) {
+  mkdirSync(join(root, "tools"), { recursive: true });
+  writeFileSync(join(root, "tools", "format.mjs"), read(join(repoRoot, "tools", "format.mjs")));
+  writeFileSync(join(root, ".prettierrc.json"), read(join(repoRoot, ".prettierrc.json")));
+  writeFileSync(join(root, ".prettierignore"), read(join(repoRoot, ".prettierignore")));
+  symlinkSync(join(repoRoot, "node_modules"), join(root, "node_modules"), "dir");
+}
+
+function formatterFixture(t) {
+  const root = mkdtempSync(join(realpathSync(tmpdir()), "job-search-prettier-"));
+  t.after(() => rmSync(root, { force: true, recursive: true }));
+  prepareFormatFixture(root);
+  const git = (...args) => {
+    const result = spawnSync("git", args, {
+      cwd: root, encoding: "utf8", env: childEnvironment(process.env), shell: false,
+    });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  git("init", "--quiet", ".");
+  git("config", "user.email", "formatter@example.invalid");
+  git("config", "user.name", "formatter");
+  return { root, git };
+}
+
+test("tracked formatter includes dotfiles, preserves exclusions and ignores untracked files", async (t) => {
+  const { root, git } = formatterFixture(t);
+  const samples = {
+    "code.mjs": "const value={answer:42};\n",
+    "a space.md": "| A | B |\n| --- | --- |\n| small | larger |\n",
+    ".settings.json": '{"a":1}\n',
+    "tools/fixtures/sample.json": '{"a":1}\n',
+    "candidate.example/config.json": '{"a":1}\n',
+    ".agents/skills/example/SKILL.md": "*example*\n",
+    ".claude/agents/example.md": "*example*\n",
+    ".claude/skills/example/SKILL.md": "*example*\n",
+    "AGENTS.md": "*example*\n",
+    "CLAUDE.md": "*example*\n",
+    "package-lock.json": '{"a":1}\n',
+    "plain.txt": "plain text\n",
+  };
+  for (const [name, source] of Object.entries(samples)) {
+    mkdirSync(dirname(join(root, name)), { recursive: true });
+    writeFileSync(join(root, name), source);
+  }
+  git("add", "--", ...Object.keys(samples));
+  writeFileSync(join(root, "untracked.js"), "const untouched={a:1};\n");
+  const before = await formatTrackedFiles({ root });
+  assert.deepEqual(before.changed.sort(), [".settings.json", "a space.md", "code.mjs"]);
+  assert.equal(before.checked, 3);
+  assert.equal(before.ignored, 8);
+  assert.equal(before.unsupported, 1);
+  assert.equal(read(join(root, "code.mjs")), samples["code.mjs"], "check never writes");
+  const written = await formatTrackedFiles({ root, write: true });
+  assert.deepEqual(written, before);
+  assert.deepEqual((await formatTrackedFiles({ root })).changed, []);
+  for (const name of Object.keys(samples).filter((name) => !before.changed.includes(name))) {
+    assert.equal(read(join(root, name)), samples[name], name);
+  }
+  assert.equal(read(join(root, "untracked.js")), "const untouched={a:1};\n");
+});
+
+test("format CI rejects clean-whitespace code until Prettier formats it", async (t) => {
+  const { root, git } = formatterFixture(t);
+  writeFileSync(join(root, "code.mjs"), "const value={answer:42};\n");
+  git("add", "code.mjs");
+  git("commit", "--quiet", "-m", "unformatted code");
+  const run = () => runStages({
+    environment: childEnvironment(process.env), spawn: spawnSync,
+    stageIds: ["format"], workspaceRoot: root,
+  });
+  assert.throws(run, (error) => error.code === "ci_step_failed" && error.stage === "format");
+  await formatTrackedFiles({ root, write: true });
+  git("add", "code.mjs");
+  git("commit", "--quiet", "-m", "formatted code");
+  assert.deepEqual(run(), [{ stage: "format", status: "passed" }]);
+});
+
+test("formatter CLI refuses bad arguments, parse errors and absent git inventory", (t) => {
+  const { root, git } = formatterFixture(t);
+  const cli = (argv) => spawnSync(process.execPath, [join(root, "tools", "format.mjs"), ...argv], {
+    cwd: root, encoding: "utf8", env: childEnvironment(process.env), shell: false,
+  });
+  for (const argv of [[], ["--unknown"], ["--write", "--check"]]) {
+    assert.equal(cli(argv).status, 1);
+  }
+  writeFileSync(join(root, "broken.json"), "{broken\n");
+  git("add", "broken.json");
+  assert.equal(cli(["--check"]).status, 1);
+  writeFileSync(join(root, "broken.json"), '{}\n');
+  writeFileSync(join(root, ".prettierrc.json"), "{broken\n");
+  assert.equal(cli(["--check"]).status, 1);
+  rmSync(join(root, ".git"), { recursive: true });
+  assert.equal(cli(["--write"]).status, 1);
 });

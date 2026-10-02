@@ -28,6 +28,11 @@
     "proxies:check": "node tools/sync-agent-proxies.mjs --check",
     "publishability": "node tools/publishability/cli.mjs",
     "records:import": "node tools/letter-corrections/import.mjs",
-    "telegram:collect": "node tools/telegram-collect/cli.mjs"
+    "telegram:collect": "node tools/telegram-collect/cli.mjs",
+    "format": "node tools/format.mjs --write",
+    "format:check": "node tools/format.mjs --check"
+  },
+  "devDependencies": {
+    "prettier": "3.9.9"
   }
 }

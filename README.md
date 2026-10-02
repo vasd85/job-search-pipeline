@@ -206,3 +206,25 @@ outside the gate.
 
 No license has been selected. This is a deliberate deferred decision; outside pull requests are
 not accepted until it is made.
+
+## Formatting
+
+Run `npm run format` to format tracked files and `npm run format:check` to check them.
+The `format` CI stage checks Prettier as well as whitespace. Prettier is pinned in the root
+lockfile; install it with `npm ci --ignore-scripts --no-audit --no-fund`.
+The shared configuration uses a width of 100, preserves prose wrapping, and leaves embedded
+code examples unchanged. The formatter infers supported file types, includes dotfiles, and
+never visits untracked operational or candidate files. `.prettierignore` documents every
+excluded family: byte-sensitive fixtures, the candidate example, generated runtime proxies,
+and npm-generated lockfiles. Regenerate proxies after changing their canonical instructions.
+
+The mechanical formatting commit is recorded in `.git-blame-ignore-revs`. To retain useful
+line authorship locally, run:
+
+```sh
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
+For a single invocation, use `git blame --ignore-revs-file .git-blame-ignore-revs <file>`.
+Configuration, tooling, and test corrections remain visible in blame; only mechanical
+formatting is ignored.
