@@ -60,9 +60,8 @@ function collectHeaders(headers) {
 }
 
 function charsetOf(contentType) {
-  const match = typeof contentType === "string"
-    ? contentType.match(/charset\s*=\s*"?([\w.:+-]+)"?/iu)
-    : null;
+  const match =
+    typeof contentType === "string" ? contentType.match(/charset\s*=\s*"?([\w.:+-]+)"?/iu) : null;
   return match ? match[1].toLowerCase() : null;
 }
 

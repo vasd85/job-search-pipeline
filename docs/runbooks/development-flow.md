@@ -144,12 +144,12 @@ so a pull request that changes it also changes a test and is full.
 - A task that changes only the private repository has no level. It has no working copy and no pull
   request; its private half follows [the private half of a task](#69-the-private-half-of-a-task).
 
-| Step | light | full |
-| --- | --- | --- |
-| Re-check of the filed task (6.3) | yes | yes |
-| Plan, plan review, start confirmation (6.4) | — | yes |
-| Working copy, pull request, server `gate` (6.5–6.8) | yes | yes |
-| Conditional steps (6.5) | — | when their condition holds |
+| Step                                                | light | full                       |
+| --------------------------------------------------- | ----- | -------------------------- |
+| Re-check of the filed task (6.3)                    | yes   | yes                        |
+| Plan, plan review, start confirmation (6.4)         | —     | yes                        |
+| Working copy, pull request, server `gate` (6.5–6.8) | yes   | yes                        |
+| Conditional steps (6.5)                             | —     | when their condition holds |
 
 The conditional steps never fire at the light level: every path they watch lies outside the light
 list.
@@ -444,6 +444,7 @@ layer.
   The folder takes only a pair of existing tags, so work that is not yet on `main` waits for its
   merge and a release; on the user's word a release tag for it can be set locally and not pushed.
   The task's claim records the `rehearsal` key.
+
 - **Label.** `<label>` names the folder and uses the batch-label alphabet: lowercase Latin letters,
   digits and hyphens, not starting with a hyphen, at most 64 characters
   ([tools/vacancy-fetch/README.md](../../tools/vacancy-fetch/README.md)). Each batch inside takes

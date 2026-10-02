@@ -176,9 +176,10 @@ try {
     commands[command](options);
   }
 } catch (error) {
-  const code = error instanceof TriageLedgerCliError || error instanceof TriageLedgerError
-    ? error.code
-    : "triage_ledger_cli_failed";
+  const code =
+    error instanceof TriageLedgerCliError || error instanceof TriageLedgerError
+      ? error.code
+      : "triage_ledger_cli_failed";
   console.error(JSON.stringify({ error: { code, message: error?.message ?? "unknown error" } }));
   process.exitCode = 1;
 }

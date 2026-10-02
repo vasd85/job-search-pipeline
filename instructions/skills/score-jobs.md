@@ -479,6 +479,7 @@ extend the stage with a second classifier.
    Publish the composition report once the header facts are in and before the descriptions are read.
    A link pre-triage disposed of as `terminal_gone` takes its one closure quote and
    `liveness.mjs#goneScorerSource`, and is scored without being read further.
+
 3. **Phase B**, over the candidate subset only, under the presence rule above.
 4. **Score.** Construct only the explicit normalized facts required by the scorer contract, pass
    that object to the pure scorer, and emit its resulting Decision Trace without recalculating or

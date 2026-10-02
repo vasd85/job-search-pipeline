@@ -33,14 +33,19 @@ export function parseRoleWords(value, key) {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_ROLE_WORDS) {
     fail("config_invalid", `${key} must be a list of 1 to ${MAX_ROLE_WORDS} words.`);
   }
-  return Object.freeze(value.map((raw, index) => {
-    if (typeof raw !== "string" || !TOKEN.test(raw.normalize("NFKC"))) {
-      fail("config_invalid", `${key}[${index}] must be a word of letters and digits, optionally ending in *.`);
-    }
-    const token = raw.normalize("NFKC").toLowerCase();
-    const prefix = token.endsWith("*");
-    return Object.freeze({ word: prefix ? token.slice(0, -1) : token, prefix });
-  }));
+  return Object.freeze(
+    value.map((raw, index) => {
+      if (typeof raw !== "string" || !TOKEN.test(raw.normalize("NFKC"))) {
+        fail(
+          "config_invalid",
+          `${key}[${index}] must be a word of letters and digits, optionally ending in *.`,
+        );
+      }
+      const token = raw.normalize("NFKC").toLowerCase();
+      const prefix = token.endsWith("*");
+      return Object.freeze({ word: prefix ? token.slice(0, -1) : token, prefix });
+    }),
+  );
 }
 
 /** Parse the config's résumé hints; refusals name the index, never the value. The list may be empty. */
@@ -48,13 +53,18 @@ export function parseResumeHints(value, key) {
   if (!Array.isArray(value) || value.length > MAX_RESUME_HINTS) {
     fail("config_invalid", `${key} must be a list of at most ${MAX_RESUME_HINTS} hints.`);
   }
-  return Object.freeze(value.map((raw, index) => {
-    const hint = typeof raw === "string" ? normalizeLine(raw) : "";
-    if (!LETTER_OR_DIGIT.test(hint) || [...hint].length > MAX_RESUME_HINT_LENGTH) {
-      fail("config_invalid", `${key}[${index}] must be a tag or a phrase of at most ${MAX_RESUME_HINT_LENGTH} characters with a letter or a digit.`);
-    }
-    return hint;
-  }));
+  return Object.freeze(
+    value.map((raw, index) => {
+      const hint = typeof raw === "string" ? normalizeLine(raw) : "";
+      if (!LETTER_OR_DIGIT.test(hint) || [...hint].length > MAX_RESUME_HINT_LENGTH) {
+        fail(
+          "config_invalid",
+          `${key}[${index}] must be a tag or a phrase of at most ${MAX_RESUME_HINT_LENGTH} characters with a letter or a digit.`,
+        );
+      }
+      return hint;
+    }),
+  );
 }
 
 // `\b` knows ASCII only, so a hint's end is spelled out as "no letter or digit follows".
@@ -102,13 +112,18 @@ export function headLineNumbers(post) {
 
 /** Is a post of a general source a candidate: a role word anywhere in its text or in an anchor text. */
 export function isCandidate(post, entries, tokens) {
-  return post.lines.some((line) => matchingToken(line, tokens) !== null)
-    || entries.some((entry) => matchingToken(entry.anchorText ?? "", tokens) !== null);
+  return (
+    post.lines.some((line) => matchingToken(line, tokens) !== null) ||
+    entries.some((entry) => matchingToken(entry.anchorText ?? "", tokens) !== null)
+  );
 }
 
 /** The résumé hint for the report: a hint of the config in the first six lines. Removes nothing. */
 export function resumeHint(post, hints) {
-  const head = numberedLines(post).slice(0, RESUME_HINT_LINES).map((line) => normalizeLine(line.text)).join("\n");
+  const head = numberedLines(post)
+    .slice(0, RESUME_HINT_LINES)
+    .map((line) => normalizeLine(line.text))
+    .join("\n");
   return hints.some((hint) => containsHint(head, hint));
 }
 
@@ -122,7 +137,12 @@ export function resumeHint(post, hints) {
  * is hashtags and nothing else is not read: inside a post where the reader found a vacancy, a tag
  * row is not a second vacancy it missed. Each place is reported once, in line order.
  */
-export function strongHits(post, entries, tokens, { citedLines = new Set(), citedEntries = new Set(), skipTagRows = false } = {}) {
+export function strongHits(
+  post,
+  entries,
+  tokens,
+  { citedLines = new Set(), citedEntries = new Set(), skipTagRows = false } = {},
+) {
   const lines = numberedLines(post);
   const byLineIndex = new Map(lines.map((line) => [line.lineIndex, line]));
   const hits = [];
@@ -149,7 +169,8 @@ export function strongHits(post, entries, tokens, { citedLines = new Set(), cite
         return;
       }
     }
-    if (line !== undefined) lineHit(line, contact && text.length > 0 ? line.text.split(text).join(" ") : line.text);
+    if (line !== undefined)
+      lineHit(line, contact && text.length > 0 ? line.text.split(text).join(" ") : line.text);
   });
   for (const n of headLineNumbers(post)) lineHit(lines[n - 1]);
   return hits.sort((a, b) => (a.n ?? Number.MAX_SAFE_INTEGER) - (b.n ?? Number.MAX_SAFE_INTEGER));

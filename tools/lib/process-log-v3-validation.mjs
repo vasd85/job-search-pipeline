@@ -35,11 +35,14 @@ export class ProcessLogV3ValidationError extends Error {
 class TrustedProcessLogV3ValidationError extends ProcessLogV3ValidationError {
   constructor(errors) {
     super(errors);
-    trustedValidationErrorEvidence.set(this, Object.freeze({
-      code: this.code,
-      context: this.context,
-      recoveryAction: this.recoveryAction,
-    }));
+    trustedValidationErrorEvidence.set(
+      this,
+      Object.freeze({
+        code: this.code,
+        context: this.context,
+        recoveryAction: this.recoveryAction,
+      }),
+    );
   }
 }
 
@@ -73,10 +76,7 @@ export const fileBackedStepStates = Object.freeze([
   "stale",
 ]);
 
-export const fileBackedMaterialStepNames = Object.freeze([
-  "generate_cv",
-  "write_cover_letter",
-]);
+export const fileBackedMaterialStepNames = Object.freeze(["generate_cv", "write_cover_letter"]);
 
 export const fileBackedRevisionChannels = Object.freeze([
   "chat_command",
@@ -90,16 +90,18 @@ export const fileBackedWaiverStatuses = Object.freeze(["active", "superseded"]);
 
 export const fileBackedAttemptOperations = Object.freeze(["reopen", "retry", "revise"]);
 
-export const fileBackedAdoptionPhases = Object.freeze([
-  "journaled",
-  "staged",
-  "archived",
-]);
+export const fileBackedAdoptionPhases = Object.freeze(["journaled", "staged", "archived"]);
 
 export const PROCESS_LOG_WAIVER_KEY_MAX_BYTES = processLogDiagnosticLimits.detailMaxBytes;
 export const PROCESS_LOG_WAIVER_NOTE_MAX_BYTES = processLogDiagnosticLimits.messageMaxBytes;
 
-const TOP_LEVEL_KEYS = ["schema_version", "duplicate_policy", "updated_at", "companies", "processes"];
+const TOP_LEVEL_KEYS = [
+  "schema_version",
+  "duplicate_policy",
+  "updated_at",
+  "companies",
+  "processes",
+];
 const COMPANY_KEYS = ["id", "display_name", "search_terms", "domains"];
 const HISTORICAL_PROCESS_KEYS = [
   "id",
@@ -182,14 +184,7 @@ const WAIVER_KEYS = ["id", "created_at", "brief_digest", "subject", "status", "n
 const PENDING_WAIVER_KEYS = ["id", "brief_digest", "subject", "note"];
 const WAIVER_SUBJECT_KEYS = ["kind", "key"];
 const OPEN_CONFLICT_KEYS = ["subject", "code"];
-const ADOPTION_BASE_KEYS = [
-  "id",
-  "created_at",
-  "attempt_id",
-  "publication_id",
-  "phase",
-  "entries",
-];
+const ADOPTION_BASE_KEYS = ["id", "created_at", "attempt_id", "publication_id", "phase", "entries"];
 const ADOPTION_ENTRY_KEYS = ["kind", "sha256", "bytes"];
 const DIAGNOSTIC_KEYS = ["code", "message", "at", "retryable", "details"];
 const PUBLICATION_TRANSACTION_KEYS = [
@@ -204,12 +199,7 @@ const PUBLICATION_TRANSACTION_KEYS = [
   "blocker",
   "files",
 ];
-const PUBLICATION_FILE_KEYS = [
-  "kind",
-  "canonical_path",
-  "candidate_path",
-  "backup_path",
-];
+const PUBLICATION_FILE_KEYS = ["kind", "canonical_path", "candidate_path", "backup_path"];
 const ATTEMPT_OUTCOMES = ["completed", "blocked", "failed"];
 const PUBLICATION_OUTCOMES = ["completed", "blocked"];
 const STABLE_CODE_PATTERN = processLogStableDiagnosticCodePattern;
@@ -224,10 +214,7 @@ const stepArtifactContracts = Object.freeze({
     ["vacancy", { path: "vacancy.json", schemaVersion: 2 }],
   ]),
   research_company: new Map([
-    [
-      "company_research",
-      { path: "company-research.json", schemaVersion: 2 },
-    ],
+    ["company_research", { path: "company-research.json", schemaVersion: 2 }],
   ]),
   map_experience: new Map([
     ["application_brief", { path: "application-brief.json", schemaVersion: 4 }],
@@ -263,8 +250,9 @@ export function fileBackedArtifactSchemaVersionMayBecome(stepName, kind, fromVer
   const contract = stepArtifactContracts[stepName]?.get(kind);
   if (!contract) return fromVersion === toVersion;
   if (fromVersion === toVersion) return true;
-  return toVersion === contract.schemaVersion
-    && acceptedSchemaVersions(contract).includes(fromVersion);
+  return (
+    toVersion === contract.schemaVersion && acceptedSchemaVersions(contract).includes(fromVersion)
+  );
 }
 
 export function isValidProcessLogV3TransactionId(value) {
@@ -291,13 +279,8 @@ function validateStableCode(value, path, errors, { nullable = false } = {}) {
   if (code && !STABLE_CODE_PATTERN.test(code)) {
     errors.push(`${path} must be a lowercase snake_case stable code`);
   }
-  if (
-    code
-    && Buffer.byteLength(code, "utf8") > processLogDiagnosticLimits.codeMaxBytes
-  ) {
-    errors.push(
-      `${path} must be at most ${processLogDiagnosticLimits.codeMaxBytes} UTF-8 bytes`,
-    );
+  if (code && Buffer.byteLength(code, "utf8") > processLogDiagnosticLimits.codeMaxBytes) {
+    errors.push(`${path} must be at most ${processLogDiagnosticLimits.codeMaxBytes} UTF-8 bytes`);
   }
   return code;
 }
@@ -332,7 +315,11 @@ function validateBundleEntry(value, path, errors, { artifact = false, stepName =
   const entry = validateStrictObject(value, path, errors, BUNDLE_ENTRY_KEYS);
   const kind = validateKind(entry.kind, `${path}.kind`, errors);
   const entryPath = validateRepoRelativePath(entry.path, `${path}.path`, errors);
-  const schemaVersion = validateSchemaVersion(entry.schema_version, `${path}.schema_version`, errors);
+  const schemaVersion = validateSchemaVersion(
+    entry.schema_version,
+    `${path}.schema_version`,
+    errors,
+  );
   validateSha256(entry.sha256, `${path}.sha256`, errors);
   validateInteger(entry.bytes, `${path}.bytes`, errors, { min: 1 });
 
@@ -346,10 +333,10 @@ function validateBundleEntry(value, path, errors, { artifact = false, stepName =
       }
       if (kind === "cv_docx") {
         if (
-          typeof entryPath !== "string"
-          || entryPath.includes("/")
-          || entryPath.startsWith(".")
-          || !entryPath.endsWith(".docx")
+          typeof entryPath !== "string" ||
+          entryPath.includes("/") ||
+          entryPath.startsWith(".") ||
+          !entryPath.endsWith(".docx")
         ) {
           errors.push(`${path}.path must be a non-hidden .docx basename for cv_docx`);
         }
@@ -443,8 +430,9 @@ function validateWaiverKeyText(value, path, errors) {
   const text = validateString(value, path, errors);
   if (typeof text !== "string" || text.length === 0) return text;
   errors.push(
-    ...processLogDiagnosticProblems({ code: "waiver", details: [text] }, path)
-      .map((problem) => problem.replace(`${path}.details[0]`, path)),
+    ...processLogDiagnosticProblems({ code: "waiver", details: [text] }, path).map((problem) =>
+      problem.replace(`${path}.details[0]`, path),
+    ),
   );
   return text;
 }
@@ -453,8 +441,9 @@ function validateWaiverNoteText(value, path, errors) {
   const text = validateString(value, path, errors);
   if (typeof text !== "string" || text.length === 0) return text;
   errors.push(
-    ...processLogDiagnosticProblems({ code: "waiver", message: text }, path)
-      .map((problem) => problem.replace(`${path}.message`, path)),
+    ...processLogDiagnosticProblems({ code: "waiver", message: text }, path).map((problem) =>
+      problem.replace(`${path}.message`, path),
+    ),
   );
   return text;
 }
@@ -589,26 +578,16 @@ function validateAttemptHistory(value, path, errors, stepName) {
     if (material) {
       const revising = item.operation === "revise";
       if (hasOwn(item, "operation")) {
-        validateEnum(
-          item.operation,
-          `${itemPath}.operation`,
-          errors,
-          [...fileBackedAttemptOperations],
-        );
+        validateEnum(item.operation, `${itemPath}.operation`, errors, [
+          ...fileBackedAttemptOperations,
+        ]);
       }
       if (revising) {
-        validateEnum(
-          item.channel,
-          `${itemPath}.channel`,
-          errors,
-          [...fileBackedRevisionChannels],
-        );
-        validateEnum(
-          item.pre_attempt_state,
-          `${itemPath}.pre_attempt_state`,
-          errors,
-          ["completed", "stale"],
-        );
+        validateEnum(item.channel, `${itemPath}.channel`, errors, [...fileBackedRevisionChannels]);
+        validateEnum(item.pre_attempt_state, `${itemPath}.pre_attempt_state`, errors, [
+          "completed",
+          "stale",
+        ]);
         if (publicationId !== null && !hasOwn(item, "open_conflicts")) {
           errors.push(
             `${itemPath}.open_conflicts is required for a committed revision publication`,
@@ -626,9 +605,7 @@ function validateAttemptHistory(value, path, errors, stepName) {
       }
       if (hasOwn(item, "archived_artifacts")) {
         if (publicationId === null) {
-          errors.push(
-            `${itemPath}.archived_artifacts requires a committed publication`,
-          );
+          errors.push(`${itemPath}.archived_artifacts requires a committed publication`);
         }
         const archived = validateBundleEntries(
           item.archived_artifacts,
@@ -636,12 +613,7 @@ function validateAttemptHistory(value, path, errors, stepName) {
           errors,
           { artifact: true, stepName },
         );
-        validateCompleteArtifactSet(
-          archived,
-          `${itemPath}.archived_artifacts`,
-          errors,
-          stepName,
-        );
+        validateCompleteArtifactSet(archived, `${itemPath}.archived_artifacts`, errors, stepName);
       }
     }
   }
@@ -662,21 +634,14 @@ function validateActiveAttempt(value, path, errors, stepName) {
   validateBundleEntries(active.input_snapshot, `${path}.input_snapshot`, errors);
   if (material) {
     if (hasOwn(active, "operation")) {
-      validateEnum(
-        active.operation,
-        `${path}.operation`,
-        errors,
-        [...fileBackedAttemptOperations],
-      );
+      validateEnum(active.operation, `${path}.operation`, errors, [...fileBackedAttemptOperations]);
     }
     if (active.operation === "revise") {
       validateEnum(active.channel, `${path}.channel`, errors, [...fileBackedRevisionChannels]);
-      validateEnum(
-        active.pre_attempt_state,
-        `${path}.pre_attempt_state`,
-        errors,
-        ["completed", "stale"],
-      );
+      validateEnum(active.pre_attempt_state, `${path}.pre_attempt_state`, errors, [
+        "completed",
+        "stale",
+      ]);
       if (active.expected_revision === 0) {
         errors.push(`${path}.expected_revision must be at least 1 for a revision attempt`);
       }
@@ -703,20 +668,24 @@ function validatePublicationFile(value, path, errors, transactionId) {
   const file = validateStrictObject(value, path, errors, PUBLICATION_FILE_KEYS);
   validateKind(file.kind, `${path}.kind`, errors);
   validateRepoRelativePath(file.canonical_path, `${path}.canonical_path`, errors);
-  const candidatePath = validateRepoRelativePath(file.candidate_path, `${path}.candidate_path`, errors);
+  const candidatePath = validateRepoRelativePath(
+    file.candidate_path,
+    `${path}.candidate_path`,
+    errors,
+  );
   if (
-    transactionId
-    && typeof candidatePath === "string"
-    && !candidatePath.startsWith(`.pipeline-tmp/${transactionId}/`)
+    transactionId &&
+    typeof candidatePath === "string" &&
+    !candidatePath.startsWith(`.pipeline-tmp/${transactionId}/`)
   ) {
     errors.push(`${path}.candidate_path must belong to .pipeline-tmp/${transactionId}/`);
   }
   if (file.backup_path !== null) {
     const backupPath = validateRepoRelativePath(file.backup_path, `${path}.backup_path`, errors);
     if (
-      transactionId
-      && typeof backupPath === "string"
-      && !backupPath.startsWith(`.pipeline-tmp/${transactionId}/`)
+      transactionId &&
+      typeof backupPath === "string" &&
+      !backupPath.startsWith(`.pipeline-tmp/${transactionId}/`)
     ) {
       errors.push(`${path}.backup_path must belong to .pipeline-tmp/${transactionId}/`);
     }
@@ -839,12 +808,10 @@ function validateStep(value, path, errors, stepName) {
     `${path}.published_inputs`,
     errors,
   );
-  const artifacts = validateBundleEntries(
-    step.artifacts,
-    `${path}.artifacts`,
-    errors,
-    { artifact: true, stepName },
-  );
+  const artifacts = validateBundleEntries(step.artifacts, `${path}.artifacts`, errors, {
+    artifact: true,
+    stepName,
+  });
   const activeAttempt = validateActiveAttempt(
     step.active_attempt,
     `${path}.active_attempt`,
@@ -865,9 +832,10 @@ function validateStep(value, path, errors, stepName) {
   );
   const error = validateNullableDiagnostic(step.error, `${path}.error`, errors);
   const blocker = validateNullableDiagnostic(step.blocker, `${path}.blocker`, errors);
-  const waivers = material && hasOwn(step, "waivers")
-    ? validateWaivers(step.waivers, `${path}.waivers`, errors)
-    : [];
+  const waivers =
+    material && hasOwn(step, "waivers")
+      ? validateWaivers(step.waivers, `${path}.waivers`, errors)
+      : [];
   if (material && hasOwn(step, "adoption_base")) {
     validateAdoptionBase(step.adoption_base, `${path}.adoption_base`, errors, stepName);
   }
@@ -899,15 +867,15 @@ function validateStep(value, path, errors, stepName) {
       errors.push(`${path} pending state requires attempt 0 and revision 0`);
     }
     if (
-      step.started_at !== null
-      || step.updated_at !== null
-      || step.finished_at !== null
-      || activeAttempt !== null
-      || publicationTransaction !== null
-      || history.length > 0
-      || error !== null
-      || blocker !== null
-      || (material && (hasOwn(step, "waivers") || hasOwn(step, "adoption_base")))
+      step.started_at !== null ||
+      step.updated_at !== null ||
+      step.finished_at !== null ||
+      activeAttempt !== null ||
+      publicationTransaction !== null ||
+      history.length > 0 ||
+      error !== null ||
+      blocker !== null ||
+      (material && (hasOwn(step, "waivers") || hasOwn(step, "adoption_base")))
     ) {
       errors.push(`${path} pending state must be pristine`);
     }
@@ -938,14 +906,14 @@ function validateStep(value, path, errors, stepName) {
       errors.push(`${path}.publication_transaction.old_revision must match the active baseline`);
     }
     if (
-      bundleIdentity(publicationTransaction.old_artifacts)
-      !== bundleIdentity(activeAttempt.expected_artifacts)
+      bundleIdentity(publicationTransaction.old_artifacts) !==
+      bundleIdentity(activeAttempt.expected_artifacts)
     ) {
       errors.push(`${path}.publication_transaction.old_artifacts must match the active baseline`);
     }
     if (
-      bundleIdentity(publicationTransaction.input_snapshot)
-      !== bundleIdentity(activeAttempt.input_snapshot)
+      bundleIdentity(publicationTransaction.input_snapshot) !==
+      bundleIdentity(activeAttempt.input_snapshot)
     ) {
       errors.push(`${path}.publication_transaction.input_snapshot must match active_attempt`);
     }
@@ -997,19 +965,19 @@ function validateStep(value, path, errors, stepName) {
   // restored mark was `stale` can only reach `completed` through a publication, which would replace
   // this trailing entry.
   const restoredRevisionMark =
-    lastHistory?.outcome === "failed"
-    && lastHistory?.operation === "revise"
-    && (
-      (lastHistory.pre_attempt_state === "completed" && ["completed", "stale"].includes(state))
-      || (lastHistory.pre_attempt_state === "stale" && state === "stale")
-    )
-    && history.some((entry) => entry?.publication_id !== null);
+    lastHistory?.outcome === "failed" &&
+    lastHistory?.operation === "revise" &&
+    ((lastHistory.pre_attempt_state === "completed" && ["completed", "stale"].includes(state)) ||
+      (lastHistory.pre_attempt_state === "stale" && state === "stale")) &&
+    history.some((entry) => entry?.publication_id !== null);
   if (
-    expectedLastOutcome
-    && lastHistory?.outcome !== expectedLastOutcome
-    && !restoredRevisionMark
+    expectedLastOutcome &&
+    lastHistory?.outcome !== expectedLastOutcome &&
+    !restoredRevisionMark
   ) {
-    errors.push(`${path}.attempt_history must end with outcome ${expectedLastOutcome} for state ${state}`);
+    errors.push(
+      `${path}.attempt_history must end with outcome ${expectedLastOutcome} for state ${state}`,
+    );
   }
   if (state === "blocked" && blocker && lastHistory?.error_code !== blocker.code) {
     errors.push(`${path}.blocker.code must match the latest attempt_history error_code`);
@@ -1032,7 +1000,9 @@ function validateCompany(value, path, errors, dependencies) {
   const company = validateStrictObject(value, path, errors, COMPANY_KEYS);
   validateString(company.id, `${path}.id`, errors);
   const displayName = validateString(company.display_name, `${path}.display_name`, errors);
-  const terms = validateStringArray(company.search_terms, `${path}.search_terms`, errors, { min: 1 });
+  const terms = validateStringArray(company.search_terms, `${path}.search_terms`, errors, {
+    min: 1,
+  });
   const normalizedTerms = terms.map(dependencies.normalizeSearchText);
   if (normalizedTerms.some((term) => !term)) {
     errors.push(`${path}.search_terms contains an empty normalized term`);
@@ -1079,7 +1049,9 @@ function validateCommonProcessFields(record, path, errors, dependencies) {
 function validateHistoricalProcess(value, path, errors, dependencies) {
   const record = validateStrictObject(value, path, errors, HISTORICAL_PROCESS_KEYS);
   validateCommonProcessFields(record, path, errors, dependencies);
-  validateEnum(record.status, `${path}.status`, errors, [...dependencies.allowedHistoricalStatuses]);
+  validateEnum(record.status, `${path}.status`, errors, [
+    ...dependencies.allowedHistoricalStatuses,
+  ]);
   if (record.output_dir !== null) {
     try {
       dependencies.normalizeHistoricalOutputDir(record.output_dir);
@@ -1151,13 +1123,8 @@ function assertTimestampEqual(left, leftPath, right, rightPath, errors) {
 
 function validateTimestampCeiling(value, path, errors, nowMs) {
   const timestamp = parsedTimestamp(value);
-  if (
-    timestamp !== null
-    && timestamp > nowMs + PROCESS_LOG_FUTURE_SKEW_MS
-  ) {
-    errors.push(
-      `${path} must not be more than ${PROCESS_LOG_FUTURE_SKEW_MS} ms in the future`,
-    );
+  if (timestamp !== null && timestamp > nowMs + PROCESS_LOG_FUTURE_SKEW_MS) {
+    errors.push(`${path} must not be more than ${PROCESS_LOG_FUTURE_SKEW_MS} ms in the future`);
   }
 }
 
@@ -1166,11 +1133,7 @@ function validateDiagnosticChronology(diagnostic, path, errors, nowMs) {
   validateTimestampCeiling(diagnostic.at, `${path}.at`, errors, nowMs);
 }
 
-function validateStepChronology(step, path, errors, {
-  nowMs,
-  processStartedAt,
-  processUpdatedAt,
-}) {
+function validateStepChronology(step, path, errors, { nowMs, processStartedAt, processUpdatedAt }) {
   if (step === null || typeof step !== "object") return;
   for (const key of ["started_at", "updated_at", "finished_at"]) {
     if (step[key] !== null) {
@@ -1439,11 +1402,12 @@ function validateChronology(log, errors, nowMs) {
       });
       const step = record.steps?.[stepName];
       if (
-        step === null
-        || typeof step !== "object"
-        || step.started_at === null
-        || ["pending", "stale"].includes(step.state)
-      ) continue;
+        step === null ||
+        typeof step !== "object" ||
+        step.started_at === null ||
+        ["pending", "stale"].includes(step.state)
+      )
+        continue;
       for (const dependencyName of fileBackedStepDependencies[stepName]) {
         const dependency = record.steps?.[dependencyName];
         if (dependency?.state === "completed") {
@@ -1457,11 +1421,13 @@ function validateChronology(log, errors, nowMs) {
         } else {
           const stepStartMs = parsedTimestamp(step.started_at);
           const completedAttempt = Array.isArray(dependency?.attempt_history)
-            ? dependency.attempt_history.findLast((attempt) =>
-                attempt?.outcome === "completed"
-                && parsedTimestamp(attempt.finished_at) !== null
-                && stepStartMs !== null
-                && parsedTimestamp(attempt.finished_at) <= stepStartMs)
+            ? dependency.attempt_history.findLast(
+                (attempt) =>
+                  attempt?.outcome === "completed" &&
+                  parsedTimestamp(attempt.finished_at) !== null &&
+                  stepStartMs !== null &&
+                  parsedTimestamp(attempt.finished_at) <= stepStartMs,
+              )
             : null;
           if (!completedAttempt) {
             errors.push(
@@ -1475,11 +1441,7 @@ function validateChronology(log, errors, nowMs) {
 }
 
 export function classifyProcessRecord(value) {
-  if (
-    hasOwn(value, "artifact_mode")
-    || hasOwn(value, "steps")
-    || hasOwn(value, "updated_at")
-  ) {
+  if (hasOwn(value, "artifact_mode") || hasOwn(value, "steps") || hasOwn(value, "updated_at")) {
     return "file-backed";
   }
   return "historical";
@@ -1518,10 +1480,7 @@ export function outputDirEquivalenceKey(value) {
 function computedSourceKeyEntries(processes, computeSourceKey) {
   const entries = [];
   for (const record of processes) {
-    if (
-      typeof record?.source_key !== "string"
-      || typeof record?.source_ref !== "string"
-    ) {
+    if (typeof record?.source_key !== "string" || typeof record?.source_ref !== "string") {
       continue;
     }
     let computedSourceKey;
@@ -1549,9 +1508,7 @@ function groupByComputedSourceKey(entries) {
 export function duplicateSourceKeyGroupErrors(processes, computeSourceKey) {
   const entries = computedSourceKeyEntries(processes, computeSourceKey);
 
-  const storedKeyById = new Map(
-    entries.map(({ record }) => [record.id, record.source_key]),
-  );
+  const storedKeyById = new Map(entries.map(({ record }) => [record.id, record.source_key]));
   const groups = groupByComputedSourceKey(entries);
 
   const errors = [];
@@ -1559,10 +1516,10 @@ export function duplicateSourceKeyGroupErrors(processes, computeSourceKey) {
     if (group.length < 2) continue;
     const groupIds = new Set(group.map(({ record }) => record.id));
     for (const { record } of group.slice(1)) {
-      const linkedInsideGroup = Boolean(record.duplicate_of)
-        && groupIds.has(record.duplicate_of);
-      const linkedUnderStoredKey = Boolean(record.duplicate_of)
-        && storedKeyById.get(record.duplicate_of) === record.source_key;
+      const linkedInsideGroup = Boolean(record.duplicate_of) && groupIds.has(record.duplicate_of);
+      const linkedUnderStoredKey =
+        Boolean(record.duplicate_of) &&
+        storedKeyById.get(record.duplicate_of) === record.source_key;
       if (linkedInsideGroup || linkedUnderStoredKey) continue;
       errors.push(`duplicate source_key ${sourceKey} must be linked with duplicate_of`);
     }
@@ -1597,9 +1554,8 @@ export function duplicateLinkWriteError(
   } catch {
     return null;
   }
-  const index = recordId === null
-    ? processes.length
-    : processes.findIndex((record) => record?.id === recordId);
+  const index =
+    recordId === null ? processes.length : processes.findIndex((record) => record?.id === recordId);
   if (index === -1) return null;
 
   const entries = computedSourceKeyEntries(processes, computeSourceKey);
@@ -1612,22 +1568,26 @@ export function duplicateLinkWriteError(
 
   const allowedIds = peers.map(({ record }) => record.id).sort();
   if (duplicateOf !== null && allowedIds.includes(duplicateOf)) return null;
-  return `a record sharing source_key ${computedSourceKey} with an earlier process must name one of `
-    + `${allowedIds.join(", ")} as duplicate_of`;
+  return (
+    `a record sharing source_key ${computedSourceKey} with an earlier process must name one of ` +
+    `${allowedIds.join(", ")} as duplicate_of`
+  );
 }
 
 function validateCrossReferences(log, errors, dependencies) {
   const companyIds = new Set();
   for (const [index, company] of log.companies.entries()) {
     if (typeof company?.id !== "string") continue;
-    if (companyIds.has(company.id)) errors.push(`companies[${index}].id is duplicated: ${company.id}`);
+    if (companyIds.has(company.id))
+      errors.push(`companies[${index}].id is duplicated: ${company.id}`);
     companyIds.add(company.id);
   }
 
   const processIds = new Set();
   for (const [index, record] of log.processes.entries()) {
     if (typeof record?.id !== "string") continue;
-    if (processIds.has(record.id)) errors.push(`processes[${index}].id is duplicated: ${record.id}`);
+    if (processIds.has(record.id))
+      errors.push(`processes[${index}].id is duplicated: ${record.id}`);
     processIds.add(record.id);
     if (record.company_id !== null && !companyIds.has(record.company_id)) {
       errors.push(`processes[${index}].company_id references an unknown company`);
@@ -1654,23 +1614,24 @@ function validateCrossReferences(log, errors, dependencies) {
     for (const stepName of fileBackedStepNames) {
       const step = record.steps?.[stepName];
       const candidates = [
-        ...(step?.attempt_history ?? [])
-          .map((entry, historyIndex) => ({
-            id: entry?.publication_id,
-            path: `processes[${processIndex}].steps.${stepName}.attempt_history[${historyIndex}].publication_id`,
-          })),
+        ...(step?.attempt_history ?? []).map((entry, historyIndex) => ({
+          id: entry?.publication_id,
+          path: `processes[${processIndex}].steps.${stepName}.attempt_history[${historyIndex}].publication_id`,
+        })),
         {
           id: step?.publication_transaction?.id,
           path: `processes[${processIndex}].steps.${stepName}.publication_transaction.id`,
         },
         // The adoption base reserves its staging id; when this step's prepared transaction is
         // consuming that exact reservation, the pair is the intended hand-off, not a duplicate.
-        ...(step?.adoption_base?.publication_id
-          && step.adoption_base.publication_id !== step?.publication_transaction?.id
-          ? [{
-              id: step.adoption_base.publication_id,
-              path: `processes[${processIndex}].steps.${stepName}.adoption_base.publication_id`,
-            }]
+        ...(step?.adoption_base?.publication_id &&
+        step.adoption_base.publication_id !== step?.publication_transaction?.id
+          ? [
+              {
+                id: step.adoption_base.publication_id,
+                path: `processes[${processIndex}].steps.${stepName}.adoption_base.publication_id`,
+              },
+            ]
           : []),
       ];
       for (const candidate of candidates) {
@@ -1694,9 +1655,7 @@ function validateCrossReferences(log, errors, dependencies) {
     }
   }
 
-  errors.push(
-    ...duplicateSourceKeyGroupErrors(log.processes, dependencies.normalizeSourceRef),
-  );
+  errors.push(...duplicateSourceKeyGroupErrors(log.processes, dependencies.normalizeSourceRef));
 }
 
 export function validateProcessLogV3(log, dependencies) {
@@ -1705,17 +1664,17 @@ export function validateProcessLogV3(log, dependencies) {
   if (root.schema_version !== 4) {
     errors.push("schema_version must be 4; schema_version 3 is unsupported by the v4 ledger");
   }
-  validateEnum(
-    root.duplicate_policy,
-    "duplicate_policy",
-    errors,
-    ["prompt", "resume", "new-attempt"],
-  );
+  validateEnum(root.duplicate_policy, "duplicate_policy", errors, [
+    "prompt",
+    "resume",
+    "new-attempt",
+  ]);
   validateIsoTimestamp(root.updated_at, "updated_at", errors);
   const companies = validateArray(root.companies, "companies", errors);
   const processes = validateArray(root.processes, "processes", errors);
   companies.forEach((company, index) =>
-    validateCompany(company, `companies[${index}]`, errors, dependencies));
+    validateCompany(company, `companies[${index}]`, errors, dependencies),
+  );
   processes.forEach((record, index) => {
     const path = `processes[${index}]`;
     if (classifyProcessRecord(record) === "file-backed") {

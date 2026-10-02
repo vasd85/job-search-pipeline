@@ -9,7 +9,15 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,11 +31,19 @@ const EXAMPLE_MARKERS = join(repoRoot, "candidate.example", "publishability-mark
 
 const configRoot = mkdtempSync(join(tmpdir(), "push-guard-gitconfig-"));
 const globalConfig = join(configRoot, "gitconfig");
-writeFileSync(globalConfig, [
-  "[user]", "\tname = Guard Probe", "\temail = probe@example.com",
-  "[init]", "\tdefaultBranch = main",
-  "[commit]", "\tgpgsign = false", "",
-].join("\n"));
+writeFileSync(
+  globalConfig,
+  [
+    "[user]",
+    "\tname = Guard Probe",
+    "\temail = probe@example.com",
+    "[init]",
+    "\tdefaultBranch = main",
+    "[commit]",
+    "\tgpgsign = false",
+    "",
+  ].join("\n"),
+);
 process.env.GIT_CONFIG_GLOBAL = globalConfig;
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete process.env[key];
@@ -125,7 +141,10 @@ test("a personal marker in an added line refuses the push and names where, not w
   assert.notEqual(result.status, 0);
   const report = refusal(result);
   assert.equal(report.status, "refused");
-  assert.deepEqual(report.findings.map((finding) => [finding.marker, finding.path, finding.line]), [["employer.1", "docs/notes.md", 2]]);
+  assert.deepEqual(
+    report.findings.map((finding) => [finding.marker, finding.path, finding.line]),
+    [["employer.1", "docs/notes.md", 2]],
+  );
   assert.doesNotMatch(result.stderr, new RegExp(EMPLOYER, "u"));
   assert.equal(git(remote, "rev-parse", "main").trim(), before);
 });
@@ -214,14 +233,39 @@ test("a relative core.hooksPath is refused by the guard itself", (t) => {
 });
 
 test("an added line that begins like a file header stays content", () => {
-  const diff = ["diff --git a/x b/x", "--- a/x", "+++ b/x", "@@ -1,0 +1,2 @@", "+++ looks like a header", "+plain", ""].join("\n");
-  assert.deepEqual([...addedLines(diff)], [["x", [{ line: 1, text: "++ looks like a header" }, { line: 2, text: "plain" }]]]);
+  const diff = [
+    "diff --git a/x b/x",
+    "--- a/x",
+    "+++ b/x",
+    "@@ -1,0 +1,2 @@",
+    "+++ looks like a header",
+    "+plain",
+    "",
+  ].join("\n");
+  assert.deepEqual(
+    [...addedLines(diff)],
+    [
+      [
+        "x",
+        [
+          { line: 1, text: "++ looks like a header" },
+          { line: 2, text: "plain" },
+        ],
+      ],
+    ],
+  );
 });
 
 test("the refusal codes are the ones the README lists and the guard throws", () => {
   const readme = readFileSync(join(repoRoot, "tools", "push-guard", "README.md"), "utf8");
   const section = readme.slice(readme.indexOf("## Refusal codes"));
-  assert.deepEqual([...section.matchAll(/`(push_guard_[a-z_]+)`/gu)].map((match) => match[1]).sort(), PINNED_CODES);
+  assert.deepEqual(
+    [...section.matchAll(/`(push_guard_[a-z_]+)`/gu)].map((match) => match[1]).sort(),
+    PINNED_CODES,
+  );
   const source = readFileSync(GUARD, "utf8");
-  assert.deepEqual([...new Set([...source.matchAll(/"(push_guard_[a-z_]+)"/gu)].map((match) => match[1]))].sort(), PINNED_CODES);
+  assert.deepEqual(
+    [...new Set([...source.matchAll(/"(push_guard_[a-z_]+)"/gu)].map((match) => match[1]))].sort(),
+    PINNED_CODES,
+  );
 });

@@ -92,19 +92,19 @@ node tools/process-log.mjs revise-step --id proc_... --step write_cover_letter -
 The nonce above is illustrative; generate a fresh one for each new logical mutation. The accepted
 payload fields and the flags that remain outside the file are:
 
-| Command | Envelope `values` | Validated flags outside |
-| --- | --- | --- |
-| `start` | `sourceRef`, optional `companyHint` | `--runner`, optional `--duplicate-of` |
-| `update` | one or more of `companyObserved`, `companyHint`, `role` | `--id`, optional `--clear-company-hint` |
-| `resolve` | exactly `sourceRef` for the fallback | alternatively `--id` or `--output-dir` without an input file |
-| `find-company` | `query` | none |
-| `create-company` | `displayName`, optional `term`, `domain` | none |
-| `rename-company` | `displayName` | `--id` |
-| `add-company-term`, `remove-company-term` | `term` | `--id` |
-| `add-company-domain`, `remove-company-domain` | `domain` | `--id` |
-| `publish-step` | optional command-bound `blocker`; optional `waivers`, the letter word-limit approval only | selector, `--step`, `--attempt-id`, `--publication-id`, `--outcome` |
-| `fail-step` | required command-bound `error` | selector, `--step`, `--attempt-id` |
-| `revise-step` | optional `waivers`: subject (`kind`, `key`) plus bounded user-owned `note` | selector, `--step`, `--channel`, `--adopt` |
+| Command                                       | Envelope `values`                                                                         | Validated flags outside                                             |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `start`                                       | `sourceRef`, optional `companyHint`                                                       | `--runner`, optional `--duplicate-of`                               |
+| `update`                                      | one or more of `companyObserved`, `companyHint`, `role`                                   | `--id`, optional `--clear-company-hint`                             |
+| `resolve`                                     | exactly `sourceRef` for the fallback                                                      | alternatively `--id` or `--output-dir` without an input file        |
+| `find-company`                                | `query`                                                                                   | none                                                                |
+| `create-company`                              | `displayName`, optional `term`, `domain`                                                  | none                                                                |
+| `rename-company`                              | `displayName`                                                                             | `--id`                                                              |
+| `add-company-term`, `remove-company-term`     | `term`                                                                                    | `--id`                                                              |
+| `add-company-domain`, `remove-company-domain` | `domain`                                                                                  | `--id`                                                              |
+| `publish-step`                                | optional command-bound `blocker`; optional `waivers`, the letter word-limit approval only | selector, `--step`, `--attempt-id`, `--publication-id`, `--outcome` |
+| `fail-step`                                   | required command-bound `error`                                                            | selector, `--step`, `--attempt-id`                                  |
+| `revise-step`                                 | optional `waivers`: subject (`kind`, `key`) plus bounded user-owned `note`                | selector, `--step`, `--channel`, `--adopt`                          |
 
 Each diagnostic object has exact keys `code`, `message`, `retryable`, and optional `details`.
 The producer supplies a bounded stable code and retryability; `message` and `details` remain
@@ -191,13 +191,13 @@ record runs every step itself, and the target is never resumed, reused or writte
 
 Only the owning step authors each canonical artifact:
 
-| Step | Step key | Canonical artifact |
-| --- | --- | --- |
-| 1 | `get_vacancy` | `job-description.txt`, `vacancy.json` |
-| 2 | `research_company` | `company-research.json` |
-| 3 | `map_experience` | `application-brief.json` |
-| 4 | `generate_cv` | `cv.json`, the DOCX named by `cv.json.fileName` |
-| 5 | `write_cover_letter` | `cover-letter.txt` |
+| Step | Step key             | Canonical artifact                              |
+| ---- | -------------------- | ----------------------------------------------- |
+| 1    | `get_vacancy`        | `job-description.txt`, `vacancy.json`           |
+| 2    | `research_company`   | `company-research.json`                         |
+| 3    | `map_experience`     | `application-brief.json`                        |
+| 4    | `generate_cv`        | `cv.json`, the DOCX named by `cv.json.fileName` |
+| 5    | `write_cover_letter` | `cover-letter.txt`                              |
 
 The ledger owns lifecycle state and artifact metadata. Canonical files own substantive content.
 Chat is never an input, recovery source, or substitute artifact. Chat may direct a `revise-step`

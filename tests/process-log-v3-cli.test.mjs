@@ -25,10 +25,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = resolve(repoRoot, "tests/fixtures/process-log-cli-child.mjs");
 const productionCliPath = resolve(repoRoot, "tools/process-log.mjs");
 const processLogCorePath = resolve(repoRoot, "tools/lib/process-log-core.mjs");
-const processLogLifecyclePath = resolve(
-  repoRoot,
-  "tools/lib/process-log-v3-lifecycle.mjs",
-);
+const processLogLifecyclePath = resolve(repoRoot, "tools/lib/process-log-v3-lifecycle.mjs");
 const vacancyFixturePath = resolve(
   repoRoot,
   "tools/pipeline-artifacts/fixtures/vacancy-v2-completed/vacancy.json",
@@ -104,19 +101,13 @@ function runCliSuccess(environment, ...args) {
 }
 
 function stageCompletedVacancy(environment, processRecord, publicationId) {
-  const outputPath = resolve(
-    environment.workspaceRoot,
-    processRecord.output_dir,
-  );
+  const outputPath = resolve(environment.workspaceRoot, processRecord.output_dir);
   const stagingPath = join(outputPath, ".pipeline-tmp", publicationId);
   mkdirSync(stagingPath, { recursive: true });
   // A completed vacancy names one of the markets the layer configures, so the workspace carries the
   // example's config.
   seedCandidateConfig(repoRoot, environment.workspaceRoot);
-  copyFileSync(
-    jobDescriptionFixturePath,
-    join(stagingPath, "job-description.txt"),
-  );
+  copyFileSync(jobDescriptionFixturePath, join(stagingPath, "job-description.txt"));
   const vacancy = JSON.parse(readFileSync(vacancyFixturePath, "utf8"));
   vacancy.process.id = processRecord.id;
   vacancy.process.sourceRef = processRecord.source_ref;
@@ -124,11 +115,7 @@ function stageCompletedVacancy(environment, processRecord, publicationId) {
   vacancy.process.outputDir = processRecord.output_dir;
   vacancy.role.company = processRecord.company_observed;
   vacancy.role.title = processRecord.role;
-  writeFileSync(
-    join(stagingPath, "vacancy.json"),
-    `${JSON.stringify(vacancy, null, 2)}\n`,
-    "utf8",
-  );
+  writeFileSync(join(stagingPath, "vacancy.json"), `${JSON.stringify(vacancy, null, 2)}\n`, "utf8");
 }
 
 test("production CLI exposes the complete tested v3 lifecycle surface on isolated roots", (t) => {
@@ -145,8 +132,7 @@ test("production CLI exposes the complete tested v3 lifecycle surface on isolate
     "Example",
   );
   const processId = started.process.id;
-  const firstAttemptId =
-    started.process.steps.get_vacancy.active_attempt.id;
+  const firstAttemptId = started.process.steps.get_vacancy.active_attempt.id;
 
   const updated = runCliSuccess(
     environment,
@@ -161,20 +147,9 @@ test("production CLI exposes the complete tested v3 lifecycle surface on isolate
   );
   assert.equal(updated.process.company_hint, null);
 
-  const reserved = runCliSuccess(
-    environment,
-    "reserve-output",
-    "--id",
-    processId,
-  );
-  assert.equal(
-    reserved.output_dir,
-    "output/example-labs-senior-quality-engineer",
-  );
-  const selectedOutputPath = resolve(
-    environment.workspaceRoot,
-    reserved.output_dir,
-  );
+  const reserved = runCliSuccess(environment, "reserve-output", "--id", processId);
+  assert.equal(reserved.output_dir, "output/example-labs-senior-quality-engineer");
+  const selectedOutputPath = resolve(environment.workspaceRoot, reserved.output_dir);
   assert.equal(existsSync(selectedOutputPath), true);
   assert.equal(selectedOutputPath.startsWith(environment.outputRoot), true);
 
@@ -221,14 +196,8 @@ test("production CLI exposes the complete tested v3 lifecycle surface on isolate
     "completed",
   );
   assert.equal(published.status, "completed");
-  assert.equal(
-    published.process.steps.get_vacancy.state,
-    "completed",
-  );
-  const beforeRejectedIdentityUpdate = readFileSync(
-    environment.ledgerPath,
-    "utf8",
-  );
+  assert.equal(published.process.steps.get_vacancy.state, "completed");
+  const beforeRejectedIdentityUpdate = readFileSync(environment.ledgerPath, "utf8");
   const rejectedIdentityUpdate = runCli(
     environment,
     "update",
@@ -242,10 +211,7 @@ test("production CLI exposes the complete tested v3 lifecycle surface on isolate
     JSON.parse(rejectedIdentityUpdate.stderr).error.code,
     "identity_update_not_authorized",
   );
-  assert.equal(
-    readFileSync(environment.ledgerPath, "utf8"),
-    beforeRejectedIdentityUpdate,
-  );
+  assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeRejectedIdentityUpdate);
 
   const structurallyValid = runCliSuccess(environment, "validate");
   assert.equal(structurallyValid.schema_version, 4);
@@ -335,10 +301,7 @@ test("production CLI exposes the complete tested v3 lifecycle surface on isolate
   );
   assert.equal(reopened.status, "reopened");
   assert.deepEqual(reopened.invalidated_steps, []);
-  assert.equal(
-    reopened.process.steps.research_company.state,
-    "failed",
-  );
+  assert.equal(reopened.process.steps.research_company.state, "failed");
   const revised = runCliSuccess(
     environment,
     "update",
@@ -390,14 +353,7 @@ test("v3 CLI company mutations and search preserve registry behavior", (t) => {
     "--display-name",
     "CLI Example Labs",
   );
-  runCliSuccess(
-    environment,
-    "add-company-term",
-    "--id",
-    company.id,
-    "--term",
-    "Command Line Labs",
-  );
+  runCliSuccess(environment, "add-company-term", "--id", company.id, "--term", "Command Line Labs");
   runCliSuccess(
     environment,
     "add-company-domain",
@@ -406,12 +362,7 @@ test("v3 CLI company mutations and search preserve registry behavior", (t) => {
     "--domain",
     "careers.cli-example.test/jobs",
   );
-  const search = runCliSuccess(
-    environment,
-    "find-company",
-    "--query",
-    "Command Line Labs",
-  );
+  const search = runCliSuccess(environment, "find-company", "--query", "Command Line Labs");
   assert.equal(search.matches[0].company.id, company.id);
   runCliSuccess(
     environment,
@@ -462,13 +413,7 @@ test("every CLI company mutation preserves the ledger root clock", async (t) => 
     },
     {
       id: "add_term",
-      args: [
-        "add-company-term",
-        "--id",
-        "company_clock_guard",
-        "--term",
-        "New Clock Term",
-      ],
+      args: ["add-company-term", "--id", "company_clock_guard", "--term", "New Clock Term"],
     },
     {
       id: "remove_term",
@@ -516,10 +461,7 @@ test("every CLI company mutation preserves the ledger root clock", async (t) => 
       });
       const environment = createEnvironment(subtest, log);
       const before = readFileSync(environment.ledgerPath, "utf8");
-      const result = runCliWithEnvironmentMap(
-        disposableWorkspaceEnv(environment),
-        ...fixture.args,
-      );
+      const result = runCliWithEnvironmentMap(disposableWorkspaceEnv(environment), ...fixture.args);
       assert.equal(result.status, 1);
       assert.equal(result.stdout, "");
       assert.deepEqual(JSON.parse(result.stderr).error, {
@@ -573,18 +515,14 @@ test("every CLI company mutation preserves the ledger root clock", async (t) => 
     ];
     await import(${JSON.stringify(pathToFileURL(productionCliPath).href)});
   `;
-  const equalResult = spawnSync(
-    process.execPath,
-    ["--input-type=module", "--eval", equalScript],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        ...disposableWorkspaceEnv(equalEnvironment),
-      },
+  const equalResult = spawnSync(process.execPath, ["--input-type=module", "--eval", equalScript], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ...disposableWorkspaceEnv(equalEnvironment),
     },
-  );
+  });
   assert.equal(equalResult.status, 0, equalResult.stderr);
   assert.equal(JSON.parse(equalResult.stdout).status, "created");
   assert.equal(
@@ -593,10 +531,7 @@ test("every CLI company mutation preserves the ledger root clock", async (t) => 
   );
 
   const source = readFileSync(productionCliPath, "utf8");
-  assert.match(
-    source,
-    /if \(Date\.parse\(timestamp\) < Date\.parse\(log\.updated_at\)\) \{/,
-  );
+  assert.match(source, /if \(Date\.parse\(timestamp\) < Date\.parse\(log\.updated_at\)\) \{/);
   assert.match(source, /log\.updated_at = timestamp;/);
 });
 
@@ -692,10 +627,7 @@ test("legacy intermediary domains stay readable and removable but cannot be re-a
     "tenant.pinpointhq.com",
   );
   assert.equal(existingAdd.status, 1);
-  assert.equal(
-    JSON.parse(existingAdd.stderr).error.code,
-    "company_domain_forbidden",
-  );
+  assert.equal(JSON.parse(existingAdd.stderr).error.code, "company_domain_forbidden");
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeExistingAdd);
   const removed = runCliSuccess(
     environment,
@@ -740,10 +672,7 @@ test("removed v2 commands and historical mutations fail with stable errors byte-
     "Changed Role",
   );
   assert.equal(historicalUpdate.status, 1);
-  assert.equal(
-    JSON.parse(historicalUpdate.stderr).error.code,
-    "historical_process_read_only",
-  );
+  assert.equal(JSON.parse(historicalUpdate.stderr).error.code, "historical_process_read_only");
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
 });
 
@@ -817,10 +746,7 @@ test("CLI reports legacy source collisions read-only and refuses silent source r
     "https://example.test/jobs/cli-collision?trk=gamma",
   );
   assert.equal(ambiguousResolve.status, 1);
-  assert.equal(
-    JSON.parse(ambiguousResolve.stderr).error.code,
-    "process_ambiguous",
-  );
+  assert.equal(JSON.parse(ambiguousResolve.stderr).error.code, "process_ambiguous");
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeReport);
 });
 
@@ -890,10 +816,7 @@ test("CLI censuses a mixed-version ledger and the containment report still expla
     "--runner",
     "codex",
   );
-  assert.equal(
-    migrated.process.source_key,
-    "https://example.test/jobs/census-new?query=fresh",
-  );
+  assert.equal(migrated.process.source_key, "https://example.test/jobs/census-new?query=fresh");
 
   const collisionResult = runCli(environment, "report-source-collisions");
   assert.equal(collisionResult.status, 2, collisionResult.stderr);
@@ -904,8 +827,8 @@ test("CLI censuses a mixed-version ledger and the containment report still expla
   assert.equal(collisionReport.collision_count, 1);
   assert.deepEqual(collisionReport.collisions[0].witnesses[0].fields, ["query"]);
   assert.equal(
-    collisionReport.collisions.some(
-      (collision) => collision.records.some((record) => record.process_id === "proc_legacy_lone"),
+    collisionReport.collisions.some((collision) =>
+      collision.records.some((record) => record.process_id === "proc_legacy_lone"),
     ),
     false,
     "the containment report is blind to a lone record whose key would change",
@@ -1020,7 +943,7 @@ test("CLI preserves bounded machine-usable ledger failure classes without raw in
       id: "malformed_json",
       createFixture() {
         const environment = createDisposableWorkspace(t, {
-          ledger: "{\"schema_version\":3, malformed fixture",
+          ledger: '{"schema_version":3, malformed fixture',
           prefix: "job-search-v3-cli-json-",
         });
         return {
@@ -1155,12 +1078,14 @@ test("CLI preserves primary and secondary filesystem recovery evidence", (t) => 
     context: "operation=write_process_log",
     cause_code: "EIO",
     recovery_action: "inspect_process_log_write_path",
-    secondary_errors: [{
-      code: "process_log_temp_cleanup_failed",
-      context: "operation=cleanup_process_log_temp",
-      cause_code: "EACCES",
-      recovery_action: "repair_process_log_access",
-    }],
+    secondary_errors: [
+      {
+        code: "process_log_temp_cleanup_failed",
+        context: "operation=cleanup_process_log_temp",
+        cause_code: "EACCES",
+        recovery_action: "repair_process_log_access",
+      },
+    ],
   });
   assert.doesNotMatch(result.stderr, /synthetic|\.mjs:\d+|stack/i);
   assert.doesNotMatch(result.stderr, new RegExp(environment.workspaceRoot));
@@ -1321,10 +1246,7 @@ test("CLI renders trusted validation evidence from its immutable private snapsho
     context: "operation=validate_process_log",
     recovery_action: "repair_process_log_schema",
   });
-  assert.doesNotMatch(
-    result.stderr,
-    /hostile|private\/tmp|Bearer|synthetic-hostile/,
-  );
+  assert.doesNotMatch(result.stderr, /hostile|private\/tmp|Bearer|synthetic-hostile/);
 });
 
 test("CLI enforces exact filesystem cause-code grammar and byte bounds", async (t) => {
@@ -1355,14 +1277,16 @@ test("CLI enforces exact filesystem cause-code grammar and byte bounds", async (
             && targetPath.endsWith(".tmp")
           ) {
             const error = new Error("synthetic bounded cause");
-            throw ${fixture.causeCode === null
-              ? `new Proxy(error, {
+            throw ${
+              fixture.causeCode === null
+                ? `new Proxy(error, {
                   get(value, property, receiver) {
                     if (property === "code") throw new Error("hostile code getter");
                     return Reflect.get(value, property, receiver);
                   },
                 })`
-              : `Object.assign(error, { code: ${JSON.stringify(fixture.causeCode)} })`};
+                : `Object.assign(error, { code: ${JSON.stringify(fixture.causeCode)} })`
+            };
           }
           return originalWriteFileSync(targetPath, ...args);
         };
@@ -1441,10 +1365,7 @@ test("CLI error codes consume the shared exact diagnostic grammar and limit", as
       assert.equal(result.status, 1);
       assert.equal(result.stdout, "");
       const printedError = JSON.parse(result.stderr).error;
-      assert.equal(
-        printedError.code,
-        fixture.accepted ? fixture.code : "process_log_cli_failed",
-      );
+      assert.equal(printedError.code, fixture.accepted ? fixture.code : "process_log_cli_failed");
       if (fixture.accepted) {
         assert.equal(printedError.message, "synthetic lifecycle diagnostic");
       }
@@ -1730,11 +1651,7 @@ test("CLI does not trust externally constructed public error base classes", asyn
 test("CLI replaces an unsafe typed argument diagnostic instead of echoing hostile prose", (t) => {
   const environment = createEnvironment(t);
   const hostile = "https://secret.invalid/private-token";
-  const result = runCliWithEnvironmentMap(
-    disposableWorkspaceEnv(environment),
-    "validate",
-    hostile,
-  );
+  const result = runCliWithEnvironmentMap(disposableWorkspaceEnv(environment), "validate", hostile);
 
   assert.equal(result.status, 1);
   assert.equal(result.stdout, "");
@@ -1872,12 +1789,7 @@ test("the CLI links a duplicate late, corrects it, and reads the chain from the 
   assert.equal(linked.status, "linked");
   assert.equal(linked.cross_source_link.code, "cross_source_duplicate_link");
 
-  const chain = runCliSuccess(
-    environment,
-    "report-duplicate-chain",
-    "--id",
-    "proc_july_posting",
-  );
+  const chain = runCliSuccess(environment, "report-duplicate-chain", "--id", "proc_july_posting");
   assert.equal(chain.status, "chain");
   assert.deepEqual(
     chain.members.map((member) => member.process_id),

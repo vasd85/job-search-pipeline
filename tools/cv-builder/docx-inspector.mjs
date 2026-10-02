@@ -38,8 +38,7 @@ const OFFICE_DOCUMENT_RELATIONSHIP_TYPE =
   "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
 const MAIN_DOCUMENT_CONTENT_TYPE =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
-const WORDPROCESSING_NAMESPACE =
-  "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+const WORDPROCESSING_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 const CONTENT_TYPES_PART = "[Content_Types].xml";
 const ROOT_RELATIONSHIPS_PART = "_rels/.rels";
@@ -97,11 +96,7 @@ export function readDocxParts(input) {
   const entryCount = bytes.readUInt16LE(end + 10);
   const directorySize = bytes.readUInt32LE(end + 12);
   const directoryOffset = bytes.readUInt32LE(end + 16);
-  if (
-    entryCount === 0xffff
-    || directorySize === 0xffffffff
-    || directoryOffset === 0xffffffff
-  ) {
+  if (entryCount === 0xffff || directorySize === 0xffffffff || directoryOffset === 0xffffffff) {
     reject("ZIP64 packages are not supported");
   }
   const directoryEnd = directoryOffset + directorySize;
@@ -132,16 +127,14 @@ export function readDocxParts(input) {
     if (method !== STORED && method !== DEFLATED) {
       reject(`unsupported compression method ${method}: ${name}`);
     }
-    if (
-      localOffset + 30 > bytes.length
-      || bytes.readUInt32LE(localOffset) !== LOCAL_FILE_HEADER
-    ) {
+    if (localOffset + 30 > bytes.length || bytes.readUInt32LE(localOffset) !== LOCAL_FILE_HEADER) {
       reject(`the local file header is missing: ${name}`);
     }
-    const dataStart = localOffset
-      + 30
-      + bytes.readUInt16LE(localOffset + 26)
-      + bytes.readUInt16LE(localOffset + 28);
+    const dataStart =
+      localOffset +
+      30 +
+      bytes.readUInt16LE(localOffset + 26) +
+      bytes.readUInt16LE(localOffset + 28);
     if (uncompressedSize > MAX_PART_BYTES) reject(`part is implausibly large: ${name}`);
     decodedBytes += uncompressedSize;
     if (decodedBytes > MAX_PACKAGE_BYTES) reject(`the package expands implausibly far: ${name}`);
@@ -149,16 +142,17 @@ export function readDocxParts(input) {
     if (raw.length !== compressedSize) reject(`part data is truncated: ${name}`);
     let content;
     try {
-      content = method === STORED
-        ? Buffer.from(raw)
-        // Bounded by the size the directory declares, so a stream that lies about its own size
-        // fails here instead of expanding until the process dies.
-        : inflateRawSync(raw, { maxOutputLength: Math.max(uncompressedSize, 1) });
+      content =
+        method === STORED
+          ? Buffer.from(raw)
+          : // Bounded by the size the directory declares, so a stream that lies about its own size
+            // fails here instead of expanding until the process dies.
+            inflateRawSync(raw, { maxOutputLength: Math.max(uncompressedSize, 1) });
     } catch {
       reject(`part data is not a readable deflate stream: ${name}`);
     }
     if (content.length !== uncompressedSize) reject(`part size mismatch: ${name}`);
-    if ((crc32(content) >>> 0) !== expectedChecksum) reject(`part checksum mismatch: ${name}`);
+    if (crc32(content) >>> 0 !== expectedChecksum) reject(`part checksum mismatch: ${name}`);
     if (parts.has(name)) reject(`duplicate part: ${name}`);
     parts.set(name, content);
   }
@@ -182,41 +176,47 @@ function isXmlWhitespace(character) {
 }
 
 function isXmlChar(codePoint) {
-  return codePoint === 0x9
-    || codePoint === 0xa
-    || codePoint === 0xd
-    || (codePoint >= 0x20 && codePoint <= 0xd7ff)
-    || (codePoint >= 0xe000 && codePoint <= 0xfffd)
-    || (codePoint >= 0x10000 && codePoint <= 0x10ffff);
+  return (
+    codePoint === 0x9 ||
+    codePoint === 0xa ||
+    codePoint === 0xd ||
+    (codePoint >= 0x20 && codePoint <= 0xd7ff) ||
+    (codePoint >= 0xe000 && codePoint <= 0xfffd) ||
+    (codePoint >= 0x10000 && codePoint <= 0x10ffff)
+  );
 }
 
 function isXmlNameStart(codePoint) {
-  return codePoint === 0x3a
-    || codePoint === 0x5f
-    || (codePoint >= 0x41 && codePoint <= 0x5a)
-    || (codePoint >= 0x61 && codePoint <= 0x7a)
-    || (codePoint >= 0xc0 && codePoint <= 0xd6)
-    || (codePoint >= 0xd8 && codePoint <= 0xf6)
-    || (codePoint >= 0xf8 && codePoint <= 0x2ff)
-    || (codePoint >= 0x370 && codePoint <= 0x37d)
-    || (codePoint >= 0x37f && codePoint <= 0x1fff)
-    || (codePoint >= 0x200c && codePoint <= 0x200d)
-    || (codePoint >= 0x2070 && codePoint <= 0x218f)
-    || (codePoint >= 0x2c00 && codePoint <= 0x2fef)
-    || (codePoint >= 0x3001 && codePoint <= 0xd7ff)
-    || (codePoint >= 0xf900 && codePoint <= 0xfdcf)
-    || (codePoint >= 0xfdf0 && codePoint <= 0xfffd)
-    || (codePoint >= 0x10000 && codePoint <= 0xeffff);
+  return (
+    codePoint === 0x3a ||
+    codePoint === 0x5f ||
+    (codePoint >= 0x41 && codePoint <= 0x5a) ||
+    (codePoint >= 0x61 && codePoint <= 0x7a) ||
+    (codePoint >= 0xc0 && codePoint <= 0xd6) ||
+    (codePoint >= 0xd8 && codePoint <= 0xf6) ||
+    (codePoint >= 0xf8 && codePoint <= 0x2ff) ||
+    (codePoint >= 0x370 && codePoint <= 0x37d) ||
+    (codePoint >= 0x37f && codePoint <= 0x1fff) ||
+    (codePoint >= 0x200c && codePoint <= 0x200d) ||
+    (codePoint >= 0x2070 && codePoint <= 0x218f) ||
+    (codePoint >= 0x2c00 && codePoint <= 0x2fef) ||
+    (codePoint >= 0x3001 && codePoint <= 0xd7ff) ||
+    (codePoint >= 0xf900 && codePoint <= 0xfdcf) ||
+    (codePoint >= 0xfdf0 && codePoint <= 0xfffd) ||
+    (codePoint >= 0x10000 && codePoint <= 0xeffff)
+  );
 }
 
 function isXmlNameChar(codePoint) {
-  return isXmlNameStart(codePoint)
-    || codePoint === 0x2d
-    || codePoint === 0x2e
-    || (codePoint >= 0x30 && codePoint <= 0x39)
-    || codePoint === 0xb7
-    || (codePoint >= 0x300 && codePoint <= 0x36f)
-    || (codePoint >= 0x203f && codePoint <= 0x2040);
+  return (
+    isXmlNameStart(codePoint) ||
+    codePoint === 0x2d ||
+    codePoint === 0x2e ||
+    (codePoint >= 0x30 && codePoint <= 0x39) ||
+    codePoint === 0xb7 ||
+    (codePoint >= 0x300 && codePoint <= 0x36f) ||
+    (codePoint >= 0x203f && codePoint <= 0x2040)
+  );
 }
 
 /*
@@ -446,7 +446,8 @@ function assertWellFormedXml(xml, partName) {
     else if (xml.startsWith("<![CDATA[", cursor)) cursor = parseCdata(cursor);
     else if (xml.startsWith("<?", cursor)) cursor = parseProcessingInstruction(cursor);
     else if (xml.startsWith("</", cursor)) cursor = parseEndTag(cursor);
-    else if (xml.startsWith("<!", cursor)) malformed("DTD and other declarations are not supported");
+    else if (xml.startsWith("<!", cursor))
+      malformed("DTD and other declarations are not supported");
     else cursor = parseStartTag(cursor);
     if (cursor <= before) malformed("parser made no progress");
   }
@@ -479,18 +480,21 @@ function elementAttributes(xml, tagName) {
 // Exported for the reverse sync, which decodes the same escapes one run at a time instead of one
 // paragraph at a time; a second private copy of this table is exactly how the two would drift.
 export function xmlUnescape(value) {
-  return String(value)
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'")
-    // Every numeric reference this scanner's own XML check accepts, decoded here rather than
-    // carried into a comparison — or into a cv.json — as the literal characters `&`, `#`, digits.
-    // `&amp;` stays last, so an escaped `&amp;#233;` decodes to that text and not to its character.
-    .replaceAll(/&#(\d{1,7});/g, (reference, digits) => codePointText(Number(digits), reference))
-    .replaceAll(/&#x([0-9A-Fa-f]{1,6});/g, (reference, digits) =>
-      codePointText(Number.parseInt(digits, 16), reference))
-    .replaceAll("&amp;", "&");
+  return (
+    String(value)
+      .replaceAll("&lt;", "<")
+      .replaceAll("&gt;", ">")
+      .replaceAll("&quot;", '"')
+      .replaceAll("&apos;", "'")
+      // Every numeric reference this scanner's own XML check accepts, decoded here rather than
+      // carried into a comparison — or into a cv.json — as the literal characters `&`, `#`, digits.
+      // `&amp;` stays last, so an escaped `&amp;#233;` decodes to that text and not to its character.
+      .replaceAll(/&#(\d{1,7});/g, (reference, digits) => codePointText(Number(digits), reference))
+      .replaceAll(/&#x([0-9A-Fa-f]{1,6});/g, (reference, digits) =>
+        codePointText(Number.parseInt(digits, 16), reference),
+      )
+      .replaceAll("&amp;", "&")
+  );
 }
 
 function codePointText(codePoint, reference) {
@@ -501,9 +505,7 @@ function codePointText(codePoint, reference) {
 // compare the paragraph's joined text rather than searching for a substring.
 function paragraphText(paragraph) {
   return xmlUnescape(
-    [...paragraph.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)]
-      .map((run) => run[1])
-      .join(""),
+    [...paragraph.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)].map((run) => run[1]).join(""),
   );
 }
 
@@ -519,8 +521,8 @@ function assertPackageShape(parts) {
   const contentTypes = decodeXmlPart(parts, CONTENT_TYPES_PART);
   const declaresMainDocument = elementAttributes(contentTypes, "Override").some(
     (attributes) =>
-      attributes.get("PartName") === `/${MAIN_DOCUMENT_PART}`
-      && attributes.get("ContentType") === MAIN_DOCUMENT_CONTENT_TYPE,
+      attributes.get("PartName") === `/${MAIN_DOCUMENT_PART}` &&
+      attributes.get("ContentType") === MAIN_DOCUMENT_CONTENT_TYPE,
   );
   if (!declaresMainDocument) {
     reject(`${CONTENT_TYPES_PART} does not declare the main document content type`);
@@ -573,8 +575,8 @@ function assertWordprocessingDocument(document) {
   // sits inside `<!-- -->` is not one a renderer can open, however the raw text reads.
   const uncommented = withoutXmlComments(document);
   if (
-    !new RegExp(`<${bodyTag}\\b`).test(uncommented)
-    || !new RegExp(`</${closingTag}\\s*>`).test(uncommented)
+    !new RegExp(`<${bodyTag}\\b`).test(uncommented) ||
+    !new RegExp(`</${closingTag}\\s*>`).test(uncommented)
   ) {
     reject(`${MAIN_DOCUMENT_PART} has no complete document body`);
   }

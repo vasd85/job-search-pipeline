@@ -190,13 +190,13 @@ untouched, like a channel; up to `request_cap` requests of work are repeated nex
 The unit is the post. Every anchor of a post gets one entry. A link is rebuilt from a parsed URL,
 never copied:
 
-| Type | What it is |
-| --- | --- |
-| `url` | `http(s)`, userinfo and fragment cut, accepted by `tools/lib/triage-ledger-core.mjs#normalizeVacancyUrl` — the links-file readers refuse a whole file over one link that is not |
-| `tg` | `t.me/<name>`, the name matching the handle pattern — a contact |
-| `tg_other` | any other Telegram link: a post, an invite (`+…`, `joinchat`), a route — counted |
-| `email` | `mailto:` with an address matching a plain pattern — a contact |
-| `unusable` | failed the fitness check: `too_long`, `local_host` (localhost or an IP), `normalizer_refused`, `bad_email` |
+| Type       | What it is                                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`      | `http(s)`, userinfo and fragment cut, accepted by `tools/lib/triage-ledger-core.mjs#normalizeVacancyUrl` — the links-file readers refuse a whole file over one link that is not |
+| `tg`       | `t.me/<name>`, the name matching the handle pattern — a contact                                                                                                                 |
+| `tg_other` | any other Telegram link: a post, an invite (`+…`, `joinchat`), a route — counted                                                                                                |
+| `email`    | `mailto:` with an address matching a plain pattern — a contact                                                                                                                  |
+| `unusable` | failed the fitness check: `too_long`, `local_host` (localhost or an IP), `normalizer_refused`, `bad_email`                                                                      |
 
 Hashtags (`?q=%23…`), `tg://` and every other scheme are not in the list and are counted
 (`hashtag`, `non_web`). A link-preview card folds into the text link with the same host and path
@@ -288,7 +288,7 @@ what the model sees and checks every number it writes; no word of the model's ow
    `-> [<j>] <type> <host><path> "<anchor text>" [<marks>]` (no address for `tg` and `email`;
    `tg_other`, `unusable` and skipped anchors are not offered). A post longer than 20 lines shows
    its first 12, its last 8 and every hidden line in which a role word stands, with `|..| N lines
-   hidden` between. Every printed line is flattened and bounded (300 characters; 80 for an anchor
+hidden` between. Every printed line is flattened and bounded (300 characters; 80 for an anchor
    text).
 4. **Two steps.** `sweep` walks, writes the captures, the batches and `sweep-stage.json` (the
    walk, the digests of the config and state files, the batch descriptors) and touches no state;
@@ -326,6 +326,7 @@ what the model sees and checks every number it writes; no word of the model's ow
    is listed in the report with the number the reader named, and counted in the manifest and on
    stdout as `title_line_repaired`; the post is a card like any other and stays in the `card`
    bucket.
+
 6. **The reader's cards.** One card per vacancy named: `title` is the named line; `score_urls` are
    the named `details_link` and `url` apply links that are new and unmarked, in post order, plus
    the post address when there is none or a way to apply is a person (`tg`, `email`, `phone`,

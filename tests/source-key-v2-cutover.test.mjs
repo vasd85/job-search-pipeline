@@ -1,12 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import fileSystem, {
-  existsSync,
-  readFileSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import fileSystem, { existsSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,10 +13,7 @@ import {
   validateLog,
   validateLogV3,
 } from "../tools/lib/process-log-core.mjs";
-import {
-  createHistoricalV2Log,
-  createValidV3Log,
-} from "./fixtures/process-log-v3.mjs";
+import { createHistoricalV2Log, createValidV3Log } from "./fixtures/process-log-v3.mjs";
 import {
   createDisposableWorkspace,
   disposableWorkspaceEnv,
@@ -115,11 +107,7 @@ test("a tracking parameter still collapses onto one key, and the control stays a
     );
     assert.equal(first.status, 0, `${parameter}: ${first.stderr}`);
     assert.equal(first.payload.status, "created", parameter);
-    assert.equal(
-      first.payload.process.source_key,
-      "https://boards.example.test/jobs/2",
-      parameter,
-    );
+    assert.equal(first.payload.process.source_key, "https://boards.example.test/jobs/2", parameter);
 
     const second = startProcess(
       environment,
@@ -158,17 +146,23 @@ test("a stored key is canonical when any accepted policy version derives it, and
 
   for (const storedKey of [versionOneKey, versionTwoKey]) {
     assert.doesNotThrow(
-      () => validateLogV3(historicalRecordWithReference(createValidV3Log(), {
-        sourceKey: storedKey,
-        sourceRef: splitReference,
-      })),
+      () =>
+        validateLogV3(
+          historicalRecordWithReference(createValidV3Log(), {
+            sourceKey: storedKey,
+            sourceRef: splitReference,
+          }),
+        ),
       storedKey,
     );
     assert.doesNotThrow(
-      () => validateLog(historicalRecordWithReference(createHistoricalV2Log(), {
-        sourceKey: storedKey,
-        sourceRef: splitReference,
-      })),
+      () =>
+        validateLog(
+          historicalRecordWithReference(createHistoricalV2Log(), {
+            sourceKey: storedKey,
+            sourceRef: splitReference,
+          }),
+        ),
       storedKey,
     );
   }
@@ -177,17 +171,23 @@ test("a stored key is canonical when any accepted policy version derives it, and
   // accepted version produces is still refused by both readers. The verbatim reference is exactly
   // such a key — it is what a policy that stripped nothing would store.
   assert.throws(
-    () => validateLogV3(historicalRecordWithReference(createValidV3Log(), {
-      sourceKey: splitReference,
-      sourceRef: splitReference,
-    })),
+    () =>
+      validateLogV3(
+        historicalRecordWithReference(createValidV3Log(), {
+          sourceKey: splitReference,
+          sourceRef: splitReference,
+        }),
+      ),
     /processes\[0\]\.source_key is not canonical/,
   );
   assert.throws(
-    () => validateLog(historicalRecordWithReference(createHistoricalV2Log(), {
-      sourceKey: splitReference,
-      sourceRef: splitReference,
-    })),
+    () =>
+      validateLog(
+        historicalRecordWithReference(createHistoricalV2Log(), {
+          sourceKey: splitReference,
+          sourceRef: splitReference,
+        }),
+      ),
     /processes\[0\]\.source_key is not canonical/,
   );
 });
@@ -276,8 +276,8 @@ test("a link the split leaves pointing outside its new group keeps the ledger lo
 
   // Non-vacuity: the members really do separate, and the pair that stays together really is a group
   // of two whose second member points at a record outside it.
-  const projected = log.processes.map(
-    (record) => normalizeSourceRefForVersion(record.source_ref, 2),
+  const projected = log.processes.map((record) =>
+    normalizeSourceRefForVersion(record.source_ref, 2),
   );
   assert.deepEqual(projected, [
     "https://boards.example.test/jobs/9?query=alpha",
@@ -295,11 +295,13 @@ test("a link the split leaves pointing outside its new group keeps the ledger lo
   );
 
   const strangerLink = splitHistoricalGroup();
-  strangerLink.processes.unshift(legacyHistoricalRecord({
-    id: "proc_group_stranger",
-    sourceRef: "https://boards.example.test/jobs/10",
-    sourceKey: "https://boards.example.test/jobs/10",
-  }));
+  strangerLink.processes.unshift(
+    legacyHistoricalRecord({
+      id: "proc_group_stranger",
+      sourceRef: "https://boards.example.test/jobs/10",
+      sourceKey: "https://boards.example.test/jobs/10",
+    }),
+  );
   strangerLink.processes[3].duplicate_of = "proc_group_stranger";
   assert.throws(
     () => validateLogV3(strangerLink),
@@ -360,11 +362,7 @@ test("backup-ledger copies the exact bytes once and refuses to overwrite", (t) =
   ]) {
     const result = runCli(environment, "backup-ledger", "--backup-file", rejected);
     assert.equal(result.status, 1, rejected);
-    assert.equal(
-      JSON.parse(result.stderr).error.code,
-      "invalid_ledger_backup_name",
-      rejected,
-    );
+    assert.equal(JSON.parse(result.stderr).error.code, "invalid_ledger_backup_name", rejected);
   }
 });
 
@@ -401,10 +399,7 @@ test("restore-ledger reviews a clean rollback before it performs one", (t) => {
     "f".repeat(64),
   );
   assert.equal(wrongToken.status, 1);
-  assert.equal(
-    JSON.parse(wrongToken.stderr).error.code,
-    "ledger_restore_confirmation_mismatch",
-  );
+  assert.equal(JSON.parse(wrongToken.stderr).error.code, "ledger_restore_confirmation_mismatch");
   assert.equal(readFileSync(environment.ledgerPath).equals(ledgerBefore), true);
 
   const restored = runCli(
@@ -428,7 +423,10 @@ test("restore-ledger names every record a rollback would discard, and fails the 
   // The case the ADR names: a process started against the new version after the backup was taken.
   // Restoring without removing it is not a rollback but data loss, so it has to be confirmed by
   // name rather than waved through.
-  const started = startProcess(environment, "https://boards.example.test/jobs/after-backup?query=x");
+  const started = startProcess(
+    environment,
+    "https://boards.example.test/jobs/after-backup?query=x",
+  );
   assert.equal(started.payload.status, "created");
   assert.equal(
     started.payload.process.source_key,
@@ -458,18 +456,15 @@ test("restore-ledger names every record a rollback would discard, and fails the 
     plan.confirmation_token,
   );
   assert.equal(stale.status, 1);
-  assert.equal(
-    JSON.parse(stale.stderr).error.code,
-    "ledger_restore_confirmation_mismatch",
-  );
+  assert.equal(JSON.parse(stale.stderr).error.code, "ledger_restore_confirmation_mismatch");
 
   const secondReview = JSON.parse(
     runCli(environment, "restore-ledger", "--backup-file", name, "--dry-run").stdout,
   );
-  assert.deepEqual(secondReview.dropped_processes, [
-    started.payload.process.id,
-    secondStart.payload.process.id,
-  ].sort());
+  assert.deepEqual(
+    secondReview.dropped_processes,
+    [started.payload.process.id, secondStart.payload.process.id].sort(),
+  );
   const restored = runCli(
     environment,
     "restore-ledger",
@@ -487,11 +482,7 @@ test("restore-ledger names every record a rollback would discard, and fails the 
   // The whole point of the precondition: every stored key that survives the rollback is a version 1
   // key, so the code the operator reverts to next can still load the file.
   for (const record of afterRollback.processes) {
-    assert.equal(
-      record.source_key,
-      normalizeSourceRefForVersion(record.source_ref, 1),
-      record.id,
-    );
+    assert.equal(record.source_key, normalizeSourceRefForVersion(record.source_ref, 1), record.id);
   }
 });
 
@@ -569,11 +560,13 @@ test("a rollback names the records it would rewind and the ones it would bring b
   const environment = createEnvironment(t, ledgerWithLegacyGroup());
   const name = "process-log.backup-divergent.json";
   const withExtra = ledgerWithLegacyGroup();
-  withExtra.processes.push(legacyHistoricalRecord({
-    id: "proc_group_removed",
-    sourceRef: "https://boards.example.test/jobs/removed?query=gone",
-    sourceKey: "https://boards.example.test/jobs/removed",
-  }));
+  withExtra.processes.push(
+    legacyHistoricalRecord({
+      id: "proc_group_removed",
+      sourceRef: "https://boards.example.test/jobs/removed?query=gone",
+      sourceKey: "https://boards.example.test/jobs/removed",
+    }),
+  );
   writeFileSync(
     backupPathFor(environment, name),
     `${JSON.stringify(withExtra, null, 2)}\n`,
@@ -669,8 +662,8 @@ test("a backup the reverted code could not group is not reported as a rollback t
   assert.deepEqual(plan.modified_processes, []);
   assert.equal(plan.backup_version_1_problem_count, 1);
   assert.deepEqual(plan.backup_version_1_problems, [
-    `${started.payload.process.id}: stored key https://boards.example.test/jobs/11`
-    + " would need a duplicate_of inside its stored-key group",
+    `${started.payload.process.id}: stored key https://boards.example.test/jobs/11` +
+      " would need a duplicate_of inside its stored-key group",
   ]);
 });
 
@@ -684,11 +677,13 @@ test("a long list of version 1 problems is bounded, and says how many it did not
     duplicate_policy: "prompt",
     updated_at: "2026-08-01T08:00:00.000Z",
     companies: [],
-    processes: Array.from({ length: 22 }, (_, index) => legacyHistoricalRecord({
-      id: `proc_legacy_bulk_${String(index).padStart(2, "0")}`,
-      sourceRef: `${sharedStoredKey}?query=${index}`,
-      sourceKey: sharedStoredKey,
-    })),
+    processes: Array.from({ length: 22 }, (_, index) =>
+      legacyHistoricalRecord({
+        id: `proc_legacy_bulk_${String(index).padStart(2, "0")}`,
+        sourceRef: `${sharedStoredKey}?query=${index}`,
+        sourceKey: sharedStoredKey,
+      }),
+    ),
   });
   const name = "process-log.backup-many-problems.json";
   const taken = runCli(environment, "backup-ledger", "--backup-file", name);
@@ -755,11 +750,13 @@ test("a restore whose backup carries a record the ledger lost is confirmed, not 
   const environment = createEnvironment(t, ledgerWithLegacyGroup());
   const name = "process-log.backup-reappearing-only.json";
   const withExtra = ledgerWithLegacyGroup();
-  withExtra.processes.push(legacyHistoricalRecord({
-    id: "proc_group_extra",
-    sourceRef: "https://boards.example.test/jobs/12?query=extra",
-    sourceKey: "https://boards.example.test/jobs/12",
-  }));
+  withExtra.processes.push(
+    legacyHistoricalRecord({
+      id: "proc_group_extra",
+      sourceRef: "https://boards.example.test/jobs/12?query=extra",
+      sourceKey: "https://boards.example.test/jobs/12",
+    }),
+  );
   writeFileSync(
     backupPathFor(environment, name),
     `${JSON.stringify(withExtra, null, 2)}\n`,
@@ -815,9 +812,7 @@ test("identity lookup finds a pre-cutover process by the reference, not by its s
   const started = startProcess(environment, "https://boards.example.test/jobs/probe?query=alpha");
   assert.equal(started.payload.status, "created");
   const ledger = JSON.parse(readFileSync(environment.ledgerPath, "utf8"));
-  const record = ledger.processes.find(
-    (candidate) => candidate.id === started.payload.process.id,
-  );
+  const record = ledger.processes.find((candidate) => candidate.id === started.payload.process.id);
   record.source_key = normalizeSourceRefForVersion(record.source_ref, 1);
   assert.equal(record.source_key, "https://boards.example.test/jobs/probe");
   assert.notEqual(record.source_key, normalizeSourceRefForVersion(record.source_ref, 2));
@@ -897,17 +892,13 @@ test("backup-ledger reports a write it could not perform, and leaves nothing beh
   const name = "process-log.backup-write-fails.json";
   const backupPath = backupPathFor(environment, name);
   const originalWriteFileSync = fileSystem.writeFileSync.bind(fileSystem);
-  t.mock.method(
-    fileSystem,
-    "writeFileSync",
-    (targetPath, ...rest) => {
-      if (targetPath === backupPath) {
-        originalWriteFileSync(targetPath, "partial", "utf8");
-        throw Object.assign(new Error("synthetic storage failure"), { code: "ENOSPC" });
-      }
-      return originalWriteFileSync(targetPath, ...rest);
-    },
-  );
+  t.mock.method(fileSystem, "writeFileSync", (targetPath, ...rest) => {
+    if (targetPath === backupPath) {
+      originalWriteFileSync(targetPath, "partial", "utf8");
+      throw Object.assign(new Error("synthetic storage failure"), { code: "ENOSPC" });
+    }
+    return originalWriteFileSync(targetPath, ...rest);
+  });
   syncBuiltinESMExports();
   try {
     assert.throws(

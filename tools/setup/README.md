@@ -13,12 +13,12 @@ npm run setup:github -- --repo <owner>/<name> [--check]
 The declared settings live in [config/github/](../../config/github/), one file per API call, each
 file exactly the body of that call:
 
-| File | Call |
-| --- | --- |
-| `repository.json` | `PATCH repos/{repo}` — merge commits only, no auto-merge, branches deleted after merge, the merge commit titled by GitHub's default and carrying the pull request's title, no issues, wiki or discussions |
-| `fork-pr-approval.json` | `PUT repos/{repo}/actions/permissions/fork-pr-contributor-approval` — every outside contributor's workflow run waits for approval |
-| `ruleset-main.json` | a branch ruleset on the default branch: a pull request is required with no approvals and the merge-commit method only; the check `gate` of the GitHub Actions app must pass on a branch that is up to date; no deletion, no force push; nobody bypasses it |
-| `ruleset-release-tags.json` | a tag ruleset on `release-*`: a release tag cannot be deleted or moved; creating one stays open |
+| File                        | Call                                                                                                                                                                                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repository.json`           | `PATCH repos/{repo}` — merge commits only, no auto-merge, branches deleted after merge, the merge commit titled by GitHub's default and carrying the pull request's title, no issues, wiki or discussions                                                  |
+| `fork-pr-approval.json`     | `PUT repos/{repo}/actions/permissions/fork-pr-contributor-approval` — every outside contributor's workflow run waits for approval                                                                                                                          |
+| `ruleset-main.json`         | a branch ruleset on the default branch: a pull request is required with no approvals and the merge-commit method only; the check `gate` of the GitHub Actions app must pass on a branch that is up to date; no deletion, no force push; nobody bypasses it |
+| `ruleset-release-tags.json` | a tag ruleset on `release-*`: a release tag cannot be deleted or moved; creating one stays open                                                                                                                                                            |
 
 The ruleset carries no linear-history rule: that rule forbids merge commits.
 
@@ -83,10 +83,10 @@ directory as the engine.
 The layer supplies the text; the engine fixes where each one lands. A layer cannot direct a write
 anywhere else.
 
-| Template in the layer's `machine` directory | Target |
-| --- | --- |
-| `settings.local.json` | `.claude/settings.local.json` of the operational folder |
-| `backup.plist` | `~/Library/LaunchAgents/com.job-search-pipeline.backup.plist` |
+| Template in the layer's `machine` directory | Target                                                        |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| `settings.local.json`                       | `.claude/settings.local.json` of the operational folder       |
+| `backup.plist`                              | `~/Library/LaunchAgents/com.job-search-pipeline.backup.plist` |
 
 A template may name four placeholders: `{{node}}` (the running Node), `{{home}}`,
 `{{operational_root}}` and `{{backup_root}}` (`~/Backups/job-search-pipeline`). An unknown

@@ -28,8 +28,19 @@ const ENTRY_KEYS = Object.freeze(["addedIn", "id", "note", "source", "text"]);
 const REQUIRED_ENTRY_KEYS = Object.freeze(["addedIn", "id", "source", "text"]);
 const FAMILY_KEYS = Object.freeze(["id", "note", "phrases", "title"]);
 const REQUIRED_FAMILY_KEYS = Object.freeze(["id", "phrases", "title"]);
-const ROOT_KEYS = Object.freeze(["families", "note", "schemaVersion", "vocabularyId", "zoneTerminators"]);
-const REQUIRED_ROOT_KEYS = Object.freeze(["families", "schemaVersion", "vocabularyId", "zoneTerminators"]);
+const ROOT_KEYS = Object.freeze([
+  "families",
+  "note",
+  "schemaVersion",
+  "vocabularyId",
+  "zoneTerminators",
+]);
+const REQUIRED_ROOT_KEYS = Object.freeze([
+  "families",
+  "schemaVersion",
+  "vocabularyId",
+  "zoneTerminators",
+]);
 const ID_PATTERN = /^[a-z][a-z0-9_]*$/u;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
@@ -99,7 +110,8 @@ export function validateVocabulary(raw) {
   }
   const ids = new Set();
   const zoneTerminators = raw.zoneTerminators.map((entry, index) =>
-    checkEntry(entry, `vocabulary.zoneTerminators[${index}]`, "zone", ids));
+    checkEntry(entry, `vocabulary.zoneTerminators[${index}]`, "zone", ids),
+  );
   const familyIds = new Set();
   const families = raw.families.map((family, index) => {
     const label = `vocabulary.families[${index}]`;
@@ -115,7 +127,8 @@ export function validateVocabulary(raw) {
       fail("vocabulary_invalid", `${label}.phrases must be a non-empty array`);
     }
     const phrases = family.phrases.map((entry, phraseIndex) =>
-      checkEntry(entry, `${label}.phrases[${phraseIndex}]`, family.id, ids));
+      checkEntry(entry, `${label}.phrases[${phraseIndex}]`, family.id, ids),
+    );
     return Object.freeze({ ...family, phrases: Object.freeze(phrases) });
   });
   return Object.freeze({
@@ -128,7 +141,8 @@ export function validateVocabulary(raw) {
 /** Every phrase across every family, flattened with its family id. */
 export function vocabularyPhrases(vocabulary) {
   return vocabulary.families.flatMap((family) =>
-    family.phrases.map((phrase) => ({ family: family.id, id: phrase.id, text: phrase.text })));
+    family.phrases.map((phrase) => ({ family: family.id, id: phrase.id, text: phrase.text })),
+  );
 }
 
 export function loadVocabulary(path = currentVocabularyFile) {

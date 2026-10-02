@@ -32,7 +32,13 @@ import {
 } from "./process-log-diagnostics.mjs";
 import { detectJobSource } from "../job-sources/registry.mjs";
 
-export const allowedRunners = new Set(["claude-code", "claude-ai-web", "codex", "manual", "unknown"]);
+export const allowedRunners = new Set([
+  "claude-code",
+  "claude-ai-web",
+  "codex",
+  "manual",
+  "unknown",
+]);
 export const allowedStatuses = new Set(["started", "fetch_failed", "output_created"]);
 export {
   classifyProcessRecord,
@@ -47,13 +53,7 @@ const trustedPrimaryErrorEvidence = new WeakMap();
 const trustedSecondaryErrorEvidence = new WeakMap();
 
 export class ProcessLogCoreError extends Error {
-  constructor({
-    causeCode,
-    code,
-    context,
-    message,
-    recoveryAction,
-  }) {
+  constructor({ causeCode, code, context, message, recoveryAction }) {
     super(message);
     this.name = "ProcessLogCoreError";
     this.causeCode = causeCode;
@@ -66,13 +66,16 @@ export class ProcessLogCoreError extends Error {
 class TrustedProcessLogCoreError extends ProcessLogCoreError {
   constructor(details) {
     super(details);
-    trustedPrimaryErrorEvidence.set(this, Object.freeze({
-      causeCode: this.causeCode,
-      code: this.code,
-      context: this.context,
-      message: this.message,
-      recoveryAction: this.recoveryAction,
-    }));
+    trustedPrimaryErrorEvidence.set(
+      this,
+      Object.freeze({
+        causeCode: this.causeCode,
+        code: this.code,
+        context: this.context,
+        message: this.message,
+        recoveryAction: this.recoveryAction,
+      }),
+    );
   }
 }
 
@@ -83,9 +86,7 @@ export function processLogCorePrimaryEvidence(error) {
 
 export function processLogCoreSecondaryEvidence(error) {
   const evidence = trustedSecondaryErrorEvidence.get(error);
-  return Array.isArray(evidence)
-    ? evidence.map((entry) => ({ ...entry }))
-    : [];
+  return Array.isArray(evidence) ? evidence.map((entry) => ({ ...entry })) : [];
 }
 
 function appendSecondaryCoreError(primaryError, secondaryError) {
@@ -97,22 +98,23 @@ function appendSecondaryCoreError(primaryError, secondaryError) {
   const secondaryEvidence = trustedPrimaryErrorEvidence.get(secondaryError);
   if (secondaryEvidence === undefined) return;
   const stored = trustedSecondaryErrorEvidence.get(primaryError);
-  const existing = Array.isArray(stored)
-    ? stored
-    : [];
+  const existing = Array.isArray(stored) ? stored : [];
   const { causeCode, code, context, recoveryAction } = secondaryEvidence;
-  trustedSecondaryErrorEvidence.set(primaryError, Object.freeze([
-    ...existing.slice(0, 1),
-    Object.freeze({ causeCode, code, context, recoveryAction }),
-  ]));
+  trustedSecondaryErrorEvidence.set(
+    primaryError,
+    Object.freeze([
+      ...existing.slice(0, 1),
+      Object.freeze({ causeCode, code, context, recoveryAction }),
+    ]),
+  );
 }
 
 function boundedCoreCauseCode(error, fallback = "UNKNOWN") {
   try {
     const code = error?.code;
-    return typeof code === "string"
-      && Buffer.byteLength(code, "utf8") <= processLogDiagnosticLimits.codeMaxBytes
-      && processLogUppercaseCauseCodePattern.test(code)
+    return typeof code === "string" &&
+      Buffer.byteLength(code, "utf8") <= processLogDiagnosticLimits.codeMaxBytes &&
+      processLogUppercaseCauseCodePattern.test(code)
       ? code
       : fallback;
   } catch {
@@ -121,9 +123,7 @@ function boundedCoreCauseCode(error, fallback = "UNKNOWN") {
 }
 
 function processLogAccessRecovery(causeCode, fallback) {
-  return ["EACCES", "EPERM"].includes(causeCode)
-    ? "repair_process_log_access"
-    : fallback;
+  return ["EACCES", "EPERM"].includes(causeCode) ? "repair_process_log_access" : fallback;
 }
 
 // Source-key policy versions. The decision record is
@@ -131,25 +131,23 @@ function processLogAccessRecovery(causeCode, fallback) {
 // version strips, and its "Implementation status" section records the cutover that moved the
 // computed version to 2.
 const trackingParamsByVersion = new Map([
-  [1, new Set([
-    "alternatechannel",
-    "hhtmfrom",
-    "query",
-    "refid",
-    "source",
-    "tab",
-    "trackingid",
-    "trk",
-  ])],
+  [
+    1,
+    new Set([
+      "alternatechannel",
+      "hhtmfrom",
+      "query",
+      "refid",
+      "source",
+      "tab",
+      "trackingid",
+      "trk",
+    ]),
+  ],
   // Version 2 strips a strict subset of version 1. That is not a coincidence and not an
   // implementation detail: it is what makes the projection a refinement, so no two references that
   // have distinct version 1 keys can acquire the same version 2 key.
-  [2, new Set([
-    "alternatechannel",
-    "hhtmfrom",
-    "trackingid",
-    "trk",
-  ])],
+  [2, new Set(["alternatechannel", "hhtmfrom", "trackingid", "trk"])],
 ]);
 
 export const sourceKeyPolicyVersions = Object.freeze(
@@ -251,9 +249,7 @@ export function legacySourceRefCollisionWitnesses(leftValue, rightValue) {
   // R1-03C report go silent about exactly the collisions it exists to name, the moment the computed
   // version moved: two references differing only in `query` stop sharing a version 2 key, while the
   // stored key that already groups them does not move at all.
-  if (
-    normalizeSourceRefForVersion(left, 1) !== normalizeSourceRefForVersion(right, 1)
-  ) {
+  if (normalizeSourceRefForVersion(left, 1) !== normalizeSourceRefForVersion(right, 1)) {
     return [];
   }
   const leftUrl = parseLegacyHttpSourceRef(left);
@@ -266,8 +262,8 @@ export function legacySourceRefCollisionWitnesses(leftValue, rightValue) {
   const parameterNames = [...new Set([...leftGroups.keys(), ...rightGroups.keys()])].sort();
   for (const parameterName of parameterNames) {
     if (
-      JSON.stringify(leftGroups.get(parameterName) ?? [])
-      !== JSON.stringify(rightGroups.get(parameterName) ?? [])
+      JSON.stringify(leftGroups.get(parameterName) ?? []) !==
+      JSON.stringify(rightGroups.get(parameterName) ?? [])
     ) {
       witnesses.push(parameterName);
     }
@@ -289,8 +285,8 @@ export function buildLegacySourceCollisionReport(log) {
   for (const [sourceKey, records] of recordsBySourceKey) {
     if (records.length < 2) continue;
     const sortedRecords = [...records].sort(
-      (left, right) => left.id.localeCompare(right.id)
-        || left.source_ref.localeCompare(right.source_ref),
+      (left, right) =>
+        left.id.localeCompare(right.id) || left.source_ref.localeCompare(right.source_ref),
     );
     const witnesses = [];
     const involvedProcessIds = new Set();
@@ -339,8 +335,10 @@ function brokenDuplicateLinks(records) {
       if (record.duplicate_of === null) return false;
       const target = byId.get(record.duplicate_of);
       if (target === undefined) return false;
-      return target.stored_source_key === record.stored_source_key
-        && target.projected_source_key !== record.projected_source_key;
+      return (
+        target.stored_source_key === record.stored_source_key &&
+        target.projected_source_key !== record.projected_source_key
+      );
     })
     .map((record) => ({
       process_id: record.process_id,
@@ -409,9 +407,11 @@ export function buildDuplicateChain(log, processId) {
       output_dir: record.output_dir ?? null,
       started_at: record.started_at,
     }))
-    .sort((left, right) =>
-      Date.parse(left.started_at) - Date.parse(right.started_at)
-        || left.process_id.localeCompare(right.process_id));
+    .sort(
+      (left, right) =>
+        Date.parse(left.started_at) - Date.parse(right.started_at) ||
+        left.process_id.localeCompare(right.process_id),
+    );
 
   return {
     status: members.length > 1 ? "chain" : "single",
@@ -451,13 +451,7 @@ export function buildSourceKeyVersionProjection(log, { toVersion = 2 } = {}) {
 
   const changed = records
     .filter((record) => record.projected_source_key !== record.stored_source_key)
-    .map(({
-      process_id,
-      record_class,
-      source_ref,
-      stored_source_key,
-      projected_source_key,
-    }) => ({
+    .map(({ process_id, record_class, source_ref, stored_source_key, projected_source_key }) => ({
       process_id,
       record_class,
       source_ref,
@@ -478,24 +472,18 @@ export function buildSourceKeyVersionProjection(log, { toVersion = 2 } = {}) {
     splitGroups.push({
       stored_source_key: storedSourceKey,
       projected_source_keys: projectedKeys,
-      members: members.map(({
-        process_id,
-        record_class,
-        source_ref,
-        projected_source_key,
-        duplicate_of,
-      }) => ({
-        process_id,
-        record_class,
-        source_ref,
-        projected_source_key,
-        duplicate_of,
-      })),
+      members: members.map(
+        ({ process_id, record_class, source_ref, projected_source_key, duplicate_of }) => ({
+          process_id,
+          record_class,
+          source_ref,
+          projected_source_key,
+          duplicate_of,
+        }),
+      ),
     });
   }
-  splitGroups.sort(
-    (left, right) => left.stored_source_key.localeCompare(right.stored_source_key),
-  );
+  splitGroups.sort((left, right) => left.stored_source_key.localeCompare(right.stored_source_key));
 
   // A merge is two records that carry different stored keys today and would carry one afterwards.
   // Version 2 cannot produce one, because it strips a strict subset of version 1 and therefore only
@@ -551,7 +539,9 @@ export function normalizeSearchText(value) {
 }
 
 export function normalizeDomain(value) {
-  const raw = String(value ?? "").trim().toLowerCase();
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (!raw || /\s/.test(raw)) throw new Error("domain must not be empty or contain spaces");
   const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
   let url;
@@ -625,11 +615,13 @@ export function deriveSearchTerms(companyName) {
 }
 
 function asciiSlug(value) {
-  return normalizeSearchText(value)
-    .normalize("NFKD")
-    .replace(/[^a-z\d]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 36) || "company";
+  return (
+    normalizeSearchText(value)
+      .normalize("NFKD")
+      .replace(/[^a-z\d]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 36) || "company"
+  );
 }
 
 export function createCompanyId(displayName, deterministic = false) {
@@ -693,7 +685,8 @@ export function validateLog(log) {
       errors.push(`${prefix}.search_terms must be a non-empty array`);
     } else {
       const normalizedTerms = company.search_terms.map(normalizeSearchText);
-      if (normalizedTerms.some((term) => !term)) errors.push(`${prefix}.search_terms contains an empty term`);
+      if (normalizedTerms.some((term) => !term))
+        errors.push(`${prefix}.search_terms contains an empty term`);
       if (new Set(normalizedTerms).size !== normalizedTerms.length) {
         errors.push(`${prefix}.search_terms contains normalized duplicates`);
       }
@@ -748,7 +741,8 @@ export function validateLog(log) {
       } catch (error) {
         errors.push(`${prefix}.output_dir: ${error.message}`);
       }
-      if (record.status !== "output_created") errors.push(`${prefix}.status must be output_created`);
+      if (record.status !== "output_created")
+        errors.push(`${prefix}.status must be output_created`);
     } else if (record.status === "output_created") {
       errors.push(`${prefix}.output_dir is required for output_created status`);
     }
@@ -784,9 +778,10 @@ export function readRawLog(logPath) {
     source = readFileSync(logPath, "utf8");
   } catch (error) {
     const causeCode = boundedCoreCauseCode(error);
-    const recoveryAction = causeCode === "ENOENT"
-      ? "run_bootstrap_init"
-      : processLogAccessRecovery(causeCode, "inspect_process_log_path");
+    const recoveryAction =
+      causeCode === "ENOENT"
+        ? "run_bootstrap_init"
+        : processLogAccessRecovery(causeCode, "inspect_process_log_path");
     throw new TrustedProcessLogCoreError({
       causeCode,
       code: "process_log_read_failed",
@@ -842,19 +837,19 @@ function waitSynchronously(milliseconds) {
 function lockAgeHint(lockPath, staleAfterMs) {
   try {
     const ageMs = Date.now() - statSync(lockPath).mtimeMs;
-    return ageMs > staleAfterMs
-      ? " The lock appears stale; inspect it before removal."
-      : "";
+    return ageMs > staleAfterMs ? " The lock appears stale; inspect it before removal." : "";
   } catch {
     return "";
   }
 }
 
 function exactObjectKeys(value, expectedKeys) {
-  return value !== null
-    && typeof value === "object"
-    && !Array.isArray(value)
-    && JSON.stringify(Object.keys(value).sort()) === JSON.stringify(expectedKeys);
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    JSON.stringify(Object.keys(value).sort()) === JSON.stringify(expectedKeys)
+  );
 }
 
 function validOwnerTimestamp(value) {
@@ -866,19 +861,19 @@ function parseLockOwner(source, { allowLegacy = false } = {}) {
     const owner = JSON.parse(source);
     const validPid = Number.isSafeInteger(owner?.pid) && owner.pid > 0;
     if (
-      exactObjectKeys(owner, lockOwnerKeys)
-      && owner.lock_version === 1
-      && validPid
-      && lockOwnerTokenPattern.test(owner.owner_token)
-      && validOwnerTimestamp(owner.acquired_at)
+      exactObjectKeys(owner, lockOwnerKeys) &&
+      owner.lock_version === 1 &&
+      validPid &&
+      lockOwnerTokenPattern.test(owner.owner_token) &&
+      validOwnerTimestamp(owner.acquired_at)
     ) {
       return owner;
     }
     if (
-      allowLegacy
-      && exactObjectKeys(owner, legacyLockOwnerKeys)
-      && validPid
-      && validOwnerTimestamp(owner.acquired_at)
+      allowLegacy &&
+      exactObjectKeys(owner, legacyLockOwnerKeys) &&
+      validPid &&
+      validOwnerTimestamp(owner.acquired_at)
     ) {
       return owner;
     }
@@ -939,10 +934,12 @@ function removeExactDirectoryOwner(lockPath, entryName) {
 }
 
 function sameRegularLock(left, right) {
-  return left.stats.dev === right.stats.dev
-    && left.stats.ino === right.stats.ino
-    && left.stats.size === right.stats.size
-    && left.bytes.equals(right.bytes);
+  return (
+    left.stats.dev === right.stats.dev &&
+    left.stats.ino === right.stats.ino &&
+    left.stats.size === right.stats.size &&
+    left.bytes.equals(right.bytes)
+  );
 }
 
 function inspectRegularLock(path) {
@@ -967,10 +964,10 @@ function recoverLegacyRegularLock(lockPath, observed) {
     const claim = inspectRegularLock(claimPath);
     const current = inspectRegularLock(lockPath);
     if (
-      claim === null
-      || current === null
-      || !sameRegularLock(observed, claim)
-      || !sameRegularLock(claim, current)
+      claim === null ||
+      current === null ||
+      !sameRegularLock(observed, claim) ||
+      !sameRegularLock(claim, current)
     ) {
       return false;
     }
@@ -1003,9 +1000,7 @@ function recoverDirectoryLock(lockPath, directoryStats, staleAfterMs) {
     return error.code === "ENOENT";
   }
   if (entries.length === 0) {
-    return lockIsStale(directoryStats, staleAfterMs)
-      ? removeEmptyLockDirectory(lockPath)
-      : false;
+    return lockIsStale(directoryStats, staleAfterMs) ? removeEmptyLockDirectory(lockPath) : false;
   }
   if (entries.length !== 1) return false;
   const [entryName] = entries;
@@ -1032,11 +1027,11 @@ function recoverDirectoryLock(lockPath, directoryStats, staleAfterMs) {
     return error.code === "ENOENT";
   }
   if (
-    currentEntry === null
-    || !currentDirectory.isDirectory()
-    || currentDirectory.dev !== directoryStats.dev
-    || currentDirectory.ino !== directoryStats.ino
-    || !sameRegularLock(entry, currentEntry)
+    currentEntry === null ||
+    !currentDirectory.isDirectory() ||
+    currentDirectory.dev !== directoryStats.dev ||
+    currentDirectory.ino !== directoryStats.ino ||
+    !sameRegularLock(entry, currentEntry)
   ) {
     return false;
   }
@@ -1129,10 +1124,7 @@ function tryPublishLock(lockPath) {
   };
 }
 
-function acquireLockUnchecked(
-  logPath,
-  { timeoutMs = 35_000, staleAfterMs = 30_000 } = {},
-) {
+function acquireLockUnchecked(logPath, { timeoutMs = 35_000, staleAfterMs = 30_000 } = {}) {
   const lockPath = `${logPath}.lock`;
   const startedAt = Date.now();
   let attempt = 0;
@@ -1167,9 +1159,7 @@ function acquireLock(logPath, options) {
       causeCode,
       code: timedOut ? "process_log_lock_timeout" : "process_log_lock_failed",
       context: "operation=acquire_process_log_lock",
-      message: timedOut
-        ? error.message
-        : "Process log lock could not be acquired.",
+      message: timedOut ? error.message : "Process log lock could not be acquired.",
       recoveryAction: timedOut
         ? "retry_process_log_command"
         : processLogAccessRecovery(causeCode, "inspect_process_log_lock"),
@@ -1198,8 +1188,8 @@ function releaseLock(lock) {
         });
       }
       if (
-        currentStats.dev !== lock.directoryIdentity.dev
-        || currentStats.ino !== lock.directoryIdentity.ino
+        currentStats.dev !== lock.directoryIdentity.dev ||
+        currentStats.ino !== lock.directoryIdentity.ino
       ) {
         return false;
       }
@@ -1227,9 +1217,7 @@ function releaseLock(lock) {
     } catch (error) {
       const releaseCauseCode = boundedCoreCauseCode(error);
       if (releaseCauseCode === "ENOENT") return true;
-      if (
-        ["EEXIST", "ENOTEMPTY"].includes(releaseCauseCode)
-      ) {
+      if (["EEXIST", "ENOTEMPTY"].includes(releaseCauseCode)) {
         let currentStats;
         try {
           currentStats = lstatSync(lock.lockPath);
@@ -1245,8 +1233,8 @@ function releaseLock(lock) {
           });
         }
         if (
-          currentStats.dev !== lock.directoryIdentity.dev
-          || currentStats.ino !== lock.directoryIdentity.ino
+          currentStats.dev !== lock.directoryIdentity.dev ||
+          currentStats.ino !== lock.directoryIdentity.ino
         ) {
           return false;
         }
@@ -1284,9 +1272,10 @@ function releaseLock(lock) {
 
 function processLogWriteError(error) {
   const causeCode = boundedCoreCauseCode(error);
-  const recoveryAction = causeCode === "ENOSPC"
-    ? "free_process_log_storage"
-    : processLogAccessRecovery(causeCode, "inspect_process_log_write_path");
+  const recoveryAction =
+    causeCode === "ENOSPC"
+      ? "free_process_log_storage"
+      : processLogAccessRecovery(causeCode, "inspect_process_log_write_path");
   return new TrustedProcessLogCoreError({
     causeCode,
     code: "process_log_write_failed",
@@ -1389,35 +1378,45 @@ export function withLogV3Lock(logPath, operate, options) {
 }
 
 export function updateLogV3Atomic(logPath, mutate, options) {
-  return withLogV3Lock(logPath, ({ log, write }) => {
-    const outcome = mutate(log) ?? {};
-    if (outcome.changed !== false) {
-      write(outcome.log ?? log);
-    }
-    return outcome.result;
-  }, options);
+  return withLogV3Lock(
+    logPath,
+    ({ log, write }) => {
+      const outcome = mutate(log) ?? {};
+      if (outcome.changed !== false) {
+        write(outcome.log ?? log);
+      }
+      return outcome.result;
+    },
+    options,
+  );
 }
 
 export function buildMigrationBaseline(log) {
   const isV1 = log.schema_version === 1;
-  return (log.processes ?? []).map((record) => ({
-    id: record.id,
-    started_at: record.started_at,
-    source_ref: record.source_ref,
-    source_key: record.source_key,
-    company_observed: isV1 ? record.company : record.company_observed,
-    role: record.role,
-    runner: record.runner,
-    output_dir: record.output_dir,
-    status: record.status,
-    duplicate_of: record.duplicate_of,
-  })).sort((left, right) => left.id.localeCompare(right.id));
+  return (log.processes ?? [])
+    .map((record) => ({
+      id: record.id,
+      started_at: record.started_at,
+      source_ref: record.source_ref,
+      source_key: record.source_key,
+      company_observed: isV1 ? record.company : record.company_observed,
+      role: record.role,
+      runner: record.runner,
+      output_dir: record.output_dir,
+      status: record.status,
+      duplicate_of: record.duplicate_of,
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
 }
 
 export function compareMigrationBaselines(before, after) {
   const beforeText = JSON.stringify(before);
   const afterText = JSON.stringify(after);
-  return { equal: beforeText === afterText, before_count: before.length, after_count: after.length };
+  return {
+    equal: beforeText === afterText,
+    before_count: before.length,
+    after_count: after.length,
+  };
 }
 
 export function migrateV1ToV2(log) {
@@ -1434,9 +1433,13 @@ export function migrateV1ToV2(log) {
     groups.set(key, group);
   }
   const companies = [...groups.values()]
-    .map((group) => createCompanyRecord(group.name, { sourceRefs: group.sourceRefs, deterministic: true }))
+    .map((group) =>
+      createCompanyRecord(group.name, { sourceRefs: group.sourceRefs, deterministic: true }),
+    )
     .sort((left, right) => left.display_name.localeCompare(right.display_name, "en"));
-  const companyByName = new Map(companies.map((company) => [normalizeSearchText(company.display_name), company]));
+  const companyByName = new Map(
+    companies.map((company) => [normalizeSearchText(company.display_name), company]),
+  );
   const processes = log.processes.map((record) => ({
     id: record.id,
     started_at: record.started_at,
@@ -1472,7 +1475,11 @@ function matchTextQuery(query, values) {
   const queryTokens = normalizedQuery.split(" ");
   for (const value of candidates) {
     const candidateTokens = normalizeSearchText(value).split(" ");
-    if (queryTokens.every((queryToken) => candidateTokens.some((token) => token.startsWith(queryToken)))) {
+    if (
+      queryTokens.every((queryToken) =>
+        candidateTokens.some((token) => token.startsWith(queryToken)),
+      )
+    ) {
       return { type: "token-prefix", value, rank: 2 };
     }
   }
@@ -1487,7 +1494,11 @@ function matchTextQuery(query, values) {
 }
 
 function matchCompany(company, query, extraTerms = []) {
-  const textMatch = matchTextQuery(query, [company?.display_name, ...(company?.search_terms ?? []), ...extraTerms]);
+  const textMatch = matchTextQuery(query, [
+    company?.display_name,
+    ...(company?.search_terms ?? []),
+    ...extraTerms,
+  ]);
   if (textMatch?.rank === 0) return textMatch;
   const queryDomain = parseDomainQuery(query);
   if (queryDomain && company?.domains.some((domain) => domainIs(queryDomain, domain))) {
@@ -1503,8 +1514,10 @@ function searchCompaniesValidated(log, query) {
     const match = matchCompany(company, query);
     if (match) results.push({ company, match });
   }
-  return results.sort((left, right) =>
-    left.match.rank - right.match.rank || left.company.display_name.localeCompare(right.company.display_name, "en"),
+  return results.sort(
+    (left, right) =>
+      left.match.rank - right.match.rank ||
+      left.company.display_name.localeCompare(right.company.display_name, "en"),
   );
 }
 
@@ -1535,10 +1548,11 @@ function searchProcessesValidated(log, query) {
       : null;
     if (!normalizedQuery || match) results.push({ process: record, company, match });
   }
-  return results.sort((left, right) =>
-    (left.match?.rank ?? 0) - (right.match?.rank ?? 0)
-      || Date.parse(right.process.started_at) - Date.parse(left.process.started_at)
-      || right.process.id.localeCompare(left.process.id),
+  return results.sort(
+    (left, right) =>
+      (left.match?.rank ?? 0) - (right.match?.rank ?? 0) ||
+      Date.parse(right.process.started_at) - Date.parse(left.process.started_at) ||
+      right.process.id.localeCompare(left.process.id),
   );
 }
 

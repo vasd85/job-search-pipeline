@@ -8,8 +8,6 @@ replaces its pair of tags and puts the previous pair back. The decision is
 [ADR 0024](../../docs/adr/0024-two-repositories-one-snapshot.md), decision 1; the operator's
 procedure is [docs/runbooks/ops-cutover.md](../../docs/runbooks/ops-cutover.md).
 
-
-
 ## Commands
 
 ```sh
@@ -34,15 +32,15 @@ Paths are relative to the folder root. The table is written into every manifest,
 always checked against the table in its own manifest. Historical tables can retain a mutable
 `candidate/research/` exception; new builds omit it, and private research is never exported.
 
-| Zone | Paths | Digested |
-| --- | --- | --- |
-| `candidate` | `candidate/` — the layer tag without `archive/`, `board/`, `decisions/`, `machine/`, `research/` | yes |
-| `dependencies` | `tools/cv-builder/node_modules/`, installed by `npm ci` at build | yes |
-| `state` | root entries starting `process-log.json`, `process-log.backup-`, `triage-ledger.json`, `telegram-sweep-state.json`; `output/`, `triage-batches/`, `telegram-sources.json`, `telegram-sweeps/`, `records/`, `.pipeline-input/`, `.temp-docs/`, `.playwright-mcp/`, `pkcs11.txt`, `.vscode/`, `.idea/`; nested `.claude/settings.local.json`, `.claude/.cc-writes/`; `.rehearsal/` in a rehearsal folder | no |
-| `handover` | `outbox/` | no |
-| service | `ops-manifest.json` and its temporary siblings, `.ops-tree/` | no |
-| metadata | any `.DS_Store` | no |
-| `engine` | everything else | yes |
+| Zone           | Paths                                                                                                                                                                                                                                                                                                                                                                                                  | Digested |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `candidate`    | `candidate/` — the layer tag without `archive/`, `board/`, `decisions/`, `machine/`, `research/`                                                                                                                                                                                                                                                                                                       | yes      |
+| `dependencies` | `tools/cv-builder/node_modules/`, installed by `npm ci` at build                                                                                                                                                                                                                                                                                                                                       | yes      |
+| `state`        | root entries starting `process-log.json`, `process-log.backup-`, `triage-ledger.json`, `telegram-sweep-state.json`; `output/`, `triage-batches/`, `telegram-sources.json`, `telegram-sweeps/`, `records/`, `.pipeline-input/`, `.temp-docs/`, `.playwright-mcp/`, `pkcs11.txt`, `.vscode/`, `.idea/`; nested `.claude/settings.local.json`, `.claude/.cc-writes/`; `.rehearsal/` in a rehearsal folder | no       |
+| `handover`     | `outbox/`                                                                                                                                                                                                                                                                                                                                                                                              | no       |
+| service        | `ops-manifest.json` and its temporary siblings, `.ops-tree/`                                                                                                                                                                                                                                                                                                                                           | no       |
+| metadata       | any `.DS_Store`                                                                                                                                                                                                                                                                                                                                                                                        | no       |
+| `engine`       | everything else                                                                                                                                                                                                                                                                                                                                                                                        | yes      |
 
 A file nobody listed is an added `engine` file, and the check refuses it. The candidate exclusions
 are the engine's list, not the private repository's `.gitattributes`: a tag cut from a commit
@@ -52,15 +50,15 @@ without that file would otherwise bring the board into the folder.
 
 `ops-manifest.json`, schema `job-search-pipeline/ops-manifest`, version 1:
 
-| Field | Meaning |
-| --- | --- |
-| `kind` | `operational` or `rehearsal` |
-| `state` | `ready`, or `building` while a swap runs |
-| `engine`, `candidate` | `{tag, commit, tree, repository}` — `repository` is the absolute path the tag was read from |
-| `built_at` | when the image was built |
-| `previous` | the stamp of the retained tree the last swap left, or `null` |
-| `zones` | the zone table above |
-| `files` | `{engine, dependencies, candidate}`: path → `{sha256, executable}` for a file, `{symlink: <target>}` for a link |
+| Field                 | Meaning                                                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `kind`                | `operational` or `rehearsal`                                                                                    |
+| `state`               | `ready`, or `building` while a swap runs                                                                        |
+| `engine`, `candidate` | `{tag, commit, tree, repository}` — `repository` is the absolute path the tag was read from                     |
+| `built_at`            | when the image was built                                                                                        |
+| `previous`            | the stamp of the retained tree the last swap left, or `null`                                                    |
+| `zones`               | the zone table above                                                                                            |
+| `files`               | `{engine, dependencies, candidate}`: path → `{sha256, executable}` for a file, `{symlink: <target>}` for a link |
 
 ## The drift check
 
@@ -146,18 +144,18 @@ token.
 
 ## Codes
 
-| Code | Meaning |
-| --- | --- |
-| `engine_tree_drift`, `candidate_snapshot_drift` | a digested file was modified, added, removed or changed type |
-| `ops_manifest_missing`, `ops_manifest_invalid` | `.ops-tree/` without a manifest; a manifest that does not parse |
-| `ops_tree_building` | a swap did not finish; run `rollback` |
-| `ops_tree_locked` | another run holds the lock, or it could not be taken over |
-| `ops_tree_invalid_arguments`, `ops_tree_invalid_tag`, `ops_tree_tag_missing`, `ops_tree_repository_missing` | the command line |
-| `ops_tree_root_inside_repository`, `ops_tree_root_not_empty` | `export` target |
-| `ops_tree_export_mismatch`, `ops_tree_extract_failed`, `ops_tree_git_failed`, `ops_tree_install_failed` | building the image |
-| `ops_tree_image_overlaps_state` | a tag carries a path of the state, handover or service zone |
-| `ops_tree_pair_check_failed`, `cutover_ledger_unreadable`, `cutover_ledger_moving` | the new engine refused the pair or the ledger; the ledger changed during the copy |
-| `cutover_step_running`, `cutover_publication_prepared`, `cutover_triage_locked` | gates |
-| `ops_tree_staging_holds_state` | an image of an interrupted run still holds state; move it back, then delete the image |
-| `ops_tree_nothing_to_roll_back`, `ops_tree_rollback_target_drift` | no retained tree; the retained tree no longer matches its manifest |
-| `ops_tree_recovery_refused`, `ops_tree_journal_unknown` | a copy of the tool that the journal does not name; a journal this engine cannot read |
+| Code                                                                                                        | Meaning                                                                               |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `engine_tree_drift`, `candidate_snapshot_drift`                                                             | a digested file was modified, added, removed or changed type                          |
+| `ops_manifest_missing`, `ops_manifest_invalid`                                                              | `.ops-tree/` without a manifest; a manifest that does not parse                       |
+| `ops_tree_building`                                                                                         | a swap did not finish; run `rollback`                                                 |
+| `ops_tree_locked`                                                                                           | another run holds the lock, or it could not be taken over                             |
+| `ops_tree_invalid_arguments`, `ops_tree_invalid_tag`, `ops_tree_tag_missing`, `ops_tree_repository_missing` | the command line                                                                      |
+| `ops_tree_root_inside_repository`, `ops_tree_root_not_empty`                                                | `export` target                                                                       |
+| `ops_tree_export_mismatch`, `ops_tree_extract_failed`, `ops_tree_git_failed`, `ops_tree_install_failed`     | building the image                                                                    |
+| `ops_tree_image_overlaps_state`                                                                             | a tag carries a path of the state, handover or service zone                           |
+| `ops_tree_pair_check_failed`, `cutover_ledger_unreadable`, `cutover_ledger_moving`                          | the new engine refused the pair or the ledger; the ledger changed during the copy     |
+| `cutover_step_running`, `cutover_publication_prepared`, `cutover_triage_locked`                             | gates                                                                                 |
+| `ops_tree_staging_holds_state`                                                                              | an image of an interrupted run still holds state; move it back, then delete the image |
+| `ops_tree_nothing_to_roll_back`, `ops_tree_rollback_target_drift`                                           | no retained tree; the retained tree no longer matches its manifest                    |
+| `ops_tree_recovery_refused`, `ops_tree_journal_unknown`                                                     | a copy of the tool that the journal does not name; a journal this engine cannot read  |

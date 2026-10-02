@@ -28,10 +28,7 @@ import {
 } from "./fixtures/disposable-workspace.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const cliChildPath = resolve(
-  repoRoot,
-  "tests/fixtures/process-log-cli-child.mjs",
-);
+const cliChildPath = resolve(repoRoot, "tests/fixtures/process-log-cli-child.mjs");
 
 function emptyLog() {
   return {
@@ -73,9 +70,10 @@ test("ledger metadata retries remain bounded and reject unsafe replacements", as
   for (const kind of ["persistent-zero", "hardlink", "symlink", "marker-zero"]) {
     await t.test(kind, (t) => {
       const environment = createDisposableWorkspace(t, { ledger: emptyLog() });
-      const target = kind === "marker-zero"
-        ? join(environment.workspaceRoot, disposableMarkerFileName)
-        : environment.ledgerPath;
+      const target =
+        kind === "marker-zero"
+          ? join(environment.workspaceRoot, disposableMarkerFileName)
+          : environment.ledgerPath;
       const originalLstat = fileSystem.lstatSync;
       let samples = 0;
       const mocked = t.mock.method(fileSystem, "lstatSync", (path, ...args) => {
@@ -94,8 +92,12 @@ test("ledger metadata retries remain bounded and reject unsafe replacements", as
       });
       syncBuiltinESMExports();
       try {
-        assert.throws(() => assertDisposableWorkspace(environment), (error) =>
-          error.code === (kind === "marker-zero" ? "invalid_disposable_marker" : "invalid_disposable_ledger"));
+        assert.throws(
+          () => assertDisposableWorkspace(environment),
+          (error) =>
+            error.code ===
+            (kind === "marker-zero" ? "invalid_disposable_marker" : "invalid_disposable_ledger"),
+        );
         assert.equal(samples, kind === "persistent-zero" ? 4 : kind === "marker-zero" ? 1 : 2);
       } finally {
         mocked.mock.restore();
@@ -116,14 +118,7 @@ test("CLI child rejects an unmarked synthetic root before mutation", (t) => {
 
   const result = spawnSync(
     process.execPath,
-    [
-      cliChildPath,
-      "start",
-      "--source-ref",
-      "synthetic:red-before-green",
-      "--runner",
-      "codex",
-    ],
+    [cliChildPath, "start", "--source-ref", "synthetic:red-before-green", "--runner", "codex"],
     {
       cwd: repoRoot,
       encoding: "utf8",
@@ -137,10 +132,7 @@ test("CLI child rejects an unmarked synthetic root before mutation", (t) => {
   );
 
   assert.notEqual(result.status, 0);
-  assert.equal(
-    JSON.parse(result.stderr).code,
-    "invalid_disposable_environment",
-  );
+  assert.equal(JSON.parse(result.stderr).code, "invalid_disposable_environment");
   assert.equal(readFileSync(ledgerPath, "utf8"), before);
   assert.equal(existsSync(`${ledgerPath}.lock`), false);
   assert.deepEqual(readdirSync(outputRoot), []);
@@ -159,14 +151,7 @@ test("factory-created roots pass direct and child validation with hooks disabled
 
   const result = spawnSync(
     process.execPath,
-    [
-      cliChildPath,
-      "start",
-      "--source-ref",
-      "synthetic:marked-child",
-      "--runner",
-      "codex",
-    ],
+    [cliChildPath, "start", "--source-ref", "synthetic:marked-child", "--runner", "codex"],
     {
       cwd: repoRoot,
       encoding: "utf8",
@@ -177,10 +162,7 @@ test("factory-created roots pass direct and child validation with hooks disabled
     },
   );
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(
-    JSON.parse(readFileSync(environment.ledgerPath, "utf8")).processes.length,
-    1,
-  );
+  assert.equal(JSON.parse(readFileSync(environment.ledgerPath, "utf8")).processes.length, 1);
   assert.equal(existsSync(resolve(repoRoot, ".codex/hooks.json")), false);
   // The property this test carries is that disposable-root enforcement holds
   // without any runtime hook helping it. Tracked settings now register the
@@ -188,9 +170,8 @@ test("factory-created roots pass direct and child validation with hooks disabled
   // through the old proxy "no hook is registered at all": every registered hook
   // observes file tools only and none of them can see the CLI child above,
   // which this test spawns itself.
-  const claudeHooks = JSON.parse(
-    readFileSync(resolve(repoRoot, ".claude/settings.json"), "utf8"),
-  ).hooks ?? {};
+  const claudeHooks =
+    JSON.parse(readFileSync(resolve(repoRoot, ".claude/settings.json"), "utf8")).hooks ?? {};
   // Pinned whole. A key list would let a second command be added under the
   // approved matcher — including one that writes, or one that returns before
   // the boundary hook runs — without this contract noticing.
@@ -215,33 +196,37 @@ test("real repository root and mismatched direct children fail closed", (t) => {
     prefix: "disposable-root-binding-",
   });
   assert.throws(
-    () => assertDisposableWorkspace({
-      ledgerPath: resolve(repoRoot, "process-log.json"),
-      markerToken: environment.markerToken,
-      outputRoot: resolve(repoRoot, "output"),
-      workspaceRoot: repoRoot,
-    }),
+    () =>
+      assertDisposableWorkspace({
+        ledgerPath: resolve(repoRoot, "process-log.json"),
+        markerToken: environment.markerToken,
+        outputRoot: resolve(repoRoot, "output"),
+        workspaceRoot: repoRoot,
+      }),
     (error) => error.code === "invalid_disposable_marker",
   );
   assert.throws(
-    () => assertDisposableWorkspace({
-      ...environment,
-      ledgerPath: resolve(repoRoot, "process-log.json"),
-    }),
+    () =>
+      assertDisposableWorkspace({
+        ...environment,
+        ledgerPath: resolve(repoRoot, "process-log.json"),
+      }),
     (error) => error.code === "invalid_disposable_ledger",
   );
   assert.throws(
-    () => assertDisposableWorkspace({
-      ...environment,
-      outputRoot: join(environment.workspaceRoot, "other-output"),
-    }),
+    () =>
+      assertDisposableWorkspace({
+        ...environment,
+        outputRoot: join(environment.workspaceRoot, "other-output"),
+      }),
     (error) => error.code === "invalid_disposable_output",
   );
   assert.throws(
-    () => assertDisposableWorkspace({
-      ...environment,
-      markerToken: "wrong-token-with-sufficient-length",
-    }),
+    () =>
+      assertDisposableWorkspace({
+        ...environment,
+        markerToken: "wrong-token-with-sufficient-length",
+      }),
     (error) => error.code === "invalid_disposable_marker",
   );
 });
@@ -264,10 +249,7 @@ test("marker identity rejects missing, malformed, linked, and copied markers", a
       ledger: emptyLog(),
       prefix: "disposable-root-malformed-",
     });
-    writeFileSync(
-      join(environment.workspaceRoot, disposableMarkerFileName),
-      "{not-json\n",
-    );
+    writeFileSync(join(environment.workspaceRoot, disposableMarkerFileName), "{not-json\n");
     assert.throws(
       () => assertDisposableWorkspace(environment),
       (error) => error.code === "invalid_disposable_marker",
@@ -279,10 +261,7 @@ test("marker identity rejects missing, malformed, linked, and copied markers", a
       ledger: emptyLog(),
       prefix: "disposable-root-marker-link-",
     });
-    const markerPath = join(
-      environment.workspaceRoot,
-      disposableMarkerFileName,
-    );
+    const markerPath = join(environment.workspaceRoot, disposableMarkerFileName);
     unlinkSync(markerPath);
     symlinkSync(environment.ledgerPath, markerPath);
     assert.throws(
@@ -311,9 +290,7 @@ test("marker identity rejects missing, malformed, linked, and copied markers", a
       ledger: emptyLog(),
       prefix: "disposable-root-marker-source-",
     });
-    const workspaceRoot = mkdtempSync(
-      join(tmpdir(), "disposable-root-marker-copy-"),
-    );
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "disposable-root-marker-copy-"));
     t.after(() => rmSync(workspaceRoot, { recursive: true, force: true }));
     const outputRoot = join(workspaceRoot, "output");
     const ledgerPath = join(workspaceRoot, "process-log.json");
@@ -324,12 +301,13 @@ test("marker identity rejects missing, malformed, linked, and copied markers", a
       join(workspaceRoot, disposableMarkerFileName),
     );
     assert.throws(
-      () => assertDisposableWorkspace({
-        ledgerPath,
-        markerToken: source.markerToken,
-        outputRoot,
-        workspaceRoot,
-      }),
+      () =>
+        assertDisposableWorkspace({
+          ledgerPath,
+          markerToken: source.markerToken,
+          outputRoot,
+          workspaceRoot,
+        }),
       (error) => error.code === "disposable_workspace_alias",
     );
   });
@@ -348,12 +326,13 @@ test("workspace aliases fail while the creator lexical path remains valid", asyn
     const alias = join(holder, "workspace");
     symlinkSync(environment.workspaceRoot, alias, "dir");
     assert.throws(
-      () => assertDisposableWorkspace({
-        ledgerPath: join(alias, "process-log.json"),
-        markerToken: environment.markerToken,
-        outputRoot: join(alias, "output"),
-        workspaceRoot: alias,
-      }),
+      () =>
+        assertDisposableWorkspace({
+          ledgerPath: join(alias, "process-log.json"),
+          markerToken: environment.markerToken,
+          outputRoot: join(alias, "output"),
+          workspaceRoot: alias,
+        }),
       (error) => error.code === "invalid_disposable_workspace",
     );
   });
@@ -365,12 +344,13 @@ test("workspace aliases fail while the creator lexical path remains valid", asyn
     symlinkSync(dirname(environment.workspaceRoot), parentAlias, "dir");
     const alias = join(parentAlias, basename(environment.workspaceRoot));
     assert.throws(
-      () => assertDisposableWorkspace({
-        ledgerPath: join(alias, "process-log.json"),
-        markerToken: environment.markerToken,
-        outputRoot: join(alias, "output"),
-        workspaceRoot: alias,
-      }),
+      () =>
+        assertDisposableWorkspace({
+          ledgerPath: join(alias, "process-log.json"),
+          markerToken: environment.markerToken,
+          outputRoot: join(alias, "output"),
+          workspaceRoot: alias,
+        }),
       (error) => error.code === "disposable_workspace_alias",
     );
   });
@@ -402,17 +382,11 @@ test("covered lifecycle, CLI-child, and server roots cannot bypass the shared fa
     );
   }
   assert.match(
-    readFileSync(
-      resolve(repoRoot, "tests/fixtures/file-backed-pipeline-producer.mjs"),
-      "utf8",
-    ),
+    readFileSync(resolve(repoRoot, "tests/fixtures/file-backed-pipeline-producer.mjs"), "utf8"),
     /readDisposableWorkspaceEnv/,
   );
   assert.match(
-    readFileSync(
-      resolve(repoRoot, "tests/fixtures/process-log-cli-child.mjs"),
-      "utf8",
-    ),
+    readFileSync(resolve(repoRoot, "tests/fixtures/process-log-cli-child.mjs"), "utf8"),
     /readDisposableWorkspaceEnv/,
   );
 });

@@ -68,7 +68,8 @@ function readConfig(root, file) {
   }
   try {
     const value = JSON.parse(text);
-    if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error("not an object");
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+      throw new Error("not an object");
     return value;
   } catch {
     fail("github_settings_config_invalid", `${CONFIG_DIRECTORY}/${file} is not a JSON object.`);
@@ -79,7 +80,10 @@ function readConfig(root, file) {
 export function loadDesired(root = repoRoot) {
   const rulesets = RULESET_FILES.map((file) => readConfig(root, file));
   const names = rulesets.map((ruleset) => ruleset.name);
-  if (names.some((name) => typeof name !== "string" || name.length === 0) || new Set(names).size !== names.length) {
+  if (
+    names.some((name) => typeof name !== "string" || name.length === 0) ||
+    new Set(names).size !== names.length
+  ) {
     fail("github_settings_config_invalid", "every ruleset needs its own non-empty name.");
   }
   return {
@@ -123,7 +127,10 @@ function makeApi(gh, env) {
       input: body === undefined ? undefined : JSON.stringify(body),
     });
     if (result.status !== 0) {
-      fail("github_settings_gh_failed", `gh api ${method} ${path} failed: ${lastLines(result.stderr)}`);
+      fail(
+        "github_settings_gh_failed",
+        `gh api ${method} ${path} failed: ${lastLines(result.stderr)}`,
+      );
     }
     try {
       return result.stdout.trim() === "" ? null : JSON.parse(result.stdout);
@@ -143,10 +150,15 @@ export function applySettings({ api, check, desired, repo }) {
 
   const current = api("GET", base);
   if (current?.private !== false || current?.visibility !== "public") {
-    fail("github_settings_repository_not_public", `${repo} is not a public repository; nothing was changed.`);
+    fail(
+      "github_settings_repository_not_public",
+      `${repo} is not a public repository; nothing was changed.`,
+    );
   }
 
-  const fields = Object.keys(desired.repository).filter((key) => !covers(current[key], desired.repository[key]));
+  const fields = Object.keys(desired.repository).filter(
+    (key) => !covers(current[key], desired.repository[key]),
+  );
   if (fields.length > 0) {
     const body = Object.fromEntries(fields.map((key) => [key, desired.repository[key]]));
     if (!check) api("PATCH", base, body);
@@ -161,11 +173,15 @@ export function applySettings({ api, check, desired, repo }) {
   }
 
   const listed = api("GET", `${base}/rulesets?includes_parents=false&per_page=100`);
-  if (!Array.isArray(listed)) fail("github_settings_gh_failed", "the ruleset list is not an array.");
+  if (!Array.isArray(listed))
+    fail("github_settings_gh_failed", "the ruleset list is not an array.");
   for (const ruleset of desired.rulesets) {
     const matches = listed.filter((entry) => entry?.name === ruleset.name);
     if (matches.length > 1) {
-      fail("github_settings_ruleset_ambiguous", `${repo} has ${matches.length} rulesets named ${ruleset.name}.`);
+      fail(
+        "github_settings_ruleset_ambiguous",
+        `${repo} has ${matches.length} rulesets named ${ruleset.name}.`,
+      );
     }
     if (matches.length === 0) {
       if (!check) api("POST", `${base}/rulesets`, ruleset);
@@ -173,7 +189,8 @@ export function applySettings({ api, check, desired, repo }) {
       continue;
     }
     const id = matches[0].id;
-    if (!Number.isInteger(id)) fail("github_settings_gh_failed", `ruleset ${ruleset.name} has no numeric id.`);
+    if (!Number.isInteger(id))
+      fail("github_settings_gh_failed", `ruleset ${ruleset.name} has no numeric id.`);
     const detail = api("GET", `${base}/rulesets/${id}`);
     if (!covers(detail, ruleset)) {
       if (!check) api("PUT", `${base}/rulesets/${id}`, ruleset);
@@ -196,7 +213,9 @@ export function main(
     return check && changes.length > 0 ? 1 : 0;
   } catch (error) {
     reportError(
-      error instanceof SetupError ? error : new SetupError("github_settings_failed", String(error?.message ?? error)),
+      error instanceof SetupError
+        ? error
+        : new SetupError("github_settings_failed", String(error?.message ?? error)),
       io.stderr,
     );
     return 1;

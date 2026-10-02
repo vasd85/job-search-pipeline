@@ -111,7 +111,12 @@ function seedTraces(dir, urls = [LINKEDIN_ONE, LINKEDIN_TWO, LINKEDIN_CLOSED]) {
  * Called at the moment the batch would have planned — before its fetch, so before any later write
  * to the same ledger — because that timing is the whole point of the record-time guard.
  */
-function seedPlan(dir, ledgerPath, urls = [LINKEDIN_ONE, LINKEDIN_TWO, LINKEDIN_CLOSED], asOf = "2026-08-18T12:00:00Z") {
+function seedPlan(
+  dir,
+  ledgerPath,
+  urls = [LINKEDIN_ONE, LINKEDIN_TWO, LINKEDIN_CLOSED],
+  asOf = "2026-08-18T12:00:00Z",
+) {
   const plan = planBatch(readLedger(ledgerPath), urls, { asOf });
   writeFileSync(join(dir, "plan.json"), `${JSON.stringify(plan, null, 2)}\n`, "utf8");
   return plan;
@@ -172,7 +177,8 @@ test("LinkedIn's own share spellings collapse to the job id, not to a second row
   }
   // A slug carrying a different posting's id must not be pulled into that row.
   assert.equal(
-    vacancyIdentity("https://www.linkedin.com/jobs/view/qa-automation-engineer-at-acme-4449892212").key,
+    vacancyIdentity("https://www.linkedin.com/jobs/view/qa-automation-engineer-at-acme-4449892212")
+      .key,
     "linkedin:4449892212",
   );
   // A view segment with no trailing id at all falls back to the URL rather than inventing one.
@@ -198,24 +204,28 @@ test("a batch cannot choose its own ledger key", (t) => {
   const plan = planBatch(readLedger(path), [LINKEDIN_ONE, LINKEDIN_TWO], {
     asOf: "2026-08-19T12:40:00Z",
   });
-  assert.deepEqual(plan.items.map((item) => item.action), ["skip_known", "fetch_new"]);
+  assert.deepEqual(
+    plan.items.map((item) => item.action),
+    ["skip_known", "fetch_new"],
+  );
 });
 
 test("a source without a readable id keeps the normalized URL as its identity", () => {
   const identity = vacancyIdentity("https://Jobs.Example.com/careers/qa-engineer/?utm_campaign=x");
   assert.equal(identity.source, "url");
   assert.equal(identity.key, "url:https://jobs.example.com/careers/qa-engineer");
-  assert.equal(
-    vacancyIdentity("https://jobs.example.com/careers/qa-engineer").key,
-    identity.key,
-  );
+  assert.equal(vacancyIdentity("https://jobs.example.com/careers/qa-engineer").key, identity.key);
   // A registry source that is not LinkedIn is still named, so a later adapter can claim it.
   assert.equal(vacancyIdentity("https://boards.greenhouse.io/acme/jobs/7").source, "greenhouse");
 });
 
 test("a non-http reference is rejected instead of becoming a ledger key", () => {
   for (const value of ["mailto:jobs@example.com", "javascript:alert(1)", "not a url", ""]) {
-    assert.equal(errorCode(() => normalizeVacancyUrl(value)), "triage_ledger_invalid_url", value);
+    assert.equal(
+      errorCode(() => normalizeVacancyUrl(value)),
+      "triage_ledger_invalid_url",
+      value,
+    );
   }
 });
 
@@ -225,11 +235,14 @@ test("a batch write lands, and a re-triage keeps first_seen while advancing last
   assert.deepEqual(first.added, ["linkedin:4418544694"]);
   assert.deepEqual(first.updated, []);
 
-  const second = recordWithoutStore(path, batch({
-    batch_id: "2026-08-25-linkedin-recheck",
-    observed_at: "2026-08-25T09:00:00Z",
-    entries: [entry({ status: "closed", decision: "SKIP", flags: [] })],
-  }));
+  const second = recordWithoutStore(
+    path,
+    batch({
+      batch_id: "2026-08-25-linkedin-recheck",
+      observed_at: "2026-08-25T09:00:00Z",
+      entries: [entry({ status: "closed", decision: "SKIP", flags: [] })],
+    }),
+  );
   assert.deepEqual(second.added, []);
   assert.deepEqual(second.updated, ["linkedin:4418544694"]);
 
@@ -239,20 +252,23 @@ test("a batch write lands, and a re-triage keeps first_seen while advancing last
   assert.equal(ledger.entries[0].last_checked, "2026-08-25T09:00:00Z");
   assert.equal(ledger.entries[0].status, "closed");
   assert.equal(ledger.entries[0].batch_id, "2026-08-25-linkedin-recheck");
-  assert.deepEqual(ledger.batches.map((record) => record.batch_id), [
-    "2026-08-18-linkedin-1-10",
-    "2026-08-25-linkedin-recheck",
-  ]);
+  assert.deepEqual(
+    ledger.batches.map((record) => record.batch_id),
+    ["2026-08-18-linkedin-1-10", "2026-08-25-linkedin-recheck"],
+  );
 });
 
 test("an out-of-order replay never moves last_checked backwards", (t) => {
   const path = freshLedger(t);
   recordWithoutStore(path, batch({ observed_at: "2026-08-25T09:00:00Z" }));
-  recordWithoutStore(path, batch({
-    batch_id: "2026-08-18-replay",
-    observed_at: "2026-08-18T12:40:00Z",
-    entries: [entry({ status: "closed", decision: "SKIP", flags: [] })],
-  }));
+  recordWithoutStore(
+    path,
+    batch({
+      batch_id: "2026-08-18-replay",
+      observed_at: "2026-08-18T12:40:00Z",
+      entries: [entry({ status: "closed", decision: "SKIP", flags: [] })],
+    }),
+  );
 
   const [stored] = readLedger(path).entries;
   assert.equal(stored.first_seen, "2026-08-18T12:40:00Z");
@@ -287,16 +303,22 @@ test("the core reads no clock at all", () => {
 
 test("a batch that did not observe a vacancy fact does not delete it", (t) => {
   const path = freshLedger(t);
-  recordWithoutStore(path, batch({
-    entries: [entry({ title: "Senior QA", company: "BIT Official", priority_class: 1 })],
-  }));
+  recordWithoutStore(
+    path,
+    batch({
+      entries: [entry({ title: "Senior QA", company: "BIT Official", priority_class: 1 })],
+    }),
+  );
   // A re-triage whose fetch failed observed no class: the one the ledger holds must survive it.
-  recordWithoutStore(path, batch({
-    batch_id: "2026-08-25-liveness",
-    observed_at: "2026-08-25T09:00:00Z",
-    policy_id: "triage-v2-2026-08-25",
-    entries: [entry({ decision: "BLOCKED", flags: ["vacancy_unavailable"] })],
-  }));
+  recordWithoutStore(
+    path,
+    batch({
+      batch_id: "2026-08-25-liveness",
+      observed_at: "2026-08-25T09:00:00Z",
+      policy_id: "triage-v2-2026-08-25",
+      entries: [entry({ decision: "BLOCKED", flags: ["vacancy_unavailable"] })],
+    }),
+  );
 
   const [stored] = readLedger(path).entries;
   assert.equal(stored.priority_class, 1);
@@ -306,11 +328,14 @@ test("a batch that did not observe a vacancy fact does not delete it", (t) => {
   // A decision-scoped field follows the newer decision instead of lingering from the older one.
   assert.equal(stored.policy_id, "triage-v2-2026-08-25");
 
-  recordWithoutStore(path, batch({
-    batch_id: "2026-08-26-reclass",
-    observed_at: "2026-08-26T09:00:00Z",
-    entries: [entry({ priority_class: 3 })],
-  }));
+  recordWithoutStore(
+    path,
+    batch({
+      batch_id: "2026-08-26-reclass",
+      observed_at: "2026-08-26T09:00:00Z",
+      entries: [entry({ priority_class: 3 })],
+    }),
+  );
   const [reclassified] = readLedger(path).entries;
   assert.equal(reclassified.priority_class, 3, "an observed value still wins");
   assert.equal(Object.hasOwn(reclassified, "policy_id"), false, "a policy id is not carried over");
@@ -318,22 +343,33 @@ test("a batch that did not observe a vacancy fact does not delete it", (t) => {
 
 test("a batch id describes one batch: replay is allowed, reuse is not", (t) => {
   const path = freshLedger(t);
-  recordWithoutStore(path, batch({ entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO })] }));
+  recordWithoutStore(
+    path,
+    batch({ entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO })] }),
+  );
   const twoEntries = readFileSync(path, "utf8");
 
   // Same id, same entries: the retry ADR 0011 requires after a crash of unknown outcome.
-  recordWithoutStore(path, batch({ entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO })] }));
+  recordWithoutStore(
+    path,
+    batch({ entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO })] }),
+  );
   assert.equal(readFileSync(path, "utf8"), twoEntries);
 
   // Same id, same entries in another order: still the same batch. A retry that rebuilds the
   // batch from concurrent fetches can legitimately hand them over shuffled.
-  recordWithoutStore(path, batch({ entries: [entry({ url: LINKEDIN_TWO }), entry({ url: LINKEDIN_ONE })] }));
+  recordWithoutStore(
+    path,
+    batch({ entries: [entry({ url: LINKEDIN_TWO }), entry({ url: LINKEDIN_ONE })] }),
+  );
   assert.equal(readFileSync(path, "utf8"), twoEntries);
 
   // Same id, different entries: refused, because the batch record would stop describing the rows
   // that carry its id.
   assert.equal(
-    errorCode(() => recordWithoutStore(path, batch({ entries: [entry({ url: LINKEDIN_CLOSED })] }))),
+    errorCode(() =>
+      recordWithoutStore(path, batch({ entries: [entry({ url: LINKEDIN_CLOSED })] })),
+    ),
     "triage_ledger_batch_id_reused",
   );
   assert.equal(readFileSync(path, "utf8"), twoEntries, "the refusal wrote nothing");
@@ -342,16 +378,29 @@ test("a batch id describes one batch: replay is allowed, reuse is not", (t) => {
   // Same id, same entry count, different content: the check is over what the batch wrote, not
   // over how much of it there was.
   assert.equal(
-    errorCode(() => recordWithoutStore(path, batch({
-      entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_CLOSED })],
-    }))),
+    errorCode(() =>
+      recordWithoutStore(
+        path,
+        batch({
+          entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_CLOSED })],
+        }),
+      ),
+    ),
     "triage_ledger_batch_id_reused",
   );
   // And a changed decision on the same two vacancies is a different batch too.
   assert.equal(
-    errorCode(() => recordWithoutStore(path, batch({
-      entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO, decision: "EVALUATED" })],
-    }))),
+    errorCode(() =>
+      recordWithoutStore(
+        path,
+        batch({
+          entries: [
+            entry({ url: LINKEDIN_ONE }),
+            entry({ url: LINKEDIN_TWO, decision: "EVALUATED" }),
+          ],
+        }),
+      ),
+    ),
     "triage_ledger_batch_id_reused",
   );
   assert.equal(readFileSync(path, "utf8"), twoEntries, "neither refusal wrote anything");
@@ -366,7 +415,10 @@ test("a write that fails mid-flight leaves no temp file and no held lock", (t) =
   const path = join(root, `${"l".repeat(240)}.json`);
   initLedger(path);
 
-  assert.equal(errorCode(() => recordWithoutStore(path, batch())), "triage_ledger_unwritable");
+  assert.equal(
+    errorCode(() => recordWithoutStore(path, batch())),
+    "triage_ledger_unwritable",
+  );
   assert.deepEqual(readdirSync(root), [`${"l".repeat(240)}.json`], "no temp file, no lock left");
   assert.deepEqual(readLedger(path).entries, [], "the ledger itself is untouched");
 });
@@ -379,7 +431,10 @@ test("the write path removes its own temp file when it fails after creating it",
   // the rename, whose catch unlinks the temp path before reporting.
   const source = readFileSync(corePath, "utf8");
   const writer = source
-    .slice(source.indexOf("function writeWithinLock"), source.indexOf("export function withLedgerLock"))
+    .slice(
+      source.indexOf("function writeWithinLock"),
+      source.indexOf("export function withLedgerLock"),
+    )
     .replace(/\s+/g, " ");
   assert.match(
     writer,
@@ -415,7 +470,10 @@ test("a root the writer cannot enter fails before it touches anything", (t) => {
   try {
     // Here the lock is what cannot be created; the point is that the failure is still reported
     // rather than swallowed, and the ledger survives it.
-    assert.equal(errorCode(() => recordWithoutStore(path, batch())), "triage_ledger_unwritable");
+    assert.equal(
+      errorCode(() => recordWithoutStore(path, batch())),
+      "triage_ledger_unwritable",
+    );
     assert.deepEqual(readLedger(path).entries, []);
   } finally {
     // Restored inline, not in an after hook: the root's own cleanup hook runs first and would
@@ -440,15 +498,25 @@ test("a malformed batch is refused with the code that names the defect", (t) => 
     [batch({ entries: [entry({ url: "mailto:jobs@example.com" })] }), "triage_ledger_invalid_url"],
   ];
   for (const [payload, expected] of cases) {
-    assert.equal(errorCode(() => recordWithoutStore(path, payload)), expected, JSON.stringify(payload));
+    assert.equal(
+      errorCode(() => recordWithoutStore(path, payload)),
+      expected,
+      JSON.stringify(payload),
+    );
   }
   assert.deepEqual(readLedger(path).entries, [], "a refused batch must not write anything");
 });
 
 test("the read path never creates the ledger it cannot find", (t) => {
   const path = join(disposableRoot(t), "triage-ledger.json");
-  assert.equal(errorCode(() => readLedger(path)), "triage_ledger_missing");
-  assert.equal(errorCode(() => recordWithoutStore(path, batch())), "triage_ledger_missing");
+  assert.equal(
+    errorCode(() => readLedger(path)),
+    "triage_ledger_missing",
+  );
+  assert.equal(
+    errorCode(() => recordWithoutStore(path, batch())),
+    "triage_ledger_missing",
+  );
   assert.equal(existsSync(path), false);
 });
 
@@ -468,16 +536,25 @@ test("init creates a private empty ledger once and never truncates an existing o
 test("a corrupted ledger fails loudly instead of being silently replaced", (t) => {
   const path = join(disposableRoot(t), "triage-ledger.json");
   writeFileSync(path, "{ not json\n");
-  assert.equal(errorCode(() => readLedger(path)), "triage_ledger_unreadable");
+  assert.equal(
+    errorCode(() => readLedger(path)),
+    "triage_ledger_unreadable",
+  );
 
   writeFileSync(path, `${JSON.stringify({ ...emptyLedger(), schema_version: 2 })}\n`);
-  assert.equal(errorCode(() => readLedger(path)), "triage_ledger_schema_version");
+  assert.equal(
+    errorCode(() => readLedger(path)),
+    "triage_ledger_schema_version",
+  );
 
   const duplicated = {
     ...emptyLedger(),
     entries: [validEntry(), validEntry()],
   };
-  assert.equal(errorCode(() => validateLedger(duplicated)), "triage_ledger_invalid");
+  assert.equal(
+    errorCode(() => validateLedger(duplicated)),
+    "triage_ledger_invalid",
+  );
 });
 
 function validEntry(overrides = {}) {
@@ -498,35 +575,49 @@ function validEntry(overrides = {}) {
 
 test("a stored key that disagrees with its own source and job id is invalid", () => {
   assert.equal(
-    errorCode(() => validateLedger({ ...emptyLedger(), entries: [validEntry({ key: "linkedin:1" })] })),
+    errorCode(() =>
+      validateLedger({ ...emptyLedger(), entries: [validEntry({ key: "linkedin:1" })] }),
+    ),
     "triage_ledger_invalid_entry",
   );
   assert.equal(
-    errorCode(() => validateLedger({
-      ...emptyLedger(),
-      entries: [validEntry({ url: "https://www.linkedin.com/jobs/view/4418544694/" })],
-    })),
+    errorCode(() =>
+      validateLedger({
+        ...emptyLedger(),
+        entries: [validEntry({ url: "https://www.linkedin.com/jobs/view/4418544694/" })],
+      }),
+    ),
     "triage_ledger_invalid_entry",
   );
   assert.equal(
-    errorCode(() => validateLedger({
-      ...emptyLedger(),
-      entries: [validEntry({ first_seen: "2026-08-19T00:00:00Z" })],
-    })),
+    errorCode(() =>
+      validateLedger({
+        ...emptyLedger(),
+        entries: [validEntry({ first_seen: "2026-08-19T00:00:00Z" })],
+      }),
+    ),
     "triage_ledger_invalid_entry",
   );
 });
 
 test("the batch-start plan skips what the ledger knows and retries only a failed fetch", (t) => {
   const path = freshLedger(t);
-  recordWithoutStore(path, batch({
-    entries: [
-      entry({ url: LINKEDIN_CLOSED, status: "closed", decision: "SKIP", flags: [] }),
-      entry({ url: LINKEDIN_ONE }),
-      entry({ url: LINKEDIN_TWO, decision: "MANUAL_REVIEW", flags: ["engagement_path_unknown"], priority_class: 1 }),
-      entry({ url: LINKEDIN_BLOCKED, decision: "BLOCKED", flags: ["vacancy_unavailable"] }),
-    ],
-  }));
+  recordWithoutStore(
+    path,
+    batch({
+      entries: [
+        entry({ url: LINKEDIN_CLOSED, status: "closed", decision: "SKIP", flags: [] }),
+        entry({ url: LINKEDIN_ONE }),
+        entry({
+          url: LINKEDIN_TWO,
+          decision: "MANUAL_REVIEW",
+          flags: ["engagement_path_unknown"],
+          priority_class: 1,
+        }),
+        entry({ url: LINKEDIN_BLOCKED, decision: "BLOCKED", flags: ["vacancy_unavailable"] }),
+      ],
+    }),
+  );
 
   const links = [
     LINKEDIN_CLOSED,
@@ -537,12 +628,27 @@ test("the batch-start plan skips what the ledger knows and retries only a failed
     "https://www.linkedin.com/jobs/view/4452389499/?utm_source=share",
     "mailto:jobs@example.com",
   ];
-  const expected = ["skip_closed", "skip_known", "skip_known", "retry_blocked", "fetch_new", "fetch_new", null];
+  const expected = [
+    "skip_closed",
+    "skip_known",
+    "skip_known",
+    "retry_blocked",
+    "fetch_new",
+    "fetch_new",
+    null,
+  ];
   // No date decides anything: one minute after the batch and a year after it plan the same.
   for (const asOf of ["2026-08-18T12:41:00Z", "2027-08-18T12:40:00Z"]) {
     const plan = planBatch(readLedger(path), links, { asOf });
-    assert.deepEqual(plan.items.map((item) => item.action), expected, asOf);
-    assert.deepEqual(plan.items.map((item) => item.input_index), [1, 2, 3, 4, 5, 6, 7]);
+    assert.deepEqual(
+      plan.items.map((item) => item.action),
+      expected,
+      asOf,
+    );
+    assert.deepEqual(
+      plan.items.map((item) => item.input_index),
+      [1, 2, 3, 4, 5, 6, 7],
+    );
     assert.equal(plan.items[5].duplicate_in_batch, true);
     assert.equal(plan.items[4].duplicate_in_batch, false);
     assert.equal(plan.items[6].reason, "triage_ledger_invalid_url");
@@ -574,31 +680,45 @@ test("the literal the plan retries on is the decision the scorer emits for a fai
 
 test("an expired posting is as terminal as a closed one", (t) => {
   const path = freshLedger(t);
-  recordWithoutStore(path, batch({
-    entries: [entry({ status: "expired", decision: "SKIP", flags: [] })],
-  }));
+  recordWithoutStore(
+    path,
+    batch({
+      entries: [entry({ status: "expired", decision: "SKIP", flags: [] })],
+    }),
+  );
   const plan = planBatch(readLedger(path), [LINKEDIN_ONE], { asOf: "2027-01-01T00:00:00Z" });
   assert.equal(plan.items[0].action, "skip_closed");
 });
 
 test("the review groups open flags into one group per decision, closed rows excluded", (t) => {
   const path = freshLedger(t);
-  recordWithoutStore(path, batch({
-    entries: [
-      entry({ url: LINKEDIN_ONE, flags: ["relocation_floor_missing", "residence_restriction_incompatible"] }),
-      entry({ url: LINKEDIN_TWO, flags: ["engagement_path_unknown"], priority_class: 1 }),
-      entry({
-        url: "https://www.linkedin.com/jobs/view/4450463394/",
-        flags: ["relocation_floor_missing"],
-      }),
-      entry({ url: LINKEDIN_CLOSED, status: "closed", decision: "SKIP", flags: ["never_reviewed"] }),
-      entry({
-        url: "https://www.linkedin.com/jobs/view/4443093724/",
-        decision: "EVALUATED",
-        flags: [],
-      }),
-    ],
-  }));
+  recordWithoutStore(
+    path,
+    batch({
+      entries: [
+        entry({
+          url: LINKEDIN_ONE,
+          flags: ["relocation_floor_missing", "residence_restriction_incompatible"],
+        }),
+        entry({ url: LINKEDIN_TWO, flags: ["engagement_path_unknown"], priority_class: 1 }),
+        entry({
+          url: "https://www.linkedin.com/jobs/view/4450463394/",
+          flags: ["relocation_floor_missing"],
+        }),
+        entry({
+          url: LINKEDIN_CLOSED,
+          status: "closed",
+          decision: "SKIP",
+          flags: ["never_reviewed"],
+        }),
+        entry({
+          url: "https://www.linkedin.com/jobs/view/4443093724/",
+          decision: "EVALUATED",
+          flags: [],
+        }),
+      ],
+    }),
+  );
 
   const review = reviewLedger(readLedger(path), { asOf: "2026-08-21T12:40:00Z" });
   assert.deepEqual(review.totals, {
@@ -611,11 +731,10 @@ test("the review groups open flags into one group per decision, closed rows excl
     decision_groups: 3,
   });
   // Fast lane first, then the larger group, then alphabetical: deterministic every run.
-  assert.deepEqual(review.groups.map((group) => group.flag), [
-    "engagement_path_unknown",
-    "relocation_floor_missing",
-    "residence_restriction_incompatible",
-  ]);
+  assert.deepEqual(
+    review.groups.map((group) => group.flag),
+    ["engagement_path_unknown", "relocation_floor_missing", "residence_restriction_incompatible"],
+  );
   assert.equal(review.groups[0].fast_lane, true);
   assert.equal(review.groups[1].count, 2);
   assert.equal(Object.hasOwn(review, "cadence_days"), false);
@@ -633,12 +752,18 @@ test("the review groups open flags into one group per decision, closed rows excl
 test("a policy-v2 gap annotation groups exactly like a v1 review reason", (t) => {
   const path = freshLedger(t);
   const v2Flags = ["gap:compensation_absent", "assumption:engagement_path.contractor_ge"];
-  recordWithoutStore(path, batch({
-    entries: [entry({ decision: "EVALUATED", flags: v2Flags, priority_class: 1 })],
-  }));
+  recordWithoutStore(
+    path,
+    batch({
+      entries: [entry({ decision: "EVALUATED", flags: v2Flags, priority_class: 1 })],
+    }),
+  );
 
   const review = reviewLedger(readLedger(path), { asOf: "2026-08-18T12:40:00Z" });
-  assert.deepEqual(review.groups.map((group) => group.flag), [...v2Flags].sort());
+  assert.deepEqual(
+    review.groups.map((group) => group.flag),
+    [...v2Flags].sort(),
+  );
   assert.equal(review.totals.flagged_open, 1);
   for (const group of review.groups) assert.equal(group.fast_lane, true);
 });
@@ -655,8 +780,8 @@ test("two writers serialize instead of losing a batch", (t) => {
       "const [ledgerPath, batchId, url] = process.argv.slice(2);",
       "recordBatch(ledgerPath, {",
       "  batch_id: batchId,",
-      "  observed_at: \"2026-08-18T12:40:00Z\",",
-      "  entries: [{ url, status: \"open\", decision: \"MANUAL_REVIEW\", flags: [\"work_format_unknown\"] }],",
+      '  observed_at: "2026-08-18T12:40:00Z",',
+      '  entries: [{ url, status: "open", decision: "MANUAL_REVIEW", flags: ["work_format_unknown"] }],',
       "}, { artifactsDir: null });",
       "",
     ].join("\n"),
@@ -665,8 +790,7 @@ test("two writers serialize instead of losing a batch", (t) => {
   const children = [
     [path, "concurrent-a", LINKEDIN_ONE],
     [path, "concurrent-b", LINKEDIN_TWO],
-  ].map((args) =>
-    spawnSync(process.execPath, [childPath, ...args], { encoding: "utf8" }));
+  ].map((args) => spawnSync(process.execPath, [childPath, ...args], { encoding: "utf8" }));
   for (const child of children) assert.equal(child.status, 0, child.stderr);
 
   const ledger = readLedger(path);
@@ -686,7 +810,10 @@ test("a held lock is reported, never stolen", (t) => {
   const heldLock = `${path}.lock`;
   mkdirSync(heldLock);
 
-  assert.equal(errorCode(() => recordWithoutStore(path, batch())), "triage_ledger_locked");
+  assert.equal(
+    errorCode(() => recordWithoutStore(path, batch())),
+    "triage_ledger_locked",
+  );
   assert.equal(existsSync(heldLock), true, "a foreign lock survives the failure");
 });
 
@@ -703,13 +830,16 @@ test("the CLI reads, creates on request, and refuses anything it does not know",
   assert.equal(created.status, 0, created.stderr);
   assert.equal(JSON.parse(created.stdout).created, true);
 
-  recordWithoutStore(path, batch({
-    entries: [
-      entry({ url: LINKEDIN_ONE }),
-      entry({ url: LINKEDIN_TWO, flags: ["engagement_path_unknown"], priority_class: 1 }),
-      entry({ url: LINKEDIN_CLOSED, status: "closed", decision: "SKIP", flags: [] }),
-    ],
-  }));
+  recordWithoutStore(
+    path,
+    batch({
+      entries: [
+        entry({ url: LINKEDIN_ONE }),
+        entry({ url: LINKEDIN_TWO, flags: ["engagement_path_unknown"], priority_class: 1 }),
+        entry({ url: LINKEDIN_CLOSED, status: "closed", decision: "SKIP", flags: [] }),
+      ],
+    }),
+  );
 
   const shown = JSON.parse(runCli(["show", "--compact"], { ledgerPath: path }).stdout);
   assert.deepEqual(shown.by_status, { open: 2, closed: 1 });
@@ -720,10 +850,10 @@ test("the CLI reads, creates on request, and refuses anything it does not know",
     runCli(["review", "--as-of", "2026-08-21", "--compact"], { ledgerPath: path }).stdout,
   );
   assert.equal(review.as_of, "2026-08-21T00:00:00Z");
-  assert.deepEqual(review.groups.map((group) => group.flag), [
-    "engagement_path_unknown",
-    "relocation_floor_missing",
-  ]);
+  assert.deepEqual(
+    review.groups.map((group) => group.flag),
+    ["engagement_path_unknown", "relocation_floor_missing"],
+  );
   assert.deepEqual(review.groups[0].keys, ["linkedin:4449892212"]);
   assert.equal(review.totals.closed, 1);
 
@@ -731,7 +861,11 @@ test("the CLI reads, creates on request, and refuses anything it does not know",
   assert.equal(validated.status, "valid");
   assert.equal(Object.hasOwn(validated, "cadence_days"), false);
 
-  for (const args of [["plan"], ["review", "--url", LINKEDIN_ONE], ["review", "--as-of", "yesterday"]]) {
+  for (const args of [
+    ["plan"],
+    ["review", "--url", LINKEDIN_ONE],
+    ["review", "--as-of", "yesterday"],
+  ]) {
     const rejected = runCli(args, { ledgerPath: path });
     assert.equal(rejected.status, 1, args.join(" "));
     assert.ok(JSON.parse(rejected.stderr).error.code.length > 0, args.join(" "));
@@ -748,7 +882,14 @@ test("the CLI resolves its default ledger inside the workspace it is pointed at"
 
 test("no CLI surface accepts a vacancy value, so ADR 0011 has nothing to escape", () => {
   const cli = readFileSync(cliPath, "utf8");
-  for (const forbidden of ["--url", "--source-ref", "--company", "--title", "--flag", "--batch-id"]) {
+  for (const forbidden of [
+    "--url",
+    "--source-ref",
+    "--company",
+    "--title",
+    "--flag",
+    "--batch-id",
+  ]) {
     assert.equal(cli.includes(forbidden), false, forbidden);
   }
   // The two mutating paths are module APIs; the CLI must not grow a shell-facing writer.
@@ -774,10 +915,14 @@ test("a batch is archived where it was built, and the ledger row names the same 
   seedTraces(dir);
   seedPlan(dir, path);
 
-  const outcome = recordBatch(path, batch({
-    policy_id: "triage-policy-v2-2026-08-21",
-    entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO, decision: "EVALUATED" })],
-  }), { artifactsDir: dir });
+  const outcome = recordBatch(
+    path,
+    batch({
+      policy_id: "triage-policy-v2-2026-08-21",
+      entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO, decision: "EVALUATED" })],
+    }),
+    { artifactsDir: dir },
+  );
 
   assert.equal(outcome.record.path, join(dir, "ledger-record.json"));
   assert.equal(outcome.record.written, true);
@@ -813,18 +958,26 @@ test("a re-score adds a record beside the first instead of replacing it", (t) =>
   seedTraces(second);
 
   seedPlan(first, path);
-  recordBatch(path, batch({
-    policy_id: "triage-policy-v2-2026-08-21",
-    entries: [entry({ decision: "MANUAL_REVIEW", flags: ["gap:compensation_absent"] })],
-  }), { artifactsDir: first });
+  recordBatch(
+    path,
+    batch({
+      policy_id: "triage-policy-v2-2026-08-21",
+      entries: [entry({ decision: "MANUAL_REVIEW", flags: ["gap:compensation_absent"] })],
+    }),
+    { artifactsDir: first },
+  );
   // The re-score plans after the first batch recorded, so its plan knows the row it will replace.
   seedPlan(second, path, undefined, "2026-08-25T08:00:00Z");
-  recordBatch(path, batch({
-    batch_id: "2026-08-25-linkedin-1-10",
-    observed_at: "2026-08-25T09:00:00Z",
-    policy_id: "triage-policy-v3-2026-08-30",
-    entries: [entry({ decision: "EVALUATED", flags: [] })],
-  }), { artifactsDir: second });
+  recordBatch(
+    path,
+    batch({
+      batch_id: "2026-08-25-linkedin-1-10",
+      observed_at: "2026-08-25T09:00:00Z",
+      policy_id: "triage-policy-v3-2026-08-30",
+      entries: [entry({ decision: "EVALUATED", flags: [] })],
+    }),
+    { artifactsDir: second },
+  );
 
   // The ledger keeps one row: it is the index of what is true now, and the older decision is gone
   // from it. That is exactly why the two records have to exist.
@@ -852,13 +1005,7 @@ test("a re-score adds a record beside the first instead of replacing it", (t) =>
       "MANUAL_REVIEW",
       ["gap:compensation_absent"],
     ],
-    [
-      "linkedin:4418544694",
-      "2026-08-25T09:00:00Z",
-      "triage-policy-v3-2026-08-30",
-      "EVALUATED",
-      [],
-    ],
+    ["linkedin:4418544694", "2026-08-25T09:00:00Z", "triage-policy-v3-2026-08-30", "EVALUATED", []],
   ]);
 });
 
@@ -880,20 +1027,32 @@ test("a record is written once: a replay is accepted, a different batch never ov
 
   // A different batch under the same id is refused by the ledger's own guard, before the store.
   assert.equal(
-    errorCode(() => recordBatch(path, batch({
-      policy_id: "p1",
-      entries: [entry({ decision: "EVALUATED" })],
-    }), { artifactsDir: dir })),
+    errorCode(() =>
+      recordBatch(
+        path,
+        batch({
+          policy_id: "p1",
+          entries: [entry({ decision: "EVALUATED" })],
+        }),
+        { artifactsDir: dir },
+      ),
+    ),
     "triage_ledger_batch_id_reused",
   );
   // And a different batch whose directory already holds someone else's record is refused there:
   // the store has no writer that can replace a record.
   assert.equal(
-    errorCode(() => recordBatch(path, batch({
-      batch_id: "2026-08-25-linkedin-1-10",
-      policy_id: "p1",
-      entries: [entry({ decision: "EVALUATED" })],
-    }), { artifactsDir: dir })),
+    errorCode(() =>
+      recordBatch(
+        path,
+        batch({
+          batch_id: "2026-08-25-linkedin-1-10",
+          policy_id: "p1",
+          entries: [entry({ decision: "EVALUATED" })],
+        }),
+        { artifactsDir: dir },
+      ),
+    ),
     "triage_ledger_record_conflict",
   );
   assert.equal(readFileSync(join(dir, "ledger-record.json"), "utf8"), written, "still untouched");
@@ -909,8 +1068,11 @@ test("a torn record is unreadable rather than a conflict, and a replay recovers 
 
   // What a crash mid-write leaves: a file that exists and does not describe its own rows. Its
   // remediation differs from a digest that disagrees, so its code does too.
-  writeFileSync(recordPath, "{\n  \"schema_version\": 1,\n  \"batch_id\": \"trunc");
-  assert.equal(errorCode(() => readBatchRecord(dir)), "triage_ledger_record_unreadable");
+  writeFileSync(recordPath, '{\n  "schema_version": 1,\n  "batch_id": "trunc');
+  assert.equal(
+    errorCode(() => readBatchRecord(dir)),
+    "triage_ledger_record_unreadable",
+  );
   assert.equal(
     errorCode(() => recordBatch(path, batch({ policy_id: "p1" }), { artifactsDir: dir })),
     "triage_ledger_record_unreadable",
@@ -924,7 +1086,10 @@ test("a torn record is unreadable rather than a conflict, and a replay recovers 
   const parsed = JSON.parse(readFileSync(recordPath, "utf8"));
   parsed.entries[0].decision = "EVALUATED";
   writeFileSync(recordPath, `${JSON.stringify(parsed, null, 2)}\n`);
-  assert.equal(errorCode(() => readBatchRecord(dir)), "triage_ledger_record_unreadable");
+  assert.equal(
+    errorCode(() => readBatchRecord(dir)),
+    "triage_ledger_record_unreadable",
+  );
 });
 
 test("a ledger write that fails after the record leaves the record, and a replay finishes it", (t) => {
@@ -988,9 +1153,11 @@ test("the archive is declared, not defaulted, and an archived batch names its po
     "triage_ledger_record_missing_policy",
   );
   assert.equal(
-    errorCode(() => recordBatch(path, batch({ policy_id: "p1" }), {
-      artifactsDir: join(dir, "absent"),
-    })),
+    errorCode(() =>
+      recordBatch(path, batch({ policy_id: "p1" }), {
+        artifactsDir: join(dir, "absent"),
+      }),
+    ),
     "triage_ledger_record_dir_missing",
   );
   assert.deepEqual(readLedger(path).entries, [], "no refusal wrote a ledger row");
@@ -1014,7 +1181,11 @@ test("a link the batch published no trace for cannot be recorded, so its row kee
   seedTraces(dir, [LINKEDIN_ONE, LINKEDIN_TWO]);
   // A trace that cannot be read, and one whose `source_ref` yields no identity, stand for nothing.
   writeFileSync(join(dir, "traces", "003.trace.json"), "{", "utf8");
-  writeFileSync(join(dir, "traces", "004.trace.json"), JSON.stringify({ source_ref: "mailto:x@example.com" }), "utf8");
+  writeFileSync(
+    join(dir, "traces", "004.trace.json"),
+    JSON.stringify({ source_ref: "mailto:x@example.com" }),
+    "utf8",
+  );
   // The plan covers all three links: the withheld one as the ledger's skip, the two as new.
   seedPlan(dir, path, undefined, "2026-08-25T08:00:00Z");
   const later = {
@@ -1025,20 +1196,38 @@ test("a link the batch published no trace for cannot be recorded, so its row kee
 
   // The literal reading of "one entry per input link": the withheld row copied forward.
   assert.equal(
-    errorCode(() => recordBatch(path, batch({
-      ...later,
-      entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO }), entry({ url: LINKEDIN_CLOSED })],
-    }), { artifactsDir: dir })),
+    errorCode(() =>
+      recordBatch(
+        path,
+        batch({
+          ...later,
+          entries: [
+            entry({ url: LINKEDIN_ONE }),
+            entry({ url: LINKEDIN_TWO }),
+            entry({ url: LINKEDIN_CLOSED }),
+          ],
+        }),
+        { artifactsDir: dir },
+      ),
+    ),
     "triage_ledger_entry_without_trace",
   );
-  assert.equal(readFileSync(path, "utf8"), before, "a refused batch leaves the ledger byte-identical");
+  assert.equal(
+    readFileSync(path, "utf8"),
+    before,
+    "a refused batch leaves the ledger byte-identical",
+  );
   assert.equal(existsSync(join(dir, triageBatchRecordFileName)), false, "and writes no record");
 
   // The same batch without the withheld link records, and the withheld row is not touched.
-  recordBatch(path, batch({
-    ...later,
-    entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO })],
-  }), { artifactsDir: dir });
+  recordBatch(
+    path,
+    batch({
+      ...later,
+      entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO })],
+    }),
+    { artifactsDir: dir },
+  );
   const withheld = readLedger(path).entries.find((row) => row.key === "linkedin:4455248338");
   assert.equal(withheld.last_checked, observedAt);
   assert.equal(withheld.batch_id, "2026-08-18-linkedin-1-10");
@@ -1056,7 +1245,9 @@ test("the trace guard tells a missing directory from a directory without traces,
   assert.deepEqual(readdirSync(dir), []);
   // No batch directory: the older code keeps the case.
   assert.equal(
-    errorCode(() => recordBatch(path, batch({ policy_id: "p1" }), { artifactsDir: join(dir, "absent") })),
+    errorCode(() =>
+      recordBatch(path, batch({ policy_id: "p1" }), { artifactsDir: join(dir, "absent") }),
+    ),
     "triage_ledger_record_dir_missing",
   );
 
@@ -1078,27 +1269,79 @@ test("a batch record read back off disk is validated, never believed", (t) => {
   recordBatch(path, batch({ policy_id: "p1" }), { artifactsDir: dir });
   const sound = JSON.parse(readFileSync(join(dir, "ledger-record.json"), "utf8"));
 
-  assert.equal(errorCode(() => readBatchRecord(join(dir, "nowhere"))), "triage_ledger_record_absent");
+  assert.equal(
+    errorCode(() => readBatchRecord(join(dir, "nowhere"))),
+    "triage_ledger_record_absent",
+  );
   for (const [mutate, expected] of [
-    [(value) => { value.schema_version = 2; }, "triage_ledger_record_schema_version"],
-    [(value) => { delete value.policy_id; }, "triage_ledger_record_unreadable"],
-    [(value) => { value.batch_id = "not an identifier"; }, "triage_ledger_record_unreadable"],
-    [(value) => { value.observed_at = "2026-08-18"; }, "triage_ledger_record_unreadable"],
-    [(value) => { value.entries_digest = "nothex"; }, "triage_ledger_record_unreadable"],
-    [(value) => { value.entries = []; }, "triage_ledger_record_unreadable"],
+    [
+      (value) => {
+        value.schema_version = 2;
+      },
+      "triage_ledger_record_schema_version",
+    ],
+    [
+      (value) => {
+        delete value.policy_id;
+      },
+      "triage_ledger_record_unreadable",
+    ],
+    [
+      (value) => {
+        value.batch_id = "not an identifier";
+      },
+      "triage_ledger_record_unreadable",
+    ],
+    [
+      (value) => {
+        value.observed_at = "2026-08-18";
+      },
+      "triage_ledger_record_unreadable",
+    ],
+    [
+      (value) => {
+        value.entries_digest = "nothex";
+      },
+      "triage_ledger_record_unreadable",
+    ],
+    [
+      (value) => {
+        value.entries = [];
+      },
+      "triage_ledger_record_unreadable",
+    ],
     // The top-level id, left a valid identifier so the pattern check passes and the digest still
     // describes the entries: only the cross-batch loop can answer this one, and mutating an entry
     // instead would be answered by the digest as well.
-    [(value) => { value.batch_id = "someone-elses-batch"; }, "triage_ledger_record_unreadable"],
+    [
+      (value) => {
+        value.batch_id = "someone-elses-batch";
+      },
+      "triage_ledger_record_unreadable",
+    ],
     // A hand-edited row is the case the repair table is written for, so it has to surface in the
     // record's own vocabulary rather than in the ledger's entry vocabulary — otherwise the table
     // an operator reads does not carry the code they were handed.
-    [(value) => { value.entries[0].status = "dead"; }, "triage_ledger_record_unreadable"],
-    [(value) => { value.surprise = 1; }, "triage_ledger_record_unreadable"],
+    [
+      (value) => {
+        value.entries[0].status = "dead";
+      },
+      "triage_ledger_record_unreadable",
+    ],
+    [
+      (value) => {
+        value.surprise = 1;
+      },
+      "triage_ledger_record_unreadable",
+    ],
   ]) {
     const candidate = JSON.parse(JSON.stringify(sound));
     mutate(candidate);
-    assert.equal(errorCode(() => validateBatchRecord(candidate)), expected, JSON.stringify(candidate).slice(0, 90));
+    assert.equal(
+      errorCode(() => validateBatchRecord(candidate)),
+      expected,
+      JSON.stringify(candidate).slice(0, 90),
+    );
   }
   assert.equal(validateBatchRecord(JSON.parse(JSON.stringify(sound))).batch_id, sound.batch_id);
   assert.equal(triageBatchRecordFileName, "ledger-record.json");
@@ -1127,15 +1370,21 @@ test("a batch record read back off disk is validated, never believed", (t) => {
 
 test("the plan carries the policy its baseline decision was taken under", (t) => {
   const path = freshLedger(t);
-  recordWithoutStore(path, batch({
-    policy_id: "triage-policy-v2-2026-08-21",
-    entries: [entry({ url: LINKEDIN_ONE })],
-  }));
-  recordWithoutStore(path, batch({
-    batch_id: "2026-08-19-linkedin-1-10",
-    observed_at: "2026-08-19T12:40:00Z",
-    entries: [entry({ url: LINKEDIN_TWO })],
-  }));
+  recordWithoutStore(
+    path,
+    batch({
+      policy_id: "triage-policy-v2-2026-08-21",
+      entries: [entry({ url: LINKEDIN_ONE })],
+    }),
+  );
+  recordWithoutStore(
+    path,
+    batch({
+      batch_id: "2026-08-19-linkedin-1-10",
+      observed_at: "2026-08-19T12:40:00Z",
+      entries: [entry({ url: LINKEDIN_TWO })],
+    }),
+  );
 
   const plan = planBatch(readLedger(path), [LINKEDIN_ONE, LINKEDIN_TWO, LINKEDIN_CLOSED], {
     asOf: "2026-08-30T12:40:00Z",
@@ -1152,13 +1401,19 @@ test("the ledger is operational state: untracked, named by canon, owned by the r
   assert.match(gitignore, /^\/triage-ledger\.json$/m);
   assert.match(gitignore, /^triage-ledger\.json\.lock$/m);
 
-  const operatingContract = readFileSync(join(repoRoot, "instructions/operating-contract.md"), "utf8");
+  const operatingContract = readFileSync(
+    join(repoRoot, "instructions/operating-contract.md"),
+    "utf8",
+  );
   assert.match(operatingContract, /triage-ledger\.json/);
   assert.match(operatingContract, /docs\/runbooks\/triage-review\.md/);
 
   const precedence = readFileSync(join(repoRoot, "knowledge/precedence.md"), "utf8");
   assert.match(precedence, /\| Batch-triage vacancy state[^|]*\| `triage-ledger\.json`[^|]*\|/);
-  assert.match(precedence, /\| Flagged-triage review procedure[^|]*\| `docs\/runbooks\/triage-review\.md` \|/);
+  assert.match(
+    precedence,
+    /\| Flagged-triage review procedure[^|]*\| `docs\/runbooks\/triage-review\.md` \|/,
+  );
 
   const skill = readFileSync(join(repoRoot, "instructions/skills/score-jobs.md"), "utf8");
   assert.match(skill, /tools\/lib\/triage-ledger-core\.mjs#planBatch/);
@@ -1183,12 +1438,18 @@ function plannedBatchDir(t, ledgerPath, batchId, urls = [LINKEDIN_ONE]) {
 
 test("the synthetic path measures what the task filed: without a store the last writer wins", (t) => {
   const path = freshLedger(t);
-  recordWithoutStore(path, batch({ batch_id: "measure-a", entries: [entry({ decision: "MANUAL_REVIEW" })] }));
-  recordWithoutStore(path, batch({
-    batch_id: "measure-b",
-    observed_at: "2026-08-18T12:41:00Z",
-    entries: [entry({ decision: "EVALUATED", flags: [] })],
-  }));
+  recordWithoutStore(
+    path,
+    batch({ batch_id: "measure-a", entries: [entry({ decision: "MANUAL_REVIEW" })] }),
+  );
+  recordWithoutStore(
+    path,
+    batch({
+      batch_id: "measure-b",
+      observed_at: "2026-08-18T12:41:00Z",
+      entries: [entry({ decision: "EVALUATED", flags: [] })],
+    }),
+  );
   const ledger = readLedger(path);
   // One row, the later observation, both batches in the history list: this is the behaviour the
   // filing read from the code, now measured. It is confined to `{artifactsDir: null}`, which
@@ -1196,7 +1457,10 @@ test("the synthetic path measures what the task filed: without a store the last 
   assert.equal(ledger.entries.length, 1);
   assert.equal(ledger.entries[0].decision, "EVALUATED");
   assert.equal(ledger.entries[0].batch_id, "measure-b");
-  assert.deepEqual(ledger.batches.map((row) => row.batch_id), ["measure-a", "measure-b"]);
+  assert.deepEqual(
+    ledger.batches.map((row) => row.batch_id),
+    ["measure-a", "measure-b"],
+  );
 });
 
 test("two batches planned before either recorded: the first lands, the second is refused by name", (t) => {
@@ -1205,21 +1469,29 @@ test("two batches planned before either recorded: the first lands, the second is
   const first = plannedBatchDir(t, path, "2026-09-20-telegram-1-15");
   const second = plannedBatchDir(t, path, "2026-09-20-other-1-15");
 
-  recordBatch(path, batch({
-    batch_id: "2026-09-20-telegram-1-15",
-    policy_id: "p1",
-    entries: [entry({ decision: "MANUAL_REVIEW" })],
-  }), { artifactsDir: first });
+  recordBatch(
+    path,
+    batch({
+      batch_id: "2026-09-20-telegram-1-15",
+      policy_id: "p1",
+      entries: [entry({ decision: "MANUAL_REVIEW" })],
+    }),
+    { artifactsDir: first },
+  );
   const before = readFileSync(path, "utf8");
 
   let refused = null;
   try {
-    recordBatch(path, batch({
-      batch_id: "2026-09-20-other-1-15",
-      observed_at: "2026-08-18T12:41:00Z",
-      policy_id: "p1",
-      entries: [entry({ decision: "EVALUATED", flags: [] })],
-    }), { artifactsDir: second });
+    recordBatch(
+      path,
+      batch({
+        batch_id: "2026-09-20-other-1-15",
+        observed_at: "2026-08-18T12:41:00Z",
+        policy_id: "p1",
+        entries: [entry({ decision: "EVALUATED", flags: [] })],
+      }),
+      { artifactsDir: second },
+    );
   } catch (error) {
     refused = error;
   }
@@ -1227,7 +1499,11 @@ test("two batches planned before either recorded: the first lands, the second is
   assert.equal(refused.code, "triage_ledger_concurrent_observation");
   // The refusal names the key so the repair — drop the entry — can be done without guessing.
   assert.match(refused.message, /linkedin:4418544694/);
-  assert.equal(readFileSync(path, "utf8"), before, "the refused batch left the ledger byte-identical");
+  assert.equal(
+    readFileSync(path, "utf8"),
+    before,
+    "the refused batch left the ledger byte-identical",
+  );
   assert.equal(existsSync(join(second, triageBatchRecordFileName)), false, "and wrote no record");
   assert.equal(existsSync(`${path}.lock`), false, "and released the lock");
   const row = readLedger(path).entries[0];
@@ -1255,25 +1531,34 @@ test("two sessions recording one vacancy at the same moment: exactly one lands",
       "try {",
       "  recordBatch(ledgerPath, {",
       "    batch_id: batchId,",
-      "    observed_at: \"2026-08-18T12:40:00Z\",",
-      "    policy_id: \"p1\",",
-      "    entries: [{ url, status: \"open\", decision: \"MANUAL_REVIEW\", flags: [] }],",
+      '    observed_at: "2026-08-18T12:40:00Z",',
+      '    policy_id: "p1",',
+      '    entries: [{ url, status: "open", decision: "MANUAL_REVIEW", flags: [] }],',
       "  }, { artifactsDir: dir });",
-      "  console.log(\"recorded\");",
+      '  console.log("recorded");',
       "} catch (error) {",
-      "  console.log(error.code ?? \"unknown\");",
+      '  console.log(error.code ?? "unknown");',
       "  process.exitCode = 3;",
       "}",
       "",
     ].join("\n"),
   );
   const { spawn } = await import("node:child_process");
-  const outcomes = await Promise.all(dirs.map(([batchId, dir]) => new Promise((resolve) => {
-    const child = spawn(process.execPath, [childPath, path, batchId, dir, LINKEDIN_ONE], { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.on("close", (status) => resolve({ status, stdout: stdout.trim() }));
-  })));
+  const outcomes = await Promise.all(
+    dirs.map(
+      ([batchId, dir]) =>
+        new Promise((resolve) => {
+          const child = spawn(process.execPath, [childPath, path, batchId, dir, LINKEDIN_ONE], {
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+          let stdout = "";
+          child.stdout.on("data", (chunk) => {
+            stdout += chunk;
+          });
+          child.on("close", (status) => resolve({ status, stdout: stdout.trim() }));
+        }),
+    ),
+  );
   assert.deepEqual(
     outcomes.map((outcome) => outcome.stdout).sort(),
     ["recorded", "triage_ledger_concurrent_observation"],
@@ -1285,31 +1570,45 @@ test("two sessions recording one vacancy at the same moment: exactly one lands",
   const winner = ledger.batches[0].batch_id;
   assert.equal(ledger.entries[0].batch_id, winner);
   const [loser] = dirs.filter(([batchId]) => batchId !== winner);
-  assert.equal(existsSync(join(loser[1], triageBatchRecordFileName)), false, "the loser wrote no record");
+  assert.equal(
+    existsSync(join(loser[1], triageBatchRecordFileName)),
+    false,
+    "the loser wrote no record",
+  );
   assert.equal(existsSync(`${path}.lock`), false);
 });
 
 test("a re-score that planned after the first record passes the guard and replaces the row", (t) => {
   const path = freshLedger(t);
   const first = plannedBatchDir(t, path, "2026-08-18-linkedin-1-1");
-  recordBatch(path, batch({ batch_id: "2026-08-18-linkedin-1-1", policy_id: "p1" }), { artifactsDir: first });
+  recordBatch(path, batch({ batch_id: "2026-08-18-linkedin-1-1", policy_id: "p1" }), {
+    artifactsDir: first,
+  });
 
   // Planned now, so the plan carries the row as `skip_known` with the five fields it has today.
   const second = plannedBatchDir(t, path, "2026-08-25-linkedin-1-1");
   const plan = JSON.parse(readFileSync(join(second, "plan.json"), "utf8"));
   assert.equal(plan.items[0].action, "skip_known");
-  recordBatch(path, batch({
-    batch_id: "2026-08-25-linkedin-1-1",
-    observed_at: "2026-08-25T09:00:00Z",
-    policy_id: "p2",
-    entries: [entry({ decision: "EVALUATED", flags: [] })],
-  }), { artifactsDir: second });
+  recordBatch(
+    path,
+    batch({
+      batch_id: "2026-08-25-linkedin-1-1",
+      observed_at: "2026-08-25T09:00:00Z",
+      policy_id: "p2",
+      entries: [entry({ decision: "EVALUATED", flags: [] })],
+    }),
+    { artifactsDir: second },
+  );
   const row = readLedger(path).entries[0];
   assert.equal(row.decision, "EVALUATED");
   assert.equal(row.batch_id, "2026-08-25-linkedin-1-1");
 
   // And the first batch's replay still goes through: a batch the ledger holds runs no guard.
-  const replay = recordBatch(path, batch({ batch_id: "2026-08-18-linkedin-1-1", policy_id: "p1" }), { artifactsDir: first });
+  const replay = recordBatch(
+    path,
+    batch({ batch_id: "2026-08-18-linkedin-1-1", policy_id: "p1" }),
+    { artifactsDir: first },
+  );
   assert.equal(replay.record.written, false);
 });
 
@@ -1323,7 +1622,11 @@ test("a known row that moved between the plan and the record is refused, whichev
     ["decision", { decision: "EVALUATED", flags: ["vacancy_unavailable"] }, {}],
     ["flags", { decision: "BLOCKED", flags: ["vacancy_unavailable", "work_format_unknown"] }, {}],
     ["status", { decision: "BLOCKED", flags: ["vacancy_unavailable"], status: "closed" }, {}],
-    ["last_checked", { decision: "BLOCKED", flags: ["vacancy_unavailable"] }, { observed_at: "2026-08-18T12:40:01Z" }],
+    [
+      "last_checked",
+      { decision: "BLOCKED", flags: ["vacancy_unavailable"] },
+      { observed_at: "2026-08-18T12:40:01Z" },
+    ],
     ["policy_id", { decision: "BLOCKED", flags: ["vacancy_unavailable"] }, { policy_id: "p9" }],
   ];
   for (const [field, moved, batchOverrides] of cases) {
@@ -1331,12 +1634,23 @@ test("a known row that moved between the plan and the record is refused, whichev
     recordWithoutStore(path, batch({ batch_id: "earlier", entries: [entry(baseline)] }));
     // This batch plans the retry of the failed fetch…
     const dir = plannedBatchDir(t, path, `retry-${field}-1-1`);
-    assert.equal(JSON.parse(readFileSync(join(dir, "plan.json"), "utf8")).items[0].action, "retry_blocked", field);
+    assert.equal(
+      JSON.parse(readFileSync(join(dir, "plan.json"), "utf8")).items[0].action,
+      "retry_blocked",
+      field,
+    );
     // …and another batch touches the same row first, moving only this one field.
-    recordWithoutStore(path, batch({ batch_id: "meanwhile", ...batchOverrides, entries: [entry(moved)] }));
+    recordWithoutStore(
+      path,
+      batch({ batch_id: "meanwhile", ...batchOverrides, entries: [entry(moved)] }),
+    );
 
     assert.equal(
-      errorCode(() => recordBatch(path, batch({ batch_id: `retry-${field}-1-1`, policy_id: "p1" }), { artifactsDir: dir })),
+      errorCode(() =>
+        recordBatch(path, batch({ batch_id: `retry-${field}-1-1`, policy_id: "p1" }), {
+          artifactsDir: dir,
+        }),
+      ),
       "triage_ledger_concurrent_observation",
       field,
     );
@@ -1349,7 +1663,9 @@ test("a known row that moved between the plan and the record is refused, whichev
   recordWithoutStore(path, batch({ batch_id: "earlier", entries: [entry(baseline)] }));
   const dir = plannedBatchDir(t, path, "retry-control-1-1");
   recordWithoutStore(path, batch({ batch_id: "earlier", entries: [entry(baseline)] }));
-  recordBatch(path, batch({ batch_id: "retry-control-1-1", policy_id: "p1" }), { artifactsDir: dir });
+  recordBatch(path, batch({ batch_id: "retry-control-1-1", policy_id: "p1" }), {
+    artifactsDir: dir,
+  });
   assert.equal(readLedger(path).entries[0].batch_id, "retry-control-1-1");
 });
 
@@ -1362,23 +1678,45 @@ test("an orphaned record is finished by its replay even after another batch wrot
   seedTraces(dir, [LINKEDIN_ONE]);
   seedPlan(dir, doomed, [LINKEDIN_ONE]);
   assert.equal(
-    errorCode(() => recordBatch(doomed, batch({ batch_id: "orphan-1-1", policy_id: "p1" }), { artifactsDir: dir })),
+    errorCode(() =>
+      recordBatch(doomed, batch({ batch_id: "orphan-1-1", policy_id: "p1" }), {
+        artifactsDir: dir,
+      }),
+    ),
     "triage_ledger_unwritable",
   );
-  assert.ok(existsSync(join(dir, triageBatchRecordFileName)), "the record is on disk, the ledger half is not");
+  assert.ok(
+    existsSync(join(dir, triageBatchRecordFileName)),
+    "the record is on disk, the ledger half is not",
+  );
 
   // Another batch records the same vacancy into a ledger that works.
   const healthy = join(root, "triage-ledger.json");
   initLedger(healthy);
   const other = plannedBatchDir(t, healthy, "other-1-1");
-  recordBatch(healthy, batch({ batch_id: "other-1-1", policy_id: "p1", entries: [entry({ decision: "EVALUATED", flags: [] })] }), { artifactsDir: other });
+  recordBatch(
+    healthy,
+    batch({
+      batch_id: "other-1-1",
+      policy_id: "p1",
+      entries: [entry({ decision: "EVALUATED", flags: [] })],
+    }),
+    { artifactsDir: other },
+  );
 
   // The orphan's replay is not judged against its plan: its observation was committed when its
   // record was written, and docs/runbooks/triage-review.md#11-batch-store-the-history-beside-the-index's cure — repeat recordBatch — must still work. The row it lands
   // on is the named residual of the crash window.
-  const replay = recordBatch(healthy, batch({ batch_id: "orphan-1-1", policy_id: "p1" }), { artifactsDir: dir });
+  const replay = recordBatch(healthy, batch({ batch_id: "orphan-1-1", policy_id: "p1" }), {
+    artifactsDir: dir,
+  });
   assert.equal(replay.record.written, false);
-  assert.deepEqual(readLedger(healthy).batches.map((row) => row.batch_id).sort(), ["orphan-1-1", "other-1-1"]);
+  assert.deepEqual(
+    readLedger(healthy)
+      .batches.map((row) => row.batch_id)
+      .sort(),
+    ["orphan-1-1", "other-1-1"],
+  );
 });
 
 test("an entry the plan never named is refused on its own code", (t) => {
@@ -1389,11 +1727,15 @@ test("an entry the plan never named is refused on its own code", (t) => {
   seedPlan(dir, path, [LINKEDIN_ONE]);
   let refused = null;
   try {
-    recordBatch(path, batch({
-      batch_id: "unplanned-1-1",
-      policy_id: "p1",
-      entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO })],
-    }), { artifactsDir: dir });
+    recordBatch(
+      path,
+      batch({
+        batch_id: "unplanned-1-1",
+        policy_id: "p1",
+        entries: [entry({ url: LINKEDIN_ONE }), entry({ url: LINKEDIN_TWO })],
+      }),
+      { artifactsDir: dir },
+    );
   } catch (error) {
     refused = error;
   }
@@ -1408,7 +1750,8 @@ test("the archive path needs the plan the batch ran on, and reads it rather than
   const dir = join(disposableRoot(t, "triage-batch-"), "planless-1-1");
   mkdirSync(dir);
   seedTraces(dir, [LINKEDIN_ONE]);
-  const attempt = () => recordBatch(path, batch({ batch_id: "planless-1-1", policy_id: "p1" }), { artifactsDir: dir });
+  const attempt = () =>
+    recordBatch(path, batch({ batch_id: "planless-1-1", policy_id: "p1" }), { artifactsDir: dir });
 
   assert.equal(errorCode(attempt), "triage_ledger_plan_undeclared");
   writeFileSync(join(dir, "plan.json"), "{ not json", "utf8");

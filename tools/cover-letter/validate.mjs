@@ -1,23 +1,16 @@
 import { candidateConstraintFindings } from "../candidate/constraints.mjs";
-import { candidateConfigValue, candidateLanguages, loadCandidateConfig } from "../candidate/load.mjs";
+import {
+  candidateConfigValue,
+  candidateLanguages,
+  loadCandidateConfig,
+} from "../candidate/load.mjs";
 import { scriptPattern } from "../candidate/languages.mjs";
 
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const wordCharacterPattern = /[\p{L}\p{M}\p{N}\p{Pc}\p{Cf}]/u;
 
 export const coverLetterValidationContract = Object.freeze({
-  forbiddenTypography: Object.freeze([
-    "—",
-    "–",
-    "“",
-    "”",
-    "‘",
-    "’",
-    "«",
-    "»",
-    "…",
-    "--",
-  ]),
+  forbiddenTypography: Object.freeze(["—", "–", "“", "”", "‘", "’", "«", "»", "…", "--"]),
   forbiddenTerms: Object.freeze([
     "Cursor",
     "excited",
@@ -106,15 +99,18 @@ export function coverLetterLanguagesFor({ root } = {}) {
 }
 
 function requireLanguages(languages) {
-  const valid = Array.isArray(languages)
-    && languages.length > 0
-    && languages.every((language) =>
-      typeof language?.name === "string"
-      && typeof language.locale === "string"
-      && typeof language.signature === "string"
-      && typeof language.subjectPrefix === "string"
-      && scriptPattern(language.script) !== null
-      && Array.isArray(language.admitsScripts));
+  const valid =
+    Array.isArray(languages) &&
+    languages.length > 0 &&
+    languages.every(
+      (language) =>
+        typeof language?.name === "string" &&
+        typeof language.locale === "string" &&
+        typeof language.signature === "string" &&
+        typeof language.subjectPrefix === "string" &&
+        scriptPattern(language.script) !== null &&
+        Array.isArray(language.admitsScripts),
+    );
   if (!valid) {
     throw new TypeError("cover letter validation needs the languages of the candidate layer");
   }
@@ -130,8 +126,9 @@ function languagePolicy(languages, name) {
   const language = languages.find((entry) => entry.name === name);
   if (language === undefined) return null;
   const admitted = new Set([language.script, ...language.admitsScripts]);
-  const foreign = [...new Set(languages.map((entry) => entry.script))]
-    .filter((script) => !admitted.has(script));
+  const foreign = [...new Set(languages.map((entry) => entry.script))].filter(
+    (script) => !admitted.has(script),
+  );
   return Object.freeze({
     foreignPatterns: Object.freeze(foreign.map(scriptPattern)),
     locale: language.locale,
@@ -191,7 +188,8 @@ const markupPatterns = Object.freeze([
   }),
   Object.freeze({
     code: "emphasis",
-    pattern: /(?:\*[^*]+\*|(?<![\p{L}\p{N}])_(?:[^_]|_(?=[\p{L}\p{N}]))+_(?![\p{L}\p{N}])|~~(?:[^~]|~(?!~))+~~)/u,
+    pattern:
+      /(?:\*[^*]+\*|(?<![\p{L}\p{N}])_(?:[^_]|_(?=[\p{L}\p{N}]))+_(?![\p{L}\p{N}])|~~(?:[^~]|~(?!~))+~~)/u,
   }),
   Object.freeze({
     code: "link",
@@ -219,7 +217,8 @@ const markupPatterns = Object.freeze([
   }),
   Object.freeze({
     code: "link",
-    pattern: /(?<![<A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-])[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?![>\p{L}\p{M}\p{N}_-])/u,
+    pattern:
+      /(?<![<A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-])[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?![>\p{L}\p{M}\p{N}_-])/u,
   }),
   Object.freeze({
     code: "code",
@@ -254,13 +253,12 @@ const markupPatterns = Object.freeze([
 function codePointBefore(text, index) {
   if (index === 0) return "";
   const finalCodeUnit = text.charCodeAt(index - 1);
-  const hasSurrogatePair = (
-    index >= 2
-    && finalCodeUnit >= 0xdc00
-    && finalCodeUnit <= 0xdfff
-    && text.charCodeAt(index - 2) >= 0xd800
-    && text.charCodeAt(index - 2) <= 0xdbff
-  );
+  const hasSurrogatePair =
+    index >= 2 &&
+    finalCodeUnit >= 0xdc00 &&
+    finalCodeUnit <= 0xdfff &&
+    text.charCodeAt(index - 2) >= 0xd800 &&
+    text.charCodeAt(index - 2) <= 0xdbff;
   return text.slice(hasSurrogatePair ? index - 2 : index - 1, index);
 }
 
@@ -278,8 +276,8 @@ function containsWholeTerm(text, term) {
     const afterIndex = index + term.length;
     const after = codePointAt(text, afterIndex);
     if (
-      (!before || !wordCharacterPattern.test(before))
-      && (!after || !wordCharacterPattern.test(after))
+      (!before || !wordCharacterPattern.test(before)) &&
+      (!after || !wordCharacterPattern.test(after))
     ) {
       return true;
     }
@@ -291,9 +289,7 @@ function containsWholeTerm(text, term) {
 function containsForbiddenTerm(text, term) {
   const lowerTerm = term.replace(/[ \t]+/gu, " ").toLocaleLowerCase("en-US");
   return text.split(/\n[ \t]*\n+/u).some((block) => {
-    const normalizedBlock = block
-      .replace(/\p{White_Space}+/gu, " ")
-      .toLocaleLowerCase("en-US");
+    const normalizedBlock = block.replace(/\p{White_Space}+/gu, " ").toLocaleLowerCase("en-US");
     return containsWholeTerm(normalizedBlock, lowerTerm);
   });
 }
@@ -333,7 +329,9 @@ function decodeLetterBytes(letterBytes, errors) {
 }
 
 function usesScript(policy, text) {
-  return policy.ownPattern.test(text) && !policy.foreignPatterns.some((pattern) => pattern.test(text));
+  return (
+    policy.ownPattern.test(text) && !policy.foreignPatterns.some((pattern) => pattern.test(text))
+  );
 }
 
 function validateLanguageText(policy, title, paragraphs, errors) {
@@ -385,10 +383,14 @@ function approvedBodyWordMaximum(waivers, limits) {
 }
 
 function matchWaiver(waivers, subject) {
-  return waivers.find((waiver) =>
-    waiver?.status === "active"
-    && waiver?.subject?.kind === subject.kind
-    && waiver?.subject?.key === subject.key) ?? null;
+  return (
+    waivers.find(
+      (waiver) =>
+        waiver?.status === "active" &&
+        waiver?.subject?.kind === subject.kind &&
+        waiver?.subject?.key === subject.key,
+    ) ?? null
+  );
 }
 
 /*

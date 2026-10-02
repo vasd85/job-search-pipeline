@@ -29,7 +29,8 @@ export const MAX_APPLY_PER_VACANCY = 5;
 const LINK_TYPE_OF_VIA = Object.freeze({ url: "url", tg: "tg", email: "email" });
 const FENCE = /^\s*```[a-z]*\s*\n([\s\S]*?)\n\s*```\s*$/u;
 
-const isPlainObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+const isPlainObject = (value) =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 const keysAre = (value, keys) => Object.keys(value).sort().join() === [...keys].sort().join();
 const isIndex = (value) => Number.isSafeInteger(value) && value >= 1;
 
@@ -61,7 +62,8 @@ export function parseAnswerText(text) {
  * does not name, a key this schema does not know are rejected as before.
  */
 function checkVacancy(vacancy, descriptor) {
-  if (!isPlainObject(vacancy) || !keysAre(vacancy, ["title_line", "apply", "details_link"])) return null;
+  if (!isPlainObject(vacancy) || !keysAre(vacancy, ["title_line", "apply", "details_link"]))
+    return null;
   if (!isIndex(vacancy.title_line)) return null;
   const shown = descriptor.shown.includes(vacancy.title_line);
   const onlyLine = descriptor.shown.length === 1 ? descriptor.shown[0] : null;
@@ -79,7 +81,8 @@ function checkVacancy(vacancy, descriptor) {
     if (descriptor.links[apply.link - 1].type !== type) return null;
   }
   if (vacancy.details_link !== null) {
-    if (!isIndex(vacancy.details_link) || vacancy.details_link > descriptor.links.length) return null;
+    if (!isIndex(vacancy.details_link) || vacancy.details_link > descriptor.links.length)
+      return null;
     if (descriptor.links[vacancy.details_link - 1].type !== "url") return null;
   }
   return shown
@@ -99,9 +102,13 @@ export function checkAnswer(answer, batch) {
     for (const post of batch.posts) results.set(post.post, invalid(code));
     return { results, stray: 0 };
   };
-  if (answer === null || !keysAre(answer, ["schema_version", "batch", "posts"])
-    || answer.schema_version !== answerSchemaVersion || answer.batch !== batch.name
-    || !Array.isArray(answer.posts)) {
+  if (
+    answer === null ||
+    !keysAre(answer, ["schema_version", "batch", "posts"]) ||
+    answer.schema_version !== answerSchemaVersion ||
+    answer.batch !== batch.name ||
+    !Array.isArray(answer.posts)
+  ) {
     return allInvalid("file_invalid");
   }
   const byNumber = new Map(batch.posts.map((post) => [post.post, post]));
@@ -119,22 +126,28 @@ export function checkAnswer(answer, batch) {
       continue;
     }
     const descriptor = byNumber.get(number);
-    const checked = !keysAre(entry, ["post", "vacancies"]) || !Array.isArray(entry.vacancies)
-      || entry.vacancies.length > MAX_VACANCIES_PER_POST
-      ? null
-      : entry.vacancies.map((vacancy) => checkVacancy(vacancy, descriptor));
+    const checked =
+      !keysAre(entry, ["post", "vacancies"]) ||
+      !Array.isArray(entry.vacancies) ||
+      entry.vacancies.length > MAX_VACANCIES_PER_POST
+        ? null
+        : entry.vacancies.map((vacancy) => checkVacancy(vacancy, descriptor));
     if (checked === null || checked.includes(null)) {
       results.set(number, invalid("post_invalid"));
       continue;
     }
-    results.set(number, checked.length === 0
-      ? { kind: "none" }
-      : {
-        kind: "vacancy",
-        vacancies: checked.map((item) => item.vacancy),
-        repairs: checked.filter((item) => item.repaired !== null).map((item) => item.repaired),
-      });
+    results.set(
+      number,
+      checked.length === 0
+        ? { kind: "none" }
+        : {
+            kind: "vacancy",
+            vacancies: checked.map((item) => item.vacancy),
+            repairs: checked.filter((item) => item.repaired !== null).map((item) => item.repaired),
+          },
+    );
   }
-  for (const post of batch.posts) if (!results.has(post.post)) results.set(post.post, invalid("post_missing"));
+  for (const post of batch.posts)
+    if (!results.has(post.post)) results.set(post.post, invalid("post_missing"));
   return { results, stray };
 }

@@ -17,11 +17,19 @@ const HOOKS = join(repoRoot, "tools", "git-hooks");
 
 const configRoot = mkdtempSync(join(tmpdir(), "git-hooks-gitconfig-"));
 const globalConfig = join(configRoot, "gitconfig");
-writeFileSync(globalConfig, [
-  "[user]", "\tname = Hook Probe", "\temail = probe@example.com",
-  "[init]", "\tdefaultBranch = main",
-  "[commit]", "\tgpgsign = false", "",
-].join("\n"));
+writeFileSync(
+  globalConfig,
+  [
+    "[user]",
+    "\tname = Hook Probe",
+    "\temail = probe@example.com",
+    "[init]",
+    "\tdefaultBranch = main",
+    "[commit]",
+    "\tgpgsign = false",
+    "",
+  ].join("\n"),
+);
 process.env.GIT_CONFIG_GLOBAL = globalConfig;
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete process.env[key];
@@ -108,7 +116,12 @@ test("a commit naming its paths is checked on what it commits, not on the index"
   const root = repository(t);
   const before = head(root);
   write(root, "notes.md", "first\n\n");
-  assertRefused(tryGit(root, "commit", "-q", "-m", "pathspec", "--", "notes.md"), root, before, "notes.md:2");
+  assertRefused(
+    tryGit(root, "commit", "-q", "-m", "pathspec", "--", "notes.md"),
+    root,
+    before,
+    "notes.md:2",
+  );
   assert.equal(git(root, "diff", "--cached", "--name-only"), "");
 });
 

@@ -115,54 +115,85 @@ function runV3StartChild(ledgerPath, sourceRef) {
 
 function runStartChildScript(script, env = process.env) {
   return new Promise((resolveRun) => {
-    execFile(process.execPath, ["--input-type=module", "--eval", script], {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env,
-    }, (error, stdout, stderr) => {
-      resolveRun({ code: error ? error.code ?? null : 0, signal: error?.signal ?? null, stderr, stdout });
-    });
+    execFile(
+      process.execPath,
+      ["--input-type=module", "--eval", script],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env,
+      },
+      (error, stdout, stderr) => {
+        resolveRun({
+          code: error ? (error.code ?? null) : 0,
+          signal: error?.signal ?? null,
+          stderr,
+          stdout,
+        });
+      },
+    );
   });
 }
 
 function assertStartChildrenSucceeded(results) {
-  const failures = results.flatMap((result, index) => result.code === 0 && !result.signal ? [] : [{
-    index,
-    code: result.code,
-    signal: result.signal ?? null,
-    stdout: result.stdout.slice(-1_024),
-    stderr: result.stderr.slice(-1_024),
-  }]);
-  assert.deepEqual(results.map((result) => result.signal ?? result.code), Array(results.length).fill(0),
-    `parallel start child failures (output tails): ${JSON.stringify(failures)}`);
+  const failures = results.flatMap((result, index) =>
+    result.code === 0 && !result.signal
+      ? []
+      : [
+          {
+            index,
+            code: result.code,
+            signal: result.signal ?? null,
+            stdout: result.stdout.slice(-1_024),
+            stderr: result.stderr.slice(-1_024),
+          },
+        ],
+  );
+  assert.deepEqual(
+    results.map((result) => result.signal ?? result.code),
+    Array(results.length).fill(0),
+    `parallel start child failures (output tails): ${JSON.stringify(failures)}`,
+  );
 }
 
 test("parallel start failures report bounded child output, index and signal", () => {
-  assert.throws(() => assertStartChildrenSucceeded([
-    { code: 0, stdout: "success output", stderr: "" },
-    { code: 1, signal: "SIGTERM", stdout: "x".repeat(10_000), stderr: "y".repeat(10_000) + "failure-tail" },
-  ]), (error) => {
-    assert.match(error.message, /"index":1/);
-    assert.match(error.message, /"code":1/);
-    assert.match(error.message, /SIGTERM/);
-    assert.match(error.message, /failure-tail/);
-    assert.doesNotMatch(error.message, /success output/);
-    assert.ok(error.message.length < 4_000);
-    return true;
-  });
+  assert.throws(
+    () =>
+      assertStartChildrenSucceeded([
+        { code: 0, stdout: "success output", stderr: "" },
+        {
+          code: 1,
+          signal: "SIGTERM",
+          stdout: "x".repeat(10_000),
+          stderr: "y".repeat(10_000) + "failure-tail",
+        },
+      ]),
+    (error) => {
+      assert.match(error.message, /"index":1/);
+      assert.match(error.message, /"code":1/);
+      assert.match(error.message, /SIGTERM/);
+      assert.match(error.message, /failure-tail/);
+      assert.doesNotMatch(error.message, /success output/);
+      assert.ok(error.message.length < 4_000);
+      return true;
+    },
+  );
 });
 
 test("parallel start diagnostics reject a real signal-terminated child", async () => {
   const result = await runStartChildScript(
     'process.stdout.write("before-signal"); process.stderr.write("signal-failure", () => process.kill(process.pid, "SIGTERM"));',
   );
-  assert.throws(() => assertStartChildrenSucceeded([result]), (error) => {
-    assert.match(error.message, /"index":0/);
-    assert.match(error.message, /SIGTERM/);
-    assert.match(error.message, /before-signal/);
-    assert.match(error.message, /signal-failure/);
-    return true;
-  });
+  assert.throws(
+    () => assertStartChildrenSucceeded([result]),
+    (error) => {
+      assert.match(error.message, /"index":0/);
+      assert.match(error.message, /SIGTERM/);
+      assert.match(error.message, /before-signal/);
+      assert.match(error.message, /signal-failure/);
+      return true;
+    },
+  );
 });
 
 test("deterministic constructors create one running Step 1 and four independent pristine steps", () => {
@@ -188,10 +219,7 @@ test("deterministic constructors create one running Step 1 and four independent 
     assert.deepEqual(processRecord.steps[stepName], pending);
     assert.notEqual(processRecord.steps[stepName], pending);
   }
-  assert.notEqual(
-    processRecord.steps.research_company,
-    processRecord.steps.map_experience,
-  );
+  assert.notEqual(processRecord.steps.research_company, processRecord.steps.map_experience);
 });
 
 test("v3 start atomically writes a complete file-backed process to a temporary ledger", (t) => {
@@ -236,7 +264,10 @@ test("v3 start reports a duplicate without changing temporary ledger bytes", (t)
   );
 
   assert.equal(result.status, "duplicate");
-  assert.deepEqual(result.matches.map((record) => record.id), ["proc_historical_001"]);
+  assert.deepEqual(
+    result.matches.map((record) => record.id),
+    ["proc_historical_001"],
+  );
   assert.equal(readFileSync(ledgerPath, "utf8"), before);
 });
 
@@ -274,12 +305,14 @@ test("v3 start reports a collision witness for the parameters version 2 still st
       code: "legacy_source_key_collision",
       status: "ambiguous",
       requested_source_ref: `https://example.test/jobs/collision?${parameter}=beta`,
-      matches: [{
-        process_id: first.process.id,
-        source_ref: first.process.source_ref,
-        duplicate_of: null,
-        witnesses: [parameter],
-      }],
+      matches: [
+        {
+          process_id: first.process.id,
+          source_ref: first.process.source_ref,
+          duplicate_of: null,
+          witnesses: [parameter],
+        },
+      ],
       source_key: "https://example.test/jobs/collision",
       requires_final_url_check: true,
       requires_explicit_duplicate_of: true,
@@ -428,8 +461,10 @@ test("the motivating case: a local JD is linked to a historical posting that arr
 
   assert.equal(result.status, "created");
   assert.equal(created.duplicate_of, "proc_historical_001");
-  assert.equal(JSON.stringify(log.processes.find((record) => record.id === "proc_historical_001")),
-    historicalBefore);
+  assert.equal(
+    JSON.stringify(log.processes.find((record) => record.id === "proc_historical_001")),
+    historicalBefore,
+  );
 });
 
 test("an explicit new attempt duplicates a historical source without mutating history or companies", (t) => {
@@ -461,8 +496,9 @@ test("late linking records the same provenance without redoing any step", (t) =>
   // Task 010: sameness became known after the process already existed. Only the link and the
   // timestamps move; the steps the process already ran are byte-identical afterwards.
   const ledgerPath = tempLedger(t, createValidV3Log());
-  const before = readLogV3(ledgerPath).processes
-    .find((record) => record.id === "proc_file_backed_001");
+  const before = readLogV3(ledgerPath).processes.find(
+    (record) => record.id === "proc_file_backed_001",
+  );
   const stepsBefore = JSON.stringify(before.steps);
   const outputDirBefore = before.output_dir;
 
@@ -470,8 +506,9 @@ test("late linking records the same provenance without redoing any step", (t) =>
     processId: "proc_file_backed_001",
     duplicateOf: "proc_historical_001",
   });
-  const after = readLogV3(ledgerPath).processes
-    .find((record) => record.id === "proc_file_backed_001");
+  const after = readLogV3(ledgerPath).processes.find(
+    (record) => record.id === "proc_file_backed_001",
+  );
 
   assert.equal(result.status, "linked");
   assert.equal(after.duplicate_of, "proc_historical_001");
@@ -503,8 +540,8 @@ test("a declared link is cleared again, and re-declaring the same link changes n
   });
   assert.equal(cleared.status, "cleared");
   assert.equal(
-    readLogV3(ledgerPath).processes
-      .find((record) => record.id === "proc_file_backed_001").duplicate_of,
+    readLogV3(ledgerPath).processes.find((record) => record.id === "proc_file_backed_001")
+      .duplicate_of,
     null,
   );
 });
@@ -523,10 +560,11 @@ test("late linking refuses an unknown target, itself, a cycle, and a historical 
     );
   }
   assert.throws(
-    () => linkFileBackedProcessDuplicateV3(ledgerPath, {
-      processId: "proc_historical_001",
-      duplicateOf: "proc_file_backed_001",
-    }),
+    () =>
+      linkFileBackedProcessDuplicateV3(ledgerPath, {
+        processId: "proc_historical_001",
+        duplicateOf: "proc_file_backed_001",
+      }),
     (error) => error.code === "historical_process_read_only",
   );
   assert.equal(readFileSync(ledgerPath, "utf8"), before);
@@ -549,12 +587,12 @@ test("late linking refuses an unknown target, itself, a cycle, and a historical 
   );
   assert.equal(second.process.duplicate_of, first.process.id);
   assert.throws(
-    () => linkFileBackedProcessDuplicateV3(cycleLedger, {
-      processId: "proc_cycle_001",
-      duplicateOf: "proc_cycle_002",
-    }),
-    (error) => error.code === "invalid_duplicate_reference"
-      && /close a cycle/.test(error.message),
+    () =>
+      linkFileBackedProcessDuplicateV3(cycleLedger, {
+        processId: "proc_cycle_001",
+        duplicateOf: "proc_cycle_002",
+      }),
+    (error) => error.code === "invalid_duplicate_reference" && /close a cycle/.test(error.message),
   );
 });
 
@@ -580,21 +618,22 @@ test("a record sharing a key with an earlier one stays inside its group, whichev
 
   // `start` refuses a second member of the group that names anything outside it.
   assert.throws(
-    () => startFileBackedProcessV3(
-      ledgerPath,
-      {
-        runner: "codex",
-        sourceRef: "local-file:shared",
-        duplicateOf: outsider.process.id,
-      },
-      deterministicStartOptions({
-        attemptId: "attempt_shared_002",
-        processId: "proc_shared_002",
-        timestamp: "2026-07-23T13:02:00.000Z",
-      }),
-    ),
-    (error) => error.code === "invalid_duplicate_reference"
-      && error.message.includes(groupFirst.process.id),
+    () =>
+      startFileBackedProcessV3(
+        ledgerPath,
+        {
+          runner: "codex",
+          sourceRef: "local-file:shared",
+          duplicateOf: outsider.process.id,
+        },
+        deterministicStartOptions({
+          attemptId: "attempt_shared_002",
+          processId: "proc_shared_002",
+          timestamp: "2026-07-23T13:02:00.000Z",
+        }),
+      ),
+    (error) =>
+      error.code === "invalid_duplicate_reference" && error.message.includes(groupFirst.process.id),
   );
 
   // Accept it the legal way, so the group really holds two, and check the same rule on the other
@@ -622,19 +661,22 @@ test("a record sharing a key with an earlier one stays inside its group, whichev
 
   for (const duplicateOf of [outsider.process.id, null]) {
     assert.throws(
-      () => linkFileBackedProcessDuplicateV3(ledgerPath, {
-        processId: groupSecond.process.id,
-        duplicateOf,
-      }),
-      (error) => error.code === "invalid_duplicate_reference"
-        && error.message.includes(groupFirst.process.id),
+      () =>
+        linkFileBackedProcessDuplicateV3(ledgerPath, {
+          processId: groupSecond.process.id,
+          duplicateOf,
+        }),
+      (error) =>
+        error.code === "invalid_duplicate_reference" &&
+        error.message.includes(groupFirst.process.id),
     );
   }
 
   // And the chain still reaches the cross-source predecessor, transitively through the first.
   assert.deepEqual(
-    buildDuplicateChain(readLogV3(ledgerPath), groupSecond.process.id)
-      .members.map((member) => member.process_id),
+    buildDuplicateChain(readLogV3(ledgerPath), groupSecond.process.id).members.map(
+      (member) => member.process_id,
+    ),
     [outsider.process.id, groupFirst.process.id, groupSecond.process.id],
   );
 });
@@ -643,15 +685,16 @@ test("an invalid duplicate reference and an active-attempt id collision leave th
   const invalidDuplicatePath = tempLedger(t, historicalOnlyV3Log());
   const invalidDuplicateBefore = readFileSync(invalidDuplicatePath, "utf8");
   assert.throws(
-    () => startFileBackedProcessV3(
-      invalidDuplicatePath,
-      {
-        duplicateOf: "proc_other_source",
-        runner: "codex",
-        sourceRef: "historical-fixture:example",
-      },
-      deterministicStartOptions(),
-    ),
+    () =>
+      startFileBackedProcessV3(
+        invalidDuplicatePath,
+        {
+          duplicateOf: "proc_other_source",
+          runner: "codex",
+          sourceRef: "historical-fixture:example",
+        },
+        deterministicStartOptions(),
+      ),
     (error) => error.code === "invalid_duplicate_reference",
   );
   assert.equal(readFileSync(invalidDuplicatePath, "utf8"), invalidDuplicateBefore);
@@ -661,17 +704,18 @@ test("an invalid duplicate reference and an active-attempt id collision leave th
   const collisionPath = tempLedger(t, collisionLog);
   const collisionBefore = readFileSync(collisionPath, "utf8");
   assert.throws(
-    () => startFileBackedProcessV3(
-      collisionPath,
-      {
-        runner: "codex",
-        sourceRef: "fixture:attempt-id-collision",
-      },
-      deterministicStartOptions({
-        attemptId: "attempt_generate_cv_001",
-        processId: "proc_attempt_id_collision",
-      }),
-    ),
+    () =>
+      startFileBackedProcessV3(
+        collisionPath,
+        {
+          runner: "codex",
+          sourceRef: "fixture:attempt-id-collision",
+        },
+        deterministicStartOptions({
+          attemptId: "attempt_generate_cv_001",
+          processId: "proc_attempt_id_collision",
+        }),
+      ),
     (error) => error.code === "active_attempt_id_conflict",
   );
   assert.equal(readFileSync(collisionPath, "utf8"), collisionBefore);
@@ -765,7 +809,10 @@ test("v3 start stores processes in ascending instant order across ISO offsets", 
 test("v3 start breaks equal-instant process ordering ties by stable id", (t) => {
   const ledgerPath = tempLedger(t);
   const timestamp = "2026-07-23T13:00:00.000Z";
-  for (const [processId, suffix] of [["proc_z", "z"], ["proc_a", "a"]]) {
+  for (const [processId, suffix] of [
+    ["proc_z", "z"],
+    ["proc_a", "a"],
+  ]) {
     startFileBackedProcessV3(
       ledgerPath,
       {
@@ -791,18 +838,11 @@ test("v3 start breaks equal-instant process ordering ties by stable id", (t) => 
 });
 
 test("every record mutation routes through the shared root-monotonic clock guard", () => {
-  const source = readFileSync(
-    resolve(repoRoot, "tools/lib/process-log-v3-lifecycle.mjs"),
-    "utf8",
-  );
-  const routedCalls = source.match(
-    /(?<!function )recordMutationTimestamp\(clock, log, record\)/g,
-  ) ?? [];
+  const source = readFileSync(resolve(repoRoot, "tools/lib/process-log-v3-lifecycle.mjs"), "utf8");
+  const routedCalls =
+    source.match(/(?<!function )recordMutationTimestamp\(clock, log, record\)/g) ?? [];
   assert.equal(routedCalls.length, 16);
-  assert.equal(
-    source.match(/mutationTimestamp\(clock, log\.updated_at\)/g)?.length,
-    1,
-  );
+  assert.equal(source.match(/mutationTimestamp\(clock, log\.updated_at\)/g)?.length, 1);
   assert.doesNotMatch(source, /mutationTimestamp\(clock, record\.updated_at\)/);
   assert.match(
     source,
@@ -814,17 +854,12 @@ test("the shared guard rejects every historical process mutation and permits fil
   const log = createValidV3Log();
   const before = structuredClone(log);
 
-  assert.deepEqual(
-    historicalProcessMutationOperations,
-    EXPECTED_HISTORICAL_MUTATION_OPERATIONS,
-  );
+  assert.deepEqual(historicalProcessMutationOperations, EXPECTED_HISTORICAL_MUTATION_OPERATIONS);
 
   for (const operation of historicalProcessMutationOperations) {
     assert.throws(
       () => getFileBackedProcessForMutation(log, "proc_historical_001", operation),
-      (error) =>
-        error.code === "historical_process_read_only"
-        && error.message.includes(operation),
+      (error) => error.code === "historical_process_read_only" && error.message.includes(operation),
     );
   }
   assert.equal(
@@ -839,7 +874,8 @@ test("parallel v3 starts share the locked writer and preserve every temporary-le
   const attempts = 12;
   const results = await Promise.all(
     Array.from({ length: attempts }, (_, index) =>
-      runV3StartChild(ledgerPath, `parallel-v3-start:${index}`)),
+      runV3StartChild(ledgerPath, `parallel-v3-start:${index}`),
+    ),
   );
 
   assertStartChildrenSucceeded(results);
@@ -858,7 +894,8 @@ test("parallel v3 starts for one source create once and return duplicate metadat
   const attempts = 10;
   const results = await Promise.all(
     Array.from({ length: attempts }, () =>
-      runV3StartChild(ledgerPath, "parallel-v3-duplicate:same")),
+      runV3StartChild(ledgerPath, "parallel-v3-duplicate:same"),
+    ),
   );
 
   assertStartChildrenSucceeded(results);
@@ -875,10 +912,8 @@ test("parallel starts with colliding tracking identities create once and report 
   const attempts = 10;
   const results = await Promise.all(
     Array.from({ length: attempts }, (_, index) =>
-      runV3StartChild(
-        ledgerPath,
-        `https://example.test/jobs/parallel-collision?trk=${index}`,
-      )),
+      runV3StartChild(ledgerPath, `https://example.test/jobs/parallel-collision?trk=${index}`),
+    ),
   );
 
   assertStartChildrenSucceeded(results);
@@ -886,10 +921,13 @@ test("parallel starts with colliding tracking identities create once and report 
   assert.equal(payloads.filter((result) => result.status === "created").length, 1);
   const duplicates = payloads.filter((result) => result.status === "duplicate");
   assert.equal(duplicates.length, attempts - 1);
-  assert.ok(duplicates.every(
-    (result) => result.collision?.status === "ambiguous"
-      && result.collision.matches[0].witnesses.includes("trk"),
-  ));
+  assert.ok(
+    duplicates.every(
+      (result) =>
+        result.collision?.status === "ambiguous" &&
+        result.collision.matches[0].witnesses.includes("trk"),
+    ),
+  );
   assert.equal(readLogV3(ledgerPath).processes.length, 1);
 });
 
@@ -898,10 +936,8 @@ test("parallel starts with distinct meaningful identities create one process eac
   const attempts = 10;
   const results = await Promise.all(
     Array.from({ length: attempts }, (_, index) =>
-      runV3StartChild(
-        ledgerPath,
-        `https://example.test/jobs/parallel-meaningful?query=${index}`,
-      )),
+      runV3StartChild(ledgerPath, `https://example.test/jobs/parallel-meaningful?query=${index}`),
+    ),
   );
 
   assertStartChildrenSucceeded(results);

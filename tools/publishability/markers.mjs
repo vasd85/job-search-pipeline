@@ -259,68 +259,316 @@ export const PUBLIC_ALLOWANCES = Object.freeze([
     path: "tools/letter-corrections/fixtures/",
     why: "A fixture record carries a source reference of the same shape a real one has.",
   }),
-  Object.freeze({"marker": "path.archive", "path": "tests/section-links.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.archive", "path": "tools/ci.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.archive", "path": "tools/section-links.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.audits", "path": "tests/section-links.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.audits", "path": "tools/ci.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.audits", "path": "tools/section-links.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.backlog", "path": "config/section-link-exceptions.json", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.backlog", "path": "docs/adr/0014-development-backlog-replaces-remediation-queue.md", "why": "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone."}),
-  Object.freeze({"marker": "path.backlog", "path": "docs/adr/0022-three-lanes-derived-from-the-diff.md", "why": "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone."}),
-  Object.freeze({"marker": "path.backlog", "path": "docs/adr/0024-two-repositories-one-snapshot.md", "why": "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone."}),
-  Object.freeze({"marker": "path.backlog", "path": "instructions/operating-contract.md", "why": "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone."}),
-  Object.freeze({"marker": "path.backlog", "path": "knowledge/precedence.md", "why": "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone."}),
-  Object.freeze({"marker": "path.backlog", "path": "tests/ci.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.backlog", "path": "tests/section-links.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.backlog", "path": "tools/ci.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.backlog", "path": "tools/section-links.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.candidate", "path": "config/section-link-exceptions.json", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "docs/runbooks/operational-backup.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "docs/runbooks/ops-cutover.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "docs/runbooks/triage-review.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "instructions/operating-contract.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "instructions/skills/generate-cv.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "instructions/skills/get-vacancy.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "instructions/skills/map-experience.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "instructions/skills/research-company.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "instructions/skills/score-jobs.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "knowledge/cover-letter-playbook.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "knowledge/generation-rules.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "knowledge/impact-levers.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "knowledge/job-match-rules.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "knowledge/targeted-cv-playbook.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/application-brief.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/candidate.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/file-backed-pipeline-e2e.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/fixtures/process-log-v3.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/instruction-contracts.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/operational-backup.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/ops-tree.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/process-log-v3-revision.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/process-search-application-brief-view.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/public-links.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/section-links.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tests/write-guard.test.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/application-brief/README.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/application-brief/fixtures/application-brief.v4.valid.json", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/application-brief/shape-example.json", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/candidate/constraints.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/candidate/documents.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/candidate/languages.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/cv-builder/README.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/job-scorer/iso-3166.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/operational-backup.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/ops-tree/README.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/ops-tree/manifest.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/pretriage/composition.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/public-links.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.product-decisions", "path": "tests/section-links.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.product-decisions", "path": "tools/ci.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.product-decisions", "path": "tools/section-links.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.research", "path": "tests/section-links.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.research", "path": "tools/ci.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.research", "path": "tools/section-links.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
+  Object.freeze({
+    marker: "path.archive",
+    path: "tests/section-links.test.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.archive",
+    path: "tools/ci.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.archive",
+    path: "tools/section-links.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.audits",
+    path: "tests/section-links.test.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.audits",
+    path: "tools/ci.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.audits",
+    path: "tools/section-links.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.backlog",
+    path: "config/section-link-exceptions.json",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.backlog",
+    path: "docs/adr/0014-development-backlog-replaces-remediation-queue.md",
+    why: "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone.",
+  }),
+  Object.freeze({
+    marker: "path.backlog",
+    path: "docs/adr/0022-three-lanes-derived-from-the-diff.md",
+    why: "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone.",
+  }),
+  Object.freeze({
+    marker: "path.backlog",
+    path: "docs/adr/0024-two-repositories-one-snapshot.md",
+    why: "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone.",
+  }),
+  Object.freeze({
+    marker: "path.backlog",
+    path: "instructions/operating-contract.md",
+    why: "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone.",
+  }),
+  Object.freeze({
+    marker: "path.backlog",
+    path: "knowledge/precedence.md",
+    why: "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone.",
+  }),
+  Object.freeze({
+    marker: "path.backlog",
+    path: "tests/ci.test.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.backlog",
+    path: "tests/section-links.test.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.backlog",
+    path: "tools/ci.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.backlog",
+    path: "tools/section-links.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "config/section-link-exceptions.json",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "docs/runbooks/operational-backup.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "docs/runbooks/ops-cutover.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "docs/runbooks/triage-review.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "instructions/operating-contract.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "instructions/skills/generate-cv.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "instructions/skills/get-vacancy.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "instructions/skills/map-experience.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "instructions/skills/research-company.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "instructions/skills/score-jobs.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "knowledge/cover-letter-playbook.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "knowledge/generation-rules.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "knowledge/impact-levers.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "knowledge/job-match-rules.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "knowledge/targeted-cv-playbook.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/application-brief.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/candidate.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/file-backed-pipeline-e2e.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/fixtures/process-log-v3.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/instruction-contracts.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/operational-backup.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/ops-tree.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/process-log-v3-revision.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/process-search-application-brief-view.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/public-links.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/section-links.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tests/write-guard.test.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/application-brief/README.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/application-brief/fixtures/application-brief.v4.valid.json",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/application-brief/shape-example.json",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/candidate/constraints.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/candidate/documents.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/candidate/languages.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/cv-builder/README.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/job-scorer/iso-3166.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/operational-backup.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/ops-tree/README.md",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/ops-tree/manifest.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/pretriage/composition.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.candidate",
+    path: "tools/public-links.mjs",
+    why: "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI.",
+  }),
+  Object.freeze({
+    marker: "path.product-decisions",
+    path: "tests/section-links.test.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.product-decisions",
+    path: "tools/ci.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.product-decisions",
+    path: "tools/section-links.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.research",
+    path: "tests/section-links.test.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.research",
+    path: "tools/ci.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
+  Object.freeze({
+    marker: "path.research",
+    path: "tools/section-links.mjs",
+    why: "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them.",
+  }),
 ]);
 
 /**
@@ -405,7 +653,10 @@ function compilePattern(source, where) {
   try {
     return new RegExp(source, "u");
   } catch (error) {
-    fail("publishability_markers_invalid", `${where}: pattern does not compile (${error?.message ?? error}).`);
+    fail(
+      "publishability_markers_invalid",
+      `${where}: pattern does not compile (${error?.message ?? error}).`,
+    );
   }
   return null;
 }
@@ -419,13 +670,14 @@ function compilePattern(source, where) {
  * public tree states the parameter and the layer supplies it.
  */
 export function validateCandidateMarkers(parsed, { where = CANDIDATE_MARKERS_FILE } = {}) {
-  if (!isPlainObject(parsed)) fail("publishability_markers_invalid", `${where}: not a JSON object.`);
+  if (!isPlainObject(parsed))
+    fail("publishability_markers_invalid", `${where}: not a JSON object.`);
   if (parsed.schema_version !== CANDIDATE_MARKERS_SCHEMA_VERSION) {
     // A version this code does not read is a refusal, never a warning.
     fail(
       "publishability_markers_schema_version_unsupported",
-      `${where}: schema_version ${JSON.stringify(parsed.schema_version)} is not `
-        + `${CANDIDATE_MARKERS_SCHEMA_VERSION}.`,
+      `${where}: schema_version ${JSON.stringify(parsed.schema_version)} is not ` +
+        `${CANDIDATE_MARKERS_SCHEMA_VERSION}.`,
     );
   }
   // Both directions, and the reason is asymmetric. A key the schema does not know is usually a
@@ -477,7 +729,10 @@ export function validateCandidateMarkers(parsed, { where = CANDIDATE_MARKERS_FIL
     if (!isPlainObject(entry)) fail("publishability_markers_invalid", `${at}: not an object.`);
     if (!known.has(entry.marker)) {
       // An allowance for a marker nobody declared silences nothing and reads as protection.
-      fail("publishability_markers_invalid", `${at}: ${JSON.stringify(entry.marker)} is not a declared marker.`);
+      fail(
+        "publishability_markers_invalid",
+        `${at}: ${JSON.stringify(entry.marker)} is not a declared marker.`,
+      );
     }
     return Object.freeze({
       marker: entry.marker,
@@ -509,16 +764,25 @@ export function loadCandidateMarkers({ root }) {
   try {
     bytes = readFileSync(file, "utf8");
   } catch (error) {
-    fail("publishability_markers_unreadable", `${CANDIDATE_MARKERS_FILE}: ${error?.message ?? error}`);
+    fail(
+      "publishability_markers_unreadable",
+      `${CANDIDATE_MARKERS_FILE}: ${error?.message ?? error}`,
+    );
   }
   if (Buffer.byteLength(bytes, "utf8") > MAX_MARKERS_FILE_BYTES) {
-    fail("publishability_markers_unreadable", `${CANDIDATE_MARKERS_FILE}: larger than this reader accepts.`);
+    fail(
+      "publishability_markers_unreadable",
+      `${CANDIDATE_MARKERS_FILE}: larger than this reader accepts.`,
+    );
   }
   let parsed;
   try {
     parsed = JSON.parse(bytes);
   } catch (error) {
-    fail("publishability_markers_invalid", `${CANDIDATE_MARKERS_FILE}: not valid JSON (${error?.message ?? error}).`);
+    fail(
+      "publishability_markers_invalid",
+      `${CANDIDATE_MARKERS_FILE}: not valid JSON (${error?.message ?? error}).`,
+    );
   }
   return validateCandidateMarkers(parsed);
 }

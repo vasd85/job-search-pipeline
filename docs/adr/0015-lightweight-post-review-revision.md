@@ -15,10 +15,10 @@ light operation — no regeneration, no step-3 reopen — with three edit channe
 manual file edit, DOCX edit with reverse sync), waivers for brief conflicts, a review-remark
 list, and retained revision content history. PD-003 §5 mandates exactly three per-edit checks —
 DOCX rebuild, the two-page limit, and mandatory ATS-term survival honoring waivers — and
-explicitly does *not* require full visual QA or the full validator set for a small edit.
+explicitly does _not_ require full visual QA or the full validator set for a small edit.
 PD-003 §1 explicitly declines a draft-until-approval gate before publication, and §4 fixes the
 conflict order: the edit is applied and the touched brief decision named; the user chooses
-*afterwards* between a waiver and an explicit step-3 revision.
+_afterwards_ between a waiver and an explicit step-3 revision.
 
 The current contracts forbid exactly this. `reopen-step` is "the only revision entrypoint"
 (`instructions/pipeline-artifacts.md:222`); canonical artifacts "are never authored or revised
@@ -40,8 +40,9 @@ backlog tasks, so this ADR plus its owning backlog tasks (015-019) is that recor
 What already fits: steps 4 and 5 are leaf siblings, so revising them can invalidate nothing
 upstream (PD-003 §3 is structurally free); each of PD-003 §5's three mandated checks is
 already implemented inside an existing deterministic gate (`tools/cv-builder/build.sh` rebuild
-+ 2-page gate; `runCvPreflight` ATS survival); the ledger already journals attempts and
-publications with digests and a content-based revision counter.
+
+- 2-page gate; `runCvPreflight` ATS survival); the ledger already journals attempts and
+  publications with digests and a content-based revision counter.
 
 ## Decision
 
@@ -68,8 +69,8 @@ publication by operation. The forks, named explicitly:
   revision nor is cleared by it, and the brief is accepted by digest match without
   transitively re-validating `map_experience` against live bytes.
 - **Brief coherence guard.** The committed `application-brief.json` bytes must match the
-  digest in the step's `published_inputs` — checked at attempt open *and re-verified under
-  the ledger lock at publication*; `revise-step` is refused while `map_experience` has an
+  digest in the step's `published_inputs` — checked at attempt open _and re-verified under
+  the ledger lock at publication_; `revise-step` is refused while `map_experience` has an
   active attempt or a prepared publication. If step 3 republished different bytes, the
   material is a regeneration case (`reopen-step` on the material step), not a light revision:
   validators cannot meaningfully check an edit against a brief the material was not generated
@@ -80,7 +81,7 @@ publication by operation. The forks, named explicitly:
   `completed`; on any mismatch it finalizes `stale`. A step revised under persisting
   `knowledge/` drift stays `stale`; drift that healed (including an upstream identical-bytes
   republication) clears to `completed`. This comparison is raw digest checking and does not
-  run the live preflight derivation. A revision attempt that closes *without* a publication
+  run the live preflight derivation. A revision attempt that closes _without_ a publication
   (failed or abandoned) restores the step's pre-attempt mark from `pre_attempt_state` (§2):
   the published material is untouched, so the step is still `completed`/`stale`, never
   `failed`.
@@ -103,7 +104,7 @@ ADR 0010. v4 = v3 plus:
 
 - `steps.<generate_cv|write_cover_letter>.waivers` — append-only array (§3):
   `{id, created_at, brief_digest, subject: {kind: check|decision, key}, status:
-  active|superseded, note?}`.
+active|superseded, note?}`.
 - attempt-history entries gain optional `operation` (`reopen|retry|revise`), `channel`,
   `pre_attempt_state` (restores the step mark when a revision attempt closes without a
   publication — §1), `open_conflicts` (§3), and archived-file digests (§6).
@@ -144,9 +145,9 @@ light profile → publish → name the touched decisions and brief-coupled findi
 chooses per conflict: record a waiver (new envelope, §5) or explicitly reopen step 3.
 Brief-coupled deterministic failures do **not** block a revision publication. That is a
 machine change, not prose: today `tools/cv-builder/build.mjs` aborts on any preflight error
-*before* rendering, and the publish gate throws `candidate_bundle_invalid` on any
+_before_ rendering, and the publish gate throws `candidate_bundle_invalid` on any
 validator error — under which the first conflicting edit could never publish and the waiver
-choice could never be offered. In revision mode the deterministic gates therefore *classify*:
+choice could never be offered. In revision mode the deterministic gates therefore _classify_:
 the brief-coupled subset becomes reported findings — `preflight.mjs`/`build.mjs` still render
 the DOCX and return the findings, and the steps-4/5 publish validation journals them as
 `open_conflicts` on the revise transaction instead of failing it. A waiver downgrades a
@@ -157,10 +158,10 @@ into regeneration.
 
 Never waivable: the honesty floor (`knowledge/precedence.md` §0); the letter's intrinsic
 format/typography/markup rules (they encode playbook canon — changing them is a deliberate
-canon edit per the scope guard) — *amended 2026-09-15, task 112: the letter's upper word limit
+canon edit per the scope guard) — _amended 2026-09-15, task 112: the letter's upper word limit
 admits a bounded user approval journaled as a `check` waiver `letter_body_words_max:<N>`,
 N ≤ 300, the lower limit does not; and a `decision` waiver binds both materials published from
-the same brief digest, read by the sibling step as `sibling_decision_waivers`*; the letter language rule — it is brief-parameterized
+the same brief digest, read by the sibling step as `sibling_decision_waivers`_; the letter language rule — it is brief-parameterized
 (`brief.role.vacancyLanguage`), but rewriting the letter in another language is not a light
 edit, it is a re-authoring, which PD-003 §1 scopes out of the revision operation entirely;
 the structural DOCX contract; the two-page limit; staging/publication integrity and
@@ -189,7 +190,7 @@ unchanged.
 
 ### 5. Edit channels and transports
 
-- **(a) Chat command.** Chat *instructs* the agent; the agent authors the edited bytes into
+- **(a) Chat command.** Chat _instructs_ the agent; the agent authors the edited bytes into
   staging, exactly as it authors originals today. "Files, not chat, cross step boundaries"
   survives with a clarification: chat may direct a revision, but content crosses the boundary
   only as staged, validated files. Untrusted-boundary rules are unchanged — nothing from chat
@@ -197,9 +198,9 @@ unchanged.
   travel through a new closed `--input-file` envelope class for `revise-step` (ADR 0011
   table row + `commandSchemas` entry); unlike the diagnostic classes, this class carries
   user-owned text as bounded data, because the waiver note is a journaled record.
-  *Amended 2026-09-21, task 145: the same envelope class serves `publish-step`, which carries
+  _Amended 2026-09-21, task 145: the same envelope class serves `publish-step`, which carries
   exactly one waiver and only outside a revision — the letter's `letter_body_words_max:<N>`
-  approval, decided on a draft that exists only between `begin-step` and the publication.*
+  approval, decided on a draft that exists only between `begin-step` and the publication._
 - **(b) Manual file edit.** Initiation: the user says they edited the published
   `cv.json`/`cover-letter.txt` (or asks to pick it up); `revise-step` detects the digest
   divergence and adopts it. Adoption cannot ride the normal backup path — with divergent
@@ -207,13 +208,13 @@ unchanged.
   `stale_writer`, and an interruption would wedge recovery in
   `publication_recovery_conflict`. It is therefore a dedicated, journaled **adoption
   preamble**: (1) under the ledger lock, journal the observed divergent digest as the
-  adoption base *before touching any file*; (2) **copy** — not move — the divergent bytes
+  adoption base _before touching any file_; (2) **copy** — not move — the divergent bytes
   into fresh staging as the revision candidate: the canonical slot is untouched until the
   publication's backup phase, whose old-bundle proof for the adopted kind is the journaled
   divergent digest; (3) corruption checks for the adopted kind are relaxed only inside this
   journaled flow; (4) an interrupted, failed, or abandoned adoption has a defined resting
   state — the canonical file still holds the user's bytes, the open adoption-base record
-  makes deep validation report *adoption pending* rather than corruption, and a retry
+  makes deep validation report _adoption pending_ rather than corruption, and a retry
   re-enters idempotently by digest match. The version the user overwrote is not lost: §6
   archives every steps-4/5 publication's committed bundle, so the pre-edit bytes are the
   previous publication's archive entry — which is also what the channel-(b) before/after
@@ -342,9 +343,9 @@ Accepted by the user with the recommended option standing on every point:
    revisions against a superseded brief with a warning.
 3. CV revision visual check = changed pages only (recommended) vs none at all.
 4. Letter intrinsic format rules stay hard on user-authored versions (recommended) vs
-   downgrading them to acknowledged warnings. *Narrowed 2026-09-15 (task 112): the upper word
+   downgrading them to acknowledged warnings. _Narrowed 2026-09-15 (task 112): the upper word
    limit alone yields to an explicit, journaled, bounded user approval; nothing is downgraded to
-   a warning.*
+   a warning._
 5. Manual edits encountered outside an explicit adoption flow remain `artifact_corrupt`
    (recommended default — corruption detection keeps its meaning) vs auto-offering adoption
    whenever divergence is seen.

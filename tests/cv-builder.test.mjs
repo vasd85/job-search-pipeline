@@ -44,11 +44,16 @@ const examplePageBudget = candidateConfigValue(
 // The example's markets, which the brief fixture names; the CLI hands in the layer's the same way.
 const exampleMarkets = candidateMarkets({ root: join(repoRoot, "candidate.example") });
 const executeBuild = (options, dependencies) =>
-  executeBuildWith({ pageBudget: examplePageBudget, markets: exampleMarkets, ...options }, dependencies);
-const concreteBrief = JSON.parse(readFileSync(
-  resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
-  "utf8",
-));
+  executeBuildWith(
+    { pageBudget: examplePageBudget, markets: exampleMarkets, ...options },
+    dependencies,
+  );
+const concreteBrief = JSON.parse(
+  readFileSync(
+    resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
+    "utf8",
+  ),
+);
 
 function makeBrief() {
   return structuredClone(concreteBrief);
@@ -63,19 +68,24 @@ function makeCv() {
     },
     sections: [
       { type: "summary", heading: "Summary", text: "Senior Quality Engineer with TypeScript." },
-      { type: "bullets", heading: "Selected Impact", bullets: ["Built a maintainable automation framework."] },
+      {
+        type: "bullets",
+        heading: "Selected Impact",
+        bullets: ["Built a maintainable automation framework."],
+      },
       {
         type: "skills",
         heading: "Skills",
-        skills: [
-          { label: "Test Automation", body: "TypeScript Playwright" },
-        ],
+        skills: [{ label: "Test Automation", body: "TypeScript Playwright" }],
       },
       {
         type: "experience",
         heading: "Experience",
         roles: [
-          { company: "Current Company", bullets: ["Used LLM-based tools in a commercial QA workflow."] },
+          {
+            company: "Current Company",
+            bullets: ["Used LLM-based tools in a commercial QA workflow."],
+          },
         ],
       },
     ],
@@ -160,7 +170,9 @@ function syntheticBuildDependencies({ pages = 1, buildError = null } = {}) {
     renderQa(docxPath, qaDir) {
       mkdirSync(qaDir, { recursive: true });
       const qaPdf = join(qaDir, `${basename(docxPath, extname(docxPath))}.pdf`);
-      const pageImages = Array.from({ length: pages }, (_, index) => join(qaDir, `page-${index + 1}.png`));
+      const pageImages = Array.from({ length: pages }, (_, index) =>
+        join(qaDir, `page-${index + 1}.png`),
+      );
       writeFileSync(qaPdf, "synthetic pdf bytes\n");
       pageImages.forEach((path) => writeFileSync(path, "synthetic png bytes\n"));
       return {
@@ -188,19 +200,23 @@ test("preflight classifies every failure as a keyed conflict and honors active w
     "Senior Quality Engineer with Playwright breadth.";
   const strict = runCvPreflight(cv, makeBrief());
   assert.equal(strict.errors.length, 1);
-  assert.deepEqual(strict.conflicts, [{
-    code: "cv_ats_term",
-    subject: { kind: "check", key: "cv_ats_term:TypeScript" },
-    message: strict.errors[0],
-  }]);
+  assert.deepEqual(strict.conflicts, [
+    {
+      code: "cv_ats_term",
+      subject: { kind: "check", key: "cv_ats_term:TypeScript" },
+      message: strict.errors[0],
+    },
+  ]);
   assert.deepEqual(strict.notices, []);
 
   const waived = runCvPreflight(cv, makeBrief(), {
-    waivers: [{
-      id: "waiver_cv_0001",
-      status: "active",
-      subject: { kind: "check", key: "cv_ats_term:TypeScript" },
-    }],
+    waivers: [
+      {
+        id: "waiver_cv_0001",
+        status: "active",
+        subject: { kind: "check", key: "cv_ats_term:TypeScript" },
+      },
+    ],
   });
   assert.deepEqual(waived.errors, [], "a waived finding leaves the hard error stream");
   assert.deepEqual(waived.conflicts, []);
@@ -208,11 +224,13 @@ test("preflight classifies every failure as a keyed conflict and honors active w
   assert.equal(waived.notices[0].waiver_id, "waiver_cv_0001");
 
   const superseded = runCvPreflight(cv, makeBrief(), {
-    waivers: [{
-      id: "waiver_cv_0001",
-      status: "superseded",
-      subject: { kind: "check", key: "cv_ats_term:TypeScript" },
-    }],
+    waivers: [
+      {
+        id: "waiver_cv_0001",
+        status: "superseded",
+        subject: { kind: "check", key: "cv_ats_term:TypeScript" },
+      },
+    ],
   });
   assert.equal(superseded.errors.length, 1, "a superseded waiver no longer downgrades");
 });
@@ -234,11 +252,14 @@ test("conflict subject keys digest units that would trip the ledger's forbidden-
     /^cv_forbidden_term:sha256:[0-9a-f]{64}$/,
     "a shape-tripping unit is replaced by its digest so the journaled key stays valid",
   );
-  const safe = runCvPreflight(makeCv(), (() => {
-    const plain = makeBrief();
-    plain.ats.keywords.find((entry) => entry.term === "TypeScript").placements = ["Projects"];
-    return plain;
-  })());
+  const safe = runCvPreflight(
+    makeCv(),
+    (() => {
+      const plain = makeBrief();
+      plain.ats.keywords.find((entry) => entry.term === "TypeScript").placements = ["Projects"];
+      return plain;
+    })(),
+  );
   assert.deepEqual(
     safe.conflicts.map((entry) => entry.subject.key),
     ["cv_ats_term:TypeScript"],
@@ -257,7 +278,10 @@ test("a build checks a brief in a configured language against the layer's langua
     return fixture;
   };
   const languages = candidateLanguageNames({ root: join(repoRoot, "candidate.example") });
-  const summary = executeBuild({ ...pipelineOptions(inGreek()), languages }, syntheticBuildDependencies());
+  const summary = executeBuild(
+    { ...pipelineOptions(inGreek()), languages },
+    syntheticBuildDependencies(),
+  );
   assert.equal(summary.status, "valid");
   assert.throws(
     () => executeBuild(pipelineOptions(inGreek()), syntheticBuildDependencies()),
@@ -270,24 +294,37 @@ test("a build checks a version 4 brief's market against the layer's markets", (t
   // market the build cannot accept.
   const current = () => {
     const fixture = createPipelineBuildFixture(t);
-    const brief = JSON.parse(readFileSync(
-      resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
-      "utf8",
-    ));
+    const brief = JSON.parse(
+      readFileSync(
+        resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
+        "utf8",
+      ),
+    );
     brief.process.outputDir = JSON.parse(readFileSync(fixture.briefPath, "utf8")).process.outputDir;
     writeFileSync(fixture.briefPath, `${JSON.stringify(brief, null, 2)}\n`);
     return fixture;
   };
   const markets = exampleMarkets;
-  const summary = executeBuild({ ...pipelineOptions(current()), markets }, syntheticBuildDependencies());
+  const summary = executeBuild(
+    { ...pipelineOptions(current()), markets },
+    syntheticBuildDependencies(),
+  );
   assert.equal(summary.status, "valid");
   assert.throws(
-    () => executeBuild({ ...pipelineOptions(current()), markets: undefined }, syntheticBuildDependencies()),
+    () =>
+      executeBuild(
+        { ...pipelineOptions(current()), markets: undefined },
+        syntheticBuildDependencies(),
+      ),
     /role\.market must name a configured market: the candidate layer configures none/u,
   );
   // The preflight's own reader takes them the same way.
   const fixture = current();
-  assert.equal(readAndRunCvPreflight(fixture.candidatePath, fixture.briefPath, { markets }).brief.schemaVersion, 4);
+  assert.equal(
+    readAndRunCvPreflight(fixture.candidatePath, fixture.briefPath, { markets }).brief
+      .schemaVersion,
+    4,
+  );
   assert.throws(
     () => readAndRunCvPreflight(fixture.candidatePath, fixture.briefPath),
     /role\.market must name a configured market/u,
@@ -306,7 +343,10 @@ test("a light revision reads a brief published from an earlier profile path", (t
   for (const trait of brief.experience.traits) trait.profileSource.path = earlier;
   writeFileSync(fixture.briefPath, `${JSON.stringify(brief, null, 2)}\n`);
 
-  const summary = executeBuild(pipelineOptions(fixture, ["--revision"]), syntheticBuildDependencies());
+  const summary = executeBuild(
+    pipelineOptions(fixture, ["--revision"]),
+    syntheticBuildDependencies(),
+  );
   assert.equal(summary.status, "valid");
   assert.equal(summary.revision, true);
 });
@@ -341,16 +381,24 @@ test("revision mode renders despite brief-coupled findings and reports them in t
     key: "cv_ats_term:TypeScript",
   });
   assert.deepEqual(summary.notices, []);
-  assert.equal(existsSync(join(fixture.stagingDir, conflicted.fileName)), true,
-    "the DOCX is rendered despite the conflicting finding");
+  assert.equal(
+    existsSync(join(fixture.stagingDir, conflicted.fileName)),
+    true,
+    "the DOCX is rendered despite the conflicting finding",
+  );
   assertCanonicalBundleUnchanged(fixture);
 
   const waiversPath = join(fixture.workspaceRoot, "revision-waivers.json");
-  writeFileSync(waiversPath, `${JSON.stringify([{
-    id: "waiver_cv_0001",
-    status: "active",
-    subject: { kind: "check", key: "cv_ats_term:TypeScript" },
-  }])}\n`);
+  writeFileSync(
+    waiversPath,
+    `${JSON.stringify([
+      {
+        id: "waiver_cv_0001",
+        status: "active",
+        subject: { kind: "check", key: "cv_ats_term:TypeScript" },
+      },
+    ])}\n`,
+  );
   restageCandidate();
   const waivedSummary = executeBuild(
     pipelineOptions(fixture, ["--revision", "--revision-waivers", waiversPath]),
@@ -365,7 +413,14 @@ test("revision mode renders despite brief-coupled findings and reports them in t
     /--revision is only valid for a targeted CV/,
   );
   assert.throws(
-    () => parseArgs([fixture.candidatePath, "--brief", fixture.briefPath, "--revision-waivers", waiversPath]),
+    () =>
+      parseArgs([
+        fixture.candidatePath,
+        "--brief",
+        fixture.briefPath,
+        "--revision-waivers",
+        waiversPath,
+      ]),
     /--revision-waivers is only valid with --revision/,
   );
 
@@ -382,11 +437,15 @@ test("the page gate is the candidate's budget, and a build without one never sta
   assert.equal(examplePageBudget, 2);
   const fixture = createPipelineBuildFixture(t);
   assert.throws(
-    () => executeBuildWith(
-      { ...pipelineOptions(fixture), markets: exampleMarkets, pageBudget: 1 },
-      syntheticBuildDependencies({ pages: 2 }),
-    ),
-    (error) => error.exitCode === 3 && /CV is 2 pages \(>1\)/.test(error.message) && error.summary.status === "too-long",
+    () =>
+      executeBuildWith(
+        { ...pipelineOptions(fixture), markets: exampleMarkets, pageBudget: 1 },
+        syntheticBuildDependencies({ pages: 2 }),
+      ),
+    (error) =>
+      error.exitCode === 3 &&
+      /CV is 2 pages \(>1\)/.test(error.message) &&
+      error.summary.status === "too-long",
   );
 
   const roomy = createPipelineBuildFixture(t);
@@ -400,10 +459,14 @@ test("the page gate is the candidate's budget, and a build without one never sta
   const bare = createPipelineBuildFixture(t);
   let rendered = false;
   assert.throws(
-    () => executeBuildWith(pipelineOptions(bare), {
-      ...syntheticBuildDependencies(),
-      renderCv() { rendered = true; throw new Error("must not render"); },
-    }),
+    () =>
+      executeBuildWith(pipelineOptions(bare), {
+        ...syntheticBuildDependencies(),
+        renderCv() {
+          rendered = true;
+          throw new Error("must not render");
+        },
+      }),
     /needs the page budget of the candidate config/,
   );
   assert.equal(rendered, false);
@@ -429,17 +492,24 @@ test("the CLI hands the layer's languages, markets and page budget to the build"
   // example's 2 — is visible only against the rendered page count.
   const layered = () => {
     const fixture = createPipelineBuildFixture(t);
-    const brief = JSON.parse(readFileSync(
-      resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
-      "utf8",
-    ));
+    const brief = JSON.parse(
+      readFileSync(
+        resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
+        "utf8",
+      ),
+    );
     brief.process.outputDir = JSON.parse(readFileSync(fixture.briefPath, "utf8")).process.outputDir;
     brief.role.vacancyLanguage = "Greek";
     writeFileSync(fixture.briefPath, `${JSON.stringify(brief, null, 2)}\n`);
-    const config = JSON.parse(readFileSync(join(repoRoot, "candidate.example/config.json"), "utf8"));
+    const config = JSON.parse(
+      readFileSync(join(repoRoot, "candidate.example/config.json"), "utf8"),
+    );
     config.cv.page_budget = 3;
     mkdirSync(join(fixture.workspaceRoot, "candidate"));
-    writeFileSync(join(fixture.workspaceRoot, "candidate", "config.json"), `${JSON.stringify(config)}\n`);
+    writeFileSync(
+      join(fixture.workspaceRoot, "candidate", "config.json"),
+      `${JSON.stringify(config)}\n`,
+    );
     return [
       fixture.candidatePath,
       "--brief",
@@ -485,7 +555,10 @@ test("term matching does not accept substrings inside larger words", async (t) =
       brief.ats.keywords[0].term = term;
       const candidate = makeCv();
       candidate.sections.find((section) => section.type === "summary").text = largerWord;
-      assert.match(runCvPreflight(candidate, brief).errors.join("\n"), new RegExp(`Required ATS term "${term}" missing`));
+      assert.match(
+        runCvPreflight(candidate, brief).errors.join("\n"),
+        new RegExp(`Required ATS term "${term}" missing`),
+      );
     });
   }
 
@@ -494,34 +567,46 @@ test("term matching does not accept substrings inside larger words", async (t) =
     brief.cvPlan.checks.forbiddenTerms = [{ term: "AI", reason: "Synthetic boundary guard." }];
     brief.cvPlan.checks.requiredEvidence[1].anyOf = ["paid"];
     const candidate = makeCv();
-    candidate.sections.find((section) => section.type === "skills").skills[0].body = "TypeScript Playwright paid workflow";
-    candidate.sections.find((section) => section.type === "experience").roles[0].bullets = ["Used a paid workflow."];
+    candidate.sections.find((section) => section.type === "skills").skills[0].body =
+      "TypeScript Playwright paid workflow";
+    candidate.sections.find((section) => section.type === "experience").roles[0].bullets = [
+      "Used a paid workflow.",
+    ];
     assert.doesNotMatch(runCvPreflight(candidate, brief).errors.join("\n"), /Forbidden term "AI"/);
   });
 });
 
 test("content preflight catches missing mandatory commercial LLM experience", () => {
   const candidate = makeCv();
-  candidate.sections.find((section) => section.type === "experience").roles[0].bullets = ["Used a structured QA workflow."];
-  assert.match(runCvPreflight(candidate, makeBrief()).errors.join("\n"), /commercial-llm-work.*Experience/i);
+  candidate.sections.find((section) => section.type === "experience").roles[0].bullets = [
+    "Used a structured QA workflow.",
+  ];
+  assert.match(
+    runCvPreflight(candidate, makeBrief()).errors.join("\n"),
+    /commercial-llm-work.*Experience/i,
+  );
 });
 
 test("Skills grouping policy comes from the brief rather than hard-coded labels", () => {
   const candidate = makeCv();
-  candidate.sections.find((section) => section.type === "skills").skills.push({
-    label: "Miscellaneous Tools",
-    body: "Cursor",
-  });
+  candidate.sections
+    .find((section) => section.type === "skills")
+    .skills.push({
+      label: "Miscellaneous Tools",
+      body: "Cursor",
+    });
   const errors = runCvPreflight(candidate, makeBrief()).errors.join("\n");
   assert.match(errors, /Forbidden Skills group "Miscellaneous Tools"/);
   assert.match(errors, /Forbidden term "Cursor"/);
-
 });
 
 test("preflight enforces the single CV structure decision", () => {
   const brief = makeBrief();
   brief.cvPlan.structure = "chronological";
-  assert.match(runCvPreflight(makeCv(), brief).errors.join("\n"), /chronological.*must not contain.*Selected Impact/i);
+  assert.match(
+    runCvPreflight(makeCv(), brief).errors.join("\n"),
+    /chronological.*must not contain.*Selected Impact/i,
+  );
 });
 
 test("preflight enforces the exact header-positioning decision", () => {
@@ -588,17 +673,17 @@ test("default targeted build behavior still writes DOCX beside cv.json", (t) => 
 
 test("pipeline mode keeps source, DOCX, and QA inside one fresh staging directory", (t) => {
   const fixture = createPipelineBuildFixture(t);
-  const summary = executeBuild(
-    pipelineOptions(fixture),
-    syntheticBuildDependencies(),
-  );
+  const summary = executeBuild(pipelineOptions(fixture), syntheticBuildDependencies());
 
   assert.equal(summary.mode, "pipeline-staged");
   assert.equal(summary.cvJson, join(fixture.stagingDir, "cv.json"));
   assert.equal(summary.docx, join(fixture.stagingDir, fixture.candidate.fileName));
   assert.equal(summary.qaDir, join(fixture.stagingDir, "qa"));
   assert.equal(summary.qaPdf.startsWith(`${summary.qaDir}/`), true);
-  assert.equal(summary.pageImages.every((path) => path.startsWith(`${summary.qaDir}/`)), true);
+  assert.equal(
+    summary.pageImages.every((path) => path.startsWith(`${summary.qaDir}/`)),
+    true,
+  );
   assertCanonicalBundleUnchanged(fixture);
 });
 
@@ -619,10 +704,11 @@ test("pipeline validation, build, and QA failures preserve the canonical CV bund
   await t.test("DOCX build failure", (t) => {
     const fixture = createPipelineBuildFixture(t);
     assert.throws(
-      () => executeBuild(
-        pipelineOptions(fixture),
-        syntheticBuildDependencies({ buildError: "synthetic renderer failure" }),
-      ),
+      () =>
+        executeBuild(
+          pipelineOptions(fixture),
+          syntheticBuildDependencies({ buildError: "synthetic renderer failure" }),
+        ),
       /synthetic renderer failure/,
     );
     assertCanonicalBundleUnchanged(fixture);
@@ -631,10 +717,7 @@ test("pipeline validation, build, and QA failures preserve the canonical CV bund
   await t.test("page-count QA failure", (t) => {
     const fixture = createPipelineBuildFixture(t);
     assert.throws(
-      () => executeBuild(
-        pipelineOptions(fixture),
-        syntheticBuildDependencies({ pages: 3 }),
-      ),
+      () => executeBuild(pipelineOptions(fixture), syntheticBuildDependencies({ pages: 3 })),
       (error) => {
         assert.equal(error.exitCode, 3);
         assert.equal(error.summary.status, "too-long");
@@ -677,10 +760,11 @@ test("a revision rebuild needs its own outputs cleared, and the waiver file kept
   const insideStaging = join(fixture.stagingDir, "revision-waivers.json");
   writeFileSync(insideStaging, "[]\n");
   assert.throws(
-    () => executeBuild(
-      pipelineOptions(fixture, ["--revision", "--revision-waivers", insideStaging]),
-      syntheticBuildDependencies(),
-    ),
+    () =>
+      executeBuild(
+        pipelineOptions(fixture, ["--revision", "--revision-waivers", insideStaging]),
+        syntheticBuildDependencies(),
+      ),
     /must be fresh and contain only candidate cv\.json/,
   );
   rmSync(insideStaging, { force: true });
@@ -777,10 +861,11 @@ test("pipeline mode rejects unsafe output overrides and non-canonical ownership 
   await t.test("QA directory outside the publication directory", (t) => {
     const fixture = createPipelineBuildFixture(t);
     assert.throws(
-      () => executeBuild(
-        pipelineOptions(fixture, ["--qa-dir", join(fixture.workspaceRoot, "outside-qa")]),
-        syntheticBuildDependencies(),
-      ),
+      () =>
+        executeBuild(
+          pipelineOptions(fixture, ["--qa-dir", join(fixture.workspaceRoot, "outside-qa")]),
+          syntheticBuildDependencies(),
+        ),
       /pipeline QA directory must be/,
     );
     assertCanonicalBundleUnchanged(fixture);
@@ -809,11 +894,7 @@ test("pipeline mode rejects unsafe output overrides and non-canonical ownership 
 
   await t.test("workspace override outside controlled staging mode", () => {
     assert.throws(
-      () => parseArgs([
-        "output/example/cv.json",
-        "--workspace-root",
-        repoRoot,
-      ]),
+      () => parseArgs(["output/example/cv.json", "--workspace-root", repoRoot]),
       /--workspace-root is only valid with --pipeline-staging-dir/,
     );
   });
@@ -832,7 +913,11 @@ test("renderer and unified builder expose generic pagination and one entrypoint"
   assert.match(renderer, /return linkSegments\(text\)\.map\(/);
   assert.match(renderer, /new ExternalHyperlink\(/);
   assert.match(renderer, /style: "Hyperlink"/);
-  assert.equal(renderer.match(/new TextRun\(/g)?.length, 3, "TextRun is constructed only inside the link helper");
+  assert.equal(
+    renderer.match(/new TextRun\(/g)?.length,
+    3,
+    "TextRun is constructed only inside the link helper",
+  );
   assert.match(shellEntry, /build\.mjs/);
   assert.doesNotMatch(shellEntry, /check-length\.sh/);
   assert.match(builder, /qaPdf: rendered\.pdfPath/);
@@ -948,7 +1033,10 @@ test("a constraint scoped to the letter does not touch the CV", () => {
   ]);
   const selected = selectCandidateConstraints(constraints, { material: "cv" });
   assert.deepEqual([...selected], []);
-  assert.deepEqual(runCvPreflight(makeCv(), makeBrief(), { constraints: selected }).candidateErrors, []);
+  assert.deepEqual(
+    runCvPreflight(makeCv(), makeBrief(), { constraints: selected }).candidateErrors,
+    [],
+  );
 });
 
 test("the preflight CLI reads the layer and exits non-zero on a constraint", (t) => {
@@ -962,28 +1050,38 @@ test("the preflight CLI reads the layer and exits non-zero on a constraint", (t)
   // carries one, and it reads the bans the profile derives, so the layer carries its profile too.
   for (const directory of [layer, plainLayer]) {
     mkdirSync(directory);
-    copyFileSync(join(repoRoot, "candidate.example", "config.json"), join(directory, "config.json"));
+    copyFileSync(
+      join(repoRoot, "candidate.example", "config.json"),
+      join(directory, "config.json"),
+    );
     copyFileSync(join(repoRoot, "candidate.example", "profile.md"), join(directory, "profile.md"));
   }
-  writeFileSync(join(layer, "constraints.json"), JSON.stringify({
-    schema_version: 1,
-    constraints: [{
-      id: "no-name",
-      type: "forbid_phrases",
-      scope: { materials: ["cv"] },
-      phrases: ["Candidate Name"],
-      why: "A name this material does not carry.",
-    }],
-  }), "utf8");
+  writeFileSync(
+    join(layer, "constraints.json"),
+    JSON.stringify({
+      schema_version: 1,
+      constraints: [
+        {
+          id: "no-name",
+          type: "forbid_phrases",
+          scope: { materials: ["cv"] },
+          phrases: ["Candidate Name"],
+          why: "A name this material does not carry.",
+        },
+      ],
+    }),
+    "utf8",
+  );
   const cvPath = join(root, "cv.json");
   const briefPath = join(root, "application-brief.json");
   writeFileSync(cvPath, JSON.stringify(makeCv()), "utf8");
   writeFileSync(briefPath, JSON.stringify(makeBrief()), "utf8");
-  const cli = (args) => spawnSync(
-    process.execPath,
-    [join(repoRoot, "tools/cv-builder/preflight.mjs"), cvPath, briefPath, ...args],
-    { encoding: "utf8" },
-  );
+  const cli = (args) =>
+    spawnSync(
+      process.execPath,
+      [join(repoRoot, "tools/cv-builder/preflight.mjs"), cvPath, briefPath, ...args],
+      { encoding: "utf8" },
+    );
 
   const withoutConstraint = cli(["--candidate-root", plainLayer]);
   assert.equal(withoutConstraint.status, 0, withoutConstraint.stderr);
@@ -1020,14 +1118,24 @@ test("the preflight CLI refuses a private project's name and passes a public one
       placementMode: "all",
     });
     const cv = makeCv();
-    cv.sections.push({ type: "bullets", heading: "Projects", bullets: [`${projectId} - a benchmark harness.`] });
+    cv.sections.push({
+      type: "bullets",
+      heading: "Projects",
+      bullets: [`${projectId} - a benchmark harness.`],
+    });
     const cvPath = join(root, `${projectId}-cv.json`);
     const briefPath = join(root, `${projectId}-brief.json`);
     writeFileSync(cvPath, JSON.stringify(cv), "utf8");
     writeFileSync(briefPath, JSON.stringify(brief), "utf8");
     return spawnSync(
       process.execPath,
-      [join(repoRoot, "tools/cv-builder/preflight.mjs"), cvPath, briefPath, "--candidate-root", layer],
+      [
+        join(repoRoot, "tools/cv-builder/preflight.mjs"),
+        cvPath,
+        briefPath,
+        "--candidate-root",
+        layer,
+      ],
       { encoding: "utf8" },
     );
   };

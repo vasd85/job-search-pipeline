@@ -23,7 +23,12 @@ export function fail(code, message) {
 
 /** The last lines of a program's output, flattened for a one-line refusal message. */
 export function lastLines(text, count = 3) {
-  return String(text ?? "").trim().split("\n").slice(-count).join(" | ").slice(0, 400);
+  return String(text ?? "")
+    .trim()
+    .split("\n")
+    .slice(-count)
+    .join(" | ")
+    .slice(0, 400);
 }
 
 /**
@@ -41,7 +46,11 @@ export function run(command, args, { cwd, env = process.env, failCode, input } =
     shell: false,
   });
   if (result.error) fail(failCode, `${program} could not start: ${result.error.message}`);
-  return { status: result.status, stderr: String(result.stderr ?? ""), stdout: String(result.stdout ?? "") };
+  return {
+    status: result.status,
+    stderr: String(result.stderr ?? ""),
+    stdout: String(result.stdout ?? ""),
+  };
 }
 
 /** Like `run`, but a non-zero exit is a refusal carrying the program's last lines. */
@@ -60,11 +69,14 @@ export function report(value, stream = process.stdout) {
 
 export function reportError(error, stream = process.stderr) {
   const known = typeof error?.code === "string" && error.code.length > 0 && error.name !== "Error";
-  report({
-    status: "error",
-    error: {
-      code: known ? error.code : "setup_failed",
-      message: known ? error.message : `setup failed unexpectedly: ${error?.message ?? error}`,
+  report(
+    {
+      status: "error",
+      error: {
+        code: known ? error.code : "setup_failed",
+        message: known ? error.message : `setup failed unexpectedly: ${error?.message ?? error}`,
+      },
     },
-  }, stream);
+    stream,
+  );
 }

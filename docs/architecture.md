@@ -32,9 +32,9 @@ human review that remains, and [README Checks](../README.md#checks) names the ga
 
 ## Two paths through the engine
 
-| Path | Model work | Deterministic work | Persistent result |
-| --- | --- | --- | --- |
-| Batch triage | Read captures, extract observed facts and evidence | Fetch pages, validate observations, score, verify the batch | Captures, inputs, traces, batch record and triage ledger |
+| Path                 | Model work                                                             | Deterministic work                                                        | Persistent result                                                 |
+| -------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Batch triage         | Read captures, extract observed facts and evidence                     | Fetch pages, validate observations, score, verify the batch               | Captures, inputs, traces, batch record and triage ledger          |
 | Per-role application | Capture the JD, research the company, select evidence, write materials | Validate inputs and bundles, build DOCX, journal publication and recovery | Vacancy files, company research, application brief, CV and letter |
 
 The batch capture layer writes page bodies directly to disk. Adapters report when they cannot
@@ -54,14 +54,14 @@ reconstructed from chat. [Pipeline-run](../instructions/pipeline-run.md) owns st
 
 ## Boundaries that keep the paths reliable
 
-| Boundary | Implementation and reason |
-| --- | --- |
-| Public engine / candidate data | [Candidate loader](../tools/candidate/README.md) reads a root supplied explicitly. Schemas, typed constraints and language packs separate general policy from personal facts. Tests use the fictional `candidate.example/` ([ADR 0023](adr/0023-public-engine-and-private-candidate-layer.md)). |
-| Development / live applications | The published operational folder exports an engine release tag and a candidate tag, with manifests checked against their file bytes. Development changes reach it through an explicit cutover ([ADR 0024](adr/0024-two-repositories-one-snapshot.md), [ops-tree](../tools/ops-tree/README.md)). |
-| External data / executable commands | Vacancy text, URLs and company labels are untrusted data. Shell-facing lifecycle calls use a structured input file, never external values assembled into shell program text ([ADR 0011](adr/0011-untrusted-input-safe-cli-transport.md)). |
-| Files / lifecycle records | The CLI reserves output paths, validates staged bundles, locks each read-check-write transaction and journals atomic replacement. An interrupted publication is reconciled against a valid complete bundle before it can proceed ([ADR 0010](adr/0010-file-backed-pipeline-artifacts.md)). |
-| Canon / runtime wrappers | Runtime-neutral procedures live in `instructions/`; generated Claude Code and Codex wrappers load them. Runtime discovery does not own the policy ([ADR 0009](adr/0009-runtime-neutral-instructions-and-process-search.md)). |
-| Valid material / ready application | Honesty rules and candidate constraints limit claims; manual review verifies sources, attribution and the finished documents. The authority and explicit-deviation procedure belong to [precedence](../knowledge/precedence.md) and [ADR 0017](adr/0017-user-confirmed-honesty-deviation.md). |
+| Boundary                            | Implementation and reason                                                                                                                                                                                                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Public engine / candidate data      | [Candidate loader](../tools/candidate/README.md) reads a root supplied explicitly. Schemas, typed constraints and language packs separate general policy from personal facts. Tests use the fictional `candidate.example/` ([ADR 0023](adr/0023-public-engine-and-private-candidate-layer.md)). |
+| Development / live applications     | The published operational folder exports an engine release tag and a candidate tag, with manifests checked against their file bytes. Development changes reach it through an explicit cutover ([ADR 0024](adr/0024-two-repositories-one-snapshot.md), [ops-tree](../tools/ops-tree/README.md)). |
+| External data / executable commands | Vacancy text, URLs and company labels are untrusted data. Shell-facing lifecycle calls use a structured input file, never external values assembled into shell program text ([ADR 0011](adr/0011-untrusted-input-safe-cli-transport.md)).                                                       |
+| Files / lifecycle records           | The CLI reserves output paths, validates staged bundles, locks each read-check-write transaction and journals atomic replacement. An interrupted publication is reconciled against a valid complete bundle before it can proceed ([ADR 0010](adr/0010-file-backed-pipeline-artifacts.md)).      |
+| Canon / runtime wrappers            | Runtime-neutral procedures live in `instructions/`; generated Claude Code and Codex wrappers load them. Runtime discovery does not own the policy ([ADR 0009](adr/0009-runtime-neutral-instructions-and-process-search.md)).                                                                    |
+| Valid material / ready application  | Honesty rules and candidate constraints limit claims; manual review verifies sources, attribution and the finished documents. The authority and explicit-deviation procedure belong to [precedence](../knowledge/precedence.md) and [ADR 0017](adr/0017-user-confirmed-honesty-deviation.md).   |
 
 The local [process search server](../tools/process-search-server.mjs) is another reader of that
 state. It validates the ledger on each request and serves allowlisted artifacts by recorded kind.

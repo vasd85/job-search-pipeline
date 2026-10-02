@@ -52,11 +52,7 @@ const stepNames = Object.freeze([
   "generate_cv",
   "write_cover_letter",
 ]);
-const upstreamStepNames = Object.freeze([
-  "get_vacancy",
-  "research_company",
-  "map_experience",
-]);
+const upstreamStepNames = Object.freeze(["get_vacancy", "research_company", "map_experience"]);
 
 function emptyLog() {
   return {
@@ -134,9 +130,7 @@ function runThrough(environment, finalStep) {
 }
 
 function readProcess(environment) {
-  return readLogV3(environment.ledgerPath).processes.find(
-    (record) => record.id === processId,
-  );
+  return readLogV3(environment.ledgerPath).processes.find((record) => record.id === processId);
 }
 
 function readStep(environment, stepName) {
@@ -149,13 +143,17 @@ function nextTimestamp() {
   return new Date(clockMs).toISOString();
 }
 
-function revise(environment, stepName, {
-  adopt = false,
-  attemptId = `attempt_revise_${stepName}_${clockMs}`,
-  channel = "chat_command",
-  publicationIdFactory,
-  waivers = [],
-} = {}) {
+function revise(
+  environment,
+  stepName,
+  {
+    adopt = false,
+    attemptId = `attempt_revise_${stepName}_${clockMs}`,
+    channel = "chat_command",
+    publicationIdFactory,
+    waivers = [],
+  } = {},
+) {
   return reviseFileBackedStepV3(
     environment.ledgerPath,
     { selector, stepName, channel, adopt, waivers },
@@ -211,10 +209,9 @@ function beginLetter(environment, attemptId) {
 }
 
 function stageFirstLetter(environment, publicationId, mutate = (text) => text) {
-  const brief = JSON.parse(readFileSync(
-    join(environment.selectedOutputPath, "application-brief.json"),
-    "utf8",
-  ));
+  const brief = JSON.parse(
+    readFileSync(join(environment.selectedOutputPath, "application-brief.json"), "utf8"),
+  );
   const staged = mutate(makeCoverLetter(brief));
   writeFileSync(
     join(stageDirectory(environment, publicationId), "cover-letter.txt"),
@@ -225,20 +222,13 @@ function stageFirstLetter(environment, publicationId, mutate = (text) => text) {
 }
 
 function stageDirectory(environment, publicationId) {
-  const directory = join(
-    environment.selectedOutputPath,
-    ".pipeline-tmp",
-    publicationId,
-  );
+  const directory = join(environment.selectedOutputPath, ".pipeline-tmp", publicationId);
   mkdirSync(directory, { recursive: true });
   return directory;
 }
 
 function committedLetterText(environment) {
-  return readFileSync(
-    join(environment.selectedOutputPath, "cover-letter.txt"),
-    "utf8",
-  );
+  return readFileSync(join(environment.selectedOutputPath, "cover-letter.txt"), "utf8");
 }
 
 function stageLetter(environment, publicationId, mutate = (text) => text) {
@@ -252,9 +242,7 @@ function stageLetter(environment, publicationId, mutate = (text) => text) {
 }
 
 function committedCv(environment) {
-  return JSON.parse(
-    readFileSync(join(environment.selectedOutputPath, "cv.json"), "utf8"),
-  );
+  return JSON.parse(readFileSync(join(environment.selectedOutputPath, "cv.json"), "utf8"));
 }
 
 function stageCv(environment, publicationId, mutate = (cv) => cv) {
@@ -266,28 +254,24 @@ function stageCv(environment, publicationId, mutate = (cv) => cv) {
 }
 
 function briefKeywordTerms(environment) {
-  return JSON.parse(readFileSync(
-    join(environment.selectedOutputPath, "application-brief.json"),
-    "utf8",
-  )).coverLetterPlan.keywordTerms;
+  return JSON.parse(
+    readFileSync(join(environment.selectedOutputPath, "application-brief.json"), "utf8"),
+  ).coverLetterPlan.keywordTerms;
 }
 
 function upstreamEvidence(environment) {
   const record = readProcess(environment);
-  const steps = JSON.stringify(
-    upstreamStepNames.map((stepName) => record.steps[stepName]),
-  );
+  const steps = JSON.stringify(upstreamStepNames.map((stepName) => record.steps[stepName]));
   const bytes = upstreamStepNames.flatMap((stepName) =>
     record.steps[stepName].artifacts.map((artifact) =>
-      sha256Hex(readFileSync(join(environment.selectedOutputPath, artifact.path)))));
+      sha256Hex(readFileSync(join(environment.selectedOutputPath, artifact.path))),
+    ),
+  );
   return { steps, bytes: JSON.stringify(bytes) };
 }
 
 function deepReport(environment) {
-  return validateProcessLogV3Deep(
-    environment.ledgerPath,
-    lifecycleEnvironment(environment),
-  );
+  return validateProcessLogV3Deep(environment.ledgerPath, lifecycleEnvironment(environment));
 }
 
 function deepStep(report, stepName) {
@@ -341,7 +325,8 @@ test("a one-word cover-letter revision publishes without reopening step 3 or tou
 
   const publicationId = "publication_revise_letter_001";
   const staged = stageLetter(environment, publicationId, (text) =>
-    text.replace("calm engineering judgment", "calm engineering rigor"));
+    text.replace("calm engineering judgment", "calm engineering rigor"),
+  );
   assert.notEqual(staged, committedBefore);
   const published = publish(
     environment,
@@ -381,11 +366,7 @@ test("every steps-4/5 publication archives its committed bundle under .revisions
     "publication_fixture_write_cover_letter_001",
   );
   assert.equal(letterEntry.outcome, "completed");
-  assertArchivedPublication(
-    environment,
-    "generate_cv",
-    "publication_fixture_generate_cv_001",
-  );
+  assertArchivedPublication(environment, "generate_cv", "publication_fixture_generate_cv_001");
   const upstream = readStep(environment, "map_experience").attempt_history.at(-1);
   assert.equal(
     upstream.archived_artifacts,
@@ -393,7 +374,9 @@ test("every steps-4/5 publication archives its committed bundle under .revisions
     "steps 1-3 publications do not grow an archive",
   );
   assert.equal(
-    existsSync(join(environment.selectedOutputPath, ".revisions", "publication_fixture_map_experience_001")),
+    existsSync(
+      join(environment.selectedOutputPath, ".revisions", "publication_fixture_map_experience_001"),
+    ),
     false,
   );
 });
@@ -405,8 +388,7 @@ test("an unwaived required keyword edit publishes with the conflict journaled an
 
   revise(environment, "write_cover_letter", { attemptId: "attempt_revise_letter_010" });
   const publicationId = "publication_revise_letter_010";
-  stageLetter(environment, publicationId, (text) =>
-    text.replaceAll(firstTerm, "redacted-term"));
+  stageLetter(environment, publicationId, (text) => text.replaceAll(firstTerm, "redacted-term"));
   const published = publish(
     environment,
     "write_cover_letter",
@@ -433,29 +415,34 @@ test("an unwaived required keyword edit publishes with the conflict journaled an
   const reopened = revise(environment, "write_cover_letter", {
     attemptId: "attempt_revise_letter_011",
   });
-  assert.deepEqual(reopened.open_conflicts, entry.open_conflicts,
-    "unresolved conflicts re-surface on the next revision");
+  assert.deepEqual(
+    reopened.open_conflicts,
+    entry.open_conflicts,
+    "unresolved conflicts re-surface on the next revision",
+  );
 });
 
 test("a waived required keyword survives publication with the waiver journaled", (t) => {
   const environment = createEnvironment(t);
   runThrough(environment, "write_cover_letter");
   const [firstTerm] = briefKeywordTerms(environment);
-  const briefDigest = readStep(environment, "write_cover_letter")
-    .published_inputs.find((entry) => entry.kind === "application_brief").sha256;
+  const briefDigest = readStep(environment, "write_cover_letter").published_inputs.find(
+    (entry) => entry.kind === "application_brief",
+  ).sha256;
 
   const opened = revise(environment, "write_cover_letter", {
     attemptId: "attempt_revise_letter_020",
-    waivers: [{
-      subject: { kind: "check", key: "letter_keyword:0" },
-      note: "Term reads unnaturally in the closing paragraph; user accepts the ATS risk.",
-    }],
+    waivers: [
+      {
+        subject: { kind: "check", key: "letter_keyword:0" },
+        note: "Term reads unnaturally in the closing paragraph; user accepts the ATS risk.",
+      },
+    ],
   });
   assert.equal(opened.status, "revision_opened");
 
   const publicationId = "publication_revise_letter_020";
-  stageLetter(environment, publicationId, (text) =>
-    text.replaceAll(firstTerm, "redacted-term"));
+  stageLetter(environment, publicationId, (text) => text.replaceAll(firstTerm, "redacted-term"));
   const published = publish(
     environment,
     "write_cover_letter",
@@ -490,7 +477,8 @@ test("the waiver chosen after a conflict rides a same-bytes revision and holds f
   // only be carried by a later revision — which has no bytes of its own to change.
   revise(environment, "write_cover_letter", { attemptId: "attempt_revise_letter_050" });
   stageLetter(environment, "publication_revise_letter_050", (text) =>
-    text.replaceAll(firstTerm, "redacted-term"));
+    text.replaceAll(firstTerm, "redacted-term"),
+  );
   const conflicted = publish(
     environment,
     "write_cover_letter",
@@ -505,10 +493,12 @@ test("the waiver chosen after a conflict rides a same-bytes revision and holds f
   const committedBeforeWaiver = committedLetterText(environment);
   revise(environment, "write_cover_letter", {
     attemptId: "attempt_revise_letter_051",
-    waivers: [{
-      subject: { kind: "check", key: "letter_keyword:0" },
-      note: "User accepts the ATS risk for this term.",
-    }],
+    waivers: [
+      {
+        subject: { kind: "check", key: "letter_keyword:0" },
+        note: "User accepts the ATS risk for this term.",
+      },
+    ],
   });
   stageLetter(environment, "publication_revise_letter_051");
   assert.equal(
@@ -543,7 +533,8 @@ test("the waiver chosen after a conflict rides a same-bytes revision and holds f
   // ...and the decision holds for the next edit, which still lacks the same term.
   revise(environment, "write_cover_letter", { attemptId: "attempt_revise_letter_052" });
   const editedBytes = stageLetter(environment, "publication_revise_letter_052", (text) =>
-    text.replace("calm engineering judgment", "calm engineering rigor"));
+    text.replace("calm engineering judgment", "calm engineering rigor"),
+  );
   assert.notEqual(
     editedBytes,
     committedLetterText(environment),
@@ -566,9 +557,7 @@ test("the same edit without a waiver still fails through the normal reopen path 
   const environment = createEnvironment(t);
   runThrough(environment, "write_cover_letter");
   const [firstTerm] = briefKeywordTerms(environment);
-  const committedBytes = readFileSync(
-    join(environment.selectedOutputPath, "cover-letter.txt"),
-  );
+  const committedBytes = readFileSync(join(environment.selectedOutputPath, "cover-letter.txt"));
 
   const reopened = reopenFileBackedStepV3(
     environment.ledgerPath,
@@ -580,15 +569,9 @@ test("the same edit without a waiver still fails through the normal reopen path 
     },
   );
   const publicationId = "publication_reopen_letter_001";
-  stageLetter(environment, publicationId, (text) =>
-    text.replaceAll(firstTerm, "redacted-term"));
+  stageLetter(environment, publicationId, (text) => text.replaceAll(firstTerm, "redacted-term"));
   assert.throws(
-    () => publish(
-      environment,
-      "write_cover_letter",
-      reopened.attempt_id,
-      publicationId,
-    ),
+    () => publish(environment, "write_cover_letter", reopened.attempt_id, publicationId),
     (error) => error.code === "candidate_bundle_invalid",
   );
   assert.deepEqual(
@@ -603,7 +586,8 @@ function reviseLetter(environment, suffix) {
   const publicationId = `publication_revise_letter_layer_${suffix}`;
   revise(environment, "write_cover_letter", { attemptId });
   stageLetter(environment, publicationId, (text) =>
-    text.replace("calm engineering judgment", "calm engineering rigor"));
+    text.replace("calm engineering judgment", "calm engineering rigor"),
+  );
   return publish(environment, "write_cover_letter", attemptId, publicationId);
 }
 
@@ -649,10 +633,7 @@ test("a revision finalizes completed under an empty optional file, and on a reco
 test("knowledge drift neither blocks a revision nor is cleared by it, and deep validation still reports staleness", (t) => {
   const environment = createEnvironment(t);
   runThrough(environment, "write_cover_letter");
-  const playbookPath = resolve(
-    environment.workspaceRoot,
-    "knowledge/cover-letter-playbook.md",
-  );
+  const playbookPath = resolve(environment.workspaceRoot, "knowledge/cover-letter-playbook.md");
   const originalPlaybook = readFileSync(playbookPath);
   appendFileSync(playbookPath, "\nDrifted guidance line for the revision test.\n");
 
@@ -662,7 +643,8 @@ test("knowledge drift neither blocks a revision nor is cleared by it, and deep v
   assert.equal(opened.status, "revision_opened");
   const publicationId = "publication_revise_letter_030";
   stageLetter(environment, publicationId, (text) =>
-    text.replace("calm engineering judgment", "calm engineering rigor"));
+    text.replace("calm engineering judgment", "calm engineering rigor"),
+  );
   const published = publish(
     environment,
     "write_cover_letter",
@@ -670,8 +652,11 @@ test("knowledge drift neither blocks a revision nor is cleared by it, and deep v
     publicationId,
   );
   assert.equal(published.status, "completed");
-  assert.equal(published.state, "stale",
-    "persisting protected-input drift finalizes the revision stale");
+  assert.equal(
+    published.state,
+    "stale",
+    "persisting protected-input drift finalizes the revision stale",
+  );
   assert.equal(readStep(environment, "write_cover_letter").state, "stale");
 
   const report = deepReport(environment);
@@ -683,15 +668,10 @@ test("knowledge drift neither blocks a revision nor is cleared by it, and deep v
   revise(environment, "write_cover_letter", { attemptId: "attempt_revise_letter_031" });
   const healedId = "publication_revise_letter_031";
   stageLetter(environment, healedId, (text) =>
-    text.replace("calm engineering rigor", "calm engineering judgment"));
-  const healed = publish(
-    environment,
-    "write_cover_letter",
-    "attempt_revise_letter_031",
-    healedId,
+    text.replace("calm engineering rigor", "calm engineering judgment"),
   );
-  assert.equal(healed.state, "completed",
-    "healed drift finalizes the next revision completed");
+  const healed = publish(environment, "write_cover_letter", "attempt_revise_letter_031", healedId);
+  assert.equal(healed.state, "completed", "healed drift finalizes the next revision completed");
   assert.equal(readStep(environment, "write_cover_letter").state, "completed");
 });
 
@@ -713,11 +693,12 @@ test("shared-canon drift refuses the authoring preflight while the revision stil
     appendFileSync(path, `\nDrifted canonical line for ${attemptId}.\n`);
 
     assert.throws(
-      () => preflightFileBackedStepV3(
-        environment.ledgerPath,
-        { selector, stepName: "write_cover_letter" },
-        lifecycleEnvironment(environment),
-      ),
+      () =>
+        preflightFileBackedStepV3(
+          environment.ledgerPath,
+          { selector, stepName: "write_cover_letter" },
+          lifecycleEnvironment(environment),
+        ),
       (error) => error.code === "prerequisite_stale",
       `preflight must refuse the drift in ${relativePath}`,
     );
@@ -757,12 +738,7 @@ test("a one-word cv.json revision publishes with a rebuilt DOCX and untouched up
     cv.sections[0].text = "Senior Quality Engineer with TypeScript depth.";
     return cv;
   });
-  const published = publish(
-    environment,
-    "generate_cv",
-    "attempt_revise_cv_001",
-    publicationId,
-  );
+  const published = publish(environment, "generate_cv", "attempt_revise_cv_001", publicationId);
   assert.equal(published.status, "completed");
   assert.equal(published.state, "completed");
   assert.equal(published.revision, 2);
@@ -783,12 +759,7 @@ test("a waived required ATS term survives a cv revision; unwaived it journals a 
     cv.sections[0].text = "Senior Quality Engineer with Playwright breadth.";
     return cv;
   });
-  const unwaived = publish(
-    environment,
-    "generate_cv",
-    "attempt_revise_cv_010",
-    unwaivedId,
-  );
+  const unwaived = publish(environment, "generate_cv", "attempt_revise_cv_010", unwaivedId);
   assert.equal(unwaived.status, "completed");
   assert.equal(unwaived.open_conflicts.length, 1);
   assert.deepEqual(unwaived.open_conflicts[0].subject, {
@@ -807,12 +778,7 @@ test("a waived required ATS term survives a cv revision; unwaived it journals a 
     cv.sections[0].text = "Senior Quality Engineer with sustained Playwright breadth.";
     return cv;
   });
-  const waived = publish(
-    environment,
-    "generate_cv",
-    "attempt_revise_cv_011",
-    waivedId,
-  );
+  const waived = publish(environment, "generate_cv", "attempt_revise_cv_011", waivedId);
   assert.deepEqual(waived.open_conflicts, []);
   assert.equal(waived.notices.length, 1);
   const step = readStep(environment, "generate_cv");
@@ -825,9 +791,7 @@ test("a waived required ATS term survives a cv revision; unwaived it journals a 
 test("failing a revision attempt restores the committed mark instead of failing the step", (t) => {
   const environment = createEnvironment(t);
   runThrough(environment, "write_cover_letter");
-  const committedBytes = readFileSync(
-    join(environment.selectedOutputPath, "cover-letter.txt"),
-  );
+  const committedBytes = readFileSync(join(environment.selectedOutputPath, "cover-letter.txt"));
 
   revise(environment, "write_cover_letter", {
     attemptId: "attempt_revise_letter_040",
@@ -940,16 +904,9 @@ test("an abandoned revision on both material steps still admits the upstream reo
 test("a tokenless reconcile stales a material step that reverted a revision", (t) => {
   const environment = createEnvironment(t);
   runThrough(environment, "write_cover_letter");
-  const entry = abandonRevision(
-    environment,
-    "write_cover_letter",
-    "attempt_revise_letter_071",
-  );
+  const entry = abandonRevision(environment, "write_cover_letter", "attempt_revise_letter_071");
 
-  const playbookPath = resolve(
-    environment.workspaceRoot,
-    "knowledge/cover-letter-playbook.md",
-  );
+  const playbookPath = resolve(environment.workspaceRoot, "knowledge/cover-letter-playbook.md");
   appendFileSync(playbookPath, "\nDrifted guidance line for the reconcile test.\n");
   const reconciled = reconcileFileBackedStepV3(
     environment.ledgerPath,
@@ -1031,11 +988,7 @@ test("a tokenless reconcile on the brief stales material steps that reverted a r
   for (const [stepName, entry] of abandoned) {
     const step = readStep(environment, stepName);
     assert.equal(step.state, "stale");
-    assert.deepEqual(
-      step.attempt_history.at(-1),
-      entry,
-      "descendant staling rewrites no history",
-    );
+    assert.deepEqual(step.attempt_history.at(-1), entry, "descendant staling rewrites no history");
   }
 });
 
@@ -1077,12 +1030,7 @@ test("revise-step refuses non-material steps, pending steps, and superseded brie
     `${JSON.stringify(brief, null, 4)}\n`,
     "utf8",
   );
-  publish(
-    environment,
-    "map_experience",
-    reopenedBrief.attempt_id,
-    "publication_reopen_brief_001",
-  );
+  publish(environment, "map_experience", reopenedBrief.attempt_id, "publication_reopen_brief_001");
   assert.throws(
     () => revise(environment, "write_cover_letter"),
     (error) => error.code === "brief_superseded",
@@ -1094,17 +1042,14 @@ test("waivers survive an identical step-3 republication and are superseded by a 
   const environment = createEnvironment(t);
   runThrough(environment, "write_cover_letter");
   const [firstTerm] = briefKeywordTerms(environment);
-  const briefBytes = readFileSync(
-    join(environment.selectedOutputPath, "application-brief.json"),
-  );
+  const briefBytes = readFileSync(join(environment.selectedOutputPath, "application-brief.json"));
 
   revise(environment, "write_cover_letter", {
     attemptId: "attempt_revise_letter_050",
     waivers: [{ subject: { kind: "check", key: "letter_keyword:0" } }],
   });
   const waivedId = "publication_revise_letter_050";
-  stageLetter(environment, waivedId, (text) =>
-    text.replaceAll(firstTerm, "redacted-term"));
+  stageLetter(environment, waivedId, (text) => text.replaceAll(firstTerm, "redacted-term"));
   publish(environment, "write_cover_letter", "attempt_revise_letter_050", waivedId);
   assert.equal(readStep(environment, "write_cover_letter").waivers[0].status, "active");
 
@@ -1146,8 +1091,11 @@ test("waivers survive an identical step-3 republication and are superseded by a 
     "attempt_revise_letter_051",
     healedId,
   );
-  assert.equal(republished.state, "completed",
-    "an upstream identical-bytes republication heals through digest finalization");
+  assert.equal(
+    republished.state,
+    "completed",
+    "an upstream identical-bytes republication heals through digest finalization",
+  );
   assert.equal(republished.revision, 2, "same-digest revision keeps the counter");
 
   const reopenedChanged = reopenFileBackedStepV3(
@@ -1253,10 +1201,7 @@ test("re-entering an adoption without closing its running attempt is refused", (
   const canonicalPath = join(environment.selectedOutputPath, "cover-letter.txt");
   writeFileSync(
     canonicalPath,
-    committedLetterText(environment).replace(
-      "calm engineering judgment",
-      "calm engineering rigor",
-    ),
+    committedLetterText(environment).replace("calm engineering judgment", "calm engineering rigor"),
     "utf8",
   );
 
@@ -1271,11 +1216,12 @@ test("re-entering an adoption without closing its running attempt is refused", (
   // hard refusal, not an idempotent re-entry.
   assert.equal(readStep(environment, "write_cover_letter").state, "running");
   assert.throws(
-    () => revise(environment, "write_cover_letter", {
-      adopt: true,
-      attemptId: "attempt_revise_letter_081",
-      channel: "manual_file",
-    }),
+    () =>
+      revise(environment, "write_cover_letter", {
+        adopt: true,
+        attemptId: "attempt_revise_letter_081",
+        channel: "manual_file",
+      }),
     (error) => error.code === "invalid_step_transition",
   );
   assert.equal(
@@ -1334,8 +1280,11 @@ test("an interrupted adoption has a defined resting state and re-enters idempote
     attemptId: "attempt_revise_letter_071",
     channel: "manual_file",
   });
-  assert.equal(reentered.adoption.publication_id, "publication_adopt_letter_010",
-    "an adoption retry re-enters the same journaled base by digest match");
+  assert.equal(
+    reentered.adoption.publication_id,
+    "publication_adopt_letter_010",
+    "an adoption retry re-enters the same journaled base by digest match",
+  );
 
   const published = publish(
     environment,
@@ -1363,32 +1312,39 @@ test("the production CLI drives a waived revision through the safe input-file tr
       command: "revise-step",
       nonce,
       values: {
-        waivers: [{
-          subject: { kind: "check", key: "letter_keyword:0" },
-          note: "Пользователь принял риск ATS.",
-        }],
+        waivers: [
+          {
+            subject: { kind: "check", key: "letter_keyword:0" },
+            note: "Пользователь принял риск ATS.",
+          },
+        ],
       },
     })}\n`,
     { flag: "wx", mode: 0o600 },
   );
 
   const cliChildPath = resolve(repoRoot, "tests/fixtures/process-log-cli-child.mjs");
-  const runCli = (...args) => spawnSync(process.execPath, [cliChildPath, ...args], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      ...disposableWorkspaceEnv(environment),
-      JOB_PIPELINE_INPUT_ROOT: inputRoot,
-    },
-  });
+  const runCli = (...args) =>
+    spawnSync(process.execPath, [cliChildPath, ...args], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ...disposableWorkspaceEnv(environment),
+        JOB_PIPELINE_INPUT_ROOT: inputRoot,
+      },
+    });
 
   const revised = runCli(
     "revise-step",
-    "--id", processId,
-    "--step", "write_cover_letter",
-    "--channel", "chat_command",
-    "--input-file", basename,
+    "--id",
+    processId,
+    "--step",
+    "write_cover_letter",
+    "--channel",
+    "chat_command",
+    "--input-file",
+    basename,
   );
   assert.equal(revised.status, 0, revised.stderr);
   const opened = JSON.parse(revised.stdout);
@@ -1401,14 +1357,20 @@ test("the production CLI drives a waived revision through the safe input-file tr
   );
 
   stageLetter(environment, "publication_cli_revise_001", (text) =>
-    text.replaceAll(firstTerm, "redacted-term"));
+    text.replaceAll(firstTerm, "redacted-term"),
+  );
   const published = runCli(
     "publish-step",
-    "--id", processId,
-    "--step", "write_cover_letter",
-    "--attempt-id", opened.attempt_id,
-    "--publication-id", "publication_cli_revise_001",
-    "--outcome", "completed",
+    "--id",
+    processId,
+    "--step",
+    "write_cover_letter",
+    "--attempt-id",
+    opened.attempt_id,
+    "--publication-id",
+    "publication_cli_revise_001",
+    "--outcome",
+    "completed",
   );
   assert.equal(published.status, 0, published.stderr);
   const result = JSON.parse(published.stdout);
@@ -1440,7 +1402,8 @@ function padLetterBodyTo(letterText, targetWords) {
   const lines = letterText.split("\n");
   let lastBodyIndex = letterBodyLineRange(lines).bodyEnd - 1;
   while (lines[lastBodyIndex].trim() === "") lastBodyIndex -= 1;
-  lines[lastBodyIndex] = `${lines[lastBodyIndex]} ${Array.from({ length: extra }, () => "more").join(" ")}`;
+  lines[lastBodyIndex] =
+    `${lines[lastBodyIndex]} ${Array.from({ length: extra }, () => "more").join(" ")}`;
   const padded = lines.join("\n");
   assert.equal(bodyWordCount(padded), targetWords);
   return padded;
@@ -1453,15 +1416,19 @@ test("a length approval is bounded by the candidate's config, and a broken layer
   const config = JSON.parse(readFileSync(configPath, "utf8"));
 
   // The range is the layer's: with the approval cap lowered to 270, an approval of 280 is out of it.
-  writeFileSync(configPath, `${JSON.stringify({
-    ...config,
-    letter: { ...config.letter, body_words: { ...config.letter.body_words, approved_max: 270 } },
-  })}\n`);
+  writeFileSync(
+    configPath,
+    `${JSON.stringify({
+      ...config,
+      letter: { ...config.letter, body_words: { ...config.letter.body_words, approved_max: 270 } },
+    })}\n`,
+  );
   assert.throws(
-    () => revise(environment, "write_cover_letter", {
-      attemptId: "attempt_revise_words_capped",
-      waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }],
-    }),
+    () =>
+      revise(environment, "write_cover_letter", {
+        attemptId: "attempt_revise_words_capped",
+        waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }],
+      }),
     (error) => error.code === "invalid_waiver_input" && /at most 270/.test(error.message),
   );
 
@@ -1469,10 +1436,11 @@ test("a length approval is bounded by the candidate's config, and a broken layer
   // layer is not a wrong number, so it is never reported under the input's code.
   rmSync(configPath);
   assert.throws(
-    () => revise(environment, "write_cover_letter", {
-      attemptId: "attempt_revise_words_no_layer",
-      waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }],
-    }),
+    () =>
+      revise(environment, "write_cover_letter", {
+        attemptId: "attempt_revise_words_no_layer",
+        waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }],
+      }),
     { code: "candidate_config_missing" },
   );
   assert.equal(readStep(environment, "write_cover_letter").active_attempt, null);
@@ -1489,10 +1457,11 @@ test("a journaled word-limit approval lets a longer letter publish and holds for
     "letter_body_words_max:10%",
   ]) {
     assert.throws(
-      () => revise(environment, "write_cover_letter", {
-        attemptId: `attempt_revise_words_refused_${key.length}`,
-        waivers: [{ subject: { kind: "check", key } }],
-      }),
+      () =>
+        revise(environment, "write_cover_letter", {
+          attemptId: `attempt_revise_words_refused_${key.length}`,
+          waivers: [{ subject: { kind: "check", key } }],
+        }),
       { code: "invalid_waiver_input" },
       `${key} is not a bounded absolute approval`,
     );
@@ -1501,10 +1470,12 @@ test("a journaled word-limit approval lets a longer letter publish and holds for
 
   const opened = revise(environment, "write_cover_letter", {
     attemptId: "attempt_revise_words_001",
-    waivers: [{
-      subject: { kind: "check", key: "letter_body_words_max:280" },
-      note: "Пользователь: пусть будет длиннее, до 280 слов.",
-    }],
+    waivers: [
+      {
+        subject: { kind: "check", key: "letter_body_words_max:280" },
+        note: "Пользователь: пусть будет длиннее, до 280 слов.",
+      },
+    ],
   });
   assert.equal(opened.status, "revision_opened");
   assert.deepEqual(opened.sibling_decision_waivers, []);
@@ -1538,7 +1509,13 @@ test("a journaled word-limit approval lets a longer letter publish and holds for
   );
   stageLetter(environment, "publication_words_002", (text) => padLetterBodyTo(text, 281));
   assert.throws(
-    () => publish(environment, "write_cover_letter", "attempt_revise_words_002", "publication_words_002"),
+    () =>
+      publish(
+        environment,
+        "write_cover_letter",
+        "attempt_revise_words_002",
+        "publication_words_002",
+      ),
     { code: "candidate_bundle_invalid" },
     "281 words exceed the approved 280 and stay a hard error",
   );
@@ -1547,11 +1524,12 @@ test("a journaled word-limit approval lets a longer letter publish and holds for
 test("a decision waiver on one material is visible to the other before authoring and at revision, scoped to the brief digest", (t) => {
   const environment = createEnvironment(t);
   runThrough(environment, "write_cover_letter");
-  const preflightOf = (stepName) => preflightFileBackedStepV3(
-    environment.ledgerPath,
-    { selector, stepName },
-    lifecycleEnvironment(environment),
-  );
+  const preflightOf = (stepName) =>
+    preflightFileBackedStepV3(
+      environment.ledgerPath,
+      { selector, stepName },
+      lifecycleEnvironment(environment),
+    );
   assert.deepEqual(preflightOf("generate_cv").sibling_decision_waivers, []);
   assert.deepEqual(preflightOf("write_cover_letter").sibling_decision_waivers, []);
   assert.equal(
@@ -1575,29 +1553,39 @@ test("a decision waiver on one material is visible to the other before authoring
   // letter -> CV: and the other way round, with the note carried.
   const opened = revise(environment, "write_cover_letter", {
     attemptId: "attempt_revise_sibling_001",
-    waivers: [{
-      subject: { kind: "decision", key: "positioning.angleHint" },
-      note: "Угол про варианты поставки убран как догадка о задачах команды.",
-    }],
+    waivers: [
+      {
+        subject: { kind: "decision", key: "positioning.angleHint" },
+        note: "Угол про варианты поставки убран как догадка о задачах команды.",
+      },
+    ],
   });
   stageLetter(environment, "publication_sibling_001");
   publish(environment, "write_cover_letter", opened.attempt_id, "publication_sibling_001");
   const [letterWaiver] = readStep(environment, "write_cover_letter").waivers;
 
-  const expected = [{
-    id: letterWaiver.id,
-    key: "positioning.angleHint",
-    note: "Угол про варианты поставки убран как догадка о задачах команды.",
-    step: "write_cover_letter",
-  }];
-  assert.deepEqual(opened.sibling_decision_waivers, fromCv, "the letter's revision reads the CV's waiver at open");
+  const expected = [
+    {
+      id: letterWaiver.id,
+      key: "positioning.angleHint",
+      note: "Угол про варианты поставки убран как догадка о задачах команды.",
+      step: "write_cover_letter",
+    },
+  ];
+  assert.deepEqual(
+    opened.sibling_decision_waivers,
+    fromCv,
+    "the letter's revision reads the CV's waiver at open",
+  );
   assert.deepEqual(preflightOf("generate_cv").sibling_decision_waivers, expected);
   assert.deepEqual(
     preflightOf("write_cover_letter").sibling_decision_waivers,
     fromCv,
     "a step never sees its own waivers as sibling ones",
   );
-  const cvRevision = revise(environment, "generate_cv", { attemptId: "attempt_revise_sibling_cv_001" });
+  const cvRevision = revise(environment, "generate_cv", {
+    attemptId: "attempt_revise_sibling_cv_001",
+  });
   assert.deepEqual(cvRevision.sibling_decision_waivers, expected);
   assert.deepEqual(
     cvRevision.active_waivers.map((waiver) => waiver.id),
@@ -1657,11 +1645,13 @@ test("a crash between ledger commit and archive heals through reconcile and thro
   revise(environment, "write_cover_letter", { attemptId: "attempt_revise_letter_080" });
   const firstId = "publication_revise_letter_080";
   stageLetter(environment, firstId, (text) =>
-    text.replace("calm engineering judgment", "calm engineering rigor"));
+    text.replace("calm engineering judgment", "calm engineering rigor"),
+  );
   assert.throws(
-    () => publish(environment, "write_cover_letter", "attempt_revise_letter_080", firstId, {
-      failAt: "after_ledger_commit",
-    }),
+    () =>
+      publish(environment, "write_cover_letter", "attempt_revise_letter_080", firstId, {
+        failAt: "after_ledger_commit",
+      }),
     (error) => error.code === "simulated_publication_crash",
   );
   const committed = readStep(environment, "write_cover_letter");
@@ -1669,8 +1659,9 @@ test("a crash between ledger commit and archive heals through reconcile and thro
   assert.equal(committed.attempt_history.at(-1).publication_id, firstId);
   assert.equal(existsSync(archivePath(environment, firstId, "cover-letter.txt")), false);
   assert.ok(
-    deepStep(deepReport(environment), "write_cover_letter")
-      .issues.includes("revision_archive_missing"),
+    deepStep(deepReport(environment), "write_cover_letter").issues.includes(
+      "revision_archive_missing",
+    ),
   );
 
   const reconciled = reconcileFileBackedStepV3(
@@ -1685,25 +1676,25 @@ test("a crash between ledger commit and archive heals through reconcile and thro
   );
   assert.equal(reconciled.status, "cleaned");
   assert.equal(
-    readFileSync(archivePath(environment, firstId, "cover-letter.txt"), "utf8")
-      .includes("calm engineering rigor"),
+    readFileSync(archivePath(environment, firstId, "cover-letter.txt"), "utf8").includes(
+      "calm engineering rigor",
+    ),
     true,
     "reconcile completes the archive before removing the transaction directory",
   );
-  assert.equal(
-    existsSync(join(environment.selectedOutputPath, ".pipeline-tmp", firstId)),
-    false,
-  );
+  assert.equal(existsSync(join(environment.selectedOutputPath, ".pipeline-tmp", firstId)), false);
   assert.equal(deepReport(environment).health, "current");
 
   revise(environment, "write_cover_letter", { attemptId: "attempt_revise_letter_081" });
   const secondId = "publication_revise_letter_081";
   stageLetter(environment, secondId, (text) =>
-    text.replace("calm engineering rigor", "calm engineering judgment"));
+    text.replace("calm engineering rigor", "calm engineering judgment"),
+  );
   assert.throws(
-    () => publish(environment, "write_cover_letter", "attempt_revise_letter_081", secondId, {
-      failAt: "after_ledger_commit",
-    }),
+    () =>
+      publish(environment, "write_cover_letter", "attempt_revise_letter_081", secondId, {
+        failAt: "after_ledger_commit",
+      }),
     (error) => error.code === "simulated_publication_crash",
   );
   assert.equal(existsSync(archivePath(environment, secondId, "cover-letter.txt")), false);
@@ -1712,14 +1703,16 @@ test("a crash between ledger commit and archive heals through reconcile and thro
   // the committed bytes still exist on disk, so a subsequent publication cannot orphan them.
   revise(environment, "write_cover_letter", { attemptId: "attempt_revise_letter_082" });
   assert.equal(
-    readFileSync(archivePath(environment, secondId, "cover-letter.txt"), "utf8")
-      .includes("calm engineering judgment"),
+    readFileSync(archivePath(environment, secondId, "cover-letter.txt"), "utf8").includes(
+      "calm engineering judgment",
+    ),
     true,
     "the next revision open completes the previous publication's archive",
   );
   const thirdId = "publication_revise_letter_082";
   stageLetter(environment, thirdId, (text) =>
-    text.replace("calm engineering judgment", "calm engineering rigor"));
+    text.replace("calm engineering judgment", "calm engineering rigor"),
+  );
   const republished = publish(
     environment,
     "write_cover_letter",
@@ -1744,12 +1737,12 @@ test("a prepared revise transaction recovers through tokened reconcile with waiv
     waivers: [{ subject: { kind: "check", key: "letter_keyword:0" } }],
   });
   const publicationId = "publication_revise_letter_090";
-  stageLetter(environment, publicationId, (text) =>
-    text.replaceAll(firstTerm, "redacted-term"));
+  stageLetter(environment, publicationId, (text) => text.replaceAll(firstTerm, "redacted-term"));
   assert.throws(
-    () => publish(environment, "write_cover_letter", "attempt_revise_letter_090", publicationId, {
-      failAt: "before_ledger_commit",
-    }),
+    () =>
+      publish(environment, "write_cover_letter", "attempt_revise_letter_090", publicationId, {
+        failAt: "before_ledger_commit",
+      }),
     (error) => error.code === "simulated_publication_crash",
   );
   assert.ok(
@@ -1795,13 +1788,14 @@ test("a failed revise publication rolls back to the adopted bytes and keeps the 
     publicationIdFactory: () => "publication_adopt_letter_100",
   });
   assert.throws(
-    () => publish(
-      environment,
-      "write_cover_letter",
-      "attempt_revise_letter_100",
-      "publication_adopt_letter_100",
-      { failAt: { boundary: "after_backup:cover_letter", crash: false } },
-    ),
+    () =>
+      publish(
+        environment,
+        "write_cover_letter",
+        "attempt_revise_letter_100",
+        "publication_adopt_letter_100",
+        { failAt: { boundary: "after_backup:cover_letter", crash: false } },
+      ),
     (error) => error.code === "publication_failed",
   );
 
@@ -1822,14 +1816,13 @@ test("a brief tampered after revise-step open is refused at publication and rest
   runThrough(environment, "write_cover_letter");
   const briefPath = join(environment.selectedOutputPath, "application-brief.json");
   const briefBytes = readFileSync(briefPath);
-  const committedBytes = readFileSync(
-    join(environment.selectedOutputPath, "cover-letter.txt"),
-  );
+  const committedBytes = readFileSync(join(environment.selectedOutputPath, "cover-letter.txt"));
 
   revise(environment, "write_cover_letter", { attemptId: "attempt_revise_letter_110" });
   const publicationId = "publication_revise_letter_110";
   stageLetter(environment, publicationId, (text) =>
-    text.replace("calm engineering judgment", "calm engineering rigor"));
+    text.replace("calm engineering judgment", "calm engineering rigor"),
+  );
   writeFileSync(briefPath, `${JSON.stringify(JSON.parse(briefBytes.toString("utf8")), null, 4)}\n`);
   assert.throws(
     () => publish(environment, "write_cover_letter", "attempt_revise_letter_110", publicationId),
@@ -1888,15 +1881,16 @@ test("reopen --adopt archives the divergent bytes and a failed adopted re-author
     "a light revision is refused against a superseded brief",
   );
   assert.throws(
-    () => reopenFileBackedStepV3(
-      environment.ledgerPath,
-      { selector, stepName: "write_cover_letter" },
-      {
-        ...lifecycleEnvironment(environment),
-        attemptIdFactory: () => "attempt_reopen_letter_120",
-        clock: () => nextTimestamp(),
-      },
-    ),
+    () =>
+      reopenFileBackedStepV3(
+        environment.ledgerPath,
+        { selector, stepName: "write_cover_letter" },
+        {
+          ...lifecycleEnvironment(environment),
+          attemptIdFactory: () => "attempt_reopen_letter_120",
+          clock: () => nextTimestamp(),
+        },
+      ),
     (error) => error.code === "artifact_corrupt",
     "a plain reopen still reports the divergence as corruption",
   );
@@ -1947,8 +1941,11 @@ test("reopen --adopt archives the divergent bytes and a failed adopted re-author
       clock: () => nextTimestamp(),
     },
   );
-  assert.equal(retried.status, "retried",
-    "retry re-enters the journaled adoption instead of reporting corruption");
+  assert.equal(
+    retried.status,
+    "retried",
+    "retry re-enters the journaled adoption instead of reporting corruption",
+  );
   assert.equal(
     readStep(environment, "write_cover_letter").adoption_base.attempt_id,
     "attempt_retry_letter_122",
@@ -1988,8 +1985,7 @@ test("a material re-authoring supersedes waivers even when it republishes identi
     waivers: [{ subject: { kind: "check", key: "letter_keyword:0" } }],
   });
   const waivedId = "publication_revise_letter_130";
-  stageLetter(environment, waivedId, (text) =>
-    text.replaceAll(firstTerm, "redacted-term"));
+  stageLetter(environment, waivedId, (text) => text.replaceAll(firstTerm, "redacted-term"));
   publish(environment, "write_cover_letter", "attempt_revise_letter_130", waivedId);
   assert.equal(readStep(environment, "write_cover_letter").waivers[0].status, "active");
 
@@ -2036,8 +2032,7 @@ test("a material re-authoring supersedes waivers even when it republishes identi
   );
   assert.equal(retried.status, "retried");
   const restoredId = "publication_retry_letter_131";
-  stageLetter(environment, restoredId, (text) =>
-    text.replaceAll("redacted-term", firstTerm));
+  stageLetter(environment, restoredId, (text) => text.replaceAll("redacted-term", firstTerm));
   const restored = publish(
     environment,
     "write_cover_letter",
@@ -2166,11 +2161,7 @@ test("a divergent DOCX adopts with its bytes archived and a deliberate rebuild p
     "the user's DOCX bytes are archived before the rebuild can discard them",
   );
 
-  const staging = join(
-    environment.selectedOutputPath,
-    ".pipeline-tmp",
-    "publication_adopt_cv_140",
-  );
+  const staging = join(environment.selectedOutputPath, ".pipeline-tmp", "publication_adopt_cv_140");
   assert.deepEqual(
     JSON.parse(readFileSync(join(staging, "cv.json"), "utf8")),
     cv,
@@ -2197,33 +2188,39 @@ test("the docx_sync channel binds to the CV bundle and to an adoption, and journ
   // The letter bundle has no document, so the channel that addresses one is refused there rather
   // than journaling a channel that cannot describe what was edited (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(c)).
   assert.throws(
-    () => revise(environment, "write_cover_letter", {
-      adopt: true,
-      attemptId: "attempt_revise_letter_docx",
-      channel: "docx_sync",
-    }),
-    (error) => error.code === "invalid_revise_step_input"
-      && /docx_sync channel is defined only for generate_cv/.test(error.message),
+    () =>
+      revise(environment, "write_cover_letter", {
+        adopt: true,
+        attemptId: "attempt_revise_letter_docx",
+        channel: "docx_sync",
+      }),
+    (error) =>
+      error.code === "invalid_revise_step_input" &&
+      /docx_sync channel is defined only for generate_cv/.test(error.message),
   );
   // A DOCX edit is divergence by definition: an attempt opened without an adoption would journal
   // `docx_sync` over an edit that never came out of a document.
   assert.throws(
-    () => revise(environment, "generate_cv", {
-      attemptId: "attempt_revise_cv_docx_unadopted",
-      channel: "docx_sync",
-    }),
-    (error) => error.code === "invalid_revise_step_input"
-      && /docx_sync channel requires adopt/.test(error.message),
+    () =>
+      revise(environment, "generate_cv", {
+        attemptId: "attempt_revise_cv_docx_unadopted",
+        channel: "docx_sync",
+      }),
+    (error) =>
+      error.code === "invalid_revise_step_input" &&
+      /docx_sync channel requires adopt/.test(error.message),
   );
   // Chat directs an edit this step authors; there are no divergent bytes for it to adopt.
   assert.throws(
-    () => revise(environment, "generate_cv", {
-      adopt: true,
-      attemptId: "attempt_revise_cv_chat_adopt",
-      channel: "chat_command",
-    }),
-    (error) => error.code === "invalid_revise_step_input"
-      && /adopt requires the manual_file or docx_sync channel/.test(error.message),
+    () =>
+      revise(environment, "generate_cv", {
+        adopt: true,
+        attemptId: "attempt_revise_cv_chat_adopt",
+        channel: "chat_command",
+      }),
+    (error) =>
+      error.code === "invalid_revise_step_input" &&
+      /adopt requires the manual_file or docx_sync channel/.test(error.message),
   );
   const untouched = readStep(environment, "generate_cv");
   assert.equal(untouched.state, "completed");
@@ -2239,7 +2236,10 @@ test("the docx_sync channel binds to the CV bundle and to an adoption, and journ
     publicationIdFactory: () => "publication_docx_sync_160",
   });
   assert.equal(adopted.channel, "docx_sync");
-  assert.deepEqual(adopted.adoption.entries.map((entry) => entry.kind), ["cv_docx"]);
+  assert.deepEqual(
+    adopted.adoption.entries.map((entry) => entry.kind),
+    ["cv_docx"],
+  );
   // The two inputs the reverse sync needs: the user's document, archived and digest-bound, and the
   // committed source in staging as the base the extractor aligns it against.
   assert.deepEqual(adopted.adoption.staged_paths, ["cv.json"]);
@@ -2284,11 +2284,12 @@ test("the reverse sync refuses a divergence it cannot align the document against
   editedCv.sections[0].text = "Hand-edited summary line.";
   writeFileSync(canonicalCvPath, `${JSON.stringify(editedCv, null, 2)}\n`, "utf8");
   assert.throws(
-    () => revise(environment, "generate_cv", {
-      adopt: true,
-      attemptId: "attempt_revise_cv_170",
-      channel: "docx_sync",
-    }),
+    () =>
+      revise(environment, "generate_cv", {
+        adopt: true,
+        attemptId: "attempt_revise_cv_170",
+        channel: "docx_sync",
+      }),
     (error) => error.code === "docx_sync_target_unchanged",
   );
 
@@ -2298,11 +2299,12 @@ test("the reverse sync refuses a divergence it cannot align the document against
   // their work; choosing between them is the user's call, not this command's.
   writeFileSync(canonicalDocxPath, Buffer.from("user-edited docx bytes\n"));
   assert.throws(
-    () => revise(environment, "generate_cv", {
-      adopt: true,
-      attemptId: "attempt_revise_cv_171",
-      channel: "docx_sync",
-    }),
+    () =>
+      revise(environment, "generate_cv", {
+        adopt: true,
+        attemptId: "attempt_revise_cv_171",
+        channel: "docx_sync",
+      }),
     (error) => error.code === "docx_sync_source_diverged",
   );
 
@@ -2324,10 +2326,10 @@ test("the reverse sync refuses a divergence it cannot align the document against
     channel: "manual_file",
     publicationIdFactory: () => "publication_adopt_cv_172",
   });
-  assert.deepEqual(
-    adopted.adoption.entries.map((entry) => entry.kind).sort(),
-    ["cv_docx", "cv_source"],
-  );
+  assert.deepEqual(adopted.adoption.entries.map((entry) => entry.kind).sort(), [
+    "cv_docx",
+    "cv_source",
+  ]);
 });
 
 test("an adoption interrupted before the staging copy re-enters from the journaled phase", (t) => {
@@ -2364,14 +2366,14 @@ test("an adoption interrupted before the staging copy re-enters from the journal
 
   // Reconstruct the pre-copy crash window: the journal write landed, the copy did not.
   const ledger = JSON.parse(readFileSync(environment.ledgerPath, "utf8"));
-  const letter = ledger.processes.find((record) => record.id === processId)
-    .steps.write_cover_letter;
+  const letter = ledger.processes.find((record) => record.id === processId).steps
+    .write_cover_letter;
   letter.adoption_base.phase = "journaled";
   writeFileSync(environment.ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
-  rmSync(
-    join(environment.selectedOutputPath, ".pipeline-tmp", "publication_adopt_letter_150"),
-    { recursive: true, force: true },
-  );
+  rmSync(join(environment.selectedOutputPath, ".pipeline-tmp", "publication_adopt_letter_150"), {
+    recursive: true,
+    force: true,
+  });
   const adoptionArchivePath = archivePath(
     environment,
     firstAdoption.adoption.id,
@@ -2424,15 +2426,8 @@ test("a manually edited cv.json adopts, rebuilds the DOCX, and publishes", (t) =
     adopted.adoption.entries.map((entry) => entry.kind),
     ["cv_source"],
   );
-  const staging = join(
-    environment.selectedOutputPath,
-    ".pipeline-tmp",
-    "publication_adopt_cv_001",
-  );
-  assert.deepEqual(
-    JSON.parse(readFileSync(join(staging, "cv.json"), "utf8")),
-    editedCv,
-  );
+  const staging = join(environment.selectedOutputPath, ".pipeline-tmp", "publication_adopt_cv_001");
+  assert.deepEqual(JSON.parse(readFileSync(join(staging, "cv.json"), "utf8")), editedCv);
   writeFileSync(join(staging, editedCv.fileName), createDocxBytes({ cv: editedCv }));
 
   const published = publish(
@@ -2458,11 +2453,12 @@ test("the CV routing the procedure documents holds: unchanged bytes refuse adopt
   // bytes has nothing to adopt, and the procedure routes that back to the chat-command channel
   // instead of opening an adoption that would journal a base with no divergence in it.
   assert.throws(
-    () => revise(environment, "generate_cv", {
-      adopt: true,
-      attemptId: "attempt_revise_cv_200",
-      channel: "manual_file",
-    }),
+    () =>
+      revise(environment, "generate_cv", {
+        adopt: true,
+        attemptId: "attempt_revise_cv_200",
+        channel: "manual_file",
+      }),
     (error) => error.code === "adoption_target_unchanged",
   );
   const untouched = readStep(environment, "generate_cv");
@@ -2475,10 +2471,11 @@ test("the CV routing the procedure documents holds: unchanged bytes refuse adopt
   // the procedure's "run --adopt instead" instruction would have no machine behind it.
   writeFileSync(canonicalDocxPath, Buffer.from("hand-edited docx bytes\n"));
   assert.throws(
-    () => revise(environment, "generate_cv", {
-      attemptId: "attempt_revise_cv_201",
-      channel: "chat_command",
-    }),
+    () =>
+      revise(environment, "generate_cv", {
+        attemptId: "attempt_revise_cv_201",
+        channel: "chat_command",
+      }),
     (error) => error.code === "artifact_corrupt",
   );
   assert.deepEqual(
@@ -2549,12 +2546,7 @@ test("a revision that renames the published document is refused at publication",
     fileName: cv.fileName.replace(".docx", "_v2.docx"),
   }));
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      "attempt_revise_cv_220",
-      "publication_revise_cv_220",
-    ),
+    () => publish(environment, "generate_cv", "attempt_revise_cv_220", "publication_revise_cv_220"),
     (error) => error.code === "artifact_path_revision_conflict",
   );
   assert.deepEqual(
@@ -2562,10 +2554,7 @@ test("a revision that renames the published document is refused at publication",
     committedBytes,
     "the refused rename leaves the committed pair alone",
   );
-  assert.equal(
-    existsSync(join(environment.selectedOutputPath, committedDocx)),
-    true,
-  );
+  assert.equal(existsSync(join(environment.selectedOutputPath, committedDocx)), true);
 
   // The guard is keyed to the content revision, not to the operation, so the re-authoring
   // entrypoint is refused in exactly the same way: after the first publication the bundle's
@@ -2599,12 +2588,7 @@ test("a revision that renames the published document is refused at publication",
     fileName: cv.fileName.replace(".docx", "_v2.docx"),
   }));
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      "attempt_reopen_cv_220",
-      "publication_reopen_cv_220",
-    ),
+    () => publish(environment, "generate_cv", "attempt_reopen_cv_220", "publication_reopen_cv_220"),
     (error) => error.code === "artifact_path_revision_conflict",
     "a re-authoring cannot rename the published document either",
   );
@@ -2616,33 +2600,40 @@ test("the word-limit approval is available at a first publication and journals l
   const begun = beginLetter(environment, "attempt_first_letter_145");
   assert.equal(begun.status, "started");
   const staged = stageFirstLetter(environment, "publication_first_letter_145", (text) =>
-    padLetterBodyTo(text, 275));
+    padLetterBodyTo(text, 275),
+  );
   assert.equal(bodyWordCount(staged), 275);
 
   assert.throws(
-    () => publish(
-      environment,
-      "write_cover_letter",
-      "attempt_first_letter_145",
-      "publication_first_letter_145",
-    ),
+    () =>
+      publish(
+        environment,
+        "write_cover_letter",
+        "attempt_first_letter_145",
+        "publication_first_letter_145",
+      ),
     { code: "candidate_bundle_invalid" },
     "without the approval a 275-word first publication is still refused",
   );
   assert.throws(
-    () => publish(
-      environment,
-      "write_cover_letter",
-      "attempt_first_letter_145",
-      "publication_first_letter_145",
-      { waivers: [{ subject: { kind: "check", key: "letter_body_words_max:270" } }] },
-    ),
+    () =>
+      publish(
+        environment,
+        "write_cover_letter",
+        "attempt_first_letter_145",
+        "publication_first_letter_145",
+        { waivers: [{ subject: { kind: "check", key: "letter_body_words_max:270" } }] },
+      ),
     { code: "candidate_bundle_invalid" },
     "275 words exceed an approval of 270",
   );
   const refusedStep = readStep(environment, "write_cover_letter");
   assert.equal(refusedStep.state, "running");
-  assert.equal("pending_waivers" in refusedStep.active_attempt, false, "a refusal journals nothing");
+  assert.equal(
+    "pending_waivers" in refusedStep.active_attempt,
+    false,
+    "a refusal journals nothing",
+  );
   assert.equal("waivers" in refusedStep, false);
 
   const published = publish(
@@ -2651,10 +2642,12 @@ test("the word-limit approval is available at a first publication and journals l
     "attempt_first_letter_145",
     "publication_first_letter_145",
     {
-      waivers: [{
-        subject: { kind: "check", key: "letter_body_words_max:280" },
-        note: "Пользователь: прочитал черновик, публикуй как есть.",
-      }],
+      waivers: [
+        {
+          subject: { kind: "check", key: "letter_body_words_max:280" },
+          note: "Пользователь: прочитал черновик, публикуй как есть.",
+        },
+      ],
     },
   );
   assert.equal(published.status, "completed");
@@ -2694,14 +2687,16 @@ test("publish-step takes the word-limit approval and nothing else", (t) => {
   runThrough(environment, "generate_cv");
   beginLetter(environment, "attempt_first_letter_146");
   stageFirstLetter(environment, "publication_first_letter_146", (text) =>
-    padLetterBodyTo(text, 275));
-  const attempt = (waivers) => publish(
-    environment,
-    "write_cover_letter",
-    "attempt_first_letter_146",
-    "publication_first_letter_146",
-    { waivers },
+    padLetterBodyTo(text, 275),
   );
+  const attempt = (waivers) =>
+    publish(
+      environment,
+      "write_cover_letter",
+      "attempt_first_letter_146",
+      "publication_first_letter_146",
+      { waivers },
+    );
 
   assert.throws(
     () => attempt([{ subject: { kind: "check", key: "letter_keyword:0" } }]),
@@ -2714,10 +2709,11 @@ test("publish-step takes the word-limit approval and nothing else", (t) => {
     "a brief decision travels through revise-step",
   );
   assert.throws(
-    () => attempt([
-      { subject: { kind: "check", key: "letter_body_words_max:275" } },
-      { subject: { kind: "check", key: "letter_body_words_max:280" } },
-    ]),
+    () =>
+      attempt([
+        { subject: { kind: "check", key: "letter_body_words_max:275" } },
+        { subject: { kind: "check", key: "letter_body_words_max:280" } },
+      ]),
     { code: "invalid_publish_step_input" },
     "one approval, not a set",
   );
@@ -2751,9 +2747,10 @@ test("a first publication of the CV, and a revision of either material, refuse a
     },
   );
   assert.throws(
-    () => publish(environment, "generate_cv", begunCv.attempt_id, "publication_first_cv_147", {
-      waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }],
-    }),
+    () =>
+      publish(environment, "generate_cv", begunCv.attempt_id, "publication_first_cv_147", {
+        waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }],
+      }),
     { code: "invalid_publish_step_input" },
     "the approval is the letter's, and only the letter's",
   );
@@ -2778,9 +2775,16 @@ test("a first publication of the CV, and a revision of either material, refuse a
   revise(fresh, "write_cover_letter", { attemptId: "attempt_revise_letter_147" });
   stageLetter(fresh, "publication_revise_letter_147", (text) => padLetterBodyTo(text, 275));
   assert.throws(
-    () => publish(fresh, "write_cover_letter", "attempt_revise_letter_147", "publication_revise_letter_147", {
-      waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }],
-    }),
+    () =>
+      publish(
+        fresh,
+        "write_cover_letter",
+        "attempt_revise_letter_147",
+        "publication_revise_letter_147",
+        {
+          waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }],
+        },
+      ),
     { code: "invalid_publish_step_input" },
     "a revision supplies its waivers at its own open",
   );
@@ -2793,13 +2797,14 @@ test("an approval the published bytes did not need is refused instead of journal
   stageFirstLetter(environment, "publication_first_letter_148");
 
   assert.throws(
-    () => publish(
-      environment,
-      "write_cover_letter",
-      "attempt_first_letter_148",
-      "publication_first_letter_148",
-      { waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }] },
-    ),
+    () =>
+      publish(
+        environment,
+        "write_cover_letter",
+        "attempt_first_letter_148",
+        "publication_first_letter_148",
+        { waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }] },
+      ),
     { code: "waiver_not_applicable" },
     "a draft inside the default limit does not raise the ceiling of every later revision",
   );
@@ -2824,10 +2829,11 @@ test("a first publication interrupted after its journal write recovers with the 
   stageFirstLetter(environment, publicationId, (text) => padLetterBodyTo(text, 275));
 
   assert.throws(
-    () => publish(environment, "write_cover_letter", "attempt_first_letter_149", publicationId, {
-      failAt: "before_ledger_commit",
-      waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }],
-    }),
+    () =>
+      publish(environment, "write_cover_letter", "attempt_first_letter_149", publicationId, {
+        failAt: "before_ledger_commit",
+        waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" } }],
+      }),
     (error) => error.code === "simulated_publication_crash",
   );
   const interrupted = readStep(environment, "write_cover_letter");
@@ -2881,10 +2887,12 @@ test("the production CLI carries the length approval into a first publication", 
       command: "publish-step",
       nonce,
       values: {
-        waivers: [{
-          subject: { kind: "check", key: "letter_body_words_max:280" },
-          note: "Пользователь: прочитал черновик, публикуй как есть.",
-        }],
+        waivers: [
+          {
+            subject: { kind: "check", key: "letter_body_words_max:280" },
+            note: "Пользователь: прочитал черновик, публикуй как есть.",
+          },
+        ],
       },
     })}\n`,
     { flag: "wx", mode: 0o600 },
@@ -2896,12 +2904,18 @@ test("the production CLI carries the length approval into a first publication", 
     [
       cliChildPath,
       "publish-step",
-      "--id", processId,
-      "--step", "write_cover_letter",
-      "--attempt-id", begun.attempt_id,
-      "--publication-id", publicationId,
-      "--outcome", "completed",
-      "--input-file", basename,
+      "--id",
+      processId,
+      "--step",
+      "write_cover_letter",
+      "--attempt-id",
+      begun.attempt_id,
+      "--publication-id",
+      publicationId,
+      "--outcome",
+      "completed",
+      "--input-file",
+      basename,
     ],
     {
       cwd: repoRoot,
@@ -2934,15 +2948,17 @@ test("a first publication still refuses a brief-coupled finding, and says which 
   beginLetter(environment, "attempt_first_letter_151");
   const [firstTerm] = briefKeywordTerms(environment);
   stageFirstLetter(environment, "publication_first_letter_151", (text) =>
-    text.replaceAll(firstTerm, "redacted-term"));
+    text.replaceAll(firstTerm, "redacted-term"),
+  );
 
   assert.throws(
-    () => publish(
-      environment,
-      "write_cover_letter",
-      "attempt_first_letter_151",
-      "publication_first_letter_151",
-    ),
+    () =>
+      publish(
+        environment,
+        "write_cover_letter",
+        "attempt_first_letter_151",
+        "publication_first_letter_151",
+      ),
     (error) => {
       assert.equal(error.code, "candidate_bundle_invalid");
       assert.match(
@@ -2960,7 +2976,8 @@ test("a reopen-step re-authoring carries its own approval and inherits none", (t
   runThrough(environment, "generate_cv");
   beginLetter(environment, "attempt_first_letter_152");
   stageFirstLetter(environment, "publication_first_letter_152", (text) =>
-    padLetterBodyTo(text, 270));
+    padLetterBodyTo(text, 270),
+  );
   publish(
     environment,
     "write_cover_letter",
@@ -2983,14 +3000,16 @@ test("a reopen-step re-authoring carries its own approval and inherits none", (t
   // 265 words sit above the default 260 and below the 270 the previous publication approved, so
   // this refusal happens only because the re-authoring does not inherit that approval.
   stageFirstLetter(environment, "publication_reopen_letter_152", (text) =>
-    padLetterBodyTo(text, 265));
+    padLetterBodyTo(text, 265),
+  );
   assert.throws(
-    () => publish(
-      environment,
-      "write_cover_letter",
-      reopened.attempt_id,
-      "publication_reopen_letter_152",
-    ),
+    () =>
+      publish(
+        environment,
+        "write_cover_letter",
+        reopened.attempt_id,
+        "publication_reopen_letter_152",
+      ),
     { code: "candidate_bundle_invalid" },
     "the previous publication's approval is not inherited by a re-authoring",
   );
@@ -3023,7 +3042,9 @@ function seedCandidateConstraint(environment, constraint) {
   const root = join(environment.workspaceRoot, "candidate");
   mkdirSync(root, { recursive: true });
   copyFileSync(resolve(repoRoot, "candidate.example/config.json"), join(root, "config.json"));
-  cpSync(resolve(repoRoot, "candidate.example/languages"), join(root, "languages"), { recursive: true });
+  cpSync(resolve(repoRoot, "candidate.example/languages"), join(root, "languages"), {
+    recursive: true,
+  });
   writeFileSync(
     join(root, "constraints.json"),
     JSON.stringify({ schema_version: 1, constraints: [constraint] }),
@@ -3052,9 +3073,9 @@ test("a candidate constraint refuses a cv revision, where a conflict would not",
   assert.throws(
     () => publish(environment, "generate_cv", "attempt_revise_cv_constraint", publicationId),
     (error) =>
-      error.code === "candidate_bundle_invalid"
-      && error.message.includes('candidate constraint "no-introducer-name"')
-      && !error.message.includes("Jordan Vale"),
+      error.code === "candidate_bundle_invalid" &&
+      error.message.includes('candidate constraint "no-introducer-name"') &&
+      !error.message.includes("Jordan Vale"),
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeLedger);
 });
@@ -3081,9 +3102,10 @@ test("a candidate constraint refuses a cover-letter revision too", (t) => {
   lines[firstBody] = `Jordan Vale wrote first. ${lines[firstBody]}`;
   writeFileSync(join(staging, "cover-letter.txt"), lines.join("\n"), "utf8");
   assert.throws(
-    () => publish(environment, "write_cover_letter", "attempt_revise_letter_constraint", publicationId),
+    () =>
+      publish(environment, "write_cover_letter", "attempt_revise_letter_constraint", publicationId),
     (error) =>
-      error.code === "candidate_bundle_invalid"
-      && error.message.includes('candidate constraint "no-introducer-name"'),
+      error.code === "candidate_bundle_invalid" &&
+      error.message.includes('candidate constraint "no-introducer-name"'),
   );
 });

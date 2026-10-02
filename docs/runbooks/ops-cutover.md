@@ -48,7 +48,6 @@ The tool, its zones and codes are owned by
    session and recorded by the development session — in the task in which the user said to cut the
    release.
 
-
 ## Compatibility and runtime checks
 
 The new release must read every schema version actually in use, without a hidden bulk migration

@@ -199,11 +199,32 @@ const PINNED_PRESERVED_VARIABLES = ["JOB_PIPELINE_BROWSER_BIN"];
 // The pattern is assembled from fragments so that this file does not match its
 // own scan — the same dodge tests/write-guard.test.mjs uses
 // against the runner scan at the bottom of this file.
-const SUPPRESSION_PATTERN = new RegExp([
-  "\\.(?:", "skip", "|", "only", "|", "todo", ")\\s*\\(",
-  "|\\[\\s*[\"'](?:", "skip", "|", "only", "|", "todo", ")[\"']\\s*\\]\\s*\\(",
-  "|[{,]\\s*[\"']?(?:", "skip", "|", "only", "|", "todo", ")[\"']?\\s*:[^,}]{0,60}",
-].join(""), "g");
+const SUPPRESSION_PATTERN = new RegExp(
+  [
+    "\\.(?:",
+    "skip",
+    "|",
+    "only",
+    "|",
+    "todo",
+    ")\\s*\\(",
+    "|\\[\\s*[\"'](?:",
+    "skip",
+    "|",
+    "only",
+    "|",
+    "todo",
+    ")[\"']\\s*\\]\\s*\\(",
+    "|[{,]\\s*[\"']?(?:",
+    "skip",
+    "|",
+    "only",
+    "|",
+    "todo",
+    ")[\"']?\\s*:[^,}]{0,60}",
+  ].join(""),
+  "g",
+);
 
 // Suppression markers a suite is permitted to carry, in the same normalized
 // form the scan produces. Membership is permission, never obligation: removing
@@ -211,7 +232,7 @@ const SUPPRESSION_PATTERN = new RegExp([
 // either, so the scan also caps how many markers a file may carry.
 const ALLOWED_SUPPRESSIONS = new Map([
   // A POSIX-only permission fixture in the proxy inventory suite.
-  [join("tests", "proxies.test.mjs"), ['{ ' + 'skip: process.platform === "win32"']],
+  [join("tests", "proxies.test.mjs"), ["{ " + 'skip: process.platform === "win32"']],
 ]);
 
 // Written into every synthetic inventory fixture below, so a stray copy is
@@ -257,7 +278,12 @@ function workflowRunLines() {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.startsWith("- run:") || line.startsWith("run:"))
-    .map((line) => line.replace(/^-\s*/, "").replace(/^run:\s*/, "").trim());
+    .map((line) =>
+      line
+        .replace(/^-\s*/, "")
+        .replace(/^run:\s*/, "")
+        .trim(),
+    );
 }
 
 function successfulSpawn() {
@@ -305,8 +331,11 @@ function materializeProxyInventory(root) {
     mkdirSync(dirname(join(root, relative)), { recursive: true });
     writeFileSync(
       join(root, relative),
-      relative.endsWith("openai.yaml") ? EXPECTED_CODEX_POLICY
-        : relative.startsWith(".claude/agents/") ? SYNTHETIC_AGENT_FIXTURE : SYNTHETIC_FIXTURE_MARKER,
+      relative.endsWith("openai.yaml")
+        ? EXPECTED_CODEX_POLICY
+        : relative.startsWith(".claude/agents/")
+          ? SYNTHETIC_AGENT_FIXTURE
+          : SYNTHETIC_FIXTURE_MARKER,
     );
   }
 }
@@ -389,11 +418,9 @@ test("the ci script, the runner stage list, and the workflow are pinned together
 
   assert.deepEqual([...CI_STAGES], EXPECTED_STAGES);
 
-  const listed = JSON.parse(execFileSync(
-    process.execPath,
-    [runnerPath, "--list"],
-    { cwd: repoRoot, encoding: "utf8" },
-  ));
+  const listed = JSON.parse(
+    execFileSync(process.execPath, [runnerPath, "--list"], { cwd: repoRoot, encoding: "utf8" }),
+  );
   assert.deepEqual(listed.stages, EXPECTED_STAGES);
 
   assert.deepEqual(workflowRunLines(), expectedWorkflowRunLines());
@@ -414,9 +441,14 @@ test("the workflow's activation surface is pinned", () => {
   ]);
   assert.deepEqual(workflowBlock("permissions"), ["  contents: read"]);
   const jobs = workflowBlock("jobs");
-  assert.deepEqual(jobs.filter((line) => line.trim().startsWith("runs-on:")),
-    ["    runs-on: ubuntu-latest"]);
-  assert.deepEqual(jobs.filter((line) => /^  \S/.test(line)), ["  gate:"]);
+  assert.deepEqual(
+    jobs.filter((line) => line.trim().startsWith("runs-on:")),
+    ["    runs-on: ubuntu-latest"],
+  );
+  assert.deepEqual(
+    jobs.filter((line) => /^  \S/.test(line)),
+    ["  gate:"],
+  );
 });
 
 test("the workflow cannot soft-fail and installs both lockfiles before the gate", () => {
@@ -432,7 +464,12 @@ test("the workflow cannot soft-fail and installs both lockfiles before the gate"
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.startsWith("- uses:") || line.startsWith("uses:"))
-    .map((line) => line.replace(/^-\s*/, "").replace(/^uses:\s*/, "").trim());
+    .map((line) =>
+      line
+        .replace(/^-\s*/, "")
+        .replace(/^uses:\s*/, "")
+        .trim(),
+    );
   assert.deepEqual(usesLines, ["actions/checkout@v4", "actions/setup-node@v4"]);
 
   const runLines = workflowRunLines();
@@ -469,10 +506,15 @@ test("only the reporting stage carries a detail, and it is logged as well as ret
   // The argv itself, not the stub's answer. Everything else in this case reads values the fixture
   // made up. This pin requires blocking mode and only fictional data allowances; a real
   // candidate-root flag or loss of blocking must fail independently of the stub response.
-  const scan = driven.calls.find((call) => call.args.some(
-    (argument) => String(argument).endsWith(join("publishability", "cli.mjs")),
-  ));
-  assert.deepEqual(scan.args, [join("tools", "publishability", "cli.mjs"), "--blocking", "--data-root", join(repoRoot, "candidate.example")]);
+  const scan = driven.calls.find((call) =>
+    call.args.some((argument) => String(argument).endsWith(join("publishability", "cli.mjs"))),
+  );
+  assert.deepEqual(scan.args, [
+    join("tools", "publishability", "cli.mjs"),
+    "--blocking",
+    "--data-root",
+    join(repoRoot, "candidate.example"),
+  ]);
   assert.equal(scan.command, process.execPath);
 
   const reporting = results.find((entry) => entry.stage === "publishability");
@@ -496,20 +538,25 @@ test("only the reporting stage carries a detail, and it is logged as well as ret
 // A child that answers with something this stage cannot parse is a broken gate, not a clean tree.
 test("the reporting stage fails when its child prints no usable report", (t) => {
   const roots = disposableRootFactory(t);
-  const drive = (stdout) => runStages({
-    createDisposableRoot: roots.factory,
-    environment: {},
-    spawn: () => ({ status: 0, stderr: "", stdout }),
-    stageIds: ["publishability"],
-    workspaceRoot: repoRoot,
-  });
+  const drive = (stdout) =>
+    runStages({
+      createDisposableRoot: roots.factory,
+      environment: {},
+      spawn: () => ({ status: 0, stderr: "", stdout }),
+      stageIds: ["publishability"],
+      workspaceRoot: repoRoot,
+    });
   for (const stdout of ["", "not json", JSON.stringify({ status: "reported" })]) {
-    assert.throws(() => drive(stdout), (error) => {
-      assert.equal(error instanceof CiError, true);
-      assert.equal(error.code, "ci_publishability_report_unreadable");
-      assert.equal(error.stage, "publishability");
-      return true;
-    }, JSON.stringify(stdout));
+    assert.throws(
+      () => drive(stdout),
+      (error) => {
+        assert.equal(error instanceof CiError, true);
+        assert.equal(error.code, "ci_publishability_report_unreadable");
+        assert.equal(error.stage, "publishability");
+        return true;
+      },
+      JSON.stringify(stdout),
+    );
   }
 });
 
@@ -554,26 +601,34 @@ test("every stage executes its exact argv in order", (t) => {
   assert.ok(commands.some((command) => command.startsWith("tar -xf")));
   // Once for the instruction stage, once inside the committed-tree archive.
   assert.equal(
-    commands.filter((command) => command.endsWith("--test tests/instruction-contracts.test.mjs")).length,
+    commands.filter((command) => command.endsWith("--test tests/instruction-contracts.test.mjs"))
+      .length,
     2,
   );
-  const pinned = "--attr-source=4{40} -c core.whitespace=blank-at-eol,space-before-tab,blank-at-eof"
-    + " -c core.attributesFile=/dev/null";
+  const pinned =
+    "--attr-source=4{40} -c core.whitespace=blank-at-eol,space-before-tab,blank-at-eof" +
+    " -c core.attributesFile=/dev/null";
   const pinnedPattern = pinned.replace(/[.*+?^$()|[\]\\]/g, "\\$&");
-  assert.ok(commands.some((command) => new RegExp(`^git ${pinnedPattern} diff --check$`).test(command)));
-  assert.ok(commands.some(
-    (command) => new RegExp(`^git ${pinnedPattern} diff --check 4{40} HEAD$`).test(command),
-  ));
-  for (const call of driven.calls.filter((entry) => entry.args.includes("--check")
-    && entry.command === "git")) {
+  assert.ok(
+    commands.some((command) => new RegExp(`^git ${pinnedPattern} diff --check$`).test(command)),
+  );
+  assert.ok(
+    commands.some((command) =>
+      new RegExp(`^git ${pinnedPattern} diff --check 4{40} HEAD$`).test(command),
+    ),
+  );
+  for (const call of driven.calls.filter(
+    (entry) => entry.args.includes("--check") && entry.command === "git",
+  )) {
     assert.equal(call.options.env.GIT_ATTR_NOSYSTEM, "1");
   }
 
   assert.ok(commands.some((command) => command.endsWith("tools/format.mjs --check")));
 
   const suiteCalls = driven.calls.filter((call) => call.args[0] === "--test");
-  const fullCall = suiteCalls.find((call) => call.args[1] !== "--test-concurrency=1"
-    && call.args.length > 3);
+  const fullCall = suiteCalls.find(
+    (call) => call.args[1] !== "--test-concurrency=1" && call.args.length > 3,
+  );
   const serialCall = suiteCalls.find((call) => call.args[1] === "--test-concurrency=1");
   // Against the frozen literal, never against a second `readdirSync`: comparing
   // the runner's enumeration with the same enumeration is a tautology that a
@@ -602,11 +657,15 @@ test("the executable test inventory agrees across test literal, runner and direc
   }
   // The policy literal is frozen here too, and against the tree, so the runner
   // constant cannot be relaxed in step with the files it guards.
-  assert.equal(EXPECTED_CODEX_POLICY, 'policy:\n  allow_implicit_invocation: false\n');
+  assert.equal(EXPECTED_CODEX_POLICY, "policy:\n  allow_implicit_invocation: false\n");
   // The agent allowlist literal is frozen here too, and read from the tree: reading and nothing else.
   assert.equal(EXPECTED_AGENT_TOOLS_LINE, "tools: Read");
   for (const relative of PINNED_PROXY_FILES.filter((path) => path.startsWith(".claude/agents/"))) {
-    assert.match(read(join(repoRoot, relative)), /^---\nname: [a-z-]+\ndescription: "[^\n]+"\ntools: Read\nmodel: (haiku|sonnet)\n---\n/u, relative);
+    assert.match(
+      read(join(repoRoot, relative)),
+      /^---\nname: [a-z-]+\ndescription: "[^\n]+"\ntools: Read\nmodel: (haiku|sonnet)\n---\n/u,
+      relative,
+    );
   }
   for (const relative of PINNED_PROXY_FILES.filter((path) => path.endsWith("openai.yaml"))) {
     assert.equal(read(join(repoRoot, relative)), EXPECTED_CODEX_POLICY, relative);
@@ -629,16 +688,15 @@ test("pinned suites keep a registration token and no suppression in the pinned s
     const allowed = ALLOWED_SUPPRESSIONS.get(relative) ?? [];
     const views = [
       ["as written", source],
-      ["comments blanked", source
-        .replace(/\/\*[\s\S]*?\*\//g, " ")
-        .replace(/\/\/[^\n]*/g, " ")],
+      ["comments blanked", source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ")],
     ];
     // The view is named in both messages: a finding that exists only after
     // blanking would otherwise report a marker that appears nowhere in the file
     // a maintainer can open.
     for (const [view, text] of views) {
-      const found = [...text.replace(/\s+/g, " ").matchAll(SUPPRESSION_PATTERN)]
-        .map((match) => match[0].trim());
+      const found = [...text.replace(/\s+/g, " ").matchAll(SUPPRESSION_PATTERN)].map((match) =>
+        match[0].trim(),
+      );
       // Subset, not equality: an exemption may be removed, never added.
       assert.deepEqual(
         found.filter((marker) => !allowed.includes(marker)),
@@ -667,12 +725,13 @@ test("a drifted test inventory fails the full and serial stages", (t) => {
   for (const relative of CURRENT_TEST_FILES) {
     writeFileSync(join(inventoryRoot, relative), SYNTHETIC_FIXTURE_MARKER);
   }
-  const drive = (stage) => runStages({
-    environment: {},
-    spawn: () => successfulSpawn(),
-    stageIds: [stage],
-    workspaceRoot: inventoryRoot,
-  });
+  const drive = (stage) =>
+    runStages({
+      environment: {},
+      spawn: () => successfulSpawn(),
+      stageIds: [stage],
+      workspaceRoot: inventoryRoot,
+    });
 
   // A complete synthetic inventory is accepted, so the cases below fail on the
   // drift itself and not on the fixture being synthetic.
@@ -684,37 +743,44 @@ test("a drifted test inventory fails the full and serial stages", (t) => {
   rmSync(renamedAway);
   writeFileSync(`${renamedAway}.bak`, SYNTHETIC_FIXTURE_MARKER);
   for (const stage of ["full", "serial"]) {
-    assert.throws(() => drive(stage), (error) => {
-      assert.equal(error instanceof CiError, true);
-      assert.equal(error.code, "ci_test_inventory_drift");
-      assert.equal(error.stage, stage);
-      assert.match(error.message, /missing \["tests\/proxies\.test\.mjs"\]/);
-      assert.match(error.message, /unexpected \[\]/);
-      return true;
-    });
+    assert.throws(
+      () => drive(stage),
+      (error) => {
+        assert.equal(error instanceof CiError, true);
+        assert.equal(error.code, "ci_test_inventory_drift");
+        assert.equal(error.stage, stage);
+        assert.match(error.message, /missing \["tests\/proxies\.test\.mjs"\]/);
+        assert.match(error.message, /unexpected \[\]/);
+        return true;
+      },
+    );
   }
 
   writeFileSync(renamedAway, SYNTHETIC_FIXTURE_MARKER);
   rmSync(`${renamedAway}.bak`);
   writeFileSync(join(inventoryRoot, "tests", "added.test.mjs"), SYNTHETIC_FIXTURE_MARKER);
-  assert.throws(() => drive("full"), (error) => {
-    assert.equal(error.code, "ci_test_inventory_drift");
-    assert.match(error.message, /missing \[\]/);
-    assert.match(error.message, /unexpected \["tests\/added\.test\.mjs"\]/);
-    return true;
-  });
+  assert.throws(
+    () => drive("full"),
+    (error) => {
+      assert.equal(error.code, "ci_test_inventory_drift");
+      assert.match(error.message, /missing \[\]/);
+      assert.match(error.message, /unexpected \["tests\/added\.test\.mjs"\]/);
+      return true;
+    },
+  );
 });
 
 test("a missing or permissive generated proxy fails the proxy stage", (t) => {
   const proxyRoot = mkdtempSync(join(realpathSync(tmpdir()), "job-search-ci-proxy-"));
   t.after(() => rmSync(proxyRoot, { force: true, recursive: true }));
   materializeProxyInventory(proxyRoot);
-  const drive = () => runStages({
-    environment: {},
-    spawn: () => proxyReport(),
-    stageIds: ["proxy"],
-    workspaceRoot: proxyRoot,
-  });
+  const drive = () =>
+    runStages({
+      environment: {},
+      spawn: () => proxyReport(),
+      stageIds: ["proxy"],
+      workspaceRoot: proxyRoot,
+    });
   assert.deepEqual(drive(), [{ stage: "proxy", status: "passed" }]);
 
   const metadata = PINNED_PROXY_FILES.filter((path) => path.endsWith("openai.yaml"));
@@ -722,10 +788,7 @@ test("a missing or permissive generated proxy fails the proxy stage", (t) => {
 
   // Presence is not enough. The generator can keep every path and every count
   // while emitting the policy inverted, which is the finding itself.
-  writeFileSync(
-    join(proxyRoot, metadata[0]),
-    EXPECTED_CODEX_POLICY.replace("false", "true"),
-  );
+  writeFileSync(join(proxyRoot, metadata[0]), EXPECTED_CODEX_POLICY.replace("false", "true"));
   assert.throws(drive, (error) => {
     assert.equal(error instanceof CiError, true);
     assert.equal(error.code, "ci_proxy_policy_drift");
@@ -740,7 +803,10 @@ test("a missing or permissive generated proxy fails the proxy stage", (t) => {
   // untrusted text holding a shell. The runner reads the frontmatter line, not the file's presence.
   const agents = PINNED_PROXY_FILES.filter((path) => path.startsWith(".claude/agents/"));
   assert.equal(agents.length, 3);
-  writeFileSync(join(proxyRoot, agents[0]), SYNTHETIC_AGENT_FIXTURE.replace("tools: Read", "tools: Read, Bash"));
+  writeFileSync(
+    join(proxyRoot, agents[0]),
+    SYNTHETIC_AGENT_FIXTURE.replace("tools: Read", "tools: Read, Bash"),
+  );
   assert.throws(drive, (error) => {
     assert.equal(error instanceof CiError, true);
     assert.equal(error.code, "ci_proxy_policy_drift");
@@ -782,22 +848,23 @@ test("the fresh-archive stage applies the same proxy inventory to the committed 
 
   const stripped = disposableRootFactory(t);
   assert.throws(
-    () => runStages({
-      createDisposableRoot: stripped.factory,
-      environment: {},
-      spawn: (command, args, options) => {
-        const result = recorder.spawn(command, args, options);
-        if (command === "tar") {
-          const target = args[args.indexOf("-C") + 1];
-          for (const relative of PINNED_PROXY_FILES.filter((p) => p.endsWith("openai.yaml"))) {
-            rmSync(join(target, relative));
+    () =>
+      runStages({
+        createDisposableRoot: stripped.factory,
+        environment: {},
+        spawn: (command, args, options) => {
+          const result = recorder.spawn(command, args, options);
+          if (command === "tar") {
+            const target = args[args.indexOf("-C") + 1];
+            for (const relative of PINNED_PROXY_FILES.filter((p) => p.endsWith("openai.yaml"))) {
+              rmSync(join(target, relative));
+            }
           }
-        }
-        return result;
-      },
-      stageIds: ["fresh-archive"],
-      workspaceRoot: repoRoot,
-    }),
+          return result;
+        },
+        stageIds: ["fresh-archive"],
+        workspaceRoot: repoRoot,
+      }),
     (error) => {
       assert.equal(error.code, "ci_proxy_inventory_incomplete");
       assert.equal(error.stage, "fresh-archive");
@@ -807,24 +874,22 @@ test("the fresh-archive stage applies the same proxy inventory to the committed 
 
   const permissive = disposableRootFactory(t);
   assert.throws(
-    () => runStages({
-      createDisposableRoot: permissive.factory,
-      environment: {},
-      spawn: (command, args, options) => {
-        const result = recorder.spawn(command, args, options);
-        if (command === "tar") {
-          const target = args[args.indexOf("-C") + 1];
-          const first = PINNED_PROXY_FILES.find((path) => path.endsWith("openai.yaml"));
-          writeFileSync(
-            join(target, first),
-            EXPECTED_CODEX_POLICY.replace("false", "true"),
-          );
-        }
-        return result;
-      },
-      stageIds: ["fresh-archive"],
-      workspaceRoot: repoRoot,
-    }),
+    () =>
+      runStages({
+        createDisposableRoot: permissive.factory,
+        environment: {},
+        spawn: (command, args, options) => {
+          const result = recorder.spawn(command, args, options);
+          if (command === "tar") {
+            const target = args[args.indexOf("-C") + 1];
+            const first = PINNED_PROXY_FILES.find((path) => path.endsWith("openai.yaml"));
+            writeFileSync(join(target, first), EXPECTED_CODEX_POLICY.replace("false", "true"));
+          }
+          return result;
+        },
+        stageIds: ["fresh-archive"],
+        workspaceRoot: repoRoot,
+      }),
     (error) => {
       assert.equal(error.code, "ci_proxy_policy_drift");
       assert.equal(error.stage, "fresh-archive");
@@ -836,22 +901,23 @@ test("the fresh-archive stage applies the same proxy inventory to the committed 
   // read must still fail with this gate's own code rather than a raw errno.
   const unreadable = disposableRootFactory(t);
   assert.throws(
-    () => runStages({
-      createDisposableRoot: unreadable.factory,
-      environment: {},
-      spawn: (command, args, options) => {
-        const result = recorder.spawn(command, args, options);
-        if (command === "tar") {
-          const target = args[args.indexOf("-C") + 1];
-          const first = PINNED_PROXY_FILES.find((path) => path.endsWith("openai.yaml"));
-          rmSync(join(target, first));
-          mkdirSync(join(target, first));
-        }
-        return result;
-      },
-      stageIds: ["fresh-archive"],
-      workspaceRoot: repoRoot,
-    }),
+    () =>
+      runStages({
+        createDisposableRoot: unreadable.factory,
+        environment: {},
+        spawn: (command, args, options) => {
+          const result = recorder.spawn(command, args, options);
+          if (command === "tar") {
+            const target = args[args.indexOf("-C") + 1];
+            const first = PINNED_PROXY_FILES.find((path) => path.endsWith("openai.yaml"));
+            rmSync(join(target, first));
+            mkdirSync(join(target, first));
+          }
+          return result;
+        },
+        stageIds: ["fresh-archive"],
+        workspaceRoot: repoRoot,
+      }),
     (error) => {
       assert.equal(error instanceof CiError, true);
       assert.equal(error.code, "ci_proxy_inventory_incomplete");
@@ -925,13 +991,14 @@ test("a failing, signalled, or missing child fails the run", (t) => {
   for (const [index, failure] of failures.entries()) {
     const roots = disposableRootFactory(t);
     assert.throws(
-      () => runStages({
-        createDisposableRoot: roots.factory,
-        environment: {},
-        spawn: () => failure,
-        stageIds: ["proxy"],
-        workspaceRoot: repoRoot,
-      }),
+      () =>
+        runStages({
+          createDisposableRoot: roots.factory,
+          environment: {},
+          spawn: () => failure,
+          stageIds: ["proxy"],
+          workspaceRoot: repoRoot,
+        }),
       (error) => {
         assert.equal(error instanceof CiError, true);
         assert.equal(error.code, codes[index]);
@@ -962,17 +1029,18 @@ test("a proxy inventory that is not current fails even when the checker exits ze
     { files: 27 },
   ]) {
     assert.throws(
-      () => runStages({
-        createDisposableRoot: roots.factory,
-        environment: {},
-        spawn: () => ({
-          status: 0,
-          stderr: "",
-          stdout: JSON.stringify({ ...current, ...drift }),
+      () =>
+        runStages({
+          createDisposableRoot: roots.factory,
+          environment: {},
+          spawn: () => ({
+            status: 0,
+            stderr: "",
+            stdout: JSON.stringify({ ...current, ...drift }),
+          }),
+          stageIds: ["proxy"],
+          workspaceRoot: repoRoot,
         }),
-        stageIds: ["proxy"],
-        workspaceRoot: repoRoot,
-      }),
       (error) => {
         assert.equal(error.code, "ci_proxy_inventory_not_current", JSON.stringify(drift));
         return true;
@@ -985,9 +1053,15 @@ test("a proxy inventory that is not current fails even when the checker exits ze
 // a stage that inspects a repository nobody asked about.
 test("the scrubbed environment prefixes cover every git redirection variable", () => {
   for (const prefix of [
-    "JOB_PIPELINE_", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_ATTR",
-    "GIT_CEILING_DIRECTORIES", "GIT_CONFIG", "GIT_DIR", "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY", "GIT_WORK_TREE",
+    "JOB_PIPELINE_",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_ATTR",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_CONFIG",
+    "GIT_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_WORK_TREE",
   ]) {
     assert.equal(SCRUBBED_ENVIRONMENT_PREFIXES.includes(prefix), true, prefix);
     assert.deepEqual(
@@ -1008,8 +1082,8 @@ test("the scrub and preserve lists are frozen as exact sets", () => {
   // One preserved name sits deliberately inside a scrubbed prefix. It is the
   // single sanctioned bypass, so it is named here rather than counted.
   assert.deepEqual(
-    PINNED_PRESERVED_VARIABLES.filter(
-      (name) => PINNED_SCRUBBED_PREFIXES.some((prefix) => name.startsWith(prefix)),
+    PINNED_PRESERVED_VARIABLES.filter((name) =>
+      PINNED_SCRUBBED_PREFIXES.some((prefix) => name.startsWith(prefix)),
     ),
     ["JOB_PIPELINE_BROWSER_BIN"],
   );
@@ -1046,10 +1120,9 @@ test("the observed ambient silencers are removed and unrelated names survive", (
   // Removed as a consequence of taking the whole prefix, not because it was
   // observed to silence anything: it was not. The accepted cost is that a
   // gate run can no longer be instrumented through this variable.
-  assert.deepEqual(
-    childEnvironment({ NODE_V8_COVERAGE: "/tmp/coverage", PATH: "/usr/bin" }),
-    { PATH: "/usr/bin" },
-  );
+  assert.deepEqual(childEnvironment({ NODE_V8_COVERAGE: "/tmp/coverage", PATH: "/usr/bin" }), {
+    PATH: "/usr/bin",
+  });
   // Anchored at the start of the name. A match that drifted to containment
   // would eat unrelated variables; one that drifted to equality would let every
   // real spelling through. The bare `NODE` that npm sets is deliberately kept.
@@ -1105,17 +1178,18 @@ test("an ambient runtime variable silences a real stage until the environment is
   t.after(() => rmSync(fixtureRoot, { force: true, recursive: true }));
   mkdirSync(join(fixtureRoot, "tests"));
   const sentinelPath = join(fixtureRoot, "case-executed");
-  const writeSuite = (body) => writeFileSync(
-    join(fixtureRoot, "tests", "instruction-contracts.test.mjs"),
-    SYNTHETIC_FIXTURE_MARKER
-    + 'import assert from "node:assert/strict";\n'
-    + 'import { writeFileSync } from "node:fs";\n'
-    + 'import test from "node:test";\n'
-    + 'test("synthetic ambient-scrub fixture case", () => {\n'
-    + `  writeFileSync(${JSON.stringify(sentinelPath)}, "executed");\n`
-    + `  ${body}\n`
-    + "});\n",
-  );
+  const writeSuite = (body) =>
+    writeFileSync(
+      join(fixtureRoot, "tests", "instruction-contracts.test.mjs"),
+      SYNTHETIC_FIXTURE_MARKER +
+        'import assert from "node:assert/strict";\n' +
+        'import { writeFileSync } from "node:fs";\n' +
+        'import test from "node:test";\n' +
+        'test("synthetic ambient-scrub fixture case", () => {\n' +
+        `  writeFileSync(${JSON.stringify(sentinelPath)}, "executed");\n` +
+        `  ${body}\n` +
+        "});\n",
+    );
 
   const drive = (environment) => {
     rmSync(sentinelPath, { force: true });
@@ -1163,10 +1237,12 @@ test("an ambient runtime variable silences a real stage until the environment is
   // benign option is discarded along with the hostile ones, which is the cost
   // this design accepts rather than hides.
   writeSuite("assert.equal(1, 1);");
-  const recovered = drive(childEnvironment({
-    NODE_OPTIONS: "--max-old-space-size=8192",
-    PATH: "/usr/bin",
-  }));
+  const recovered = drive(
+    childEnvironment({
+      NODE_OPTIONS: "--max-old-space-size=8192",
+      PATH: "/usr/bin",
+    }),
+  );
   assert.equal(recovered.failure, null);
   assert.equal(recovered.executed, true);
 
@@ -1184,11 +1260,12 @@ test("an ambient runtime variable silences a real stage until the environment is
   writeSuite("assert.equal(1, 2);");
   const shipped = (ambient, argv) => {
     rmSync(sentinelPath, { force: true });
-    const result = spawnSync(
-      process.execPath,
-      [join(fixtureRoot, "tools", "ci.mjs"), ...argv],
-      { cwd: fixtureRoot, encoding: "utf8", env: ambient, shell: false },
-    );
+    const result = spawnSync(process.execPath, [join(fixtureRoot, "tools", "ci.mjs"), ...argv], {
+      cwd: fixtureRoot,
+      encoding: "utf8",
+      env: ambient,
+      shell: false,
+    });
     return { executed: existsSync(sentinelPath), result };
   };
   const oneStage = ["--stage", "instruction"];
@@ -1197,8 +1274,7 @@ test("an ambient runtime variable silences a real stage until the environment is
   // one-stage arm, so the last arm asks for all seven with `instruction` first:
   // the run fails there and never reaches the stages this fixture cannot
   // satisfy, while the argv it was given is the shape production uses.
-  const everyStage = CI_STAGES
-    .slice()
+  const everyStage = CI_STAGES.slice()
     .sort((left, right) => Number(right === "instruction") - Number(left === "instruction"))
     .flatMap((stage) => ["--stage", stage]);
   for (const [ambient, argv] of [
@@ -1237,8 +1313,9 @@ test("the fresh-archive stage stays inside a disposable root and cleans up", (t)
   assert.equal(dirname(root), realpathSync(tmpdir()));
   assert.throws(() => statSync(root), { code: "ENOENT" });
 
-  const archiveCall = driven.calls.find((call) => call.command === "git"
-    && call.args[0] === "archive");
+  const archiveCall = driven.calls.find(
+    (call) => call.command === "git" && call.args[0] === "archive",
+  );
   assert.equal(archiveCall.args.at(-1), "HEAD");
   assert.ok(archiveCall.args[3].startsWith(root));
   const extractCall = driven.calls.find((call) => call.command === "tar");
@@ -1247,40 +1324,50 @@ test("the fresh-archive stage stays inside a disposable root and cleans up", (t)
 
 test("an incomplete or pre-installed committed tree fails the fresh-archive stage", (t) => {
   for (const [code, prepare] of [
-    ["ci_archive_incomplete", (target) => {
-      mkdirSync(join(target, "tools", "cv-builder"), { recursive: true });
-      writeFileSync(join(target, "package-lock.json"), "{}\n");
-    }],
-    ["ci_archive_not_clean", (target) => {
-      mkdirSync(join(target, "tools", "cv-builder"), { recursive: true });
-      mkdirSync(join(target, "node_modules"), { recursive: true });
-      writeFileSync(join(target, "package-lock.json"), "{}\n");
-      writeFileSync(join(target, "tools", "cv-builder", "package-lock.json"), "{}\n");
-    }],
+    [
+      "ci_archive_incomplete",
+      (target) => {
+        mkdirSync(join(target, "tools", "cv-builder"), { recursive: true });
+        writeFileSync(join(target, "package-lock.json"), "{}\n");
+      },
+    ],
+    [
+      "ci_archive_not_clean",
+      (target) => {
+        mkdirSync(join(target, "tools", "cv-builder"), { recursive: true });
+        mkdirSync(join(target, "node_modules"), { recursive: true });
+        writeFileSync(join(target, "package-lock.json"), "{}\n");
+        writeFileSync(join(target, "tools", "cv-builder", "package-lock.json"), "{}\n");
+      },
+    ],
     // The private candidate layer is ignored, so it reaches a commit only by a
     // deliberate force-add — and the archive is where that becomes visible,
     // because the archive is exactly what an export ships.
-    ["ci_archive_not_clean", (target) => {
-      mkdirSync(join(target, "tools", "cv-builder"), { recursive: true });
-      mkdirSync(join(target, "candidate"), { recursive: true });
-      writeFileSync(join(target, "package-lock.json"), "{}\n");
-      writeFileSync(join(target, "tools", "cv-builder", "package-lock.json"), "{}\n");
-    }],
+    [
+      "ci_archive_not_clean",
+      (target) => {
+        mkdirSync(join(target, "tools", "cv-builder"), { recursive: true });
+        mkdirSync(join(target, "candidate"), { recursive: true });
+        writeFileSync(join(target, "package-lock.json"), "{}\n");
+        writeFileSync(join(target, "tools", "cv-builder", "package-lock.json"), "{}\n");
+      },
+    ],
   ]) {
     const roots = disposableRootFactory(t);
     assert.throws(
-      () => runStages({
-        createDisposableRoot: roots.factory,
-        environment: {},
-        spawn: (command, args) => {
-          if (command === "tar") {
-            prepare(args[args.indexOf("-C") + 1]);
-          }
-          return successfulSpawn();
-        },
-        stageIds: ["fresh-archive"],
-        workspaceRoot: repoRoot,
-      }),
+      () =>
+        runStages({
+          createDisposableRoot: roots.factory,
+          environment: {},
+          spawn: (command, args) => {
+            if (command === "tar") {
+              prepare(args[args.indexOf("-C") + 1]);
+            }
+            return successfulSpawn();
+          },
+          stageIds: ["fresh-archive"],
+          workspaceRoot: repoRoot,
+        }),
       (error) => {
         assert.equal(error instanceof CiError, true, code);
         assert.equal(error.code, code);
@@ -1319,16 +1406,17 @@ test("the shipped disposable-root factory is used and its guard is live", (t) =>
   t.after(() => rmSync(outerRoot, { force: true, recursive: true }));
   const nestedRoot = join(outerRoot, "nested", "root");
   assert.throws(
-    () => runStages({
-      createDisposableRoot: () => {
-        mkdirSync(nestedRoot, { recursive: true });
-        return nestedRoot;
-      },
-      environment: {},
-      spawn: recorder.spawn,
-      stageIds: ["fresh-archive"],
-      workspaceRoot: repoRoot,
-    }),
+    () =>
+      runStages({
+        createDisposableRoot: () => {
+          mkdirSync(nestedRoot, { recursive: true });
+          return nestedRoot;
+        },
+        environment: {},
+        spawn: recorder.spawn,
+        stageIds: ["fresh-archive"],
+        workspaceRoot: repoRoot,
+      }),
     (error) => {
       assert.equal(error.code, "ci_archive_root_not_disposable");
       return true;
@@ -1363,21 +1451,23 @@ test("every defensive failure names its own cause", (t) => {
     },
     {
       code: "ci_empty_tree_unresolved",
-      spawn: (_command, args) => (args.includes("hash-object")
-        ? { status: 0, stderr: "", stdout: "not-an-object-id\n" }
-        : successfulSpawn()),
+      spawn: (_command, args) =>
+        args.includes("hash-object")
+          ? { status: 0, stderr: "", stdout: "not-an-object-id\n" }
+          : successfulSpawn(),
       stage: "format",
     },
   ];
   for (const scenario of cases) {
     assert.throws(
-      () => runStages({
-        createDisposableRoot: roots.factory,
-        environment: {},
-        spawn: scenario.spawn,
-        stageIds: [scenario.stage],
-        workspaceRoot: repoRoot,
-      }),
+      () =>
+        runStages({
+          createDisposableRoot: roots.factory,
+          environment: {},
+          spawn: scenario.spawn,
+          stageIds: [scenario.stage],
+          workspaceRoot: repoRoot,
+        }),
       (error) => {
         assert.equal(error.code, scenario.code);
         assert.equal(error.stage, scenario.stage);
@@ -1390,12 +1480,13 @@ test("every defensive failure names its own cause", (t) => {
   t.after(() => rmSync(emptyRoot, { force: true, recursive: true }));
   mkdirSync(join(emptyRoot, "tests"));
   assert.throws(
-    () => runStages({
-      environment: {},
-      spawn: () => successfulSpawn(),
-      stageIds: ["full"],
-      workspaceRoot: emptyRoot,
-    }),
+    () =>
+      runStages({
+        environment: {},
+        spawn: () => successfulSpawn(),
+        stageIds: ["full"],
+        workspaceRoot: emptyRoot,
+      }),
     (error) => {
       assert.equal(error.code, "ci_no_tests_found");
       assert.equal(error.stage, "full");
@@ -1432,19 +1523,21 @@ test("the format stage fails on committed whitespace errors", (t) => {
   writeFileSync(join(fixtureRoot, "dirty.txt"), "trailing whitespace   \n");
   git("add", "dirty.txt");
   git("commit", "--quiet", "-m", "dirty");
-  const expectFormatFailure = (environment) => assert.throws(
-    () => runStages({
-      environment,
-      spawn: spawnSync,
-      stageIds: ["format"],
-      workspaceRoot: fixtureRoot,
-    }),
-    (error) => {
-      assert.equal(error.code, "ci_step_failed");
-      assert.equal(error.stage, "format");
-      return true;
-    },
-  );
+  const expectFormatFailure = (environment) =>
+    assert.throws(
+      () =>
+        runStages({
+          environment,
+          spawn: spawnSync,
+          stageIds: ["format"],
+          workspaceRoot: fixtureRoot,
+        }),
+      (error) => {
+        assert.equal(error.code, "ci_step_failed");
+        assert.equal(error.stage, "format");
+        return true;
+      },
+    );
   expectFormatFailure(childEnvironment(process.env));
 
   // Neither a repository setting nor an injected git configuration may switch
@@ -1452,12 +1545,14 @@ test("the format stage fails on committed whitespace errors", (t) => {
   // child environment is scrubbed of GIT_CONFIG_*.
   git("config", "core.whitespace", "-blank-at-eol,-space-before-tab,-blank-at-eof");
   expectFormatFailure(childEnvironment(process.env));
-  expectFormatFailure(childEnvironment({
-    ...process.env,
-    GIT_CONFIG_COUNT: "1",
-    GIT_CONFIG_KEY_0: "core.whitespace",
-    GIT_CONFIG_VALUE_0: "-blank-at-eol,-space-before-tab,-blank-at-eof",
-  }));
+  expectFormatFailure(
+    childEnvironment({
+      ...process.env,
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "core.whitespace",
+      GIT_CONFIG_VALUE_0: "-blank-at-eol,-space-before-tab,-blank-at-eof",
+    }),
+  );
   git("config", "--unset", "core.whitespace");
 
   // A committed `.gitattributes` is repository content: one commit could add
@@ -1488,12 +1583,13 @@ test("the format stage fails on committed whitespace errors", (t) => {
   mkdirSync(join(fixtureRoot, ".git", "info"), { recursive: true });
   writeFileSync(join(fixtureRoot, ".git", "info", "attributes"), "* -whitespace\n");
   assert.throws(
-    () => runStages({
-      environment: childEnvironment(process.env),
-      spawn: spawnSync,
-      stageIds: ["format"],
-      workspaceRoot: fixtureRoot,
-    }),
+    () =>
+      runStages({
+        environment: childEnvironment(process.env),
+        spawn: spawnSync,
+        stageIds: ["format"],
+        workspaceRoot: fixtureRoot,
+      }),
     (error) => {
       assert.equal(error.code, "ci_repository_attributes_override");
       assert.equal(error.stage, "format");
@@ -1505,33 +1601,42 @@ test("the format stage fails on committed whitespace errors", (t) => {
   // A redirected git cannot make the stage inspect a different repository.
   const decoy = mkdtempSync(join(realpathSync(tmpdir()), "job-search-ci-decoy-"));
   t.after(() => rmSync(decoy, { force: true, recursive: true }));
-  for (const argv of [["init", "--quiet", "."], ["config", "user.email", "ci@example.invalid"],
-    ["config", "user.name", "ci"]]) {
+  for (const argv of [
+    ["init", "--quiet", "."],
+    ["config", "user.email", "ci@example.invalid"],
+    ["config", "user.name", "ci"],
+  ]) {
     assert.equal(spawnSync("git", argv, { cwd: decoy, encoding: "utf8" }).status, 0);
   }
   writeFileSync(join(decoy, "clean.txt"), "clean line\n");
-  for (const argv of [["add", "clean.txt"], ["commit", "--quiet", "-m", "clean"]]) {
+  for (const argv of [
+    ["add", "clean.txt"],
+    ["commit", "--quiet", "-m", "clean"],
+  ]) {
     assert.equal(spawnSync("git", argv, { cwd: decoy, encoding: "utf8" }).status, 0);
   }
-  expectFormatFailure(childEnvironment({
-    ...process.env,
-    GIT_DIR: join(decoy, ".git"),
-    GIT_WORK_TREE: decoy,
-  }));
+  expectFormatFailure(
+    childEnvironment({
+      ...process.env,
+      GIT_DIR: join(decoy, ".git"),
+      GIT_WORK_TREE: decoy,
+    }),
+  );
 });
 
 test("a failure that the runner did not raise still names its stage", (t) => {
   const roots = disposableRootFactory(t);
   assert.throws(
-    () => runStages({
-      createDisposableRoot: roots.factory,
-      environment: {},
-      spawn: () => {
-        throw new TypeError("spawn is not a function");
-      },
-      stageIds: ["proxy"],
-      workspaceRoot: repoRoot,
-    }),
+    () =>
+      runStages({
+        createDisposableRoot: roots.factory,
+        environment: {},
+        spawn: () => {
+          throw new TypeError("spawn is not a function");
+        },
+        stageIds: ["proxy"],
+        workspaceRoot: repoRoot,
+      }),
     (error) => {
       assert.equal(error instanceof CiError, false);
       assert.equal(error.stage, "proxy");
@@ -1570,13 +1675,14 @@ test("the README states the inventory sizes the runner enforces", () => {
     readme,
     new RegExp(`exactly ${PINNED_TEST_FILES.length} public executable test files`),
   );
+  assert.match(readme, new RegExp(`exactly ${PINNED_PROXY_FILES.length} generated proxy files`));
+  const nonBrowser = PINNED_TEST_FILES.filter(
+    (relative) => !relative.endsWith("process-search-browser.test.mjs"),
+  );
   assert.match(
     readme,
-    new RegExp(`exactly ${PINNED_PROXY_FILES.length} generated proxy files`),
+    new RegExp(`own glob over the ${nonBrowser.length} public non-browser files`),
   );
-  const nonBrowser = PINNED_TEST_FILES
-    .filter((relative) => !relative.endsWith("process-search-browser.test.mjs"));
-  assert.match(readme, new RegExp(`own glob over the ${nonBrowser.length} public non-browser files`));
 });
 
 test("reported child output is bounded and the scrub covers bare GIT_CONFIG", () => {
@@ -1605,12 +1711,13 @@ test("the runner rejects unusable arguments and unknown stages", (t) => {
   }
   const roots = disposableRootFactory(t);
   assert.throws(
-    () => runStages({
-      createDisposableRoot: roots.factory,
-      spawn: () => successfulSpawn(),
-      stageIds: ["publish"],
-      workspaceRoot: repoRoot,
-    }),
+    () =>
+      runStages({
+        createDisposableRoot: roots.factory,
+        spawn: () => successfulSpawn(),
+        stageIds: ["publish"],
+        workspaceRoot: repoRoot,
+      }),
     (error) => {
       assert.equal(error.code, "ci_unknown_stage");
       return true;
@@ -1633,10 +1740,17 @@ test("no other test re-enters the runner", () => {
 
 test("blocking publishability refuses findings and absent tracked files even on a successful child", () => {
   for (const detail of [{ places_exported: 1 }, { absent: 1 }]) {
-    assert.throws(() => runStages({ workspaceRoot: repoRoot, stageIds: ["publishability"], spawn: () => ({ status: 0, stdout: JSON.stringify({ by_class: {}, ...detail }) }) }), e => e.code === "ci_publishability_findings");
+    assert.throws(
+      () =>
+        runStages({
+          workspaceRoot: repoRoot,
+          stageIds: ["publishability"],
+          spawn: () => ({ status: 0, stdout: JSON.stringify({ by_class: {}, ...detail }) }),
+        }),
+      (e) => e.code === "ci_publishability_findings",
+    );
   }
 });
-
 
 // A copied CLI in a disposable repository resolves the installed formatter
 // dependency through a read-only link; every source write stays in the fixture.
@@ -1654,7 +1768,10 @@ function formatterFixture(t) {
   prepareFormatFixture(root);
   const git = (...args) => {
     const result = spawnSync("git", args, {
-      cwd: root, encoding: "utf8", env: childEnvironment(process.env), shell: false,
+      cwd: root,
+      encoding: "utf8",
+      env: childEnvironment(process.env),
+      shell: false,
     });
     assert.equal(result.status, 0, result.stderr);
   };
@@ -1706,10 +1823,13 @@ test("format CI rejects clean-whitespace code until Prettier formats it", async 
   writeFileSync(join(root, "code.mjs"), "const value={answer:42};\n");
   git("add", "code.mjs");
   git("commit", "--quiet", "-m", "unformatted code");
-  const run = () => runStages({
-    environment: childEnvironment(process.env), spawn: spawnSync,
-    stageIds: ["format"], workspaceRoot: root,
-  });
+  const run = () =>
+    runStages({
+      environment: childEnvironment(process.env),
+      spawn: spawnSync,
+      stageIds: ["format"],
+      workspaceRoot: root,
+    });
   assert.throws(run, (error) => error.code === "ci_step_failed" && error.stage === "format");
   await formatTrackedFiles({ root, write: true });
   git("add", "code.mjs");
@@ -1719,16 +1839,20 @@ test("format CI rejects clean-whitespace code until Prettier formats it", async 
 
 test("formatter CLI refuses bad arguments, parse errors and absent git inventory", (t) => {
   const { root, git } = formatterFixture(t);
-  const cli = (argv) => spawnSync(process.execPath, [join(root, "tools", "format.mjs"), ...argv], {
-    cwd: root, encoding: "utf8", env: childEnvironment(process.env), shell: false,
-  });
+  const cli = (argv) =>
+    spawnSync(process.execPath, [join(root, "tools", "format.mjs"), ...argv], {
+      cwd: root,
+      encoding: "utf8",
+      env: childEnvironment(process.env),
+      shell: false,
+    });
   for (const argv of [[], ["--unknown"], ["--write", "--check"]]) {
     assert.equal(cli(argv).status, 1);
   }
   writeFileSync(join(root, "broken.json"), "{broken\n");
   git("add", "broken.json");
   assert.equal(cli(["--check"]).status, 1);
-  writeFileSync(join(root, "broken.json"), '{}\n');
+  writeFileSync(join(root, "broken.json"), "{}\n");
   writeFileSync(join(root, ".prettierrc.json"), "{broken\n");
   assert.equal(cli(["--check"]).status, 1);
   rmSync(join(root, ".git"), { recursive: true });

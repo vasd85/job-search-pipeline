@@ -8,7 +8,13 @@ import { isCountryCode } from "./iso-3166.mjs";
 import { CandidateError, validateCandidateScoring } from "../candidate/load.mjs";
 import { DEFAULT_LANGUAGE } from "../candidate/default-language.mjs";
 import { DOMAIN_FIT_DOMAINS, REFERENCE_RATE_PROVIDER } from "../candidate/scoring.mjs";
-import { resolveLanguageName, resolveToolName, frameworkClassFor, isSupportingName, normalizeToolName } from "./tool-taxonomy.mjs";
+import {
+  resolveLanguageName,
+  resolveToolName,
+  frameworkClassFor,
+  isSupportingName,
+  normalizeToolName,
+} from "./tool-taxonomy.mjs";
 
 export const NORMALIZED_INPUT_SCHEMA_VERSION = 9;
 export const SUPPORTED_INPUT_SCHEMA_VERSIONS = Object.freeze([9]);
@@ -101,7 +107,16 @@ const ROLE_KEYS = [
   "observedLanguages",
   "seniority",
 ];
-const ROLE_EVIDENCE_KEYS = ["aiProduct", "aiWork", "automation", "domain", "language", "role", "seniority", "tools"];
+const ROLE_EVIDENCE_KEYS = [
+  "aiProduct",
+  "aiWork",
+  "automation",
+  "domain",
+  "language",
+  "role",
+  "seniority",
+  "tools",
+];
 const AI_KEYS = ["product", "work"];
 // The country name stays beside its code: knowledge/job-match-rules.md#7-decision-trace-contract records the country the listing named, and the code is
 // the same observation at the precision the three readings need.
@@ -124,7 +139,14 @@ const OFFER_KEYS = [
   "workAuthorization",
   "workFormat",
 ];
-const STACK_KEYS = ["evidenceQuote", "name", "requirement", "requirementPhrase", "scope", "scopeReason"];
+const STACK_KEYS = [
+  "evidenceQuote",
+  "name",
+  "requirement",
+  "requirementPhrase",
+  "scope",
+  "scopeReason",
+];
 const OBSERVED_TOOL_KEYS = [...STACK_KEYS, "kind"];
 const SALARY_KEYS = ["basis", "currency", "evidenceQuote", "kind", "maximum", "minimum", "period"];
 const FX_KEYS = ["provider", "rateDate", "sourceCurrency", "targetCurrency", "targetPerSource"];
@@ -143,7 +165,6 @@ const ROOT_KEYS = [
   "scoringDate",
   "source",
 ];
-
 
 export class ScorerInputError extends Error {
   constructor(path, message) {
@@ -185,7 +206,8 @@ function nullableEnumValue(value, values, path) {
 
 function nullableString(value, path) {
   if (value === null) return null;
-  if (typeof value !== "string" || value.length === 0) fail(path, "must be null or a non-empty string");
+  if (typeof value !== "string" || value.length === 0)
+    fail(path, "must be null or a non-empty string");
   return value;
 }
 
@@ -214,8 +236,16 @@ function currency(value, path) {
 }
 
 function finiteNonNegative(value, path, { positive = false } = {}) {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || (positive && value === 0)) {
-    fail(path, positive ? "must be a positive finite number" : "must be a non-negative finite number");
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    (positive && value === 0)
+  ) {
+    fail(
+      path,
+      positive ? "must be a positive finite number" : "must be a non-negative finite number",
+    );
   }
   return value;
 }
@@ -242,9 +272,9 @@ function normalizeSource(source) {
     fail("source.accessReason", `required for ${accessOutcome}`);
   }
   if (
-    accessOutcome === "closed"
-    && evidenceQuote === null
-    && accessReason !== "HTTP 404 after retry"
+    accessOutcome === "closed" &&
+    evidenceQuote === null &&
+    accessReason !== "HTTP 404 after retry"
   ) {
     fail("source.evidenceQuote", "required for closed unless symptom is HTTP 404");
   }
@@ -299,19 +329,34 @@ function normalizeStackObservation(item, index, language) {
   const name = requiredString(item.name, `${path}.name`);
   const requirement = enumValue(item.requirement, REQUIREMENTS, `${path}.requirement`);
   const scope = enumValue(item.scope, STACK_SCOPES, `${path}.scope`);
-  if (requirement === "optional" && scope === "main") fail(`${path}.scope`, "optional observations cannot be main stack");
-  if (scope === "optional" && requirement !== "optional") fail(`${path}.requirement`, "optional scope requires optional wording");
-  if (language && resolveToolName(name) !== null && resolveLanguageName(name) === null) fail(`${path}.name`, "recognised framework/supporting names must be tool observations, not test languages");
-  if (!language && resolveLanguageName(name) !== null) fail(`${path}.name`, "programming languages must be language observations");
+  if (requirement === "optional" && scope === "main")
+    fail(`${path}.scope`, "optional observations cannot be main stack");
+  if (scope === "optional" && requirement !== "optional")
+    fail(`${path}.requirement`, "optional scope requires optional wording");
+  if (language && resolveToolName(name) !== null && resolveLanguageName(name) === null)
+    fail(
+      `${path}.name`,
+      "recognised framework/supporting names must be tool observations, not test languages",
+    );
+  if (!language && resolveLanguageName(name) !== null)
+    fail(`${path}.name`, "programming languages must be language observations");
   let kind;
   if (!language) {
     kind = enumValue(item.kind, TOOL_KINDS, `${path}.kind`);
     const canonical = resolveToolName(name);
-    const expectedKind = frameworkClassFor(canonical) !== null ? "framework" : isSupportingName(name) ? "supporting" : null;
-    if (expectedKind !== null && kind !== expectedKind) fail(`${path}.kind`, `recognised name must be ${expectedKind}`);
+    const expectedKind =
+      frameworkClassFor(canonical) !== null
+        ? "framework"
+        : isSupportingName(name)
+          ? "supporting"
+          : null;
+    if (expectedKind !== null && kind !== expectedKind)
+      fail(`${path}.kind`, `recognised name must be ${expectedKind}`);
   }
   return {
-    name, requirement, scope,
+    name,
+    requirement,
+    scope,
     evidenceQuote: stackText(item.evidenceQuote, `${path}.evidenceQuote`),
     scopeReason: stackText(item.scopeReason, `${path}.scopeReason`),
     requirementPhrase: nullableString(item.requirementPhrase, `${path}.requirementPhrase`),
@@ -320,14 +365,19 @@ function normalizeStackObservation(item, index, language) {
 }
 function normalizeStackList(value, language) {
   const path = `role.${language ? "observedLanguages" : "observedTools"}`;
-  if (!Array.isArray(value) || value.length > 200) fail(path, "must be an array of at most 200 observations");
+  if (!Array.isArray(value) || value.length > 200)
+    fail(path, "must be an array of at most 200 observations");
   const items = value.map((item, index) => normalizeStackObservation(item, index, language));
-  const identities = items.map(item => JSON.stringify(item));
-  if (new Set(identities).size !== items.length) fail(path, "must not contain duplicate observations");
+  const identities = items.map((item) => JSON.stringify(item));
+  if (new Set(identities).size !== items.length)
+    fail(path, "must not contain duplicate observations");
   return items;
 }
 
-function normalizeRole(role, { keys = ROLE_KEYS, evidenceKeys = ROLE_EVIDENCE_KEYS, languages } = {}) {
+function normalizeRole(
+  role,
+  { keys = ROLE_KEYS, evidenceKeys = ROLE_EVIDENCE_KEYS, languages } = {},
+) {
   exactKeys(role, keys, "role");
   const evidence = normalizeRoleEvidence(role, evidenceKeys);
   const automation = enumValue(role.automation, AUTOMATION_LEVELS, "role.automation");
@@ -364,7 +414,10 @@ function normalizeAi(role, evidence, source) {
   };
   const unread = source.accessOutcome !== "usable";
   const readable = !unread && role.family !== "other" && role.language !== "unsupported";
-  for (const [axis, evidenceKey] of [["product", "aiProduct"], ["work", "aiWork"]]) {
+  for (const [axis, evidenceKey] of [
+    ["product", "aiProduct"],
+    ["work", "aiWork"],
+  ]) {
     const value = ai[axis];
     const quote = evidence[evidenceKey];
     if (AI_SILENT_VALUES.has(value) && quote !== null) {
@@ -374,7 +427,10 @@ function normalizeAi(role, evidence, source) {
       fail(`role.evidence.${evidenceKey}`, `required for role.ai.${axis} ${value}`);
     }
     if (unread && value !== "unknown") {
-      fail(`role.ai.${axis}`, `must be unknown for ${source.accessOutcome}: the description was not read`);
+      fail(
+        `role.ai.${axis}`,
+        `must be unknown for ${source.accessOutcome}: the description was not read`,
+      );
     }
     if (readable && value === "unknown") {
       fail(`role.ai.${axis}`, "must not be unknown for a description the rubric reads");
@@ -386,9 +442,10 @@ function normalizeAi(role, evidence, source) {
 /** One offered path: the observations, then the destination codes beside the names they identify. */
 function normalizeOfferBody(offer, path) {
   const companyRegion = enumValue(offer.companyRegion, COMPANY_REGIONS, `${path}.companyRegion`);
-  const westRegion = offer.westRegion === null
-    ? null
-    : enumValue(offer.westRegion, WEST_REGIONS, `${path}.westRegion`);
+  const westRegion =
+    offer.westRegion === null
+      ? null
+      : enumValue(offer.westRegion, WEST_REGIONS, `${path}.westRegion`);
   if ((companyRegion === "WEST") !== (westRegion !== null)) {
     fail(`${path}.westRegion`, "must be present exactly for WEST offers");
   }
@@ -404,8 +461,8 @@ function normalizeOfferBody(offer, path) {
   // The field exists for hard-SKIP rule 4, which reads "any country a stated residence requirement
   // can be satisfied only by living in". Without a stated restriction there is no such country.
   if (
-    residenceRequirementCountry !== null
-    && !["compatible", "incompatible"].includes(residenceRestriction)
+    residenceRequirementCountry !== null &&
+    !["compatible", "incompatible"].includes(residenceRestriction)
   ) {
     fail(`${path}.residenceRequirementCountry`, "requires an observed residence restriction");
   }
@@ -421,7 +478,11 @@ function normalizeOfferBody(offer, path) {
       CONTRACTOR_ELIGIBILITY,
       `${path}.contractorEligibility`,
     ),
-    engagementPath: nullableEnumValue(offer.engagementPath, ENGAGEMENT_PATHS, `${path}.engagementPath`),
+    engagementPath: nullableEnumValue(
+      offer.engagementPath,
+      ENGAGEMENT_PATHS,
+      `${path}.engagementPath`,
+    ),
     evidenceQuote: requiredString(offer.evidenceQuote, `${path}.evidenceQuote`),
     relocationCountry: nullableString(offer.relocationCountry, `${path}.relocationCountry`),
     relocationSupport: enumValue(
@@ -510,11 +571,17 @@ function normalizeFx(value, homeRateProvider) {
   const targetCurrency = currency(value.targetCurrency, "fx.targetCurrency");
   if (sourceCurrency === targetCurrency) fail("fx", "must convert between different currencies");
   return {
-    provider: enumValue(value.provider, new Set([REFERENCE_RATE_PROVIDER, homeRateProvider]), "fx.provider"),
+    provider: enumValue(
+      value.provider,
+      new Set([REFERENCE_RATE_PROVIDER, homeRateProvider]),
+      "fx.provider",
+    ),
     rateDate,
     sourceCurrency,
     targetCurrency,
-    targetPerSource: finiteNonNegative(value.targetPerSource, "fx.targetPerSource", { positive: true }),
+    targetPerSource: finiteNonNegative(value.targetPerSource, "fx.targetPerSource", {
+      positive: true,
+    }),
   };
 }
 
@@ -566,7 +633,8 @@ function checkCrossFieldRules(normalized) {
     fail("fx.rateDate", "must not be later than scoringDate");
   }
   const offerKeys = normalized.offers.map((offer) => JSON.stringify(offer));
-  if (new Set(offerKeys).size !== offerKeys.length) fail("offers", "must not contain duplicate offers");
+  if (new Set(offerKeys).size !== offerKeys.length)
+    fail("offers", "must not contain duplicate offers");
 }
 
 /**
@@ -593,7 +661,10 @@ function normalizeCandidateScoring(value, expected) {
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value !== null && typeof value === "object") {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`;
   }
   return JSON.stringify(value);
 }
@@ -621,8 +692,10 @@ export function normalizeScorerInput(input, { languages, scoring } = {}) {
     schemaVersion: NORMALIZED_INPUT_SCHEMA_VERSION,
   });
   const role = normalizeRole(input.role, { languages });
-  if ((common.source.accessOutcome !== "usable")
-    && (role.observedTools.length !== 0 || role.observedLanguages.length !== 0)) {
+  if (
+    common.source.accessOutcome !== "usable" &&
+    (role.observedTools.length !== 0 || role.observedLanguages.length !== 0)
+  ) {
     fail("role", "unread descriptions must carry no concrete stack observations");
   }
   const normalized = {

@@ -81,21 +81,31 @@ export function validateIsoTimestamp(value, path, errors) {
   );
   let valid = Boolean(match) && Number.isFinite(Date.parse(timestamp));
   if (match) {
-    const [, yearText, monthText, dayText, hourText, minuteText, secondText, offsetHourText, offsetMinuteText] = match;
+    const [
+      ,
+      yearText,
+      monthText,
+      dayText,
+      hourText,
+      minuteText,
+      secondText,
+      offsetHourText,
+      offsetMinuteText,
+    ] = match;
     const year = Number(yearText);
     const month = Number(monthText);
     const day = Number(dayText);
-    const daysInMonth = month >= 1 && month <= 12
-      ? new Date(Date.UTC(year, month, 0)).getUTCDate()
-      : 0;
-    valid = valid
-      && day >= 1
-      && day <= daysInMonth
-      && Number(hourText) <= 23
-      && Number(minuteText) <= 59
-      && Number(secondText) <= 59
-      && (offsetHourText === undefined || Number(offsetHourText) <= 23)
-      && (offsetMinuteText === undefined || Number(offsetMinuteText) <= 59);
+    const daysInMonth =
+      month >= 1 && month <= 12 ? new Date(Date.UTC(year, month, 0)).getUTCDate() : 0;
+    valid =
+      valid &&
+      day >= 1 &&
+      day <= daysInMonth &&
+      Number(hourText) <= 23 &&
+      Number(minuteText) <= 59 &&
+      Number(secondText) <= 59 &&
+      (offsetHourText === undefined || Number(offsetHourText) <= 23) &&
+      (offsetMinuteText === undefined || Number(offsetMinuteText) <= 59);
   }
   if (!valid) {
     errors.push(`${path} must be an ISO-8601 timestamp with a timezone`);
@@ -148,7 +158,9 @@ export function validateOutputDir(value, path, errors) {
     return outputDir;
   }
   if (!OUTPUT_SEGMENT_PATTERN.test(segment)) {
-    errors.push(`${path} segment must contain lowercase Unicode letters/numbers separated by single hyphens`);
+    errors.push(
+      `${path} segment must contain lowercase Unicode letters/numbers separated by single hyphens`,
+    );
   }
   if (segment !== segment.toLowerCase()) {
     errors.push(`${path} segment must use locale-independent lowercase`);
@@ -204,16 +216,12 @@ export function validateFileReference(
   value,
   path,
   errors,
-  {
-    expectedPath,
-    schemaVersion = "required",
-    expectedSchemaVersion,
-    contentBytes,
-  } = {},
+  { expectedPath, schemaVersion = "required", expectedSchemaVersion, contentBytes } = {},
 ) {
-  const allowedKeys = schemaVersion === "omit"
-    ? ["path", "sha256", "bytes"]
-    : ["path", "schemaVersion", "sha256", "bytes"];
+  const allowedKeys =
+    schemaVersion === "omit"
+      ? ["path", "sha256", "bytes"]
+      : ["path", "schemaVersion", "sha256", "bytes"];
   const reference = validateStrictObject(value, path, errors, allowedKeys);
   validateRepoRelativePath(reference.path, `${path}.path`, errors, { expectedPath });
 

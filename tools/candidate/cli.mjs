@@ -76,16 +76,25 @@ function countCorpus(home, directory, languages) {
 
 export function parseArguments(argv, environment = process.env) {
   if (argv.length === 0 || argv[0] !== "--check") {
-    throw new CandidateCliError("invalid_candidate_arguments", "use --check [--root <absolute path>]");
+    throw new CandidateCliError(
+      "invalid_candidate_arguments",
+      "use --check [--root <absolute path>]",
+    );
   }
   if (argv.length === 1) {
     return { root: defaultCandidateRoot(environment), runRoot: defaultWorkspaceRoot(environment) };
   }
   if (argv.length !== 3 || argv[1] !== "--root") {
-    throw new CandidateCliError("invalid_candidate_arguments", "use --check [--root <absolute path>]");
+    throw new CandidateCliError(
+      "invalid_candidate_arguments",
+      "use --check [--root <absolute path>]",
+    );
   }
   if (!isAbsolute(argv[2]) || argv[2] !== resolve(argv[2])) {
-    throw new CandidateCliError("invalid_candidate_arguments", "--root must be an absolute normalized path");
+    throw new CandidateCliError(
+      "invalid_candidate_arguments",
+      "--root must be an absolute normalized path",
+    );
   }
   return { root: argv[2], runRoot: null };
 }
@@ -100,38 +109,47 @@ export function main(argv = process.argv.slice(2)) {
     const languages = inspected.languages ?? undefined;
     const letterCorrections = {
       layer: countCorpus("layer", join(root, LAYER_CORPUS_DIRECTORY), languages),
-      run: runRoot === null
-        ? "not_checked"
-        : countCorpus("run", join(runRoot, RUN_CORPUS_DIRECTORY), languages),
+      run:
+        runRoot === null
+          ? "not_checked"
+          : countCorpus("run", join(runRoot, RUN_CORPUS_DIRECTORY), languages),
     };
-    process.stdout.write(`${JSON.stringify({
-      config_path: inspected.configPath,
-      constraints_count: constraints.count,
-      constraints_status: constraints.status,
-      documents: inspected.documents === null ? null : {
-        letter_samples: inspected.documents.letterSamples,
-        levers: inspected.documents.levers,
-        projects: inspected.documents.projects,
-        rules: inspected.documents.rules,
-      },
-      languages: inspected.languages,
-      letter_corrections: letterCorrections,
-      pins_run: pins === null ? null : pins.run,
-      root: inspected.root,
-      schema_version: inspected.schemaVersion,
-      status: inspected.status,
-    })}\n`);
+    process.stdout.write(
+      `${JSON.stringify({
+        config_path: inspected.configPath,
+        constraints_count: constraints.count,
+        constraints_status: constraints.status,
+        documents:
+          inspected.documents === null
+            ? null
+            : {
+                letter_samples: inspected.documents.letterSamples,
+                levers: inspected.documents.levers,
+                projects: inspected.documents.projects,
+                rules: inspected.documents.rules,
+              },
+        languages: inspected.languages,
+        letter_corrections: letterCorrections,
+        pins_run: pins === null ? null : pins.run,
+        root: inspected.root,
+        schema_version: inspected.schemaVersion,
+        status: inspected.status,
+      })}\n`,
+    );
   } catch (error) {
-    const known = error instanceof CandidateCliError
-      || error instanceof CandidateError
-      || error instanceof LetterCorrectionError;
-    process.stderr.write(`${JSON.stringify({
-      error: {
-        code: known ? error.code : "candidate_check_failed",
-        message: known ? error.message : "candidate check failed unexpectedly",
-      },
-      status: "error",
-    })}\n`);
+    const known =
+      error instanceof CandidateCliError ||
+      error instanceof CandidateError ||
+      error instanceof LetterCorrectionError;
+    process.stderr.write(
+      `${JSON.stringify({
+        error: {
+          code: known ? error.code : "candidate_check_failed",
+          message: known ? error.message : "candidate check failed unexpectedly",
+        },
+        status: "error",
+      })}\n`,
+    );
     process.exitCode = 1;
   }
 }

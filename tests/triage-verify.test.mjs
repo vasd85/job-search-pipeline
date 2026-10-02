@@ -24,11 +24,25 @@ import test from "node:test";
 
 import { TriageVerifyError } from "../tools/triage-verify/errors.mjs";
 import { presentButUnusable, usableInstant } from "../tools/triage-verify/instants.mjs";
-import { buildContext, cadences, checksFor, runSuite, summarize } from "../tools/triage-verify/suite.mjs";
-import { discoverEvidence, genericEvidencePaths, genericPath } from "../tools/triage-verify/evidence.mjs";
+import {
+  buildContext,
+  cadences,
+  checksFor,
+  runSuite,
+  summarize,
+} from "../tools/triage-verify/suite.mjs";
+import {
+  discoverEvidence,
+  genericEvidencePaths,
+  genericPath,
+} from "../tools/triage-verify/evidence.mjs";
 import { ledgerRecordFileName, loadBatchArtifacts } from "../tools/triage-verify/artifacts.mjs";
 import { recordBatch } from "../tools/lib/triage-ledger-core.mjs";
-import { loadVocabulary, validateVocabulary, vocabularyPhrases } from "../tools/triage-verify/vocabulary.mjs";
+import {
+  loadVocabulary,
+  validateVocabulary,
+  vocabularyPhrases,
+} from "../tools/triage-verify/vocabulary.mjs";
 import { familyClaimRules } from "../tools/triage-verify/checks/negative-space.mjs";
 import { readLinksFile, sliceRange } from "../tools/triage-verify/links.mjs";
 import {
@@ -111,14 +125,17 @@ function editJson(files, name, edit) {
 function rewriteCaptureBody(files, name, transform) {
   const parsed = verifyCaptureFile(files.get(name));
   const body = transform(parsed.body);
-  files.set(name, renderCaptureFile({
-    header: {
-      ...parsed.header,
-      "normalized-sha256": sha256Utf8(body),
-      "body-bytes": Buffer.byteLength(body, "utf8"),
-    },
-    body,
-  }));
+  files.set(
+    name,
+    renderCaptureFile({
+      header: {
+        ...parsed.header,
+        "normalized-sha256": sha256Utf8(body),
+        "body-bytes": Buffer.byteLength(body, "utf8"),
+      },
+      body,
+    }),
+  );
 }
 
 function prepare(t, { mutate = null, ledger = false } = {}) {
@@ -173,14 +190,22 @@ test("case folding never moves an offset", () => {
 test("a phrase matches regardless of case", () => {
   const body = "Candidates MUST BE Currently Based In Singapore.";
   assert.deepEqual(
-    findPhraseOccurrences(body, "currently based in").map((span) => body.slice(span.start, span.end)),
+    findPhraseOccurrences(body, "currently based in").map((span) =>
+      body.slice(span.start, span.end),
+    ),
     ["Currently Based In"],
   );
 });
 
 test("a phrase matches across one line break and not across a blank line", () => {
-  assert.equal(findPhraseOccurrences("you must be\ncurrently based in Berlin", "must be currently").length, 1);
-  assert.equal(findPhraseOccurrences("you must be\n\ncurrently based in Berlin", "must be currently").length, 0);
+  assert.equal(
+    findPhraseOccurrences("you must be\ncurrently based in Berlin", "must be currently").length,
+    1,
+  );
+  assert.equal(
+    findPhraseOccurrences("you must be\n\ncurrently based in Berlin", "must be currently").length,
+    0,
+  );
 });
 
 test("a phrase is guarded by word boundaries at both ends", () => {
@@ -242,13 +267,48 @@ test("a vocabulary is refused rather than half-loaded", () => {
     edit(copy);
     return errorCode(() => validateVocabulary(copy));
   };
-  assert.equal(mutate((v) => { v.schemaVersion = 2; }), "vocabulary_invalid");
-  assert.equal(mutate((v) => { v.families[0].phrases[1].id = v.families[0].phrases[0].id; }), "vocabulary_invalid");
-  assert.equal(mutate((v) => { v.families[0].phrases[0].id = "contract.stolen"; }), "vocabulary_invalid");
-  assert.equal(mutate((v) => { v.families[0].phrases[0].text = "must\u0007reside"; }), "vocabulary_invalid");
-  assert.equal(mutate((v) => { v.families[0].phrases[0].surprise = true; }), "vocabulary_invalid");
-  assert.equal(mutate((v) => { v.families[0].phrases[0].addedIn = "yesterday"; }), "vocabulary_invalid");
-  assert.equal(mutate((v) => { delete v.families[0].phrases[0].source; }), "vocabulary_invalid");
+  assert.equal(
+    mutate((v) => {
+      v.schemaVersion = 2;
+    }),
+    "vocabulary_invalid",
+  );
+  assert.equal(
+    mutate((v) => {
+      v.families[0].phrases[1].id = v.families[0].phrases[0].id;
+    }),
+    "vocabulary_invalid",
+  );
+  assert.equal(
+    mutate((v) => {
+      v.families[0].phrases[0].id = "contract.stolen";
+    }),
+    "vocabulary_invalid",
+  );
+  assert.equal(
+    mutate((v) => {
+      v.families[0].phrases[0].text = "must\u0007reside";
+    }),
+    "vocabulary_invalid",
+  );
+  assert.equal(
+    mutate((v) => {
+      v.families[0].phrases[0].surprise = true;
+    }),
+    "vocabulary_invalid",
+  );
+  assert.equal(
+    mutate((v) => {
+      v.families[0].phrases[0].addedIn = "yesterday";
+    }),
+    "vocabulary_invalid",
+  );
+  assert.equal(
+    mutate((v) => {
+      delete v.families[0].phrases[0].source;
+    }),
+    "vocabulary_invalid",
+  );
 });
 
 function readRepoFile(relative) {
@@ -286,7 +346,10 @@ test("the links file is deduplicated by full URL with order preserved", (t) => {
   const root = disposableRoot(t);
   const path = join(root, "links.txt");
   writeFileSync(path, ["# header", "", links[1], links[0], links[1], ""].join("\n"), "utf8");
-  assert.deepEqual(readLinksFile(path).map((link) => link.url), [links[1], links[0]]);
+  assert.deepEqual(
+    readLinksFile(path).map((link) => link.url),
+    [links[1], links[0]],
+  );
 });
 
 test("a links file line that is not an http URL is a caller error naming the line only", (t) => {
@@ -294,7 +357,12 @@ test("a links file line that is not an http URL is a caller error naming the lin
   const path = join(root, "links.txt");
   writeFileSync(path, ["ftp://example.test/job"].join("\n"), "utf8");
   let message = "";
-  const code = errorCodeWith(() => readLinksFile(path), (error) => { message = error.message; });
+  const code = errorCodeWith(
+    () => readLinksFile(path),
+    (error) => {
+      message = error.message;
+    },
+  );
   assert.equal(code, "links_invalid");
   assert.match(message, /Line 1/u);
   assert.ok(!message.includes("example.test"), message);
@@ -315,10 +383,22 @@ test("a batch range must be 1-based and inside the file", (t) => {
   const path = join(root, "links.txt");
   writeFileSync(path, links.join("\n"), "utf8");
   const all = readLinksFile(path);
-  assert.deepEqual(sliceRange(all, 2, 3).map((link) => link.position), [2, 3]);
-  assert.equal(errorCode(() => sliceRange(all, 0, 3)), "range_invalid");
-  assert.equal(errorCode(() => sliceRange(all, 3, 2)), "range_invalid");
-  assert.equal(errorCode(() => sliceRange(all, 1, all.length + 1)), "range_invalid");
+  assert.deepEqual(
+    sliceRange(all, 2, 3).map((link) => link.position),
+    [2, 3],
+  );
+  assert.equal(
+    errorCode(() => sliceRange(all, 0, 3)),
+    "range_invalid",
+  );
+  assert.equal(
+    errorCode(() => sliceRange(all, 3, 2)),
+    "range_invalid",
+  );
+  assert.equal(
+    errorCode(() => sliceRange(all, 1, all.length + 1)),
+    "range_invalid",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -339,8 +419,14 @@ test("the artifacts loader reports a defective batch instead of throwing on it",
 
 test("an artifacts path that is not a readable directory is a caller error", (t) => {
   const root = disposableRoot(t);
-  assert.equal(errorCode(() => loadBatchArtifacts(join(root, "absent"))), "artifacts_unreadable");
-  assert.equal(errorCode(() => loadBatchArtifacts("relative/path")), "artifacts_path_invalid");
+  assert.equal(
+    errorCode(() => loadBatchArtifacts(join(root, "absent"))),
+    "artifacts_unreadable",
+  );
+  assert.equal(
+    errorCode(() => loadBatchArtifacts("relative/path")),
+    "artifacts_path_invalid",
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -350,7 +436,10 @@ test("the suite passes on the replayed batch and actually checked something", (t
   const { report } = verify(t);
   assert.equal(report.status, "pass");
   assert.deepEqual(codes(report), []);
-  assert.deepEqual(report.checks.map((check) => check.id), EXPECTED_PER_BATCH_CHECKS);
+  assert.deepEqual(
+    report.checks.map((check) => check.id),
+    EXPECTED_PER_BATCH_CHECKS,
+  );
   assert.equal(checkOf(report, "quote-integrity").counts.quotesChecked, 26);
   assert.equal(checkOf(report, "quote-integrity").counts.quotesMatched, 26);
   assert.equal(checkOf(report, "completeness").counts.tracesRecomputed, 5);
@@ -363,9 +452,18 @@ test("the suite passes on the replayed batch and actually checked something", (t
 test("the full cadence passes and adds exactly the periodic checks", (t) => {
   const { report } = verify(t, { cadence: "full" });
   assert.equal(report.status, "pass");
-  assert.deepEqual(report.checks.map((check) => check.id), EXPECTED_FULL_CHECKS);
-  assert.deepEqual(checksFor("per-batch").map((check) => check.id), EXPECTED_PER_BATCH_CHECKS);
-  assert.deepEqual(checksFor("full").map((check) => check.id), EXPECTED_FULL_CHECKS);
+  assert.deepEqual(
+    report.checks.map((check) => check.id),
+    EXPECTED_FULL_CHECKS,
+  );
+  assert.deepEqual(
+    checksFor("per-batch").map((check) => check.id),
+    EXPECTED_PER_BATCH_CHECKS,
+  );
+  assert.deepEqual(
+    checksFor("full").map((check) => check.id),
+    EXPECTED_FULL_CHECKS,
+  );
   assert.deepEqual([...cadences], EXPECTED_CADENCES);
 });
 
@@ -383,20 +481,26 @@ test("the baseline diff reports the change it can see and asserts the plan was o
 
 test("two runs over the same directory produce byte-identical reports", (t) => {
   const prepared = prepare(t, { ledger: true });
-  const once = runSuite(buildContext({
-    artifactsDir: prepared.artifactsDir,
-    from: prepared.from,
-    ledgerPath: prepared.ledgerPath,
-    linksFile: prepared.linksFile,
-    to: prepared.to,
-  }), "full");
-  const twice = runSuite(buildContext({
-    artifactsDir: prepared.artifactsDir,
-    from: prepared.from,
-    ledgerPath: prepared.ledgerPath,
-    linksFile: prepared.linksFile,
-    to: prepared.to,
-  }), "full");
+  const once = runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      from: prepared.from,
+      ledgerPath: prepared.ledgerPath,
+      linksFile: prepared.linksFile,
+      to: prepared.to,
+    }),
+    "full",
+  );
+  const twice = runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      from: prepared.from,
+      ledgerPath: prepared.ledgerPath,
+      linksFile: prepared.linksFile,
+      to: prepared.to,
+    }),
+    "full",
+  );
   assert.equal(JSON.stringify(once), JSON.stringify(twice));
 });
 
@@ -414,7 +518,10 @@ test("the bounded summary carries no page text, quote or URL", (t) => {
 test("a tampered capture body fails its own digest", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
-      payload.files.set(CAPTURE_ONE, payload.files.get(CAPTURE_ONE).replace("Singapore office", "Berlin office"));
+      payload.files.set(
+        CAPTURE_ONE,
+        payload.files.get(CAPTURE_ONE).replace("Singapore office", "Berlin office"),
+      );
     },
   });
   assert.ok(codes(report).includes("capture_digest_mismatch"), codes(report).join(","));
@@ -432,7 +539,10 @@ test("a capture stamped with another record's index is caught", (t) => {
 test("a capture that lost its normalization record is caught", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
-      rewriteCaptureBodyHeader(payload.files, CAPTURE_ONE, (header) => ({ ...header, normalization: "-" }));
+      rewriteCaptureBodyHeader(payload.files, CAPTURE_ONE, (header) => ({
+        ...header,
+        normalization: "-",
+      }));
     },
   });
   assert.ok(codes(report).includes("capture_normalization_unrecorded"), codes(report).join(","));
@@ -444,7 +554,11 @@ function rewriteCaptureBodyHeader(files, name, transform) {
 }
 
 test("a scored record with no capture at all is caught", (t) => {
-  const { report } = verify(t, { mutate: (payload) => { payload.files.delete(CAPTURE_ONE); } });
+  const { report } = verify(t, {
+    mutate: (payload) => {
+      payload.files.delete(CAPTURE_ONE);
+    },
+  });
   assert.ok(codes(report).includes("capture_absent"), codes(report).join(","));
 });
 
@@ -461,7 +575,14 @@ test("a usable record with no capture is reported even when it recorded no evide
           automation: "unknown",
           domain: "unclear",
           evidence: {
-            aiProduct: null, aiWork: null, automation: null, domain: null, language: null, role: null, seniority: null, tools: null,
+            aiProduct: null,
+            aiWork: null,
+            automation: null,
+            domain: null,
+            language: null,
+            role: null,
+            seniority: null,
+            tools: null,
           },
           family: "unknown",
           language: "unknown",
@@ -474,8 +595,9 @@ test("a usable record with no capture is reported even when it recorded no evide
       rebuildTrace(payload.files, INPUT_ONE, TRACE_ONE);
     },
   });
-  const finding = checkOf(report, "chain-of-custody").findings
-    .find((entry) => entry.code === "capture_absent");
+  const finding = checkOf(report, "chain-of-custody").findings.find(
+    (entry) => entry.code === "capture_absent",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.equal(finding.index, 1);
 });
@@ -498,7 +620,9 @@ test("a fabricated evidence quote is caught", (t) => {
       rebuildTrace(payload.files, INPUT_ONE, TRACE_ONE);
     },
   });
-  const finding = checkOf(report, "quote-integrity").findings.find((entry) => entry.code === "quote_absent");
+  const finding = checkOf(report, "quote-integrity").findings.find(
+    (entry) => entry.code === "quote_absent",
+  );
   assert.ok(finding !== undefined, JSON.stringify(codes(report)));
   assert.equal(finding.path, "role.evidence.domain");
   assert.equal(finding.quoteChars, 46);
@@ -517,7 +641,9 @@ test("a fabricated AI quote is caught like any other evidence", (t) => {
       rebuildTrace(payload.files, INPUT_ONE, TRACE_ONE);
     },
   });
-  const finding = checkOf(report, "quote-integrity").findings.find((entry) => entry.code === "quote_absent");
+  const finding = checkOf(report, "quote-integrity").findings.find(
+    (entry) => entry.code === "quote_absent",
+  );
   assert.ok(finding !== undefined, JSON.stringify(codes(report)));
   assert.equal(finding.path, "role.evidence.aiWork");
 });
@@ -545,7 +671,14 @@ test("a scored record with no evidence at all fails instead of passing quietly",
           automation: "unknown",
           domain: "unclear",
           evidence: {
-            aiProduct: null, aiWork: null, automation: null, domain: null, language: null, role: null, seniority: null, tools: null,
+            aiProduct: null,
+            aiWork: null,
+            automation: null,
+            domain: null,
+            language: null,
+            role: null,
+            seniority: null,
+            tools: null,
           },
           family: "unknown",
           language: "unknown",
@@ -562,7 +695,11 @@ test("a scored record with no evidence at all fails instead of passing quietly",
 });
 
 test("a record whose input cannot be read is never silently skipped", (t) => {
-  const { report } = verify(t, { mutate: (payload) => { payload.files.set(INPUT_ONE, "{ broken"); } });
+  const { report } = verify(t, {
+    mutate: (payload) => {
+      payload.files.set(INPUT_ONE, "{ broken");
+    },
+  });
   assert.ok(codes(report).includes("record_not_verifiable"), codes(report).join(","));
   assert.ok(codes(report).includes("input_unreadable"), codes(report).join(","));
 });
@@ -580,21 +717,29 @@ function rebuildTrace(files, inputName, traceName) {
 test("an edited trace no longer matches the input that produced it", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
-      editJson(payload.files, TRACE_ONE, (trace) => { trace.decision = "EVALUATED"; });
+      editJson(payload.files, TRACE_ONE, (trace) => {
+        trace.decision = "EVALUATED";
+      });
     },
   });
   assert.ok(codes(report).includes("trace_mismatch"), codes(report).join(","));
 });
 
 test("a missing trace is reported", (t) => {
-  const { report } = verify(t, { mutate: (payload) => { payload.files.delete(TRACE_ONE); } });
+  const { report } = verify(t, {
+    mutate: (payload) => {
+      payload.files.delete(TRACE_ONE);
+    },
+  });
   assert.ok(codes(report).includes("trace_absent"), codes(report).join(","));
 });
 
 test("an input scored under a superseded policy is reported, not re-scored", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
-      editJson(payload.files, INPUT_ONE, (input) => { input.policyId = "triage-r1-05a-2026-08-04"; });
+      editJson(payload.files, INPUT_ONE, (input) => {
+        input.policyId = "triage-r1-05a-2026-08-04";
+      });
     },
   });
   assert.ok(codes(report).includes("policy_drift"), codes(report).join(","));
@@ -604,7 +749,9 @@ test("an input scored under a superseded policy is reported, not re-scored", (t)
 test("an input filed under the wrong index is reported", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
-      editJson(payload.files, INPUT_ONE, (input) => { input.inputIndex = 9; });
+      editJson(payload.files, INPUT_ONE, (input) => {
+        input.inputIndex = 9;
+      });
     },
   });
   assert.ok(codes(report).includes("input_index_mismatch"), codes(report).join(","));
@@ -621,19 +768,29 @@ test("a record's index is its link's place in the list, not its file number", (t
   assert.equal(third.input.inputIndex, 4);
 
   const denseInput = verify(t, {
-    mutate: (payload) => { editJson(payload.files, INPUT_THREE, (input) => { input.inputIndex = 3; }); },
+    mutate: (payload) => {
+      editJson(payload.files, INPUT_THREE, (input) => {
+        input.inputIndex = 3;
+      });
+    },
   });
   assert.deepEqual(
-    checkOf(denseInput.report, "completeness").findings
-      .filter((entry) => entry.code === "input_index_mismatch"),
+    checkOf(denseInput.report, "completeness").findings.filter(
+      (entry) => entry.code === "input_index_mismatch",
+    ),
     [{ code: "input_index_mismatch", index: 3 }],
   );
   const denseTrace = verify(t, {
-    mutate: (payload) => { editJson(payload.files, TRACE_THREE, (trace) => { trace.input_index = 3; }); },
+    mutate: (payload) => {
+      editJson(payload.files, TRACE_THREE, (trace) => {
+        trace.input_index = 3;
+      });
+    },
   });
   assert.deepEqual(
-    checkOf(denseTrace.report, "completeness").findings
-      .filter((entry) => entry.code === "trace_index_mismatch"),
+    checkOf(denseTrace.report, "completeness").findings.filter(
+      (entry) => entry.code === "trace_index_mismatch",
+    ),
     [{ code: "trace_index_mismatch", index: 3 }],
   );
 });
@@ -650,22 +807,30 @@ test("the index is counted from the start of the verified range, and from a link
       ].join("\n");
     },
   });
-  const report = runSuite(buildContext({
-    artifactsDir: shifted.artifactsDir,
-    from: 3,
-    ledgerPath: shifted.ledgerPath,
-    linksFile: shifted.linksFile,
-    to: 8,
-  }), "per-batch");
+  const report = runSuite(
+    buildContext({
+      artifactsDir: shifted.artifactsDir,
+      from: 3,
+      ledgerPath: shifted.ledgerPath,
+      linksFile: shifted.linksFile,
+      to: 8,
+    }),
+    "per-batch",
+  );
   assert.equal(report.status, "pass", codes(report).join(","));
 
   // A second raw line that normalizes onto the first link sits at position 7. The record is judged
   // by the first line, so it stays healthy.
   const respelled = verify(t, {
-    mutate: (payload) => { payload.links = `${payload.links}${links[0]}?utm_source=share\n`; },
+    mutate: (payload) => {
+      payload.links = `${payload.links}${links[0]}?utm_source=share\n`;
+    },
     to: 7,
   });
-  assert.ok(!codes(respelled.report).includes("input_index_mismatch"), codes(respelled.report).join(","));
+  assert.ok(
+    !codes(respelled.report).includes("input_index_mismatch"),
+    codes(respelled.report).join(","),
+  );
 });
 
 test("a batch that withheld a closed link and a known one verifies green at the cheap cadence", (t) => {
@@ -707,7 +872,9 @@ test("a link of the range with no record and no plan entry is uncovered", (t) =>
       });
     },
   });
-  const finding = checkOf(report, "completeness").findings.find((entry) => entry.code === "link_uncovered");
+  const finding = checkOf(report, "completeness").findings.find(
+    (entry) => entry.code === "link_uncovered",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.equal(finding.position, 2);
 });
@@ -719,8 +886,14 @@ test("the link the plan skipped is not reported as uncovered", (t) => {
 });
 
 test("without a plan every link of the range must have a record", (t) => {
-  const { report } = verify(t, { mutate: (payload) => { payload.files.delete("plan.json"); } });
-  const finding = checkOf(report, "completeness").findings.find((entry) => entry.code === "link_uncovered");
+  const { report } = verify(t, {
+    mutate: (payload) => {
+      payload.files.delete("plan.json");
+    },
+  });
+  const finding = checkOf(report, "completeness").findings.find(
+    (entry) => entry.code === "link_uncovered",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.equal(finding.position, 3);
 });
@@ -740,7 +913,9 @@ test("a record claiming a link outside the range is reported", (t) => {
 test("two records claiming one link are reported", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
-      editJson(payload.files, INPUT_TWO, (input) => { input.source.sourceRef = links[0]; });
+      editJson(payload.files, INPUT_TWO, (input) => {
+        input.source.sourceRef = links[0];
+      });
       rebuildTrace(payload.files, INPUT_TWO, join("traces", "002.trace.json"));
     },
   });
@@ -749,7 +924,9 @@ test("two records claiming one link are reported", (t) => {
 
 test("a stray file in the artifacts directory is reported", (t) => {
   const { report } = verify(t, {
-    mutate: (payload) => { payload.files.set("notes.md", "scratch"); },
+    mutate: (payload) => {
+      payload.files.set("notes.md", "scratch");
+    },
   });
   assert.ok(codes(report).includes("unexpected_artifact"), codes(report).join(","));
 });
@@ -792,7 +969,11 @@ test("a capture stamped with another vacancy's URL is caught", (t) => {
 });
 
 test("scoring a vacancy the primary transport handed to the browser needs the browser capture", (t) => {
-  const { report } = verify(t, { mutate: (payload) => { payload.files.delete(CAPTURE_FIVE); } });
+  const { report } = verify(t, {
+    mutate: (payload) => {
+      payload.files.delete(CAPTURE_FIVE);
+    },
+  });
   assert.ok(codes(report).includes("fallback_not_honoured"), codes(report).join(","));
 });
 
@@ -803,27 +984,33 @@ test("scoring a vacancy the source calls closed is caught", (t) => {
         input.source.accessOutcome = "usable";
         input.source.accessReason = null;
         input.role.ai = { product: "none", work: "none" };
-        input.offers = [{
-          companyRegion: "OTHER",
-          compensationMarket: "unknown",
-          contractorEligibility: "unknown",
-          engagementPath: null,
-          evidenceQuote: "Globex Payments was hiring a Senior QA Engineer for its Berlin office.",
-          relocationCountry: null,
-          relocationCountryCode: null,
-          relocationSupport: "unknown",
-          residenceRequirementCountry: null,
-          residenceRequirementCountryCode: null,
-          residenceRestriction: "unknown",
-          sponsorship: "unknown",
-          timezone: "tz_unknown",
-          timezoneDistance: "unknown",
-          westRegion: null,
-          workAuthorization: "unknown",
-          workFormat: "Unknown",
-        }];
+        input.offers = [
+          {
+            companyRegion: "OTHER",
+            compensationMarket: "unknown",
+            contractorEligibility: "unknown",
+            engagementPath: null,
+            evidenceQuote: "Globex Payments was hiring a Senior QA Engineer for its Berlin office.",
+            relocationCountry: null,
+            relocationCountryCode: null,
+            relocationSupport: "unknown",
+            residenceRequirementCountry: null,
+            residenceRequirementCountryCode: null,
+            residenceRestriction: "unknown",
+            sponsorship: "unknown",
+            timezone: "tz_unknown",
+            timezoneDistance: "unknown",
+            westRegion: null,
+            workAuthorization: "unknown",
+            workFormat: "Unknown",
+          },
+        ];
       });
-      rebuildTrace(payload.files, join("inputs", "003.input.json"), join("traces", "003.trace.json"));
+      rebuildTrace(
+        payload.files,
+        join("inputs", "003.input.json"),
+        join("traces", "003.trace.json"),
+      );
     },
   });
   assert.ok(codes(report).includes("closed_source_scored"), codes(report).join(","));
@@ -831,7 +1018,9 @@ test("scoring a vacancy the source calls closed is caught", (t) => {
 
 test("a batch with no manifest still runs the transport-independent invariants", (t) => {
   const { report } = verify(t, {
-    mutate: (payload) => { payload.files.delete("fetch-manifest.json"); },
+    mutate: (payload) => {
+      payload.files.delete("fetch-manifest.json");
+    },
   });
   assert.equal(checkOf(report, "cross-transport").counts.manifestPresent, false);
   assert.equal(report.status, "pass");
@@ -847,7 +1036,8 @@ test("a hard residence line nobody quoted fails the sweep", (t) => {
         body.replace(
           "You will own the end-to-end automation framework",
           "You must be based in Germany for this role.\n\nYou will own the end-to-end automation framework",
-        ));
+        ),
+      );
       editJson(payload.files, "fetch-manifest.json", (manifest) => {
         manifest.records[1].persisted = null;
         manifest.records[1].usable = false;
@@ -856,8 +1046,9 @@ test("a hard residence line nobody quoted fails the sweep", (t) => {
       });
     },
   });
-  const finding = checkOf(report, "negative-space").findings
-    .find((entry) => entry.code === "negative_space_unclaimed");
+  const finding = checkOf(report, "negative-space").findings.find(
+    (entry) => entry.code === "negative_space_unclaimed",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.equal(finding.family, "residence");
   assert.deepEqual(finding.phraseIds, ["residence.must_be_based_in"]);
@@ -867,8 +1058,11 @@ test("a hard residence line nobody quoted fails the sweep", (t) => {
 test("a hit in page chrome is reported under its own code, not dropped", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
-      rewriteCaptureBody(payload.files, "002.capture.txt", (body) =>
-        `${body}\nPeople also viewed\n\nYou must be based in Germany for this role.\n`);
+      rewriteCaptureBody(
+        payload.files,
+        "002.capture.txt",
+        (body) => `${body}\nPeople also viewed\n\nYou must be based in Germany for this role.\n`,
+      );
       editJson(payload.files, "fetch-manifest.json", (manifest) => {
         manifest.records[1].persisted = null;
         manifest.records[1].usable = false;
@@ -877,8 +1071,9 @@ test("a hit in page chrome is reported under its own code, not dropped", (t) => 
       });
     },
   });
-  const finding = checkOf(report, "negative-space").findings
-    .find((entry) => entry.code === "negative_space_outside_main_zone");
+  const finding = checkOf(report, "negative-space").findings.find(
+    (entry) => entry.code === "negative_space_outside_main_zone",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.equal(finding.family, "residence");
   assert.equal(finding.terminator, "zone.people_also_viewed");
@@ -910,14 +1105,36 @@ test("a disposition whose line changed goes stale rather than covering the new l
 
 test("a disposition file is validated rather than trusted", (t) => {
   const cases = [
-    ["disposition_unknown_family", (file) => { file.dispositions[0].family = "invented"; }],
-    ["disposition_unknown_value", (file) => { file.dispositions[0].disposition = "fine"; }],
-    ["disposition_duplicate", (file) => { file.dispositions.push({ ...file.dispositions[0] }); }],
-    ["disposition_invalid", (file) => { file.dispositions[0].surprise = 1; }],
+    [
+      "disposition_unknown_family",
+      (file) => {
+        file.dispositions[0].family = "invented";
+      },
+    ],
+    [
+      "disposition_unknown_value",
+      (file) => {
+        file.dispositions[0].disposition = "fine";
+      },
+    ],
+    [
+      "disposition_duplicate",
+      (file) => {
+        file.dispositions.push({ ...file.dispositions[0] });
+      },
+    ],
+    [
+      "disposition_invalid",
+      (file) => {
+        file.dispositions[0].surprise = 1;
+      },
+    ],
   ];
   for (const [expected, edit] of cases) {
     const { report } = verify(t, {
-      mutate: (payload) => { editJson(payload.files, "disposition.json", edit); },
+      mutate: (payload) => {
+        editJson(payload.files, "disposition.json", edit);
+      },
     });
     assert.ok(codes(report).includes(expected), `${expected} not in ${codes(report).join(",")}`);
   }
@@ -930,7 +1147,10 @@ test("refetching a vacancy the ledger already closed is a finding", (t) => {
   const { report } = verify(t, {
     cadence: "full",
     mutate: (payload) => {
-      editJson(payload.files, INPUT_ONE, (input) => { input.source.sourceRef = links[2]; input.source.finalUrl = links[2]; });
+      editJson(payload.files, INPUT_ONE, (input) => {
+        input.source.sourceRef = links[2];
+        input.source.finalUrl = links[2];
+      });
       rebuildTrace(payload.files, INPUT_ONE, TRACE_ONE);
       rewriteCaptureBodyHeader(payload.files, CAPTURE_ONE, (header) => ({
         ...header,
@@ -951,15 +1171,19 @@ test("a ledger that already carries this batch makes the diff inconclusive, loud
   const ledger = JSON.parse(readFileSync(ledgerPath, "utf8"));
   for (const entry of ledger.entries) entry.last_checked = "2026-08-24T00:00:00.000Z";
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
-  const report = runSuite(buildContext({
-    artifactsDir: prepared.artifactsDir,
-    from: prepared.from,
-    ledgerPath,
-    linksFile: prepared.linksFile,
-    to: prepared.to,
-  }), "full");
-  const rows = checkOf(report, "baseline-diff").findings
-    .filter((entry) => entry.code === "ledger_already_recorded");
+  const report = runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      from: prepared.from,
+      ledgerPath,
+      linksFile: prepared.linksFile,
+      to: prepared.to,
+    }),
+    "full",
+  );
+  const rows = checkOf(report, "baseline-diff").findings.filter(
+    (entry) => entry.code === "ledger_already_recorded",
+  );
   assert.ok(rows.length > 0, codes(report).join(","));
   for (const row of rows) {
     assert.deepEqual(Object.keys(row).sort(), ["code", "planPosition"]);
@@ -971,19 +1195,44 @@ test("a ledger that already carries this batch makes the diff inconclusive, loud
 
 test("the full cadence needs an attestation and checks every probe", (t) => {
   const cases = [
-    ["attestation_absent", (payload) => { payload.files.delete("attestation.json"); }],
-    ["probe_missing", (payload) => {
-      editJson(payload.files, "attestation.json", (file) => { file.probes = file.probes.slice(0, 1); });
-    }],
-    ["probe_failed", (payload) => {
-      editJson(payload.files, "attestation.json", (file) => { file.probes[0].verdict = "failed"; });
-    }],
-    ["probe_unknown", (payload) => {
-      editJson(payload.files, "attestation.json", (file) => { file.probes[0].probe = "vibes"; });
-    }],
-    ["probe_stale", (payload) => {
-      editJson(payload.files, "attestation.json", (file) => { file.probes[1].ranAt = "2026-07-01T00:00:00.000Z"; });
-    }],
+    [
+      "attestation_absent",
+      (payload) => {
+        payload.files.delete("attestation.json");
+      },
+    ],
+    [
+      "probe_missing",
+      (payload) => {
+        editJson(payload.files, "attestation.json", (file) => {
+          file.probes = file.probes.slice(0, 1);
+        });
+      },
+    ],
+    [
+      "probe_failed",
+      (payload) => {
+        editJson(payload.files, "attestation.json", (file) => {
+          file.probes[0].verdict = "failed";
+        });
+      },
+    ],
+    [
+      "probe_unknown",
+      (payload) => {
+        editJson(payload.files, "attestation.json", (file) => {
+          file.probes[0].probe = "vibes";
+        });
+      },
+    ],
+    [
+      "probe_stale",
+      (payload) => {
+        editJson(payload.files, "attestation.json", (file) => {
+          file.probes[1].ranAt = "2026-07-01T00:00:00.000Z";
+        });
+      },
+    ],
   ];
   for (const [expected, mutate] of cases) {
     const { report } = verify(t, { cadence: "full", mutate });
@@ -993,10 +1242,15 @@ test("the full cadence needs an attestation and checks every probe", (t) => {
 
 test("the periodic checks do not run at the per-batch cadence", (t) => {
   const { report } = verify(t, {
-    mutate: (payload) => { payload.files.delete("attestation.json"); },
+    mutate: (payload) => {
+      payload.files.delete("attestation.json");
+    },
   });
   assert.equal(report.status, "pass");
-  assert.equal(report.checks.some((check) => check.id === "periodic-attestation"), false);
+  assert.equal(
+    report.checks.some((check) => check.id === "periodic-attestation"),
+    false,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -1009,11 +1263,16 @@ function runCli(args) {
 test("the CLI exits 0 on a pass, 2 on findings and 1 on a caller mistake", (t) => {
   const prepared = prepare(t, { ledger: true });
   const base = [
-    "--artifacts-dir", prepared.artifactsDir,
-    "--links-file", prepared.linksFile,
-    "--from", String(prepared.from),
-    "--to", String(prepared.to),
-    "--ledger", prepared.ledgerPath,
+    "--artifacts-dir",
+    prepared.artifactsDir,
+    "--links-file",
+    prepared.linksFile,
+    "--from",
+    String(prepared.from),
+    "--to",
+    String(prepared.to),
+    "--ledger",
+    prepared.ledgerPath,
   ];
   const pass = runCli(base);
   assert.equal(pass.status, 0, pass.stderr);
@@ -1032,13 +1291,29 @@ test("the CLI exits 0 on a pass, 2 on findings and 1 on a caller mistake", (t) =
 test("the CLI refuses relative paths and repeated or empty flags", (t) => {
   const prepared = prepare(t);
   const base = [
-    "--artifacts-dir", prepared.artifactsDir,
-    "--links-file", prepared.linksFile,
-    "--from", "1",
-    "--to", "6",
+    "--artifacts-dir",
+    prepared.artifactsDir,
+    "--links-file",
+    prepared.linksFile,
+    "--from",
+    "1",
+    "--to",
+    "6",
   ];
   const cases = [
-    [["--artifacts-dir", "artifacts", "--links-file", prepared.linksFile, "--from", "1", "--to", "6"], "argument_invalid"],
+    [
+      [
+        "--artifacts-dir",
+        "artifacts",
+        "--links-file",
+        prepared.linksFile,
+        "--from",
+        "1",
+        "--to",
+        "6",
+      ],
+      "argument_invalid",
+    ],
     [[...base, "--from", "2"], "argument_repeated"],
     [[...base, "--cadence"], "argument_value_missing"],
     [[...base, "--cadence", "sometimes"], "argument_invalid"],
@@ -1054,11 +1329,16 @@ test("the CLI refuses relative paths and repeated or empty flags", (t) => {
 test("the CLI writes the report beside the batch, and none when asked for none", (t) => {
   const prepared = prepare(t, { ledger: true });
   const base = [
-    "--artifacts-dir", prepared.artifactsDir,
-    "--links-file", prepared.linksFile,
-    "--from", "1",
-    "--to", "6",
-    "--ledger", prepared.ledgerPath,
+    "--artifacts-dir",
+    prepared.artifactsDir,
+    "--links-file",
+    prepared.linksFile,
+    "--from",
+    "1",
+    "--to",
+    "6",
+    "--ledger",
+    prepared.ledgerPath,
   ];
   const reportPath = join(prepared.artifactsDir, "verification-report.json");
   assert.equal(existsSync(reportPath), false);
@@ -1083,10 +1363,14 @@ test("the CLI never prints a vacancy URL or a page line", (t) => {
     },
   });
   const result = runCli([
-    "--artifacts-dir", prepared.artifactsDir,
-    "--links-file", prepared.linksFile,
-    "--from", "1",
-    "--to", "6",
+    "--artifacts-dir",
+    prepared.artifactsDir,
+    "--links-file",
+    prepared.linksFile,
+    "--from",
+    "1",
+    "--to",
+    "6",
   ]);
   assert.equal(result.status, 2);
   assert.ok(!result.stdout.includes("linkedin.com"), result.stdout);
@@ -1118,10 +1402,14 @@ test("an artifacts directory the suite cannot read is a caller error, not a pass
   writeFileSync(linksFile, links.join("\n"), "utf8");
   mkdirSync(join(root, "empty"));
   const result = runCli([
-    "--artifacts-dir", join(root, "missing"),
-    "--links-file", linksFile,
-    "--from", "1",
-    "--to", "6",
+    "--artifacts-dir",
+    join(root, "missing"),
+    "--links-file",
+    linksFile,
+    "--from",
+    "1",
+    "--to",
+    "6",
   ]);
   assert.equal(result.status, 1);
   assert.equal(JSON.parse(result.stderr.split("\n")[0]).error, "artifacts_unreadable");
@@ -1149,8 +1437,9 @@ test("a quote that covers the residence line claims nothing when the offer recor
       rebuildTrace(payload.files, INPUT_ONE, TRACE_ONE);
     },
   });
-  const finding = checkOf(report, "negative-space").findings
-    .find((entry) => entry.code === "negative_space_unclaimed" && entry.family === "residence");
+  const finding = checkOf(report, "negative-space").findings.find(
+    (entry) => entry.code === "negative_space_unclaimed" && entry.family === "residence",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.deepEqual(finding.phraseIds, ["residence.currently_based_in"]);
 });
@@ -1166,8 +1455,8 @@ test("a work-format hit is not claimed by an offer that recorded no format", (t)
       rebuildTrace(payload.files, INPUT_TWO, join("traces", "002.trace.json"));
     },
   });
-  const families = checkOf(report, "negative-space").findings
-    .filter((entry) => entry.code === "negative_space_unclaimed")
+  const families = checkOf(report, "negative-space")
+    .findings.filter((entry) => entry.code === "negative_space_unclaimed")
     .map((entry) => entry.family)
     .sort();
   assert.deepEqual([...new Set(families)], ["contract", "work_format"]);
@@ -1224,10 +1513,13 @@ test("a declared technical unavailability the manifest does not corroborate is a
 
 test("without a manifest an uncorroborated unavailability is reported as a difference", (t) => {
   const { report } = verify(t, {
-    mutate: (payload) => { payload.files.delete("fetch-manifest.json"); },
+    mutate: (payload) => {
+      payload.files.delete("fetch-manifest.json");
+    },
   });
-  const diff = checkOf(report, "cross-transport").diffs
-    .find((entry) => entry.code === "unavailability_uncorroborated_no_manifest");
+  const diff = checkOf(report, "cross-transport").diffs.find(
+    (entry) => entry.code === "unavailability_uncorroborated_no_manifest",
+  );
   assert.ok(diff !== undefined, JSON.stringify(checkOf(report, "cross-transport").diffs));
   assert.deepEqual(diff.indices, [4]);
 });
@@ -1257,24 +1549,31 @@ function declareUnavailable(payload, nnn) {
   rebuildTrace(payload.files, name, join("traces", `${nnn}.trace.json`));
 }
 
-function browserRetry(payload, nnn, { stamp = "access_failure", primaryFile = "002.capture.txt" } = {}) {
+function browserRetry(
+  payload,
+  nnn,
+  { stamp = "access_failure", primaryFile = "002.capture.txt" } = {},
+) {
   const input = JSON.parse(payload.files.get(join("inputs", `${nnn}.input.json`)));
   const primary = verifyCaptureFile(payload.files.get(primaryFile));
-  payload.files.set(`${nnn}.browser.capture.txt`, renderCaptureFile({
-    header: {
-      ...primary.header,
-      index: Number(nnn),
-      adapter: "in-app-browser@1",
-      "requested-url": input.source.sourceRef,
-      "final-url": input.source.sourceRef,
-      "http-status": null,
-      outcome: stamp,
-      "access-barrier": stamp === "access_failure" ? "authentication" : null,
-      "normalized-sha256": sha256Utf8(BROWSER_WALL),
-      "body-bytes": Buffer.byteLength(BROWSER_WALL, "utf8"),
-    },
-    body: BROWSER_WALL,
-  }));
+  payload.files.set(
+    `${nnn}.browser.capture.txt`,
+    renderCaptureFile({
+      header: {
+        ...primary.header,
+        index: Number(nnn),
+        adapter: "in-app-browser@1",
+        "requested-url": input.source.sourceRef,
+        "final-url": input.source.sourceRef,
+        "http-status": null,
+        outcome: stamp,
+        "access-barrier": stamp === "access_failure" ? "authentication" : null,
+        "normalized-sha256": sha256Utf8(BROWSER_WALL),
+        "body-bytes": Buffer.byteLength(BROWSER_WALL, "utf8"),
+      },
+      body: BROWSER_WALL,
+    }),
+  );
 }
 
 function usableButWalled(payload, { stamp = "access_failure" } = {}) {
@@ -1314,8 +1613,9 @@ test("an absent record whose confirmation load met a wall is recorded as unavail
   });
   assert.equal(report.status, "pass", codes(report).join(","));
   assert.deepEqual(
-    checkOf(report, "cross-transport").diffs
-      .find((entry) => entry.code === "unavailability_from_browser_retry"),
+    checkOf(report, "cross-transport").diffs.find(
+      (entry) => entry.code === "unavailability_from_browser_retry",
+    ),
     { code: "unavailability_from_browser_retry", indices: [4] },
   );
 });
@@ -1323,10 +1623,14 @@ test("an absent record whose confirmation load met a wall is recorded as unavail
 test("only a verified browser capture stamped access_failure corroborates a usable record's wall", (t) => {
   const stillAFinding = (mutate, label) => {
     const { report } = verify(t, { mutate });
-    assert.ok(codes(report).includes("unavailability_not_corroborated"), `${label}: ${codes(report).join(",")}`);
+    assert.ok(
+      codes(report).includes("unavailability_not_corroborated"),
+      `${label}: ${codes(report).join(",")}`,
+    );
     assert.equal(
-      checkOf(report, "cross-transport").diffs
-        .some((entry) => entry.code === "unavailability_from_browser_retry"),
+      checkOf(report, "cross-transport").diffs.some(
+        (entry) => entry.code === "unavailability_from_browser_retry",
+      ),
       false,
       label,
     );
@@ -1346,10 +1650,17 @@ test("only a verified browser capture stamped access_failure corroborates a usab
   stillAFinding((payload) => {
     usableButWalled(payload, { stamp: null });
     const primary = verifyCaptureFile(payload.files.get("002.capture.txt"));
-    payload.files.set("002.capture.txt", renderCaptureFile({
-      header: { ...primary.header, outcome: "access_failure", "access-barrier": "authentication" },
-      body: primary.body,
-    }));
+    payload.files.set(
+      "002.capture.txt",
+      renderCaptureFile({
+        header: {
+          ...primary.header,
+          outcome: "access_failure",
+          "access-barrier": "authentication",
+        },
+        body: primary.body,
+      }),
+    );
   }, "restamped fetch capture");
 });
 
@@ -1373,18 +1684,26 @@ test("the full cadence needs a blind extraction and compares its outcome", (t) =
   const blindFile = join("blind", "002.input.json");
   const absent = verify(t, {
     cadence: "full",
-    mutate: (payload) => { payload.files.delete(blindFile); },
+    mutate: (payload) => {
+      payload.files.delete(blindFile);
+    },
   });
-  assert.ok(codes(absent.report).includes("blind_extraction_absent"), codes(absent.report).join(","));
+  assert.ok(
+    codes(absent.report).includes("blind_extraction_absent"),
+    codes(absent.report).join(","),
+  );
 
   const disagrees = verify(t, {
     cadence: "full",
     mutate: (payload) => {
-      editJson(payload.files, blindFile, (input) => { input.offers[0].workFormat = "On-site"; });
+      editJson(payload.files, blindFile, (input) => {
+        input.offers[0].workFormat = "On-site";
+      });
     },
   });
-  const finding = checkOf(disagrees.report, "blind-extraction").findings
-    .find((entry) => entry.code === "blind_extraction_disagrees");
+  const finding = checkOf(disagrees.report, "blind-extraction").findings.find(
+    (entry) => entry.code === "blind_extraction_disagrees",
+  );
   assert.ok(finding !== undefined, codes(disagrees.report).join(","));
   assert.ok(finding.fields.includes("selected_work_format"), JSON.stringify(finding.fields));
 
@@ -1396,7 +1715,10 @@ test("the full cadence needs a blind extraction and compares its outcome", (t) =
       });
     },
   });
-  assert.ok(codes(fabricated.report).includes("blind_quote_absent"), codes(fabricated.report).join(","));
+  assert.ok(
+    codes(fabricated.report).includes("blind_quote_absent"),
+    codes(fabricated.report).join(","),
+  );
 
   const unknown = verify(t, {
     cadence: "full",
@@ -1415,7 +1737,9 @@ test("a plan that disagrees with the ledger it claims to come from is a finding"
   const { report } = verify(t, {
     cadence: "full",
     mutate: (payload) => {
-      editJson(payload.files, "plan.json", (plan) => { plan.items[0].decision = "EVALUATED"; });
+      editJson(payload.files, "plan.json", (plan) => {
+        plan.items[0].decision = "EVALUATED";
+      });
     },
   });
   assert.ok(codes(report).includes("plan_disagrees_with_ledger"), codes(report).join(","));
@@ -1436,7 +1760,9 @@ test("a record the plan never mentioned is a finding", (t) => {
 test("the periodic diff needs the plan, and says so when it is missing", (t) => {
   const { report } = verify(t, {
     cadence: "full",
-    mutate: (payload) => { payload.files.delete("plan.json"); },
+    mutate: (payload) => {
+      payload.files.delete("plan.json");
+    },
   });
   assert.ok(codes(report).includes("plan_absent"), codes(report).join(","));
 });
@@ -1460,8 +1786,8 @@ test("the batch-triage verification procedure is reachable and states its own or
     ["precedence", precedence],
   ]) {
     assert.equal(
-      source.includes("docs/runbooks/triage-verification.md")
-        || source.includes("triage-verification.md"),
+      source.includes("docs/runbooks/triage-verification.md") ||
+        source.includes("triage-verification.md"),
       true,
       `${label} must name the verification runbook`,
     );
@@ -1523,15 +1849,19 @@ function rewriteRecordTwo(payload, transform) {
 test("page chrome above the description does not silence the sweep below it", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
-      rewriteRecordTwo(payload, (body) =>
-        `People also viewed\n\n${body.replace(
-          "You will own the end-to-end automation framework",
-          "You must be based in Germany for this role.\n\nYou will own the end-to-end automation framework",
-        )}`);
+      rewriteRecordTwo(
+        payload,
+        (body) =>
+          `People also viewed\n\n${body.replace(
+            "You will own the end-to-end automation framework",
+            "You must be based in Germany for this role.\n\nYou will own the end-to-end automation framework",
+          )}`,
+      );
     },
   });
-  const finding = checkOf(report, "negative-space").findings
-    .find((entry) => entry.code === "negative_space_unclaimed" && entry.family === "residence");
+  const finding = checkOf(report, "negative-space").findings.find(
+    (entry) => entry.code === "negative_space_unclaimed" && entry.family === "residence",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.equal(checkOf(report, "negative-space").counts.outsideMainZone, 0);
 });
@@ -1541,12 +1871,16 @@ test("a terminator phrase inside a sentence does not end the main zone", (t) => 
   // refuse it. Without that anchor the requirement two lines below would be swept out of scope.
   const { report } = verify(t, {
     mutate: (payload) => {
-      rewriteRecordTwo(payload, (body) =>
-        `${body}We also list similar jobs on our careers page.\n\nYou must be based in Germany for this role.\n`);
+      rewriteRecordTwo(
+        payload,
+        (body) =>
+          `${body}We also list similar jobs on our careers page.\n\nYou must be based in Germany for this role.\n`,
+      );
     },
   });
-  const finding = checkOf(report, "negative-space").findings
-    .find((entry) => entry.code === "negative_space_unclaimed" && entry.family === "residence");
+  const finding = checkOf(report, "negative-space").findings.find(
+    (entry) => entry.code === "negative_space_unclaimed" && entry.family === "residence",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.equal(checkOf(report, "negative-space").counts.outsideMainZone, 0);
 });
@@ -1557,8 +1891,9 @@ test("a body that is nothing but chrome still has to answer for what is in it", 
       rewriteRecordTwo(payload, () => "People also viewed\n\nYou must be based in Germany.\n");
     },
   });
-  const finding = checkOf(report, "negative-space").findings
-    .find((entry) => entry.code === "negative_space_outside_main_zone");
+  const finding = checkOf(report, "negative-space").findings.find(
+    (entry) => entry.code === "negative_space_outside_main_zone",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.equal(finding.family, "residence");
 });
@@ -1578,15 +1913,19 @@ test("a line one capture quoted is answered for the record even where another do
       });
       rebuildTrace(payload.files, INPUT_ONE, TRACE_ONE);
       const primary = verifyCaptureFile(payload.files.get(CAPTURE_ONE));
-      const body = "- Candidates MUST BE currently based in Singapore; we do not sponsor relocation.\n";
-      payload.files.set("001.degraded.capture.txt", renderCaptureFile({
-        header: {
-          ...primary.header,
-          "normalized-sha256": sha256Utf8(body),
-          "body-bytes": Buffer.byteLength(body, "utf8"),
-        },
-        body,
-      }));
+      const body =
+        "- Candidates MUST BE currently based in Singapore; we do not sponsor relocation.\n";
+      payload.files.set(
+        "001.degraded.capture.txt",
+        renderCaptureFile({
+          header: {
+            ...primary.header,
+            "normalized-sha256": sha256Utf8(body),
+            "body-bytes": Buffer.byteLength(body, "utf8"),
+          },
+          body,
+        }),
+      );
     },
   });
   assert.equal(checkOf(report, "negative-space").status, "pass", codes(report).join(","));
@@ -1598,35 +1937,60 @@ test("a line one capture quoted is answered for the record even where another do
 
 test("every manifest cross-check reports the disagreement it is named for", (t) => {
   const cases = [
-    ["manifest_capture_file_mismatch", (payload) => {
-      editJson(payload.files, "fetch-manifest.json", (manifest) => {
-        manifest.records[0].persisted.file = "099.capture.txt";
-      });
-    }],
-    ["manifest_response_digest_mismatch", (payload) => {
-      editJson(payload.files, "fetch-manifest.json", (manifest) => {
-        manifest.records[0].response.sha256 = "1".repeat(64);
-      });
-    }],
-    ["manifest_record_missing", (payload) => {
-      editJson(payload.files, "fetch-manifest.json", (manifest) => {
-        manifest.records = manifest.records.filter((record) => record.index !== 1);
-      });
-    }],
-    ["manifest_capture_missing", (payload) => {
-      payload.files.delete(CAPTURE_ONE);
-    }],
-    ["manifest_unreadable", (payload) => {
-      editJson(payload.files, "fetch-manifest.json", (manifest) => { manifest.tool = "something"; });
-    }],
-    ["manifest_unreadable", (payload) => {
-      editJson(payload.files, "fetch-manifest.json", (manifest) => { manifest.schemaVersion = 3; });
-    }],
-    ["plan_range_mismatch", (payload) => {
-      editJson(payload.files, "plan.json", (plan) => {
-        plan.items[5].link = "https://boards.example.test/other/role";
-      });
-    }],
+    [
+      "manifest_capture_file_mismatch",
+      (payload) => {
+        editJson(payload.files, "fetch-manifest.json", (manifest) => {
+          manifest.records[0].persisted.file = "099.capture.txt";
+        });
+      },
+    ],
+    [
+      "manifest_response_digest_mismatch",
+      (payload) => {
+        editJson(payload.files, "fetch-manifest.json", (manifest) => {
+          manifest.records[0].response.sha256 = "1".repeat(64);
+        });
+      },
+    ],
+    [
+      "manifest_record_missing",
+      (payload) => {
+        editJson(payload.files, "fetch-manifest.json", (manifest) => {
+          manifest.records = manifest.records.filter((record) => record.index !== 1);
+        });
+      },
+    ],
+    [
+      "manifest_capture_missing",
+      (payload) => {
+        payload.files.delete(CAPTURE_ONE);
+      },
+    ],
+    [
+      "manifest_unreadable",
+      (payload) => {
+        editJson(payload.files, "fetch-manifest.json", (manifest) => {
+          manifest.tool = "something";
+        });
+      },
+    ],
+    [
+      "manifest_unreadable",
+      (payload) => {
+        editJson(payload.files, "fetch-manifest.json", (manifest) => {
+          manifest.schemaVersion = 3;
+        });
+      },
+    ],
+    [
+      "plan_range_mismatch",
+      (payload) => {
+        editJson(payload.files, "plan.json", (plan) => {
+          plan.items[5].link = "https://boards.example.test/other/role";
+        });
+      },
+    ],
   ];
   for (const [expected, mutate] of cases) {
     const { report } = verify(t, { mutate });
@@ -1669,15 +2033,18 @@ test("two captures of one record that disagree about the vacancy are caught", (t
     mutate: (payload) => {
       const primary = verifyCaptureFile(payload.files.get(CAPTURE_ONE));
       const body = "A second observation of a different posting.\n";
-      payload.files.set("001.second.capture.txt", renderCaptureFile({
-        header: {
-          ...primary.header,
-          "requested-url": "https://www.linkedin.com/jobs/view/4566666666/",
-          "normalized-sha256": sha256Utf8(body),
-          "body-bytes": Buffer.byteLength(body, "utf8"),
-        },
-        body,
-      }));
+      payload.files.set(
+        "001.second.capture.txt",
+        renderCaptureFile({
+          header: {
+            ...primary.header,
+            "requested-url": "https://www.linkedin.com/jobs/view/4566666666/",
+            "normalized-sha256": sha256Utf8(body),
+            "body-bytes": Buffer.byteLength(body, "utf8"),
+          },
+          body,
+        }),
+      );
     },
   });
   assert.ok(codes(report).includes("capture_url_disagreement"), codes(report).join(","));
@@ -1696,16 +2063,20 @@ test("a manifest record the fetcher never resolved carries no verdict to contrad
         manifest.records[2].persisted = null;
       });
       const primary = verifyCaptureFile(payload.files.get("003.capture.txt"));
-      payload.files.set("003.browser.capture.txt", renderCaptureFile({
-        header: { ...primary.header, adapter: "in-app-browser@1" },
-        body: primary.body,
-      }));
+      payload.files.set(
+        "003.browser.capture.txt",
+        renderCaptureFile({
+          header: { ...primary.header, adapter: "in-app-browser@1" },
+          body: primary.body,
+        }),
+      );
       payload.files.delete("003.capture.txt");
     },
   });
   assert.ok(!codes(report).includes("closure_not_corroborated"), codes(report).join(","));
-  const diff = checkOf(report, "cross-transport").diffs
-    .find((entry) => entry.code === "manifest_did_not_resolve");
+  const diff = checkOf(report, "cross-transport").diffs.find(
+    (entry) => entry.code === "manifest_did_not_resolve",
+  );
   assert.ok(diff !== undefined, JSON.stringify(checkOf(report, "cross-transport").diffs));
   // Record 5 is unresolved in the fixture already - its fetch failed and the browser served it -
   // so the closed posting joins it rather than replacing it.
@@ -1729,7 +2100,9 @@ test("provenance moves a capture out of http_fetch on every discriminator", (t) 
         manifest.records = manifest.records.filter((record) => record.index !== 1);
       });
     },
-    (payload) => { payload.files.delete("fetch-manifest.json"); },
+    (payload) => {
+      payload.files.delete("fetch-manifest.json");
+    },
   ];
   for (const mutate of cases) {
     const { report } = verify(t, { mutate });
@@ -1755,8 +2128,9 @@ test("a link the plan dropped on a ledger claim needs the ledger row it rests on
   });
   // The other of the two paths that raise this code: the ledger has no row at all for the link the
   // plan says it dropped on a ledger reason.
-  const finding = checkOf(report, "baseline-diff").findings
-    .find((entry) => entry.code === "plan_skip_uncorroborated");
+  const finding = checkOf(report, "baseline-diff").findings.find(
+    (entry) => entry.code === "plan_skip_uncorroborated",
+  );
   assert.deepEqual(finding, {
     code: "plan_skip_uncorroborated",
     planPosition: 3,
@@ -1766,36 +2140,51 @@ test("a link the plan dropped on a ledger claim needs the ledger row it rests on
 
 test("a batch whose plan dropped links cannot be checked without that ledger", (t) => {
   const prepared = prepare(t);
-  const report = runSuite(buildContext({
-    artifactsDir: prepared.artifactsDir,
-    from: prepared.from,
-    ledgerPath: null,
-    linksFile: prepared.linksFile,
-    to: prepared.to,
-  }), "per-batch");
-  const finding = checkOf(report, "completeness").findings
-    .find((entry) => entry.code === "plan_skips_unverifiable");
+  const report = runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      from: prepared.from,
+      ledgerPath: null,
+      linksFile: prepared.linksFile,
+      to: prepared.to,
+    }),
+    "per-batch",
+  );
+  const finding = checkOf(report, "completeness").findings.find(
+    (entry) => entry.code === "plan_skips_unverifiable",
+  );
   assert.deepEqual(finding, { code: "plan_skips_unverifiable", planPositions: [3] });
   assert.equal(report.status, "fail");
 });
 
 test("the plan-versus-ledger comparison covers status, decision, flags and policy", (t) => {
   const cases = [
-    (plan) => { plan.items[0].status = "expired"; },
-    (plan) => { plan.items[0].decision = "EVALUATED"; },
-    (plan) => { plan.items[0].flags = ["invented_flag"]; },
+    (plan) => {
+      plan.items[0].status = "expired";
+    },
+    (plan) => {
+      plan.items[0].decision = "EVALUATED";
+    },
+    (plan) => {
+      plan.items[0].flags = ["invented_flag"];
+    },
     // The policy the plan claims its baseline was taken under is a statement about the same ledger
     // row as the three above, so it is corroborated on the same terms. Without this the field
     // would be the one thing in `plan.json` that verifies against nothing.
-    (plan) => { plan.items[0].policy_id = "triage-policy-v9-2030-01-01"; },
+    (plan) => {
+      plan.items[0].policy_id = "triage-policy-v9-2030-01-01";
+    },
   ];
   for (const edit of cases) {
     const { report } = verify(t, {
       cadence: "full",
-      mutate: (payload) => { editJson(payload.files, "plan.json", edit); },
+      mutate: (payload) => {
+        editJson(payload.files, "plan.json", edit);
+      },
     });
-    const finding = checkOf(report, "baseline-diff").findings
-      .find((entry) => entry.code === "plan_disagrees_with_ledger");
+    const finding = checkOf(report, "baseline-diff").findings.find(
+      (entry) => entry.code === "plan_disagrees_with_ledger",
+    );
     assert.deepEqual(finding, { code: "plan_disagrees_with_ledger", planPosition: 1 });
   }
 });
@@ -1871,24 +2260,33 @@ test("an applied default is a trace annotation and never a ledger flag", (t) => 
       });
     },
   });
-  recordBatch(prepared.ledgerPath, {
-    batch_id: "2026-08-16-prior-2",
-    observed_at: priorObservedAt,
-    policy_id: "triage-policy-v2-2026-08-21",
-    entries: [{ url: links[5], status: "open", decision: "EVALUATED", flags: baselineFlags }],
-  }, { artifactsDir: null });
+  recordBatch(
+    prepared.ledgerPath,
+    {
+      batch_id: "2026-08-16-prior-2",
+      observed_at: priorObservedAt,
+      policy_id: "triage-policy-v2-2026-08-21",
+      entries: [{ url: links[5], status: "open", decision: "EVALUATED", flags: baselineFlags }],
+    },
+    { artifactsDir: null },
+  );
   // Not vacuous: the persisted trace really carries the default and the gap.
-  const trace = JSON.parse(readFileSync(join(prepared.artifactsDir, "traces", "005.trace.json"), "utf8"));
+  const trace = JSON.parse(
+    readFileSync(join(prepared.artifactsDir, "traces", "005.trace.json"), "utf8"),
+  );
   assert.deepEqual(trace.assumptions, [defaultToken]);
   assert.deepEqual(trace.data_gaps, ["gap:compensation_absent"]);
 
-  const report = runSuite(buildContext({
-    artifactsDir: prepared.artifactsDir,
-    from: prepared.from,
-    ledgerPath: prepared.ledgerPath,
-    linksFile: prepared.linksFile,
-    to: prepared.to,
-  }), "full");
+  const report = runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      from: prepared.from,
+      ledgerPath: prepared.ledgerPath,
+      linksFile: prepared.linksFile,
+      to: prepared.to,
+    }),
+    "full",
+  );
   const check = checkOf(report, "baseline-diff");
   // The row still carrying the default is a legacy row, not a finding: the plan and the ledger
   // agree with each other, the batch stays recordable, and the only signal is the diff.
@@ -1920,8 +2318,9 @@ test("a plan written before the policy field says nothing rather than guessing o
   assert.equal(Object.hasOwn(moved, "fromPolicyId"), false);
   assert.equal(moved.toPolicyId, "triage-policy-v8-2026-10-01");
   assert.equal(
-    checkOf(report, "baseline-diff").findings
-      .some((entry) => entry.code === "plan_disagrees_with_ledger"),
+    checkOf(report, "baseline-diff").findings.some(
+      (entry) => entry.code === "plan_disagrees_with_ledger",
+    ),
     false,
     "an older plan is silent, not wrong",
   );
@@ -1933,14 +2332,18 @@ test("a recorded batch's own history is a member of the directory, not a stray f
   // into the same directory the suite just read, so the next run over that directory has to know
   // the file rather than report it.
   const scored = links.filter((_, position) => position + 1 !== skippedLinkPosition);
-  const outcome = recordBatch(prepared.ledgerPath, {
-    batch_id: batchId,
-    observed_at: "2026-08-23T11:00:00Z",
-    policy_id: "triage-policy-v2-2026-08-21",
-    // Row values are the shape of a batch-end write; what this case asserts is the directory
-    // contract, and no check here reads a decision out of the record.
-    entries: scored.map((url) => ({ url, status: "open", decision: "EVALUATED", flags: [] })),
-  }, { artifactsDir: prepared.artifactsDir });
+  const outcome = recordBatch(
+    prepared.ledgerPath,
+    {
+      batch_id: batchId,
+      observed_at: "2026-08-23T11:00:00Z",
+      policy_id: "triage-policy-v2-2026-08-21",
+      // Row values are the shape of a batch-end write; what this case asserts is the directory
+      // contract, and no check here reads a decision out of the record.
+      entries: scored.map((url) => ({ url, status: "open", decision: "EVALUATED", flags: [] })),
+    },
+    { artifactsDir: prepared.artifactsDir },
+  );
   assert.equal(outcome.record.path, join(prepared.artifactsDir, "ledger-record.json"));
 
   const context = buildContext({
@@ -1968,26 +2371,29 @@ test("a fresh process replays a persisted batch from its own files, fetching not
   // what it recomputes comes from the persisted files or from nowhere. That is the acceptance
   // criterion - a fresh session replays a persisted batch without re-fetching any page and
   // without starting Step 1 - expressed as something a machine can fail.
-  writeFileSync(replayPath, [
-    "import { readFileSync, readdirSync } from \"node:fs\";",
-    "import { join } from \"node:path\";",
-    `import { buildDecisionTrace } from ${JSON.stringify(join(repoRoot, "tools/job-scorer/trace.mjs"))};`,
-    "const [dir] = process.argv.slice(2);",
-    "const read = (...parts) => JSON.parse(readFileSync(join(dir, ...parts), \"utf8\"));",
-    "let recomputed = 0;",
-    "for (const name of readdirSync(join(dir, \"inputs\")).sort()) {",
-    "  const index = name.slice(0, 3);",
-    "  const input = read(\"inputs\", name);",
-    "  const persisted = read(\"traces\", `${index}.trace.json`);",
-    "  const rebuilt = JSON.parse(JSON.stringify(buildDecisionTrace(input)));",
-    "  if (JSON.stringify(rebuilt) !== JSON.stringify(persisted)) {",
-    "    throw new Error(`trace ${index} does not match its own input`);",
-    "  }",
-    "  recomputed += 1;",
-    "}",
-    "console.log(JSON.stringify({ recomputed }));",
-    "",
-  ].join("\n"));
+  writeFileSync(
+    replayPath,
+    [
+      'import { readFileSync, readdirSync } from "node:fs";',
+      'import { join } from "node:path";',
+      `import { buildDecisionTrace } from ${JSON.stringify(join(repoRoot, "tools/job-scorer/trace.mjs"))};`,
+      "const [dir] = process.argv.slice(2);",
+      'const read = (...parts) => JSON.parse(readFileSync(join(dir, ...parts), "utf8"));',
+      "let recomputed = 0;",
+      'for (const name of readdirSync(join(dir, "inputs")).sort()) {',
+      "  const index = name.slice(0, 3);",
+      '  const input = read("inputs", name);',
+      '  const persisted = read("traces", `${index}.trace.json`);',
+      "  const rebuilt = JSON.parse(JSON.stringify(buildDecisionTrace(input)));",
+      "  if (JSON.stringify(rebuilt) !== JSON.stringify(persisted)) {",
+      "    throw new Error(`trace ${index} does not match its own input`);",
+      "  }",
+      "  recomputed += 1;",
+      "}",
+      "console.log(JSON.stringify({ recomputed }));",
+      "",
+    ].join("\n"),
+  );
 
   // Every root a pipeline write could resolve to is pointed at the disposable directory, because
   // that is the only lever that decides them: `process-log.json` and `output/` resolve from
@@ -2057,8 +2463,9 @@ test("a vacancy the fetcher reached and the batch then dropped is caught at the 
       });
     },
   });
-  const finding = checkOf(report, "cross-transport").findings
-    .find((entry) => entry.code === "manifest_record_unaccounted");
+  const finding = checkOf(report, "cross-transport").findings.find(
+    (entry) => entry.code === "manifest_record_unaccounted",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.equal(finding.index, 3);
 });
@@ -2088,8 +2495,13 @@ test("a browser-only batch passes on its own", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
       for (const name of [...payload.files.keys()]) {
-        if (name === "fetch-manifest.json" || name === "plan.json" || name.startsWith("blind/")
-          || /^00[2-5]\./u.test(name) || /^(inputs|traces)\/00[2-5]\./u.test(name)) {
+        if (
+          name === "fetch-manifest.json" ||
+          name === "plan.json" ||
+          name.startsWith("blind/") ||
+          /^00[2-5]\./u.test(name) ||
+          /^(inputs|traces)\/00[2-5]\./u.test(name)
+        ) {
           payload.files.delete(name);
         }
       }
@@ -2101,12 +2513,18 @@ test("a browser-only batch passes on its own", (t) => {
     to: 1,
   });
   assert.equal(report.status, "pass", codes(report).join(","));
-  assert.deepEqual(report.counts.capturesByProvenance, { http_fetch: 0, transcript: 1, unverified: 0 });
+  assert.deepEqual(report.counts.capturesByProvenance, {
+    http_fetch: 0,
+    transcript: 1,
+    unverified: 0,
+  });
 });
 
 test("a links file that repeats its last line and ends without a newline is read the same", (t) => {
   const { report } = verify(t, {
-    mutate: (payload) => { payload.links = `${payload.links.trimEnd()}\n${links[0]}`; },
+    mutate: (payload) => {
+      payload.links = `${payload.links.trimEnd()}\n${links[0]}`;
+    },
   });
   assert.equal(report.status, "pass", codes(report).join(","));
   assert.equal(report.counts.linksInRange, 6);
@@ -2124,8 +2542,9 @@ test("a report row for the source whose ledger key is its URL carries no URL", (
       });
     },
   });
-  const row = checkOf(report, "baseline-diff").findings
-    .find((entry) => entry.code === "record_absent_from_plan");
+  const row = checkOf(report, "baseline-diff").findings.find(
+    (entry) => entry.code === "record_absent_from_plan",
+  );
   assert.deepEqual(row, { code: "record_absent_from_plan", index: 5 });
   const written = JSON.stringify(report);
   assert.ok(!written.includes("boards.example.test"), "the report must carry no URL");
@@ -2151,8 +2570,9 @@ test("the plan-obedience findings carry a position, not a ledger key", (t) => {
       });
     },
   });
-  const row = checkOf(report, "baseline-diff").findings
-    .find((entry) => entry.code === "refetched_closed_vacancy");
+  const row = checkOf(report, "baseline-diff").findings.find(
+    (entry) => entry.code === "refetched_closed_vacancy",
+  );
   assert.deepEqual(row, {
     code: "refetched_closed_vacancy",
     index: 1,
@@ -2169,10 +2589,13 @@ test("each half of the manifest-resolved test kills on its own", (t) => {
   // status word writes - and what leaves the exemption to the two discriminators under test.
   const rescue = (payload) => {
     const primary = verifyCaptureFile(payload.files.get("003.capture.txt"));
-    payload.files.set("003.browser.capture.txt", renderCaptureFile({
-      header: { ...primary.header, adapter: "in-app-browser@1", outcome: "-" },
-      body: primary.body,
-    }));
+    payload.files.set(
+      "003.browser.capture.txt",
+      renderCaptureFile({
+        header: { ...primary.header, adapter: "in-app-browser@1", outcome: "-" },
+        body: primary.body,
+      }),
+    );
   };
   const closedButUnresolved = verify(t, {
     mutate: (payload) => {
@@ -2230,35 +2653,45 @@ test("a requirement below a rail is reported, wherever the rail sits", (t) => {
   // chooses the finding's code and nothing else.
   const belowTheDeepestQuote = verify(t, {
     mutate: (payload) => {
-      rewriteRecordTwo(payload, (body) => `${body}\nMore jobs from Northwind Analytics\n\n`
-        + "Senior Backend Engineer - Northwind Analytics\n\n"
-        + "Note: successful candidates must reside in the European Union for payroll reasons.\n");
+      rewriteRecordTwo(
+        payload,
+        (body) =>
+          `${body}\nMore jobs from Northwind Analytics\n\n` +
+          "Senior Backend Engineer - Northwind Analytics\n\n" +
+          "Note: successful candidates must reside in the European Union for payroll reasons.\n",
+      );
     },
   });
-  const tail = checkOf(belowTheDeepestQuote.report, "negative-space").findings
-    .find((entry) => entry.family === "residence");
+  const tail = checkOf(belowTheDeepestQuote.report, "negative-space").findings.find(
+    (entry) => entry.family === "residence",
+  );
   assert.ok(tail !== undefined, codes(belowTheDeepestQuote.report).join(","));
   assert.equal(tail.code, "negative_space_outside_main_zone");
 
   const inABodyWithNoQuote = verify(t, {
     mutate: (payload) => {
       const primary = verifyCaptureFile(payload.files.get("002.capture.txt"));
-      const body = "Job details\n\nPeople also viewed\n\nSenior QA Engineer - Contoso\n\n"
-        + "You must be based in Germany for this role.\n";
-      payload.files.set("002.browser.capture.txt", renderCaptureFile({
-        header: {
-          ...primary.header,
-          adapter: "in-app-browser@1",
-          "normalized-sha256": sha256Utf8(body),
-          "body-bytes": Buffer.byteLength(body, "utf8"),
-        },
-        body,
-      }));
+      const body =
+        "Job details\n\nPeople also viewed\n\nSenior QA Engineer - Contoso\n\n" +
+        "You must be based in Germany for this role.\n";
+      payload.files.set(
+        "002.browser.capture.txt",
+        renderCaptureFile({
+          header: {
+            ...primary.header,
+            adapter: "in-app-browser@1",
+            "normalized-sha256": sha256Utf8(body),
+            "body-bytes": Buffer.byteLength(body, "utf8"),
+          },
+          body,
+        }),
+      );
     },
   });
   assert.ok(
-    checkOf(inABodyWithNoQuote.report, "negative-space").findings
-      .some((entry) => entry.family === "residence"),
+    checkOf(inABodyWithNoQuote.report, "negative-space").findings.some(
+      (entry) => entry.family === "residence",
+    ),
     codes(inABodyWithNoQuote.report).join(","),
   );
 });
@@ -2278,20 +2711,30 @@ test("a dropped link is corroborated by what the ledger row says, not by its exi
       });
     },
   });
-  recordBatch(prepared.ledgerPath, {
-    batch_id: "2026-08-16-prior-2",
-    observed_at: priorObservedAt,
-    entries: [{ url: links[1], status: "open", decision: "BLOCKED", flags: ["vacancy_unavailable"] }],
-  }, { artifactsDir: null });
-  const blockedRow = runSuite(buildContext({
-    artifactsDir: prepared.artifactsDir,
-    from: prepared.from,
-    ledgerPath: prepared.ledgerPath,
-    linksFile: prepared.linksFile,
-    to: prepared.to,
-  }), "full");
-  const finding = checkOf(blockedRow, "baseline-diff").findings
-    .find((entry) => entry.code === "plan_skip_uncorroborated");
+  recordBatch(
+    prepared.ledgerPath,
+    {
+      batch_id: "2026-08-16-prior-2",
+      observed_at: priorObservedAt,
+      entries: [
+        { url: links[1], status: "open", decision: "BLOCKED", flags: ["vacancy_unavailable"] },
+      ],
+    },
+    { artifactsDir: null },
+  );
+  const blockedRow = runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      from: prepared.from,
+      ledgerPath: prepared.ledgerPath,
+      linksFile: prepared.linksFile,
+      to: prepared.to,
+    }),
+    "full",
+  );
+  const finding = checkOf(blockedRow, "baseline-diff").findings.find(
+    (entry) => entry.code === "plan_skip_uncorroborated",
+  );
   assert.deepEqual(finding, {
     code: "plan_skip_uncorroborated",
     planPosition: 2,
@@ -2304,11 +2747,14 @@ test("a dropped link is corroborated by what the ledger row says, not by its exi
   const openRow = verify(t, {
     cadence: "full",
     mutate: (payload) => {
-      editJson(payload.files, "plan.json", (plan) => { plan.items[0].action = "skip_closed"; });
+      editJson(payload.files, "plan.json", (plan) => {
+        plan.items[0].action = "skip_closed";
+      });
     },
   });
-  const closed = checkOf(openRow.report, "baseline-diff").findings
-    .find((entry) => entry.code === "plan_skip_uncorroborated");
+  const closed = checkOf(openRow.report, "baseline-diff").findings.find(
+    (entry) => entry.code === "plan_skip_uncorroborated",
+  );
   assert.ok(closed !== undefined, codes(openRow.report).join(","));
   assert.equal(closed.action, "skip_closed");
 });
@@ -2329,10 +2775,13 @@ test("a rescue that says the posting is live does not excuse a declared closure"
   const { report } = verify(t, {
     mutate: (payload) => {
       const primary = verifyCaptureFile(payload.files.get("003.capture.txt"));
-      payload.files.set("003.browser.capture.txt", renderCaptureFile({
-        header: { ...primary.header, adapter: "in-app-browser@1", outcome: "active" },
-        body: primary.body,
-      }));
+      payload.files.set(
+        "003.browser.capture.txt",
+        renderCaptureFile({
+          header: { ...primary.header, adapter: "in-app-browser@1", outcome: "active" },
+          body: primary.body,
+        }),
+      );
       editJson(payload.files, "fetch-manifest.json", (manifest) => {
         manifest.records[2].outcome = "access_failure";
         manifest.records[2].usable = false;
@@ -2342,8 +2791,9 @@ test("a rescue that says the posting is live does not excuse a declared closure"
       payload.files.delete("003.capture.txt");
     },
   });
-  const finding = checkOf(report, "cross-transport").findings
-    .find((entry) => entry.code === "rescue_contradicts_declaration");
+  const finding = checkOf(report, "cross-transport").findings.find(
+    (entry) => entry.code === "rescue_contradicts_declaration",
+  );
   assert.deepEqual(finding, {
     code: "rescue_contradicts_declaration",
     index: 3,
@@ -2370,7 +2820,10 @@ test("a delisted posting corroborates a closure and cannot be scored as live", (
       });
     },
   });
-  assert.ok(codes(scoredAsLive.report).includes("closed_source_scored"), codes(scoredAsLive.report).join(","));
+  assert.ok(
+    codes(scoredAsLive.report).includes("closed_source_scored"),
+    codes(scoredAsLive.report).join(","),
+  );
 });
 
 test("a plan row cannot choose which ledger row corroborates it", (t) => {
@@ -2418,7 +2871,8 @@ test("two plan rows about one vacancy do not collapse into one corroboration", (
 // ---------------------------------------------------------------------------
 // the plan's duplicate flag is derived, not obeyed
 
-const LINKEDIN_SLUG_SPELLING = "https://www.linkedin.com/jobs/view/senior-qa-automation-engineer-at-acme-robotics-4500000001/";
+const LINKEDIN_SLUG_SPELLING =
+  "https://www.linkedin.com/jobs/view/senior-qa-automation-engineer-at-acme-robotics-4500000001/";
 
 test("a second spelling of a link the plan already saw needs no record of its own", (t) => {
   // The honest case the flag exists for: two LinkedIn spellings collapse to one identity, so the
@@ -2467,8 +2921,9 @@ test("a second spelling the plan did not mark is not what planBatch writes", (t)
       });
     },
   });
-  const finding = checkOf(report, "completeness").findings
-    .find((entry) => entry.code === "plan_item_duplicate_undeclared");
+  const finding = checkOf(report, "completeness").findings.find(
+    (entry) => entry.code === "plan_item_duplicate_undeclared",
+  );
   assert.deepEqual(finding, { code: "plan_item_duplicate_undeclared", planPosition: 7 });
 });
 
@@ -2483,17 +2938,21 @@ test("a vacancy cannot be dropped by calling it a duplicate of nothing", (t) => 
       editJson(payload.files, "fetch-manifest.json", (manifest) => {
         manifest.records = manifest.records.filter((record) => record.index !== 5);
       });
-      editJson(payload.files, "plan.json", (plan) => { plan.items[5].duplicate_in_batch = true; });
+      editJson(payload.files, "plan.json", (plan) => {
+        plan.items[5].duplicate_in_batch = true;
+      });
     },
   });
   assert.equal(report.status, "fail");
   // One reading of the plan, so one report of what that reading found.
-  const finding = checkOf(report, "completeness").findings
-    .find((entry) => entry.code === "plan_item_duplicate_unclaimed");
+  const finding = checkOf(report, "completeness").findings.find(
+    (entry) => entry.code === "plan_item_duplicate_unclaimed",
+  );
   assert.deepEqual(finding, { code: "plan_item_duplicate_unclaimed", planPosition: 6 });
   assert.equal(
-    checkOf(report, "baseline-diff").findings
-      .some((entry) => entry.code === "plan_item_duplicate_unclaimed"),
+    checkOf(report, "baseline-diff").findings.some(
+      (entry) => entry.code === "plan_item_duplicate_unclaimed",
+    ),
     false,
     "the plan's problems are reported once",
   );
@@ -2527,10 +2986,13 @@ test("a rescue stamped live is read whatever its filename", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
       const primary = verifyCaptureFile(payload.files.get("003.capture.txt"));
-      payload.files.set("003.capture.txt", renderCaptureFile({
-        header: { ...primary.header, adapter: "in-app-browser@1", outcome: "active" },
-        body: primary.body,
-      }));
+      payload.files.set(
+        "003.capture.txt",
+        renderCaptureFile({
+          header: { ...primary.header, adapter: "in-app-browser@1", outcome: "active" },
+          body: primary.body,
+        }),
+      );
       editJson(payload.files, "fetch-manifest.json", (manifest) => {
         manifest.records[2].outcome = "access_failure";
         manifest.records[2].usable = false;
@@ -2546,11 +3008,17 @@ test("one contradicting rescue is a contradiction, however many agree with the r
   const { report } = verify(t, {
     mutate: (payload) => {
       const primary = verifyCaptureFile(payload.files.get("003.capture.txt"));
-      for (const [part, outcome] of [["browser", "active"], ["second", "closed"]]) {
-        payload.files.set(`003.${part}.capture.txt`, renderCaptureFile({
-          header: { ...primary.header, adapter: "in-app-browser@1", outcome },
-          body: primary.body,
-        }));
+      for (const [part, outcome] of [
+        ["browser", "active"],
+        ["second", "closed"],
+      ]) {
+        payload.files.set(
+          `003.${part}.capture.txt`,
+          renderCaptureFile({
+            header: { ...primary.header, adapter: "in-app-browser@1", outcome },
+            body: primary.body,
+          }),
+        );
       }
       editJson(payload.files, "fetch-manifest.json", (manifest) => {
         manifest.records[2].outcome = "access_failure";
@@ -2574,10 +3042,13 @@ test("a rescue that only says the fetch failed contradicts nothing", (t) => {
       });
       rebuildTrace(payload.files, name, join("traces", "003.trace.json"));
       const primary = verifyCaptureFile(payload.files.get("003.capture.txt"));
-      payload.files.set("003.browser.capture.txt", renderCaptureFile({
-        header: { ...primary.header, adapter: "in-app-browser@1", outcome: "access_failure" },
-        body: primary.body,
-      }));
+      payload.files.set(
+        "003.browser.capture.txt",
+        renderCaptureFile({
+          header: { ...primary.header, adapter: "in-app-browser@1", outcome: "access_failure" },
+          body: primary.body,
+        }),
+      );
       payload.files.delete("003.capture.txt");
       editJson(payload.files, "fetch-manifest.json", (manifest) => {
         manifest.records[2].outcome = "access_failure";
@@ -2587,10 +3058,7 @@ test("a rescue that only says the fetch failed contradicts nothing", (t) => {
       });
     },
   });
-  assert.ok(
-    !codes(report).includes("rescue_contradicts_declaration"),
-    codes(report).join(","),
-  );
+  assert.ok(!codes(report).includes("rescue_contradicts_declaration"), codes(report).join(","));
 });
 
 test("a plan written before the re-check windows went still reads, and its window buys nothing", (t) => {
@@ -2611,7 +3079,9 @@ test("an action name this build does not plan is not a skip", (t) => {
   // nothing here: the batch is re-planned, which is cheap, rather than read through an alias.
   const { report } = verify(t, {
     mutate: (payload) => {
-      editJson(payload.files, "plan.json", (plan) => { plan.items[2].action = "skip_recent"; });
+      editJson(payload.files, "plan.json", (plan) => {
+        plan.items[2].action = "skip_recent";
+      });
     },
   });
   assert.ok(codes(report).includes("link_uncovered"), codes(report).join(","));
@@ -2637,8 +3107,9 @@ test("a vacancy cannot be dropped by calling it skipped either", (t) => {
     },
   });
   assert.equal(report.status, "fail");
-  const uncovered = checkOf(report, "completeness").findings
-    .find((entry) => entry.code === "link_uncovered");
+  const uncovered = checkOf(report, "completeness").findings.find(
+    (entry) => entry.code === "link_uncovered",
+  );
   assert.ok(uncovered !== undefined, codes(report).join(","));
   assert.equal(uncovered.position, 6);
 });
@@ -2653,8 +3124,9 @@ test("a plan row repeating the identical link accounts for nothing", (t) => {
       });
     },
   });
-  const finding = checkOf(report, "completeness").findings
-    .find((entry) => entry.code === "plan_item_duplicate");
+  const finding = checkOf(report, "completeness").findings.find(
+    (entry) => entry.code === "plan_item_duplicate",
+  );
   assert.deepEqual(finding, { code: "plan_item_duplicate", planPosition: 7 });
 });
 
@@ -2671,7 +3143,9 @@ test("a legitimate known-link skip is corroborated and counted", (t) => {
       editJson(payload.files, "fetch-manifest.json", (manifest) => {
         manifest.records = manifest.records.filter((record) => record.index !== 1);
       });
-      editJson(payload.files, "plan.json", (plan) => { plan.items[0].action = "skip_known"; });
+      editJson(payload.files, "plan.json", (plan) => {
+        plan.items[0].action = "skip_known";
+      });
     },
   });
   assert.ok(!codes(report).includes("plan_skip_uncorroborated"), codes(report).join(","));
@@ -2742,11 +3216,14 @@ test("a skip the ledger row does not support accounts for nothing", (t) => {
   // removed has no record of its own.
   const { report } = verify(t, {
     mutate: (payload) => {
-      editJson(payload.files, "plan.json", (plan) => { plan.items[2].action = "skip_known"; });
+      editJson(payload.files, "plan.json", (plan) => {
+        plan.items[2].action = "skip_known";
+      });
     },
   });
-  const uncovered = checkOf(report, "completeness").findings
-    .find((entry) => entry.code === "link_uncovered");
+  const uncovered = checkOf(report, "completeness").findings.find(
+    (entry) => entry.code === "link_uncovered",
+  );
   assert.ok(uncovered !== undefined, codes(report).join(","));
   assert.equal(uncovered.position, 3);
 });
@@ -2772,8 +3249,9 @@ test("the first row for a key stays the first however many follow it", (t) => {
       });
     },
   });
-  const finding = checkOf(report, "completeness").findings
-    .find((entry) => entry.code === "plan_item_duplicate");
+  const finding = checkOf(report, "completeness").findings.find(
+    (entry) => entry.code === "plan_item_duplicate",
+  );
   assert.deepEqual(finding, { code: "plan_item_duplicate", planPosition: 8 });
 });
 
@@ -2783,8 +3261,12 @@ test("a batch that fetched nothing cannot skip its way to a pass", (t) => {
   const { report } = verify(t, {
     mutate: (payload) => {
       for (const name of [...payload.files.keys()]) {
-        if (/^\d{3}[.]/u.test(name) || /^(inputs|traces|blind)\//u.test(name)
-          || name === "fetch-manifest.json" || name === "disposition.json") {
+        if (
+          /^\d{3}[.]/u.test(name) ||
+          /^(inputs|traces|blind)\//u.test(name) ||
+          name === "fetch-manifest.json" ||
+          name === "disposition.json"
+        ) {
           payload.files.delete(name);
         }
       }
@@ -2798,8 +3280,9 @@ test("a batch that fetched nothing cannot skip its way to a pass", (t) => {
     },
   });
   assert.equal(report.status, "fail");
-  const finding = checkOf(report, "completeness").findings
-    .find((entry) => entry.code === "plan_skips_unverifiable");
+  const finding = checkOf(report, "completeness").findings.find(
+    (entry) => entry.code === "plan_skips_unverifiable",
+  );
   assert.ok(finding !== undefined, codes(report).join(","));
   assert.ok(finding.planPositions.length > 0, JSON.stringify(finding));
 });
@@ -2809,13 +3292,16 @@ test("a ledger row this batch already wrote cannot support its own skip", (t) =>
   const ledger = JSON.parse(readFileSync(prepared.ledgerPath, "utf8"));
   for (const entry of ledger.entries) entry.last_checked = "2026-08-24T00:00:00.000Z";
   writeFileSync(prepared.ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
-  const report = runSuite(buildContext({
-    artifactsDir: prepared.artifactsDir,
-    from: prepared.from,
-    ledgerPath: prepared.ledgerPath,
-    linksFile: prepared.linksFile,
-    to: prepared.to,
-  }), "per-batch");
+  const report = runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      from: prepared.from,
+      ledgerPath: prepared.ledgerPath,
+      linksFile: prepared.linksFile,
+      to: prepared.to,
+    }),
+    "per-batch",
+  );
   assert.ok(codes(report).includes("plan_skips_unverifiable"), codes(report).join(","));
 });
 
@@ -2826,14 +3312,18 @@ test("a contradicting rescue is reported on a batch with no manifest at all", (t
     mutate: (payload) => {
       payload.files.delete("fetch-manifest.json");
       const primary = verifyCaptureFile(payload.files.get("003.capture.txt"));
-      payload.files.set("003.capture.txt", renderCaptureFile({
-        header: { ...primary.header, adapter: "in-app-browser@1", outcome: "active" },
-        body: primary.body,
-      }));
+      payload.files.set(
+        "003.capture.txt",
+        renderCaptureFile({
+          header: { ...primary.header, adapter: "in-app-browser@1", outcome: "active" },
+          body: primary.body,
+        }),
+      );
     },
   });
-  const finding = checkOf(report, "cross-transport").findings
-    .find((entry) => entry.code === "rescue_contradicts_declaration");
+  const finding = checkOf(report, "cross-transport").findings.find(
+    (entry) => entry.code === "rescue_contradicts_declaration",
+  );
   assert.deepEqual(finding, {
     code: "rescue_contradicts_declaration",
     index: 3,
@@ -2865,8 +3355,12 @@ test("a terminal skip is unverifiable too when nothing dates the ledger row", (t
   const { report } = verify(t, {
     mutate: (payload) => {
       for (const name of [...payload.files.keys()]) {
-        if (/^\d{3}[.]/u.test(name) || /^(inputs|traces|blind)\//u.test(name)
-          || name === "fetch-manifest.json" || name === "disposition.json") {
+        if (
+          /^\d{3}[.]/u.test(name) ||
+          /^(inputs|traces|blind)\//u.test(name) ||
+          name === "fetch-manifest.json" ||
+          name === "disposition.json"
+        ) {
           payload.files.delete(name);
         }
       }
@@ -2903,8 +3397,9 @@ test("a plan that omits its baseline does not buy a quieter report", (t) => {
       });
     },
   });
-  const diff = checkOf(report, "baseline-diff").diffs
-    .find((entry) => entry.code === "decision_changed" && entry.index === 1);
+  const diff = checkOf(report, "baseline-diff").diffs.find(
+    (entry) => entry.code === "decision_changed" && entry.index === 1,
+  );
   assert.deepEqual(
     { from: diff?.from, to: diff?.to },
     { from: "MANUAL_REVIEW", to: "SKIP" },
@@ -2921,7 +3416,9 @@ test("the manifest can date a batch whose captures cannot", (t) => {
       for (const name of [...payload.files.keys()]) {
         if (/^\d{3}[.]/u.test(name) || name === "disposition.json") payload.files.delete(name);
       }
-      editJson(payload.files, "plan.json", (plan) => { plan.items[2].action = "skip_closed"; });
+      editJson(payload.files, "plan.json", (plan) => {
+        plan.items[2].action = "skip_closed";
+      });
     },
   });
   assert.ok(
@@ -2946,26 +3443,32 @@ test("the manifest can date a batch whose captures cannot", (t) => {
 test("a ledger row this batch wrote is not a baseline to fall back on either", (t) => {
   // Same omission, but every ledger row now carries an observation from after the fetch. That is
   // this batch's own write-back, so there is no baseline and the records are simply new.
-  const prepared = prepare(t, { ledger: true, mutate: (payload) => {
-    editJson(payload.files, "plan.json", (plan) => {
-      for (const item of plan.items) {
-        delete item.status;
-        delete item.decision;
-        delete item.flags;
-        if (item.action === "skip_known") item.action = "fetch_new";
-      }
-    });
-  } });
+  const prepared = prepare(t, {
+    ledger: true,
+    mutate: (payload) => {
+      editJson(payload.files, "plan.json", (plan) => {
+        for (const item of plan.items) {
+          delete item.status;
+          delete item.decision;
+          delete item.flags;
+          if (item.action === "skip_known") item.action = "fetch_new";
+        }
+      });
+    },
+  });
   const ledger = JSON.parse(readFileSync(prepared.ledgerPath, "utf8"));
   for (const entry of ledger.entries) entry.last_checked = "2026-08-24T00:00:00.000Z";
   writeFileSync(prepared.ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
-  const report = runSuite(buildContext({
-    artifactsDir: prepared.artifactsDir,
-    from: prepared.from,
-    ledgerPath: prepared.ledgerPath,
-    linksFile: prepared.linksFile,
-    to: prepared.to,
-  }), "full");
+  const report = runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      from: prepared.from,
+      ledgerPath: prepared.ledgerPath,
+      linksFile: prepared.linksFile,
+      to: prepared.to,
+    }),
+    "full",
+  );
   const diff = checkOf(report, "baseline-diff");
   assert.equal(diff.counts.known, 0);
   assert.deepEqual(diff.diffs, []);
@@ -2976,65 +3479,154 @@ test("a ledger row this batch wrote is not a baseline to fall back on either", (
 
 test("a malformed artifact is a bounded finding, never a crash", (t) => {
   const cases = [
-    ["plan_unreadable", (payload) => { payload.files.set("plan.json", "{ not json"); }],
-    ["disposition_unreadable", (payload) => { payload.files.set("disposition.json", "{ not json"); }],
-    ["attestation_unreadable", (payload) => { payload.files.set("attestation.json", "{ not json"); }],
-    ["attestation_invalid", (payload) => {
-      editJson(payload.files, "attestation.json", (file) => { file.schemaVersion = 9; });
-    }],
-    ["manifest_unreadable", (payload) => { payload.files.set("fetch-manifest.json", "{ not json"); }],
-    ["input_absent", (payload) => { payload.files.delete(INPUT_ONE); }],
-    ["trace_unreadable", (payload) => { payload.files.set(TRACE_ONE, "{ not json"); }],
-    ["input_not_scoreable", (payload) => {
-      editJson(payload.files, INPUT_ONE, (input) => { input.offers[0].workFormat = "Sideways"; });
-    }],
-    ["trace_index_mismatch", (payload) => {
-      editJson(payload.files, TRACE_ONE, (trace) => { trace.input_index = 9; });
-    }],
-    ["capture_empty", (payload) => { payload.files.set(CAPTURE_ONE, ""); }],
-    ["capture_delimiter_absent", (payload) => { payload.files.set(CAPTURE_ONE, "# vacancy-fetch capture v1\n"); }],
-    ["capture_header_absent", (payload) => {
-      const parsed = verifyCaptureFile(payload.files.get(CAPTURE_ONE));
-      const rendered = renderCaptureFile({ header: parsed.header, body: parsed.body });
-      payload.files.set(CAPTURE_ONE, rendered.slice(rendered.indexOf("\n") + 1));
-    }],
-    ["blind_index_unusable", (payload) => {
-      payload.files.set(join("blind", "004.input.json"), payload.files.get(INPUT_TWO));
-      payload.files.delete(join("blind", "002.input.json"));
-    }],
-    ["blind_input_not_scoreable", (payload) => {
-      editJson(payload.files, join("blind", "002.input.json"), (input) => {
-        input.policyId = "triage-r1-05a-2026-08-04";
-      });
-    }],
+    [
+      "plan_unreadable",
+      (payload) => {
+        payload.files.set("plan.json", "{ not json");
+      },
+    ],
+    [
+      "disposition_unreadable",
+      (payload) => {
+        payload.files.set("disposition.json", "{ not json");
+      },
+    ],
+    [
+      "attestation_unreadable",
+      (payload) => {
+        payload.files.set("attestation.json", "{ not json");
+      },
+    ],
+    [
+      "attestation_invalid",
+      (payload) => {
+        editJson(payload.files, "attestation.json", (file) => {
+          file.schemaVersion = 9;
+        });
+      },
+    ],
+    [
+      "manifest_unreadable",
+      (payload) => {
+        payload.files.set("fetch-manifest.json", "{ not json");
+      },
+    ],
+    [
+      "input_absent",
+      (payload) => {
+        payload.files.delete(INPUT_ONE);
+      },
+    ],
+    [
+      "trace_unreadable",
+      (payload) => {
+        payload.files.set(TRACE_ONE, "{ not json");
+      },
+    ],
+    [
+      "input_not_scoreable",
+      (payload) => {
+        editJson(payload.files, INPUT_ONE, (input) => {
+          input.offers[0].workFormat = "Sideways";
+        });
+      },
+    ],
+    [
+      "trace_index_mismatch",
+      (payload) => {
+        editJson(payload.files, TRACE_ONE, (trace) => {
+          trace.input_index = 9;
+        });
+      },
+    ],
+    [
+      "capture_empty",
+      (payload) => {
+        payload.files.set(CAPTURE_ONE, "");
+      },
+    ],
+    [
+      "capture_delimiter_absent",
+      (payload) => {
+        payload.files.set(CAPTURE_ONE, "# vacancy-fetch capture v1\n");
+      },
+    ],
+    [
+      "capture_header_absent",
+      (payload) => {
+        const parsed = verifyCaptureFile(payload.files.get(CAPTURE_ONE));
+        const rendered = renderCaptureFile({ header: parsed.header, body: parsed.body });
+        payload.files.set(CAPTURE_ONE, rendered.slice(rendered.indexOf("\n") + 1));
+      },
+    ],
+    [
+      "blind_index_unusable",
+      (payload) => {
+        payload.files.set(join("blind", "004.input.json"), payload.files.get(INPUT_TWO));
+        payload.files.delete(join("blind", "002.input.json"));
+      },
+    ],
+    [
+      "blind_input_not_scoreable",
+      (payload) => {
+        editJson(payload.files, join("blind", "002.input.json"), (input) => {
+          input.policyId = "triage-r1-05a-2026-08-04";
+        });
+      },
+    ],
     // The blind extractor copies the scoring values of the primary input; an object without them
     // is not one the scorer reads.
-    ["blind_input_not_scoreable", (payload) => {
-      editJson(payload.files, join("blind", "002.input.json"), (input) => {
-        delete input.candidateScoring;
-      });
-    }],
-    ["capture_size_mismatch", (payload) => {
-      const parsed = verifyCaptureFile(payload.files.get(CAPTURE_ONE));
-      payload.files.set(CAPTURE_ONE, renderCaptureFile({
-        header: { ...parsed.header, "body-bytes": "1" },
-        body: parsed.body,
-      }));
-    }],
-    ["blind_input_unreadable", (payload) => {
-      payload.files.set(join("blind", "002.input.json"), "{ not json");
-    }],
-    ["blind_extraction_sample_count", (payload) => {
-      for (const index of ["001", "003", "004"]) {
-        payload.files.set(join("blind", `${index}.input.json`), payload.files.get(INPUT_TWO));
-      }
-    }],
-    ["probe_duplicate", (payload) => {
-      editJson(payload.files, "attestation.json", (file) => { file.probes.push({ ...file.probes[0] }); });
-    }],
-    ["record_source_ref_unusable", (payload) => {
-      editJson(payload.files, INPUT_ONE, (input) => { input.source.sourceRef = "not a url"; });
-    }],
+    [
+      "blind_input_not_scoreable",
+      (payload) => {
+        editJson(payload.files, join("blind", "002.input.json"), (input) => {
+          delete input.candidateScoring;
+        });
+      },
+    ],
+    [
+      "capture_size_mismatch",
+      (payload) => {
+        const parsed = verifyCaptureFile(payload.files.get(CAPTURE_ONE));
+        payload.files.set(
+          CAPTURE_ONE,
+          renderCaptureFile({
+            header: { ...parsed.header, "body-bytes": "1" },
+            body: parsed.body,
+          }),
+        );
+      },
+    ],
+    [
+      "blind_input_unreadable",
+      (payload) => {
+        payload.files.set(join("blind", "002.input.json"), "{ not json");
+      },
+    ],
+    [
+      "blind_extraction_sample_count",
+      (payload) => {
+        for (const index of ["001", "003", "004"]) {
+          payload.files.set(join("blind", `${index}.input.json`), payload.files.get(INPUT_TWO));
+        }
+      },
+    ],
+    [
+      "probe_duplicate",
+      (payload) => {
+        editJson(payload.files, "attestation.json", (file) => {
+          file.probes.push({ ...file.probes[0] });
+        });
+      },
+    ],
+    [
+      "record_source_ref_unusable",
+      (payload) => {
+        editJson(payload.files, INPUT_ONE, (input) => {
+          input.source.sourceRef = "not a url";
+        });
+      },
+    ],
   ];
   for (const [expected, mutate] of cases) {
     const { report } = verify(t, { cadence: "full", mutate });
@@ -3045,7 +3637,9 @@ test("a malformed artifact is a bounded finding, never a crash", (t) => {
 test("a record whose input cannot be read is not swept as if it could", (t) => {
   const { report } = verify(t, {
     cadence: "full",
-    mutate: (payload) => { payload.files.set(INPUT_TWO, "{ not json"); },
+    mutate: (payload) => {
+      payload.files.set(INPUT_TWO, "{ not json");
+    },
   });
   assert.ok(codes(report).includes("record_not_sweepable"), codes(report).join(","));
   assert.ok(codes(report).includes("record_key_underivable"), codes(report).join(","));
@@ -3055,7 +3649,9 @@ test("a plan item with an unusable link is reported, not skipped over", (t) => {
   const { report } = verify(t, {
     cadence: "full",
     mutate: (payload) => {
-      editJson(payload.files, "plan.json", (plan) => { plan.items[2].link = "ftp://example.test/job"; });
+      editJson(payload.files, "plan.json", (plan) => {
+        plan.items[2].link = "ftp://example.test/job";
+      });
     },
   });
   assert.ok(codes(report).includes("plan_item_unusable"), codes(report).join(","));
@@ -3101,29 +3697,35 @@ test("a fetch stamp written unreadably fails as loudly as one left out", (t) => 
 test("the batch is dated by the instant the transport took before it started", (t) => {
   // A write-back recorded between the manifest's own start and the first capture is still this
   // batch's own observation, and must not become the baseline it is compared against.
-  const prepared = prepare(t, { ledger: true, mutate: (payload) => {
-    editJson(payload.files, "plan.json", (plan) => {
-      for (const item of plan.items) {
-        delete item.status;
-        delete item.decision;
-        delete item.flags;
-        if (item.action === "skip_known") item.action = "fetch_new";
-      }
-    });
-    editJson(payload.files, "fetch-manifest.json", (manifest) => {
-      manifest.startedAt = "2026-08-23T09:00:00.000Z";
-    });
-  } });
+  const prepared = prepare(t, {
+    ledger: true,
+    mutate: (payload) => {
+      editJson(payload.files, "plan.json", (plan) => {
+        for (const item of plan.items) {
+          delete item.status;
+          delete item.decision;
+          delete item.flags;
+          if (item.action === "skip_known") item.action = "fetch_new";
+        }
+      });
+      editJson(payload.files, "fetch-manifest.json", (manifest) => {
+        manifest.startedAt = "2026-08-23T09:00:00.000Z";
+      });
+    },
+  });
   const ledger = JSON.parse(readFileSync(prepared.ledgerPath, "utf8"));
   for (const entry of ledger.entries) entry.last_checked = "2026-08-23T09:05:00.000Z";
   writeFileSync(prepared.ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
-  const report = runSuite(buildContext({
-    artifactsDir: prepared.artifactsDir,
-    from: prepared.from,
-    ledgerPath: prepared.ledgerPath,
-    linksFile: prepared.linksFile,
-    to: prepared.to,
-  }), "full");
+  const report = runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      from: prepared.from,
+      ledgerPath: prepared.ledgerPath,
+      linksFile: prepared.linksFile,
+      to: prepared.to,
+    }),
+    "full",
+  );
   assert.equal(checkOf(report, "baseline-diff").counts.known, 0);
 });
 
@@ -3131,7 +3733,10 @@ test("a usable instant is one that carries its own zone", () => {
   // `Date.parse` reads a zoneless ISO stamp in the host's timezone, so the same directory would
   // date differently on two machines - and later, which is the permissive direction.
   assert.equal(usableInstant("2026-08-23T09:15:00.000Z"), Date.parse("2026-08-23T09:15:00.000Z"));
-  assert.equal(usableInstant("2026-08-23T09:15:00.000+08:00"), Date.parse("2026-08-23T01:15:00.000Z"));
+  assert.equal(
+    usableInstant("2026-08-23T09:15:00.000+08:00"),
+    Date.parse("2026-08-23T01:15:00.000Z"),
+  );
   assert.equal(usableInstant("2026-08-23T09:15:00.000"), null);
   assert.equal(usableInstant("2026-08-23"), null);
   assert.equal(usableInstant("2026-08-23 09:15 SGT"), null);
@@ -3144,17 +3749,28 @@ test("a usable instant is one that carries its own zone", () => {
 
 test("the instant the write-back guard rests on is itself checked", (t) => {
   const cases = [
-    (manifest) => { delete manifest.startedAt; },
-    (manifest) => { manifest.startedAt = "2026-08-23 09:00 SGT"; },
-    (manifest) => { manifest.startedAt = "2026-08-23T09:00:00.000"; },
-    (manifest) => { manifest.startedAt = null; },
+    (manifest) => {
+      delete manifest.startedAt;
+    },
+    (manifest) => {
+      manifest.startedAt = "2026-08-23 09:00 SGT";
+    },
+    (manifest) => {
+      manifest.startedAt = "2026-08-23T09:00:00.000";
+    },
+    (manifest) => {
+      manifest.startedAt = null;
+    },
   ];
   for (const edit of cases) {
     const { report } = verify(t, {
-      mutate: (payload) => { editJson(payload.files, "fetch-manifest.json", edit); },
+      mutate: (payload) => {
+        editJson(payload.files, "fetch-manifest.json", edit);
+      },
     });
-    const finding = checkOf(report, "cross-transport").findings
-      .find((entry) => entry.code === "manifest_started_at_unusable");
+    const finding = checkOf(report, "cross-transport").findings.find(
+      (entry) => entry.code === "manifest_started_at_unusable",
+    );
     assert.deepEqual(finding, { code: "manifest_started_at_unusable" });
   }
 });
@@ -3188,42 +3804,47 @@ test("an absent record the confirmation load found live is scored, not contradic
     const primary = verifyCaptureFile(payload.files.get(CAPTURE_ONE));
     const name = join("inputs", "004.input.json");
     const input = JSON.parse(payload.files.get(name));
-    payload.files.set("004.browser.capture.txt", renderCaptureFile({
-      header: {
-        ...primary.header,
-        index: 4,
-        adapter: "in-app-browser@1",
-        outcome: "-",
-        "requested-url": input.source.sourceRef,
-        "final-url": input.source.sourceRef,
-        "normalized-sha256": sha256Utf8(live),
-        "body-bytes": Buffer.byteLength(live, "utf8"),
-      },
-      body: live,
-    }));
+    payload.files.set(
+      "004.browser.capture.txt",
+      renderCaptureFile({
+        header: {
+          ...primary.header,
+          index: 4,
+          adapter: "in-app-browser@1",
+          outcome: "-",
+          "requested-url": input.source.sourceRef,
+          "final-url": input.source.sourceRef,
+          "normalized-sha256": sha256Utf8(live),
+          "body-bytes": Buffer.byteLength(live, "utf8"),
+        },
+        body: live,
+      }),
+    );
     editJson(payload.files, name, (value) => {
       value.source.accessOutcome = "usable";
       value.source.accessReason = null;
       value.source.evidenceQuote = "Senior QA Engineer";
-      value.offers = [{
-        companyRegion: "WEST",
-        compensationMarket: "other",
-        contractorEligibility: "eligible",
-        engagementPath: "outside_home_contractor",
-        evidenceQuote: "We are fully remote across the EU and hire contractors.",
-        relocationCountry: null,
-        relocationCountryCode: null,
-        relocationSupport: "unknown",
-        residenceRequirementCountry: null,
-        residenceRequirementCountryCode: null,
-        residenceRestriction: "none",
-        sponsorship: "unknown",
-        timezone: "tz_any",
-        timezoneDistance: "near",
-        westRegion: "EU_UK",
-        workAuthorization: "unknown",
-        workFormat: "Remote",
-      }];
+      value.offers = [
+        {
+          companyRegion: "WEST",
+          compensationMarket: "other",
+          contractorEligibility: "eligible",
+          engagementPath: "outside_home_contractor",
+          evidenceQuote: "We are fully remote across the EU and hire contractors.",
+          relocationCountry: null,
+          relocationCountryCode: null,
+          relocationSupport: "unknown",
+          residenceRequirementCountry: null,
+          residenceRequirementCountryCode: null,
+          residenceRestriction: "none",
+          sponsorship: "unknown",
+          timezone: "tz_any",
+          timezoneDistance: "near",
+          westRegion: "EU_UK",
+          workAuthorization: "unknown",
+          workFormat: "Remote",
+        },
+      ];
       value.role = {
         ai: { product: "none", work: "none" },
         automation: "primary",
@@ -3271,25 +3892,27 @@ test("an absent record the confirmation load found live is scored, not contradic
         value.source.accessOutcome = "usable";
         value.source.accessReason = null;
         value.role.ai = { product: "none", work: "none" };
-        value.offers = [{
-          companyRegion: "OTHER",
-          compensationMarket: "unknown",
-          contractorEligibility: "unknown",
-          engagementPath: null,
-          evidenceQuote: "Globex Payments was hiring a Senior QA Engineer for its Berlin office.",
-          relocationCountry: null,
-          relocationCountryCode: null,
-          relocationSupport: "unknown",
-          residenceRequirementCountry: null,
-          residenceRequirementCountryCode: null,
-          residenceRestriction: "unknown",
-          sponsorship: "unknown",
-          timezone: "tz_unknown",
-          timezoneDistance: "unknown",
-          westRegion: null,
-          workAuthorization: "unknown",
-          workFormat: "Unknown",
-        }];
+        value.offers = [
+          {
+            companyRegion: "OTHER",
+            compensationMarket: "unknown",
+            contractorEligibility: "unknown",
+            engagementPath: null,
+            evidenceQuote: "Globex Payments was hiring a Senior QA Engineer for its Berlin office.",
+            relocationCountry: null,
+            relocationCountryCode: null,
+            relocationSupport: "unknown",
+            residenceRequirementCountry: null,
+            residenceRequirementCountryCode: null,
+            residenceRestriction: "unknown",
+            sponsorship: "unknown",
+            timezone: "tz_unknown",
+            timezoneDistance: "unknown",
+            westRegion: null,
+            workAuthorization: "unknown",
+            workFormat: "Unknown",
+          },
+        ];
       });
       rebuildTrace(payload.files, name, join("traces", "003.trace.json"));
     },
@@ -3311,32 +3934,41 @@ test("a batch is recomputed on the scoring values its inputs recorded, not on th
   assert.equal(checkOf(report, "completeness").counts.tracesRecomputed, 5);
 });
 
-for (const scope of ["main","optional","product","ambiguous"]) {
+for (const scope of ["main", "optional", "product", "ambiguous"]) {
   test(`quote-integrity verifies concrete ${scope} stack evidence`, (t) => {
-    const {report}=verify(t,{mutate:payload=>{
-      editJson(payload.files,INPUT_TWO,input=>{
-        for(const key of ["observedLanguages","observedTools"]) {
-          const item=input.role[key][0]; item.scope=scope;item.requirement=scope==="optional"?"optional":"required";
-          item.evidenceQuote="A fabricated QA technology requirement absent from the capture.";
-        }
-      });
-    }});
-    const findings=checkOf(report,"quote-integrity").findings;
-    assert.ok(findings.some(item=>item.path==="role.observedLanguages[0].evidenceQuote"));
-    assert.ok(findings.some(item=>item.path==="role.observedTools[0].evidenceQuote"));
+    const { report } = verify(t, {
+      mutate: (payload) => {
+        editJson(payload.files, INPUT_TWO, (input) => {
+          for (const key of ["observedLanguages", "observedTools"]) {
+            const item = input.role[key][0];
+            item.scope = scope;
+            item.requirement = scope === "optional" ? "optional" : "required";
+            item.evidenceQuote = "A fabricated QA technology requirement absent from the capture.";
+          }
+        });
+      },
+    });
+    const findings = checkOf(report, "quote-integrity").findings;
+    assert.ok(findings.some((item) => item.path === "role.observedLanguages[0].evidenceQuote"));
+    assert.ok(findings.some((item) => item.path === "role.observedTools[0].evidenceQuote"));
   });
 }
 
 test("earlier input schemas and trace taxonomies report policy_drift without recomputation", (t) => {
-  for(const target of ["schema","taxonomy","policy"]) {
-    const {report}=verify(t,{mutate:payload=>{
-      if(target==="schema") editJson(payload.files,INPUT_TWO,input=>input.schemaVersion=8);
-      else editJson(payload.files,TRACE_TWO,trace=>{
-        if(target==="taxonomy")trace.toolmatch_taxonomy_id="toolmatch-taxonomy-v5-2026-10-01";
-        else trace.policy_id="triage-policy-v7-2026-10-01";
-      });
-    }});
+  for (const target of ["schema", "taxonomy", "policy"]) {
+    const { report } = verify(t, {
+      mutate: (payload) => {
+        if (target === "schema")
+          editJson(payload.files, INPUT_TWO, (input) => (input.schemaVersion = 8));
+        else
+          editJson(payload.files, TRACE_TWO, (trace) => {
+            if (target === "taxonomy")
+              trace.toolmatch_taxonomy_id = "toolmatch-taxonomy-v5-2026-10-01";
+            else trace.policy_id = "triage-policy-v7-2026-10-01";
+          });
+      },
+    });
     assert.ok(codes(report).includes("policy_drift"));
-    assert.equal(checkOf(report,"completeness").counts.tracesRecomputed,4);
+    assert.equal(checkOf(report, "completeness").counts.tracesRecomputed, 4);
   }
 });

@@ -15,10 +15,7 @@ export const dedicatedAdapters = Object.freeze([linkedinGuestAdapter]);
 
 export const fallbackAdapter = genericHtmlAdapter;
 
-export const vacancyFetchAdapters = Object.freeze([
-  ...dedicatedAdapters,
-  fallbackAdapter,
-]);
+export const vacancyFetchAdapters = Object.freeze([...dedicatedAdapters, fallbackAdapter]);
 
 /** The adapter that serves this URL. Never null: the generic fallback serves everything. */
 export function selectAdapter(url) {

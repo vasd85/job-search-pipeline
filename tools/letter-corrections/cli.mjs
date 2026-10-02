@@ -45,9 +45,12 @@ function resolveInputRoot(workspaceRoot) {
 // The letter languages are those of the candidate layer of the same workspace, read per
 // invocation for the same reason; a test hands them in through the seams instead.
 function resolveLanguages(seams) {
-  return seams.languages ?? candidateLanguageNames({
-    root: candidateRootFor(resolveWorkspaceRoot(seams)),
-  });
+  return (
+    seams.languages ??
+    candidateLanguageNames({
+      root: candidateRootFor(resolveWorkspaceRoot(seams)),
+    })
+  );
 }
 
 // `--class` is the one repeatable flag: the retrospective puts eight of its rows in two classes at
@@ -179,7 +182,9 @@ export function main(argv, seams = {}) {
 
   if (command === "summary") {
     rejectUnknown(options, ALLOWED_SUMMARY_OPTIONS);
-    const records = readCorpus(resolve(required(options, "corpus")), { languages: resolveLanguages(seams) });
+    const records = readCorpus(resolve(required(options, "corpus")), {
+      languages: resolveLanguages(seams),
+    });
     process.stdout.write(`${JSON.stringify(summarize(records), null, 2)}\n`);
     return 0;
   }
@@ -259,23 +264,33 @@ export function main(argv, seams = {}) {
 
   // The first record of a run creates the directory; the run root itself is already proven.
   mkdirSync(corpus, { recursive: true });
-  const { path, record } = writeRecord(corpus, {
-    ...fields,
-    companyRole: envelope.values.companyRole,
-    fragmentAfter: envelope.values.fragmentAfter,
-    fragmentBefore: envelope.values.fragmentBefore,
-    userReason,
-  }, { ...seams, languages });
+  const { path, record } = writeRecord(
+    corpus,
+    {
+      ...fields,
+      companyRole: envelope.values.companyRole,
+      fragmentAfter: envelope.values.fragmentAfter,
+      fragmentBefore: envelope.values.fragmentBefore,
+      userReason,
+    },
+    { ...seams, languages },
+  );
 
   // The identifier, the path and the counted facts. No fragment, no reason, no letter text.
-  process.stdout.write(`${JSON.stringify({
-    recordId: record.record_id,
-    path,
-    processId: record.process_id,
-    channel: record.channel,
-    afterState: record.after_state,
-    classes: record.classes,
-  }, null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        recordId: record.record_id,
+        path,
+        processId: record.process_id,
+        channel: record.channel,
+        afterState: record.after_state,
+        classes: record.classes,
+      },
+      null,
+      2,
+    )}\n`,
+  );
   return 0;
 }
 
@@ -285,16 +300,19 @@ if (import.meta.main) {
   try {
     process.exitCode = main(process.argv.slice(2));
   } catch (error) {
-    const known = error instanceof LetterCorrectionError
-      || error instanceof SafeCliInputError
-      || error instanceof CandidateError;
+    const known =
+      error instanceof LetterCorrectionError ||
+      error instanceof SafeCliInputError ||
+      error instanceof CandidateError;
     const code = known ? error.code : "unexpected_error";
     // Stable, bounded diagnostics: the code and the repository-owned message, never a stack, an
     // absolute path or a letter fragment.
-    process.stderr.write(`${JSON.stringify({
-      error: code,
-      message: known ? error.message : "Unexpected failure.",
-    })}\n`);
+    process.stderr.write(
+      `${JSON.stringify({
+        error: code,
+        message: known ? error.message : "Unexpected failure.",
+      })}\n`,
+    );
     process.exitCode = 1;
   }
 }

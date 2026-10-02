@@ -43,7 +43,10 @@ const ANTI_BOT_STATUS = 999;
 // generic adapter reads these lists rather than keeping a copy that could drift.
 export const linkedinAntiBotPathPrefixes = Object.freeze(["/checkpoint"]);
 export const linkedinAuthWallPathPrefixes = Object.freeze([
-  "/authwall", "/login", "/signup", "/uas/login",
+  "/authwall",
+  "/login",
+  "/signup",
+  "/uas/login",
 ]);
 
 // First-party closure statements observed in guest HTML. The list is bounded and ratchets: a
@@ -157,8 +160,8 @@ export const linkedinGuestAdapter = Object.freeze({
 
     const { root, nodeCeilingHit, depthCeilingHit } = parseHtml(body ?? "");
     const container = findElement(root, (node) =>
-      DESCRIPTION_CLASS_FRAGMENTS.some((fragment) =>
-        hasClassContaining(node, fragment)));
+      DESCRIPTION_CLASS_FRAGMENTS.some((fragment) => hasClassContaining(node, fragment)),
+    );
     const descriptionContainerFound = container !== null;
     if (!descriptionContainerFound) reasons.push("description_container_absent");
 
@@ -172,9 +175,8 @@ export const linkedinGuestAdapter = Object.freeze({
     // Identity guard: the requested job id must be present in the response as a standalone
     // number. `jobId` is validated as digits before it reaches this expression, so the pattern
     // is built from a bounded literal and cannot be steered by source text.
-    const jobIdPresent = jobId === null
-      ? null
-      : new RegExp(`(?<![0-9])${jobId}(?![0-9])`, "u").test(body ?? "");
+    const jobIdPresent =
+      jobId === null ? null : new RegExp(`(?<![0-9])${jobId}(?![0-9])`, "u").test(body ?? "");
     if (jobIdPresent === false) reasons.push("identity_unconfirmed");
 
     const statusWord = matchedMarker(text, closedBannerMarkers) === null ? null : "closed";
@@ -193,9 +195,8 @@ export const linkedinGuestAdapter = Object.freeze({
       structural: {
         jobIdPresent,
         descriptionContainerFound,
-        descriptionChars: container === null
-          ? 0
-          : collectText(container, { skipTags: genericChromeTags }).length,
+        descriptionChars:
+          container === null ? 0 : collectText(container, { skipTags: genericChromeTags }).length,
         minimumContentMet,
         nodeCeilingHit,
         depthCeilingHit,

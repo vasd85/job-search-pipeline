@@ -48,8 +48,18 @@ const TOP_LEVEL_KEYS = Object.freeze([
   "schema_version",
   "strong_role_words",
 ]);
-const EXCLUSION = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)(\/[^\s?#]*)?$/u;
-const CHANNEL_KEYS = Object.freeze(["enabled", "handle", "kind", "note", "request_cap", "start_id", "stop_after", "thematic"]);
+const EXCLUSION =
+  /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)(\/[^\s?#]*)?$/u;
+const CHANNEL_KEYS = Object.freeze([
+  "enabled",
+  "handle",
+  "kind",
+  "note",
+  "request_cap",
+  "start_id",
+  "stop_after",
+  "thematic",
+]);
 const GROUP_ONLY_KEYS = Object.freeze(["request_cap", "start_id", "stop_after"]);
 const BOUNDS = Object.freeze({
   backfill_days: [1, 90],
@@ -83,7 +93,10 @@ function parseChannel(entry, index) {
   }
   const note = channel.note ?? "";
   if (typeof note !== "string" || note.length > MAX_NOTE_LENGTH) {
-    fail("config_invalid", `channels[${index}].note must be a string of at most ${MAX_NOTE_LENGTH}.`);
+    fail(
+      "config_invalid",
+      `channels[${index}].note must be a string of at most ${MAX_NOTE_LENGTH}.`,
+    );
   }
   const enabled = channel.enabled ?? true;
   if (typeof enabled !== "boolean") {
@@ -103,11 +116,23 @@ function parseChannel(entry, index) {
         fail("config_invalid", `channels[${index}].${key} belongs to a group source only.`);
       }
     }
-    return { handle: channel.handle, note, enabled, kind, thematic, startId: null, stopAfter: null, requestCap: null };
+    return {
+      handle: channel.handle,
+      note,
+      enabled,
+      kind,
+      thematic,
+      startId: null,
+      stopAfter: null,
+      requestCap: null,
+    };
   }
   const startId = channel.start_id;
   if (!Number.isSafeInteger(startId) || startId < 1 || startId > MAX_START_ID) {
-    fail("config_invalid", `channels[${index}].start_id must be an integer from 1 to ${MAX_START_ID}.`);
+    fail(
+      "config_invalid",
+      `channels[${index}].start_id must be an integer from 1 to ${MAX_START_ID}.`,
+    );
   }
   const stopAfter = parseBounded(channel, "stop_after", `channels[${index}].`);
   const requestCap = parseBounded(channel, "request_cap", `channels[${index}].`);

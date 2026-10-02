@@ -272,9 +272,7 @@ const TABLE = new Map([
  * the one vocabulary the schema boundary validates against may not be widened by a caller at run
  * time - `set("ZZ", ...)` would make an invented code valid for every later offer in the batch.
  */
-export const ISO_3166_1_ALPHA_2 = Object.freeze(
-  [...TABLE].map((entry) => Object.freeze(entry)),
-);
+export const ISO_3166_1_ALPHA_2 = Object.freeze([...TABLE].map((entry) => Object.freeze(entry)));
 
 /** True for one of the 249 assigned alpha-2 codes, and for nothing else - case included. */
 export function isCountryCode(value) {
@@ -289,6 +287,37 @@ export function isCountryCode(value) {
  * the scorer answers from the region the extractor observed.
  */
 export const WEST_COUNTRY_CODES = Object.freeze([
-  "AT", "BE", "BG", "CA", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GB", "GR", "HR", "HU", "IE",
-  "IS", "IT", "LI", "LT", "LU", "LV", "MT", "NL", "NO", "PL", "PT", "RO", "SE", "SI", "SK", "US",
+  "AT",
+  "BE",
+  "BG",
+  "CA",
+  "CY",
+  "CZ",
+  "DE",
+  "DK",
+  "EE",
+  "ES",
+  "FI",
+  "FR",
+  "GB",
+  "GR",
+  "HR",
+  "HU",
+  "IE",
+  "IS",
+  "IT",
+  "LI",
+  "LT",
+  "LU",
+  "LV",
+  "MT",
+  "NL",
+  "NO",
+  "PL",
+  "PT",
+  "RO",
+  "SE",
+  "SI",
+  "SK",
+  "US",
 ]);

@@ -1,7 +1,7 @@
 # tools/triage-verify — the permanent triage verification suite
 
 Eight checks over one finished `/score-jobs` batch, split across two cadences. It answers one
-question — *is what this batch recorded actually what the pages said* — and it answers it from
+question — _is what this batch recorded actually what the pages said_ — and it answers it from
 files, without asking the session that produced them anything.
 
 This module owns the **verification input contract** (what a batch has to put on disk to be
@@ -25,7 +25,7 @@ two things the batch itself produced, or an arithmetic re-check of a file agains
 - **Not the owner of the batch store.** The directory below is a permanent one now: a batch is
   built in `triage-batches/<batch_id>/` and stays there, and `recordBatch` adds
   `ledger-record.json` to it once this suite has passed. What this module owns is unchanged —
-  *what may sit in that directory* — while where the store lives, what a re-score adds to it and
+  _what may sit in that directory_ — while where the store lives, what a re-score adds to it and
   how a record is repaired belong to [the review runbook's batch
   store](../../docs/runbooks/triage-review.md#11-batch-store-the-history-beside-the-index).
 - **Not a re-checker of an archived batch.** Verification is a one-time gate taken at record time,
@@ -139,16 +139,16 @@ runs over the same directory produce byte-identical bytes.
 
 ## Checks
 
-| id | cadence | kind | what it asserts |
-| --- | --- | --- | --- |
-| `chain-of-custody` | per-batch | assert | every capture re-verifies against its own stamp, carries this record's index, and records the normalization pass that produced it |
-| `quote-integrity` | per-batch | assert | every evidence string of the normalized input is a literal substring of a *verified* capture of that record; a scored record with no evidence at all fails |
-| `completeness` | per-batch | assert | link coverage over the range; one input and one trace per record; `buildDecisionTrace(input)` deep-equals the persisted trace; no stray artifact |
-| `cross-transport` | per-batch | assert | manifest, captures, inputs and traces agree on identity and digests; a vacancy the manifest handed to the browser was not scored from the degraded body; a source that says closed was not scored; a vacancy the fetcher reached is still in the batch |
-| `negative-space` | per-batch | assert | every main-zone vocabulary hit is inside a recorded evidence quote or carries a live disposition |
-| `baseline-diff` | full | assert + diff | the batch obeyed its own plan in both directions — no link the plan called terminal was fetched, and no link it dropped rests on a claim the ledger does not back; decisions and flags that moved since the previous batch are reported |
-| `blind-extraction` | full | assert | a second extraction of 1-2 records, built from the capture alone, produces the same outcome fields |
-| `periodic-attestation` | full | attest | the two probes that cannot be code carry a dated record inside this batch's own window |
+| id                     | cadence   | kind          | what it asserts                                                                                                                                                                                                                                        |
+| ---------------------- | --------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `chain-of-custody`     | per-batch | assert        | every capture re-verifies against its own stamp, carries this record's index, and records the normalization pass that produced it                                                                                                                      |
+| `quote-integrity`      | per-batch | assert        | every evidence string of the normalized input is a literal substring of a _verified_ capture of that record; a scored record with no evidence at all fails                                                                                             |
+| `completeness`         | per-batch | assert        | link coverage over the range; one input and one trace per record; `buildDecisionTrace(input)` deep-equals the persisted trace; no stray artifact                                                                                                       |
+| `cross-transport`      | per-batch | assert        | manifest, captures, inputs and traces agree on identity and digests; a vacancy the manifest handed to the browser was not scored from the degraded body; a source that says closed was not scored; a vacancy the fetcher reached is still in the batch |
+| `negative-space`       | per-batch | assert        | every main-zone vocabulary hit is inside a recorded evidence quote or carries a live disposition                                                                                                                                                       |
+| `baseline-diff`        | full      | assert + diff | the batch obeyed its own plan in both directions — no link the plan called terminal was fetched, and no link it dropped rests on a claim the ledger does not back; decisions and flags that moved since the previous batch are reported                |
+| `blind-extraction`     | full      | assert        | a second extraction of 1-2 records, built from the capture alone, produces the same outcome fields                                                                                                                                                     |
+| `periodic-attestation` | full      | attest        | the two probes that cannot be code carry a dated record inside this batch's own window                                                                                                                                                                 |
 
 A record the fetch transport handed to the browser is judged against the rescue rather than exempted
 by it: a rescue capture whose own stamp contradicts the declaration raises
@@ -161,8 +161,8 @@ residual either way: the batch that earns more suspicion must not produce the qu
 
 **Nothing the plan says about itself is taken.** [plan.mjs](plan.mjs) is the one place that reads
 `plan.json`, and it reads it under one rule, which five review rounds are the reason for: a field the
-plan writes about itself is either *derived* from something the plan did not choose, or
-*corroborated* by an artifact the plan did not write, or it does not verify. There is no fourth
+plan writes about itself is either _derived_ from something the plan did not choose, or
+_corroborated_ by an artifact the plan did not write, or it does not verify. There is no fourth
 branch, and the rounds each found the family at a fresh field — the declared key, the duplicate flag
 in two checks, the declared windows, the declared action.
 
@@ -236,7 +236,7 @@ marked `skip_closed` is `refetched_closed_vacancy`, and a record the plan never 
 is written by the session being verified, so its rows are compared against the ledger's
 (`plan_disagrees_with_ledger`), the row the ledger is asked about is derived from the link and never
 read off the plan — a plan that names its own key gets `plan_item_key_mismatch`, because otherwise
-the side under test would choose which row corroborates it — a link the plan *dropped* must be one
+the side under test would choose which row corroborates it — a link the plan _dropped_ must be one
 the ledger actually supports
 dropping — `skip_closed` needs a row that is not open, `skip_known` an open row whose decision is
 not `BLOCKED`, which the plan owes a `retry_blocked`, and the row merely existing satisfies neither
@@ -264,7 +264,7 @@ so which of the two extractions is wrong is a person's call.
 `evidence.mjs` walks the normalized input and treats a string leaf as evidence when its own key
 matches `/evidence/i` or it sits inside a container named `evidence`. A field added to
 `tools/job-scorer/normalized-input.mjs` is therefore covered the day it is added. The other half is
-in the test suite: the discovered path set is frozen as a literal, so a *renamed* evidence field
+in the test suite: the discovered path set is frozen as a literal, so a _renamed_ evidence field
 shows up as a failing pin instead of a walk that quietly finds nothing.
 
 ### The negative-space vocabulary
@@ -289,7 +289,7 @@ an offer whose family-relevant field is actually set**. Both halves are load-bea
 one was added after an independent review took the first apart: `offers[].evidenceQuote` is one
 required string standing behind fourteen offer keys, so a record quoting "MUST BE currently based in
 Singapore" while recording `residenceRestriction: "none"` is schema-valid, reproduces its own trace
-byte for byte, and under containment alone would be *claimed* — the exact silent flip this sweep
+byte for byte, and under containment alone would be _claimed_ — the exact silent flip this sweep
 exists to catch. The table is three static rows in `checks/negative-space.mjs`: a residence hit
 needs an offer with `residenceRestriction` at `compatible`/`incompatible`, a contract hit an offer
 with `contractorEligibility` set or an `engagementPath`, a work-format hit an offer with a known
@@ -352,18 +352,18 @@ of the 2026-08-18 protocol, the blind double extraction, is not here: it became 
 
 ## Modules
 
-| Module | Owns |
-| --- | --- |
-| [cli.mjs](cli.mjs) | argument parsing, exit codes, the bounded stdout summary, writing the report |
-| [suite.mjs](suite.mjs) | the context every check reads, the cadence sets, the report shape |
-| [artifacts.mjs](artifacts.mjs) | reading the directory; a defective batch loads, an unreadable one is a caller error |
-| [manifest.mjs](manifest.mjs) | the fetch manifest, read once, and the derived capture provenance |
-| [links.mjs](links.mjs) | the links file and the batch range |
-| [evidence.mjs](evidence.mjs) | the schema-driven evidence walk |
-| [text-scan.mjs](text-scan.mjs) | index-preserving case folding, literal and phrase scanning, line digests |
-| [vocabulary.mjs](vocabulary.mjs) | loading and validating the versioned vocabulary |
-| [disposition.mjs](disposition.mjs) | the disposition ledger's schema |
-| [checks/](checks) | one module per check |
+| Module                             | Owns                                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------------------- |
+| [cli.mjs](cli.mjs)                 | argument parsing, exit codes, the bounded stdout summary, writing the report        |
+| [suite.mjs](suite.mjs)             | the context every check reads, the cadence sets, the report shape                   |
+| [artifacts.mjs](artifacts.mjs)     | reading the directory; a defective batch loads, an unreadable one is a caller error |
+| [manifest.mjs](manifest.mjs)       | the fetch manifest, read once, and the derived capture provenance                   |
+| [links.mjs](links.mjs)             | the links file and the batch range                                                  |
+| [evidence.mjs](evidence.mjs)       | the schema-driven evidence walk                                                     |
+| [text-scan.mjs](text-scan.mjs)     | index-preserving case folding, literal and phrase scanning, line digests            |
+| [vocabulary.mjs](vocabulary.mjs)   | loading and validating the versioned vocabulary                                     |
+| [disposition.mjs](disposition.mjs) | the disposition ledger's schema                                                     |
+| [checks/](checks)                  | one module per check                                                                |
 
 ## Residual
 

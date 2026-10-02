@@ -62,14 +62,18 @@ function buildRecords(batch, manifestRecords) {
   return batch.indices.map((index) => {
     const inputEntry = batch.inputs.get(index) ?? null;
     const traceEntry = batch.traces.get(index) ?? null;
-    const input = inputEntry !== null && inputEntry.error === null && inputEntry.value !== null
-      ? inputEntry.value
-      : null;
-    const trace = traceEntry !== null && traceEntry.error === null && traceEntry.value !== null
-      ? traceEntry.value
-      : null;
+    const input =
+      inputEntry !== null && inputEntry.error === null && inputEntry.value !== null
+        ? inputEntry.value
+        : null;
+    const trace =
+      traceEntry !== null && traceEntry.error === null && traceEntry.value !== null
+        ? traceEntry.value
+        : null;
     const evidence = input === null ? { paths: [], quotes: [] } : discoverEvidence(input);
-    const evidenceDigests = new Map(evidence.quotes.map((quote) => [quote.path, sha256(quote.value)]));
+    const evidenceDigests = new Map(
+      evidence.quotes.map((quote) => [quote.path, sha256(quote.value)]),
+    );
     return {
       index,
       captures: batch.captures
@@ -104,7 +108,15 @@ function buildRecords(batch, manifestRecords) {
  * CLI resolves. They are what the recomputed trace is built with, so a batch is verified against the
  * same set it was scored against. Without them only the default language is accepted.
  */
-export function buildContext({ artifactsDir, linksFile, from, to, vocabularyPath, ledgerPath, languages }) {
+export function buildContext({
+  artifactsDir,
+  linksFile,
+  from,
+  to,
+  vocabularyPath,
+  ledgerPath,
+  languages,
+}) {
   const links = sliceRange(readLinksFile(linksFile), from, to);
   const batch = loadBatchArtifacts(artifactsDir);
   const vocabulary = loadVocabulary(vocabularyPath);
@@ -113,7 +125,10 @@ export function buildContext({ artifactsDir, linksFile, from, to, vocabularyPath
     try {
       ledger = readLedger(ledgerPath);
     } catch (error) {
-      fail("ledger_unreadable", `The triage ledger could not be read (${error?.code ?? "unknown"}).`);
+      fail(
+        "ledger_unreadable",
+        `The triage ledger could not be read (${error?.code ?? "unknown"}).`,
+      );
     }
   }
   const manifest = readManifestRecords(batch);
@@ -153,7 +168,8 @@ function findingSortKey(finding) {
 
 function stableSort(entries) {
   return [...entries].sort((left, right) =>
-    findingSortKey(left).localeCompare(findingSortKey(right)));
+    findingSortKey(left).localeCompare(findingSortKey(right)),
+  );
 }
 
 /** Run one cadence over one prepared context and return the report object. */
@@ -172,8 +188,9 @@ export function runSuite(context, cadence) {
       diffs: stableSort(outcome.diffs ?? []),
     };
   });
-  const codes = [...new Set(results.flatMap((result) =>
-    result.findings.map((finding) => finding.code)))].sort();
+  const codes = [
+    ...new Set(results.flatMap((result) => result.findings.map((finding) => finding.code))),
+  ].sort();
   return {
     reportVersion,
     suite: "triage-verify",
@@ -185,11 +202,16 @@ export function runSuite(context, cadence) {
       linksInRange: context.links.length,
       records: context.records.length,
       captures: context.batch.captures.length,
-      capturesByProvenance: Object.fromEntries(captureProvenanceClasses.map((entry) => [
-        entry,
-        context.records.reduce((total, record) => total
-          + record.captures.filter((capture) => capture.provenance === entry).length, 0),
-      ])),
+      capturesByProvenance: Object.fromEntries(
+        captureProvenanceClasses.map((entry) => [
+          entry,
+          context.records.reduce(
+            (total, record) =>
+              total + record.captures.filter((capture) => capture.provenance === entry).length,
+            0,
+          ),
+        ]),
+      ),
       accessOutcomes: countAccessOutcomes(context.records),
     },
     checks: results,

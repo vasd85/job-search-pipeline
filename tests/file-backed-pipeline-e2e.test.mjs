@@ -35,10 +35,7 @@ import { runFixtureStep } from "./fixtures/file-backed-pipeline-producer.mjs";
 import { protectedInputSource, seedCandidateConfig } from "./fixtures/protected-inputs.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const producerPath = resolve(
-  repoRoot,
-  "tests/fixtures/file-backed-pipeline-producer.mjs",
-);
+const producerPath = resolve(repoRoot, "tests/fixtures/file-backed-pipeline-producer.mjs");
 const processId = "proc_fixture_step1_completed";
 const sourceRef = "https://example.test/jobs/senior-quality-engineer";
 const outputDir = "output/example-labs-senior-quality-engineer";
@@ -185,11 +182,12 @@ function completedSnapshot(environment) {
         artifact.kind,
         {
           metadata: artifact,
-          bytes: readFileSync(
-            join(environment.selectedOutputPath, artifact.path),
-          ).toString("base64"),
+          bytes: readFileSync(join(environment.selectedOutputPath, artifact.path)).toString(
+            "base64",
+          ),
         },
-      ])),
+      ]),
+    ),
   );
   return {
     artifacts,
@@ -197,13 +195,10 @@ function completedSnapshot(environment) {
   };
 }
 
-function startAdditionalProcess(environment, {
-  company = "Other Labs",
-  duplicateOf = null,
-  id,
-  role = "Senior Quality Engineer",
-  source,
-}) {
+function startAdditionalProcess(
+  environment,
+  { company = "Other Labs", duplicateOf = null, id, role = "Senior Quality Engineer", source },
+) {
   const started = startFileBackedProcessV3(
     environment.ledgerPath,
     {
@@ -252,10 +247,7 @@ test("selector-only child processes and one sequential parent publish identical 
     assert.equal(result.status, "completed");
   }
 
-  assert.deepEqual(
-    completedSnapshot(crossProcess),
-    completedSnapshot(sequential),
-  );
+  assert.deepEqual(completedSnapshot(crossProcess), completedSnapshot(sequential));
 });
 
 test("a linked process publishes its own complete bundle, and linking leaves its steps untouched", (t) => {
@@ -277,8 +269,9 @@ test("a linked process publishes its own complete bundle, and linking leaves its
     source: "https://apply.example.test/gone/j/ABC",
   });
   const predecessorBefore = JSON.stringify(
-    readLogV3(linked.ledgerPath).processes
-      .find((candidate) => candidate.id === predecessor.process.id),
+    readLogV3(linked.ledgerPath).processes.find(
+      (candidate) => candidate.id === predecessor.process.id,
+    ),
   );
 
   const link = linkFileBackedProcessDuplicateV3(linked.ledgerPath, {
@@ -296,8 +289,9 @@ test("a linked process publishes its own complete bundle, and linking leaves its
   assert.equal(record.duplicate_of, predecessor.process.id);
   assert.notEqual(record.output_dir, null);
   // Provenance only: the predecessor is not touched at all, and the two keep separate outputs.
-  const predecessorRecord = log.processes
-    .find((candidate) => candidate.id === predecessor.process.id);
+  const predecessorRecord = log.processes.find(
+    (candidate) => candidate.id === predecessor.process.id,
+  );
   assert.equal(JSON.stringify(predecessorRecord), predecessorBefore);
   assert.notEqual(predecessorRecord.output_dir, record.output_dir);
 });
@@ -309,10 +303,7 @@ test("missing, changed, and temp-only upstream artifacts fail before Step 2 star
     unlinkSync(join(environment.selectedOutputPath, "job-description.txt"));
     const before = readFileSync(environment.ledgerPath, "utf8");
 
-    assert.equal(
-      runChildFailure(environment, "research_company").code,
-      "artifact_missing",
-    );
+    assert.equal(runChildFailure(environment, "research_company").code, "artifact_missing");
     assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
   });
 
@@ -326,21 +317,14 @@ test("missing, changed, and temp-only upstream artifacts fail before Step 2 star
     );
     const before = readFileSync(environment.ledgerPath, "utf8");
 
-    assert.equal(
-      runChildFailure(environment, "research_company").code,
-      "artifact_corrupt",
-    );
+    assert.equal(runChildFailure(environment, "research_company").code, "artifact_corrupt");
     assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
   });
 
   await t.test("only transaction-owned temporary bytes remain", (subtest) => {
     const environment = createEnvironment(subtest, "file-backed-temp-only-");
     runThrough(environment, "get_vacancy");
-    const temporary = join(
-      environment.selectedOutputPath,
-      ".pipeline-tmp",
-      "orphan",
-    );
+    const temporary = join(environment.selectedOutputPath, ".pipeline-tmp", "orphan");
     mkdirSync(temporary, { recursive: true });
     copyFileSync(
       join(environment.selectedOutputPath, "vacancy.json"),
@@ -349,10 +333,7 @@ test("missing, changed, and temp-only upstream artifacts fail before Step 2 star
     unlinkSync(join(environment.selectedOutputPath, "vacancy.json"));
     const before = readFileSync(environment.ledgerPath, "utf8");
 
-    assert.equal(
-      runChildFailure(environment, "research_company").code,
-      "artifact_missing",
-    );
+    assert.equal(runChildFailure(environment, "research_company").code, "artifact_missing");
     assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
   });
 });
@@ -388,18 +369,19 @@ test("cross-process artifact reuse and an ambiguous selector fail closed", async
     const before = readFileSync(environment.ledgerPath, "utf8");
 
     assert.throws(
-      () => publishFileBackedStepV3(
-        environment.ledgerPath,
-        {
-          selector: { id: otherId },
-          stepName: "get_vacancy",
-          attemptId: otherRecord.steps.get_vacancy.active_attempt.id,
-          publicationId,
-          outcome: "completed",
-          blocker: null,
-        },
-        lifecycleEnvironment(environment),
-      ),
+      () =>
+        publishFileBackedStepV3(
+          environment.ledgerPath,
+          {
+            selector: { id: otherId },
+            stepName: "get_vacancy",
+            attemptId: otherRecord.steps.get_vacancy.active_attempt.id,
+            publicationId,
+            outcome: "completed",
+            blocker: null,
+          },
+          lifecycleEnvironment(environment),
+        ),
       (error) => error.code === "candidate_bundle_invalid",
     );
     assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
@@ -424,11 +406,7 @@ test("cross-process artifact reuse and an ambiguous selector fail closed", async
     const before = readFileSync(environment.ledgerPath, "utf8");
 
     assert.equal(
-      runChildFailure(
-        environment,
-        "get_vacancy",
-        { sourceRef },
-      ).code,
+      runChildFailure(environment, "get_vacancy", { sourceRef }).code,
       "process_ambiguous",
     );
     assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
@@ -452,11 +430,7 @@ test("a reopened Step 1 rejects mismatched company/title before replacing canoni
       ...lifecycleEnvironment(environment),
     },
   );
-  const staging = join(
-    environment.selectedOutputPath,
-    ".pipeline-tmp",
-    publicationId,
-  );
+  const staging = join(environment.selectedOutputPath, ".pipeline-tmp", publicationId);
   mkdirSync(staging, { recursive: true });
   copyFileSync(
     join(environment.selectedOutputPath, "job-description.txt"),
@@ -467,40 +441,31 @@ test("a reopened Step 1 rejects mismatched company/title before replacing canoni
   );
   vacancy.role.company = "Mismatched Candidate Company";
   vacancy.role.title = "Mismatched Candidate Role";
-  writeFileSync(
-    join(staging, "vacancy.json"),
-    `${JSON.stringify(vacancy, null, 2)}\n`,
-    "utf8",
-  );
+  writeFileSync(join(staging, "vacancy.json"), `${JSON.stringify(vacancy, null, 2)}\n`, "utf8");
   const beforeLedger = readFileSync(environment.ledgerPath, "utf8");
   const beforeJobDescription = readFileSync(
     join(environment.selectedOutputPath, "job-description.txt"),
   );
-  const beforeVacancy = readFileSync(
-    join(environment.selectedOutputPath, "vacancy.json"),
-  );
+  const beforeVacancy = readFileSync(join(environment.selectedOutputPath, "vacancy.json"));
 
   assert.throws(
-    () => publishFileBackedStepV3(
-      environment.ledgerPath,
-      {
-        selector: { id: processId },
-        stepName: "get_vacancy",
-        attemptId,
-        publicationId,
-        outcome: "completed",
-        blocker: null,
-      },
-      lifecycleEnvironment(environment),
-    ),
-    (error) =>
-      error.code === "candidate_bundle_invalid"
-      && error.message.includes(
-        "role.company does not match the selected ledger process",
-      )
-      && error.message.includes(
-        "role.title does not match the selected ledger process",
+    () =>
+      publishFileBackedStepV3(
+        environment.ledgerPath,
+        {
+          selector: { id: processId },
+          stepName: "get_vacancy",
+          attemptId,
+          publicationId,
+          outcome: "completed",
+          blocker: null,
+        },
+        lifecycleEnvironment(environment),
       ),
+    (error) =>
+      error.code === "candidate_bundle_invalid" &&
+      error.message.includes("role.company does not match the selected ledger process") &&
+      error.message.includes("role.title does not match the selected ledger process"),
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeLedger);
   assert.deepEqual(
@@ -523,14 +488,8 @@ test("protected profile drift after Step 3 blocks both fresh generation consumer
   );
   const before = readFileSync(environment.ledgerPath, "utf8");
 
-  assert.equal(
-    runChildFailure(environment, "generate_cv").code,
-    "prerequisite_stale",
-  );
-  assert.equal(
-    runChildFailure(environment, "write_cover_letter").code,
-    "prerequisite_stale",
-  );
+  assert.equal(runChildFailure(environment, "generate_cv").code, "prerequisite_stale");
+  assert.equal(runChildFailure(environment, "write_cover_letter").code, "prerequisite_stale");
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
 });
 
@@ -570,7 +529,9 @@ test("a Step 3 published before the lever bank was an input reads as stale", (t)
   // the brief would fail validation if the missing entry were skipped rather than read as stale.
   const log = JSON.parse(readFileSync(environment.ledgerPath, "utf8"));
   const step = log.processes.find((record) => record.id === processId).steps.map_experience;
-  step.published_inputs = step.published_inputs.filter((entry) => entry.kind !== "candidate_levers");
+  step.published_inputs = step.published_inputs.filter(
+    (entry) => entry.kind !== "candidate_levers",
+  );
   writeFileSync(environment.ledgerPath, `${JSON.stringify(log, null, 2)}\n`, "utf8");
   giveLeverOneTheInfrastructureProperty(environment);
 
@@ -583,7 +544,11 @@ test("a Step 3 published before the lever bank was an input reads as stale", (t)
 // edited between two steps stops the process the way a canon edit does.
 function editCandidateRules(environment) {
   const path = resolve(environment.workspaceRoot, "candidate/rules.md");
-  writeFileSync(path, `${readFileSync(path, "utf8")}\n## late-rule\n\nScope: generate-cv\nWhy: Added after Step 3.\n\nText.\n`, "utf8");
+  writeFileSync(
+    path,
+    `${readFileSync(path, "utf8")}\n## late-rule\n\nScope: generate-cv\nWhy: Added after Step 3.\n\nText.\n`,
+    "utf8",
+  );
 }
 
 test("a rules edit after Step 3 is a stale prerequisite for both materials", (t) => {
@@ -604,7 +569,10 @@ test("a Step 3 published before the rules were an input reads as stale, not corr
   runThrough(environment, "map_experience");
   const log = JSON.parse(readFileSync(environment.ledgerPath, "utf8"));
   const step = log.processes.find((record) => record.id === processId).steps.map_experience;
-  assert.equal(step.published_inputs.some((entry) => entry.kind === "candidate_rules"), true);
+  assert.equal(
+    step.published_inputs.some((entry) => entry.kind === "candidate_rules"),
+    true,
+  );
   step.published_inputs = step.published_inputs.filter((entry) => entry.kind !== "candidate_rules");
   writeFileSync(environment.ledgerPath, `${JSON.stringify(log, null, 2)}\n`, "utf8");
 
@@ -668,15 +636,17 @@ function touchLayerFile(environment, path) {
 }
 
 function deepStepReport(environment, stepName) {
-  const report = validateProcessLogV3Deep(environment.ledgerPath, lifecycleEnvironment(environment));
+  const report = validateProcessLogV3Deep(
+    environment.ledgerPath,
+    lifecycleEnvironment(environment),
+  );
   return report.processes
     .find((entry) => entry.process_id === processId)
     .steps.find((step) => step.name === stepName);
 }
 
 function publishedInputs(environment, stepName) {
-  return readLogV3(environment.ledgerPath).processes
-    .find((record) => record.id === processId)
+  return readLogV3(environment.ledgerPath).processes.find((record) => record.id === processId)
     .steps[stepName].published_inputs;
 }
 
@@ -692,12 +662,19 @@ function withoutLayerKinds(snapshot) {
 
 test("Steps 4 and 5 publish the digest of every layer file they read, the letter's pack by its language", (t) => {
   for (const language of [null, "Greek"]) {
-    const environment = createEnvironment(t, `file-backed-layer-snapshot-${(language ?? "default").toLowerCase()}-`);
+    const environment = createEnvironment(
+      t,
+      `file-backed-layer-snapshot-${(language ?? "default").toLowerCase()}-`,
+    );
     runSteps(environment, stepNames, language);
     for (const stepName of materialStepNames) {
-      const inputs = new Map(publishedInputs(environment, stepName).map((entry) => [entry.kind, entry]));
+      const inputs = new Map(
+        publishedInputs(environment, stepName).map((entry) => [entry.kind, entry]),
+      );
       for (const input of materialLayerInputs) {
-        const pinned = input.steps.includes(stepName) && (input.language === null || input.language === language);
+        const pinned =
+          input.steps.includes(stepName) &&
+          (input.language === null || input.language === language);
         assert.equal(inputs.has(input.kind), pinned, `${language}: ${stepName} ${input.kind}`);
         if (!pinned) continue;
         const bytes = readFileSync(resolve(environment.workspaceRoot, input.path));
@@ -712,12 +689,20 @@ test("Steps 4 and 5 publish the digest of every layer file they read, the letter
 test("a layer file a material step reads, changed while the step is open, refuses its publication", (t) => {
   for (const input of materialLayerInputs) {
     for (const stepName of input.steps) {
-      const environment = createEnvironment(t, `file-backed-layer-during-${input.kind.replaceAll("_", "-")}-`);
-      runSteps(environment, stepNames.slice(0, stepNames.indexOf("map_experience") + 1), input.language);
+      const environment = createEnvironment(
+        t,
+        `file-backed-layer-during-${input.kind.replaceAll("_", "-")}-`,
+      );
+      runSteps(
+        environment,
+        stepNames.slice(0, stepNames.indexOf("map_experience") + 1),
+        input.language,
+      );
       assert.throws(
-        () => runSteps(environment, [stepName], input.language, {
-          [stepName]: { beforePublish: () => touchLayerFile(environment, input.path) },
-        }),
+        () =>
+          runSteps(environment, [stepName], input.language, {
+            [stepName]: { beforePublish: () => touchLayerFile(environment, input.path) },
+          }),
         (error) => error.code === "inputs_changed",
         `${input.kind} under ${stepName}`,
       );
@@ -727,7 +712,10 @@ test("a layer file a material step reads, changed while the step is open, refuse
 
 test("a layer file changed after publication marks the steps that read it, and stops nothing", (t) => {
   for (const input of materialLayerInputs) {
-    const environment = createEnvironment(t, `file-backed-layer-after-${input.kind.replaceAll("_", "-")}-`);
+    const environment = createEnvironment(
+      t,
+      `file-backed-layer-after-${input.kind.replaceAll("_", "-")}-`,
+    );
     runSteps(environment, stepNames, input.language);
     touchLayerFile(environment, input.path);
     for (const stepName of materialStepNames) {
@@ -749,7 +737,9 @@ test("an optional layer file is pinned only while it holds bytes", (t) => {
   unlinkSync(samples);
   runSteps(environment, stepNames);
   assert.equal(
-    publishedInputs(environment, "write_cover_letter").some((entry) => entry.kind === "candidate_letter_samples"),
+    publishedInputs(environment, "write_cover_letter").some(
+      (entry) => entry.kind === "candidate_letter_samples",
+    ),
     false,
   );
   // An empty file holds nothing, as an absent one does.
@@ -767,11 +757,22 @@ test("a file no step pins changes nothing: memory, the reader's examples, pins, 
   // Step 3 does not pin the config, so its edit lets both materials start from the brief.
   touchLayerFile(environment, "candidate/config.json");
   runSteps(environment, materialStepNames);
-  writeFileSync(resolve(environment.workspaceRoot, "candidate/memory.md"), "# Memory\n\n## Open questions\n", "utf8");
-  writeFileSync(resolve(environment.workspaceRoot, "candidate/letter-reader-examples.md"), "# Letter Reader Examples\n\n## reread\n\n## unclear_reference\n\n## missing_link\n\n## translated\n", "utf8");
+  writeFileSync(
+    resolve(environment.workspaceRoot, "candidate/memory.md"),
+    "# Memory\n\n## Open questions\n",
+    "utf8",
+  );
+  writeFileSync(
+    resolve(environment.workspaceRoot, "candidate/letter-reader-examples.md"),
+    "# Letter Reader Examples\n\n## reread\n\n## unclear_reference\n\n## missing_link\n\n## translated\n",
+    "utf8",
+  );
   touchLayerFile(environment, "candidate/languages/Greek/pins.json");
   touchLayerFile(environment, "candidate/languages/Greek/pack.json");
-  const report = validateProcessLogV3Deep(environment.ledgerPath, lifecycleEnvironment(environment));
+  const report = validateProcessLogV3Deep(
+    environment.ledgerPath,
+    lifecycleEnvironment(environment),
+  );
   assert.equal(report.health, "current", JSON.stringify(report.processes[0].steps));
 });
 
@@ -796,7 +797,10 @@ test("a material step published before the layer inputs reads as it did, and one
   }
   // The inputs it did pin still count: a canon file of Step 5 marks it.
   touchLayerFile(legacy, "knowledge/cover-letter-playbook.md");
-  assert.equal(deepStepReport(legacy, "write_cover_letter").issues.includes("published_inputs_stale"), true);
+  assert.equal(
+    deepStepReport(legacy, "write_cover_letter").issues.includes("published_inputs_stale"),
+    true,
+  );
 
   const current = createEnvironment(t, "file-backed-layer-new-record-");
   runSteps(current, stepNames);
@@ -881,9 +885,12 @@ test("an attempt opened before the layer inputs publishes after them", (t) => {
   // The attempt's snapshot as a release without the layer inputs wrote it.
   runSteps(environment, ["write_cover_letter"], null, {
     write_cover_letter: {
-      beforePublish: () => editLedgerStep(environment, "write_cover_letter", (step) => {
-        step.active_attempt.input_snapshot = withoutLayerKinds(step.active_attempt.input_snapshot);
-      }),
+      beforePublish: () =>
+        editLedgerStep(environment, "write_cover_letter", (step) => {
+          step.active_attempt.input_snapshot = withoutLayerKinds(
+            step.active_attempt.input_snapshot,
+          );
+        }),
     },
   });
   const step = readLogV3(environment.ledgerPath).processes[0].steps.write_cover_letter;
@@ -904,37 +911,30 @@ test("Step 5 rejects an arbitrary non-empty string before first publication", (t
     },
   );
   const publicationId = "publication_invalid_cover_letter_001";
-  const staging = join(
-    environment.selectedOutputPath,
-    ".pipeline-tmp",
-    publicationId,
-  );
+  const staging = join(environment.selectedOutputPath, ".pipeline-tmp", publicationId);
   mkdirSync(staging, { recursive: true });
   writeFileSync(join(staging, "cover-letter.txt"), "x", "utf8");
   const beforeLedger = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => publishFileBackedStepV3(
-      environment.ledgerPath,
-      {
-        selector: { id: processId },
-        stepName: "write_cover_letter",
-        attemptId: begun.attempt_id,
-        publicationId,
-        outcome: "completed",
-        blocker: null,
-      },
-      lifecycleEnvironment(environment),
-    ),
+    () =>
+      publishFileBackedStepV3(
+        environment.ledgerPath,
+        {
+          selector: { id: processId },
+          stepName: "write_cover_letter",
+          attemptId: begun.attempt_id,
+          publicationId,
+          outcome: "completed",
+          blocker: null,
+        },
+        lifecycleEnvironment(environment),
+      ),
     (error) =>
-      error.code === "candidate_bundle_invalid"
-      && error.message.includes("cover-letter.txt"),
+      error.code === "candidate_bundle_invalid" && error.message.includes("cover-letter.txt"),
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeLedger);
-  assert.equal(
-    existsSync(join(environment.selectedOutputPath, "cover-letter.txt")),
-    false,
-  );
+  assert.equal(existsSync(join(environment.selectedOutputPath, "cover-letter.txt")), false);
 });
 
 test("a rejected Step 5 revision preserves the committed letter bytes", (t) => {
@@ -953,31 +953,28 @@ test("a rejected Step 5 revision preserves the committed letter bytes", (t) => {
       clock: () => "2026-07-27T10:20:00.000Z",
     },
   );
-  const staging = join(
-    environment.selectedOutputPath,
-    ".pipeline-tmp",
-    publicationId,
-  );
+  const staging = join(environment.selectedOutputPath, ".pipeline-tmp", publicationId);
   mkdirSync(staging, { recursive: true });
   writeFileSync(join(staging, "cover-letter.txt"), "x", "utf8");
   const beforeLedger = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => publishFileBackedStepV3(
-      environment.ledgerPath,
-      {
-        selector: { id: processId },
-        stepName: "write_cover_letter",
-        attemptId,
-        publicationId,
-        outcome: "completed",
-        blocker: null,
-      },
-      lifecycleEnvironment(environment),
-    ),
+    () =>
+      publishFileBackedStepV3(
+        environment.ledgerPath,
+        {
+          selector: { id: processId },
+          stepName: "write_cover_letter",
+          attemptId,
+          publicationId,
+          outcome: "completed",
+          blocker: null,
+        },
+        lifecycleEnvironment(environment),
+      ),
     (error) =>
-      error.code === "candidate_bundle_invalid"
-      && error.message.includes("body must contain 4 to 5 paragraphs"),
+      error.code === "candidate_bundle_invalid" &&
+      error.message.includes("body must contain 4 to 5 paragraphs"),
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeLedger);
   assert.deepEqual(readFileSync(canonicalPath), committedBytes);
@@ -988,8 +985,9 @@ test("Step 5 recovery revalidates prepared canonical bytes and rolls invalid byt
   runThrough(environment, "write_cover_letter");
   const canonicalPath = join(environment.selectedOutputPath, "cover-letter.txt");
   const committedBytes = readFileSync(canonicalPath);
-  const committedStep = readLogV3(environment.ledgerPath).processes
-    .find((record) => record.id === processId).steps.write_cover_letter;
+  const committedStep = readLogV3(environment.ledgerPath).processes.find(
+    (record) => record.id === processId,
+  ).steps.write_cover_letter;
   const committedRevision = committedStep.revision;
   const committedArtifacts = structuredClone(committedStep.artifacts);
   const attemptId = "attempt_invalid_cover_letter_recovery_002";
@@ -1003,49 +1001,42 @@ test("Step 5 recovery revalidates prepared canonical bytes and rolls invalid byt
       clock: () => "2026-07-27T10:30:00.000Z",
     },
   );
-  const staging = join(
-    environment.selectedOutputPath,
-    ".pipeline-tmp",
-    publicationId,
-  );
+  const staging = join(environment.selectedOutputPath, ".pipeline-tmp", publicationId);
   mkdirSync(staging, { recursive: true });
   copyFileSync(canonicalPath, join(staging, "cover-letter.txt"));
 
   assert.throws(
-    () => publishFileBackedStepV3(
-      environment.ledgerPath,
-      {
-        selector: { id: processId },
-        stepName: "write_cover_letter",
-        attemptId,
-        publicationId,
-        outcome: "completed",
-        blocker: null,
-      },
-      {
-        ...lifecycleEnvironment(environment),
-        clock: () => "2026-07-27T10:35:00.000Z",
-        failAt: "after_candidate:cover_letter",
-      },
-    ),
+    () =>
+      publishFileBackedStepV3(
+        environment.ledgerPath,
+        {
+          selector: { id: processId },
+          stepName: "write_cover_letter",
+          attemptId,
+          publicationId,
+          outcome: "completed",
+          blocker: null,
+        },
+        {
+          ...lifecycleEnvironment(environment),
+          clock: () => "2026-07-27T10:35:00.000Z",
+          failAt: "after_candidate:cover_letter",
+        },
+      ),
     (error) => error.code === "simulated_publication_crash",
   );
 
   const invalidBytes = Buffer.from("x", "utf8");
   writeFileSync(canonicalPath, invalidBytes);
   const preparedLog = readLogV3(environment.ledgerPath);
-  const preparedStep = preparedLog.processes.find((record) => record.id === processId)
-    .steps.write_cover_letter;
+  const preparedStep = preparedLog.processes.find((record) => record.id === processId).steps
+    .write_cover_letter;
   const preparedArtifact = preparedStep.publication_transaction.new_artifacts.find(
     (artifact) => artifact.kind === "cover_letter",
   );
   preparedArtifact.bytes = invalidBytes.byteLength;
   preparedArtifact.sha256 = sha256Hex(invalidBytes);
-  writeFileSync(
-    environment.ledgerPath,
-    `${JSON.stringify(preparedLog, null, 2)}\n`,
-    "utf8",
-  );
+  writeFileSync(environment.ledgerPath, `${JSON.stringify(preparedLog, null, 2)}\n`, "utf8");
 
   const recovered = reconcileFileBackedStepV3(
     environment.ledgerPath,
@@ -1062,8 +1053,9 @@ test("Step 5 recovery revalidates prepared canonical bytes and rolls invalid byt
   );
   assert.equal(recovered.status, "rolled_back");
   assert.deepEqual(readFileSync(canonicalPath), committedBytes);
-  const recoveredStep = readLogV3(environment.ledgerPath).processes
-    .find((record) => record.id === processId).steps.write_cover_letter;
+  const recoveredStep = readLogV3(environment.ledgerPath).processes.find(
+    (record) => record.id === processId,
+  ).steps.write_cover_letter;
   assert.equal(recoveredStep.state, "failed");
   assert.equal(recoveredStep.error.code, "publication_validation_failed");
   assert.equal(recoveredStep.revision, committedRevision);
@@ -1083,7 +1075,9 @@ function seedCandidateExample(environment) {
   for (const name of ["config.json", "constraints.json"]) {
     copyFileSync(resolve(repoRoot, "candidate.example", name), join(root, name));
   }
-  cpSync(resolve(repoRoot, "candidate.example/languages"), join(root, "languages"), { recursive: true });
+  cpSync(resolve(repoRoot, "candidate.example/languages"), join(root, "languages"), {
+    recursive: true,
+  });
   return root;
 }
 
@@ -1112,22 +1106,22 @@ test("a letter is not published when the candidate layer cannot supply its limit
   const beforeLedger = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => publishFileBackedStepV3(
-      environment.ledgerPath,
-      {
-        selector: { id: processId },
-        stepName: "write_cover_letter",
-        attemptId,
-        publicationId,
-        outcome: "completed",
-        blocker: null,
-      },
-      lifecycleEnvironment(environment),
-    ),
+    () =>
+      publishFileBackedStepV3(
+        environment.ledgerPath,
+        {
+          selector: { id: processId },
+          stepName: "write_cover_letter",
+          attemptId,
+          publicationId,
+          outcome: "completed",
+          blocker: null,
+        },
+        lifecycleEnvironment(environment),
+      ),
     // Refused under the layer's own code, before the attempt or the ledger is touched.
     (error) =>
-      error.code === "candidate_config_missing"
-      && error.message.includes("candidate layer:"),
+      error.code === "candidate_config_missing" && error.message.includes("candidate layer:"),
   );
   assert.deepEqual(readFileSync(published), beforeBytes);
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeLedger);
@@ -1164,23 +1158,24 @@ test("a candidate constraint refuses the letter at the publication gate", (t) =>
   const beforeLedger = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => publishFileBackedStepV3(
-      environment.ledgerPath,
-      {
-        selector: { id: processId },
-        stepName: "write_cover_letter",
-        attemptId,
-        publicationId,
-        outcome: "completed",
-        blocker: null,
-      },
-      lifecycleEnvironment(environment),
-    ),
+    () =>
+      publishFileBackedStepV3(
+        environment.ledgerPath,
+        {
+          selector: { id: processId },
+          stepName: "write_cover_letter",
+          attemptId,
+          publicationId,
+          outcome: "completed",
+          blocker: null,
+        },
+        lifecycleEnvironment(environment),
+      ),
     (error) =>
-      error.code === "candidate_bundle_invalid"
-      && error.message.includes('candidate constraint "no-introducer-name"')
+      error.code === "candidate_bundle_invalid" &&
+      error.message.includes('candidate constraint "no-introducer-name"') &&
       // The forbidden name is not repeated in the refusal that forbids it.
-      && !error.message.includes("Jordan Vale"),
+      !error.message.includes("Jordan Vale"),
   );
   assert.deepEqual(readFileSync(published), beforeBytes);
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeLedger);
@@ -1223,25 +1218,27 @@ test("a process in a configured language runs every step, and its pack's constra
   const beforeLedger = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => publishFileBackedStepV3(
-      environment.ledgerPath,
-      {
-        selector: { id: processId },
-        stepName: "write_cover_letter",
-        attemptId,
-        publicationId,
-        outcome: "completed",
-        blocker: null,
-      },
-      lifecycleEnvironment(environment),
-    ),
+    () =>
+      publishFileBackedStepV3(
+        environment.ledgerPath,
+        {
+          selector: { id: processId },
+          stepName: "write_cover_letter",
+          attemptId,
+          publicationId,
+          outcome: "completed",
+          blocker: null,
+        },
+        lifecycleEnvironment(environment),
+      ),
     // The whole message, so the constraint is the refusal's only finding: the validator joins
     // findings with "; ", and any other one would ride along unnoticed under a substring check.
     {
       code: "candidate_bundle_invalid",
-      message: "candidate_bundle_invalid: write_cover_letter candidate bundle validation failed: "
-        + 'cover-letter.txt breaks candidate constraint "tonos-dokimes" (required_spellings): '
-        + 'spell it "δοκιμές"',
+      message:
+        "candidate_bundle_invalid: write_cover_letter candidate bundle validation failed: " +
+        'cover-letter.txt breaks candidate constraint "tonos-dokimes" (required_spellings): ' +
+        'spell it "δοκιμές"',
     },
   );
   assert.deepEqual(readFileSync(published), beforeBytes);
@@ -1258,8 +1255,8 @@ test("a broken constraints file stops the publication instead of being skipped",
   assert.throws(
     () => runFixtureStep(environment, "write_cover_letter", { id: processId }),
     (error) =>
-      error.code === "candidate_bundle_invalid"
-      && error.message.includes("candidate_constraints_invalid_json"),
+      error.code === "candidate_bundle_invalid" &&
+      error.message.includes("candidate_constraints_invalid_json"),
   );
 });
 
@@ -1267,8 +1264,5 @@ test("without a constraints file the publication gate behaves exactly as before"
   const environment = createEnvironment(t, "file-backed-candidate-absent-");
   unlinkSync(resolve(environment.workspaceRoot, "candidate/constraints.json"));
   runThrough(environment, "write_cover_letter");
-  assert.equal(
-    existsSync(join(environment.selectedOutputPath, "cover-letter.txt")),
-    true,
-  );
+  assert.equal(existsSync(join(environment.selectedOutputPath, "cover-letter.txt")), true);
 });

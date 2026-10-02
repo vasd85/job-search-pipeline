@@ -15,7 +15,8 @@ import { covers, main } from "../tools/setup/github.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = readFileSync(join(repoRoot, "tools", "setup", "github.mjs"), "utf8");
-const readConfig = (file) => JSON.parse(readFileSync(join(repoRoot, "config", "github", file), "utf8"));
+const readConfig = (file) =>
+  JSON.parse(readFileSync(join(repoRoot, "config", "github", file), "utf8"));
 
 const REPO = "probe-owner/engine-probe";
 
@@ -133,11 +134,22 @@ function harness(t, state = freshState()) {
     let stdout = "";
     let stderr = "";
     const io = {
-      stderr: { write: (text) => { stderr += text; } },
-      stdout: { write: (text) => { stdout += text; } },
+      stderr: {
+        write: (text) => {
+          stderr += text;
+        },
+      },
+      stdout: {
+        write: (text) => {
+          stdout += text;
+        },
+      },
     };
     const code = main(argv, { env: { ...env, ...extraEnv }, gh: [process.execPath, gh], io });
-    const calls = readFileSync(log, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+    const calls = readFileSync(log, "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
     return {
       calls,
       code,
@@ -149,7 +161,10 @@ function harness(t, state = freshState()) {
   return { invoke, readState };
 }
 
-const call = (method, path, input = null) => ({ argv: ["api", "--method", method, path, ...(input ? ["--input", "-"] : [])], input });
+const call = (method, path, input = null) => ({
+  argv: ["api", "--method", method, path, ...(input ? ["--input", "-"] : [])],
+  input,
+});
 const BASE = `repos/${REPO}`;
 const APPROVAL = `${BASE}/actions/permissions/fork-pr-contributor-approval`;
 const LIST = `${BASE}/rulesets?includes_parents=false&per_page=100`;
@@ -195,7 +210,10 @@ test("the state left behind is the declared one", (t) => {
   const state = readState();
   assert.ok(covers(state.repository, readConfig("repository.json")));
   assert.deepEqual(state.forkApproval, readConfig("fork-pr-approval.json"));
-  assert.deepEqual(state.rulesets.map((ruleset) => ruleset.name), ["main", "release-tags"]);
+  assert.deepEqual(
+    state.rulesets.map((ruleset) => ruleset.name),
+    ["main", "release-tags"],
+  );
 });
 
 test("a field changed by hand is patched alone", (t) => {
@@ -210,7 +228,11 @@ test("a field changed by hand is patched alone", (t) => {
     call("PATCH", BASE, { allow_squash_merge: false }),
     call("GET", APPROVAL),
   ]);
-  assert.deepEqual(run.result.changes[0], { target: "repository", fields: ["allow_squash_merge"], action: "updated" });
+  assert.deepEqual(run.result.changes[0], {
+    target: "repository",
+    fields: ["allow_squash_merge"],
+    action: "updated",
+  });
 });
 
 test("a ruleset with a rule added by hand is replaced whole, and one without its check too", (t) => {
@@ -229,8 +251,13 @@ test("a ruleset with a rule added by hand is replaced whole, and one without its
     call("GET", `${BASE}/rulesets/102`),
     call("PUT", `${BASE}/rulesets/102`, readConfig("ruleset-release-tags.json")),
   ]);
-  assert.deepEqual(drifted.readState().rulesets[0].rules.map((rule) => rule.type).sort(),
-    ["deletion", "non_fast_forward", "pull_request", "required_status_checks"]);
+  assert.deepEqual(
+    drifted
+      .readState()
+      .rulesets[0].rules.map((rule) => rule.type)
+      .sort(),
+    ["deletion", "non_fast_forward", "pull_request", "required_status_checks"],
+  );
 });
 
 test("--check reads, reports what differs and exits 1 without a single write", (t) => {
@@ -238,9 +265,15 @@ test("--check reads, reports what differs and exits 1 without a single write", (
   const before = readState();
   const run = invoke(["--repo", REPO, "--check"]);
   assert.equal(run.code, 1);
-  assert.deepEqual(run.calls.map((entry) => entry.argv[2]), ["GET", "GET", "GET"]);
+  assert.deepEqual(
+    run.calls.map((entry) => entry.argv[2]),
+    ["GET", "GET", "GET"],
+  );
   assert.equal(run.result.status, "differs");
-  assert.deepEqual(run.result.changes.map((change) => change.action), ["differs", "differs", "missing", "missing"]);
+  assert.deepEqual(
+    run.result.changes.map((change) => change.action),
+    ["differs", "differs", "missing", "missing"],
+  );
   assert.deepEqual(readState(), before);
 });
 
@@ -276,8 +309,16 @@ test("two rulesets of one declared name are refused rather than guessed between"
 
 test("arguments that do not name one repository are refused before gh is called", (t) => {
   const { invoke } = harness(t);
-  for (const argv of [[], ["--repo"], ["--repo", "owner"], ["--repo", "owner/.."], ["--repo", "-x/y"],
-    ["--repo", "a/b", "--repo", "c/d"], ["--repo", "a/b", "--extra"], ["--repo", "a/b c"]]) {
+  for (const argv of [
+    [],
+    ["--repo"],
+    ["--repo", "owner"],
+    ["--repo", "owner/.."],
+    ["--repo", "-x/y"],
+    ["--repo", "a/b", "--repo", "c/d"],
+    ["--repo", "a/b", "--extra"],
+    ["--repo", "a/b c"],
+  ]) {
     const run = invoke(argv);
     assert.equal(run.code, 1, JSON.stringify(argv));
     assert.equal(run.error.error.code, "github_settings_invalid_arguments");
@@ -306,33 +347,46 @@ test("the declared settings follow the user's decisions and the measurements of 
     has_wiki: false,
     has_discussions: false,
   });
-  assert.deepEqual(readConfig("fork-pr-approval.json"), { approval_policy: "all_external_contributors" });
+  assert.deepEqual(readConfig("fork-pr-approval.json"), {
+    approval_policy: "all_external_contributors",
+  });
 
   const main = readConfig("ruleset-main.json");
   assert.equal(main.enforcement, "active");
   assert.deepEqual(main.bypass_actors, []);
   assert.deepEqual(main.conditions.ref_name.include, ["~DEFAULT_BRANCH"]);
-  assert.deepEqual(main.rules.map((rule) => rule.type).sort(),
-    ["deletion", "non_fast_forward", "pull_request", "required_status_checks"]);
+  assert.deepEqual(main.rules.map((rule) => rule.type).sort(), [
+    "deletion",
+    "non_fast_forward",
+    "pull_request",
+    "required_status_checks",
+  ]);
   const rule = (type) => main.rules.find((entry) => entry.type === type).parameters;
   assert.equal(rule("pull_request").required_approving_review_count, 0);
   assert.deepEqual(rule("pull_request").allowed_merge_methods, ["merge"]);
   assert.equal(rule("required_status_checks").strict_required_status_checks_policy, true);
-  assert.deepEqual(rule("required_status_checks").required_status_checks, [{ context: "gate", integration_id: 15368 }]);
+  assert.deepEqual(rule("required_status_checks").required_status_checks, [
+    { context: "gate", integration_id: 15368 },
+  ]);
 
   const tags = readConfig("ruleset-release-tags.json");
   assert.equal(tags.target, "tag");
   assert.deepEqual(tags.bypass_actors, []);
   assert.deepEqual(tags.conditions.ref_name.include, ["refs/tags/release-*"]);
-  assert.deepEqual(tags.rules.map((entry) => entry.type).sort(), ["deletion", "non_fast_forward", "update"]);
+  assert.deepEqual(tags.rules.map((entry) => entry.type).sort(), [
+    "deletion",
+    "non_fast_forward",
+    "update",
+  ]);
 });
 
 test("the required check is the one job of the CI workflow, and that job carries no name", () => {
   const workflow = readFileSync(join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
   const jobsBlock = workflow.split(/^jobs:\n/mu)[1];
   const jobIds = [...jobsBlock.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$/gmu)].map((match) => match[1]);
-  const [context] = readConfig("ruleset-main.json").rules
-    .find((entry) => entry.type === "required_status_checks").parameters.required_status_checks;
+  const [context] = readConfig("ruleset-main.json").rules.find(
+    (entry) => entry.type === "required_status_checks",
+  ).parameters.required_status_checks;
   assert.deepEqual(jobIds, [context.context]);
   assert.doesNotMatch(jobsBlock, /^ {4}name:/mu);
 });

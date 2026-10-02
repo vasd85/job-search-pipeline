@@ -81,16 +81,28 @@ test("safe transport and persisted diagnostics share one frozen numeric owner", 
     detailsMaxItems: 8,
     messageMaxBytes: 512,
   });
-  assert.deepEqual(processLogDiagnosticProblems({
-    code: "a".repeat(64),
-    message: "safe diagnostic",
-    details: [],
-  }, "diagnostic"), []);
-  assert.deepEqual(processLogDiagnosticProblems({
-    code: "a".repeat(65),
-    message: "safe diagnostic",
-    details: [],
-  }, "diagnostic"), ["diagnostic.code must be at most 64 UTF-8 bytes"]);
+  assert.deepEqual(
+    processLogDiagnosticProblems(
+      {
+        code: "a".repeat(64),
+        message: "safe diagnostic",
+        details: [],
+      },
+      "diagnostic",
+    ),
+    [],
+  );
+  assert.deepEqual(
+    processLogDiagnosticProblems(
+      {
+        code: "a".repeat(65),
+        message: "safe diagnostic",
+        details: [],
+      },
+      "diagnostic",
+    ),
+    ["diagnostic.code must be at most 64 UTF-8 bytes"],
+  );
 });
 const blockedVacancyFixturePath = resolve(
   repoRoot,
@@ -130,16 +142,17 @@ function createSafeInput(
 ) {
   const basename = `input-${nonce}.json`;
   const path = join(inputRoot, basename);
-  const contents = source === undefined
-    ? `${JSON.stringify({
-      schemaVersion: 1,
-      command,
-      nonce,
-      values,
-    })}\n`
-    : typeof source === "function"
-      ? source(nonce)
-      : source;
+  const contents =
+    source === undefined
+      ? `${JSON.stringify({
+          schemaVersion: 1,
+          command,
+          nonce,
+          values,
+        })}\n`
+      : typeof source === "function"
+        ? source(nonce)
+        : source;
   writeFileSync(path, contents, {
     flag: "wx",
     mode: 0o600,
@@ -175,19 +188,11 @@ function requireCliSuccess(result) {
 }
 
 function stageBlockedVacancy(environment, processRecord, publicationId) {
-  const outputPath = resolve(
-    environment.workspaceRoot,
-    processRecord.output_dir,
-  );
+  const outputPath = resolve(environment.workspaceRoot, processRecord.output_dir);
   const stagingPath = join(outputPath, ".pipeline-tmp", publicationId);
   mkdirSync(stagingPath, { recursive: true });
-  copyFileSync(
-    blockedJobDescriptionFixturePath,
-    join(stagingPath, "job-description.txt"),
-  );
-  const vacancy = JSON.parse(
-    readFileSync(blockedVacancyFixturePath, "utf8"),
-  );
+  copyFileSync(blockedJobDescriptionFixturePath, join(stagingPath, "job-description.txt"));
+  const vacancy = JSON.parse(readFileSync(blockedVacancyFixturePath, "utf8"));
   // A publication writes the current version. A blocked vacancy names no market, so the workspace
   // needs no candidate layer for it.
   vacancy.schemaVersion = 2;
@@ -196,11 +201,7 @@ function stageBlockedVacancy(environment, processRecord, publicationId) {
   vacancy.process.outputDir = processRecord.output_dir;
   vacancy.role.company = processRecord.company_observed;
   vacancy.role.title = processRecord.role;
-  writeFileSync(
-    join(stagingPath, "vacancy.json"),
-    `${JSON.stringify(vacancy, null, 2)}\n`,
-    "utf8",
-  );
+  writeFileSync(join(stagingPath, "vacancy.json"), `${JSON.stringify(vacancy, null, 2)}\n`, "utf8");
 }
 
 function classifyNativeChildOutcome(error) {
@@ -213,19 +214,24 @@ function classifyNativeChildOutcome(error) {
 
 function runCliAsync(environment, inputRoot, ...args) {
   return new Promise((resolveRun) => {
-    execFile(process.execPath, [cliPath, ...args], {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env: cliEnvironment(environment, inputRoot),
-    }, (error, stdout, stderr) => {
-      resolveRun({
-        code: error?.code ?? 0,
-        argv: [process.execPath, cliPath, ...args],
-        ...classifyNativeChildOutcome(error),
-        stderr,
-        stdout,
-      });
-    });
+    execFile(
+      process.execPath,
+      [cliPath, ...args],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: cliEnvironment(environment, inputRoot),
+      },
+      (error, stdout, stderr) => {
+        resolveRun({
+          code: error?.code ?? 0,
+          argv: [process.execPath, cliPath, ...args],
+          ...classifyNativeChildOutcome(error),
+          stderr,
+          stdout,
+        });
+      },
+    );
   });
 }
 
@@ -251,19 +257,24 @@ function launchLockCliAtExecutable(
     role,
     scenario,
   };
-  run.child = execFile(executable, [lockChildPath, scenario, ...args], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    env: cliEnvironment(environment, inputRoot),
-  }, (error, stdout, stderr) => {
-    run.result = {
-      argv,
-      ...classifyNativeChildOutcome(error),
-      stderr,
-      stdout,
-    };
-    resolveRun(run.result);
-  });
+  run.child = execFile(
+    executable,
+    [lockChildPath, scenario, ...args],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: cliEnvironment(environment, inputRoot),
+    },
+    (error, stdout, stderr) => {
+      run.result = {
+        argv,
+        ...classifyNativeChildOutcome(error),
+        stderr,
+        stdout,
+      };
+      resolveRun(run.result);
+    },
+  );
   return run;
 }
 
@@ -340,16 +351,12 @@ function boundedStderrCode(stderr) {
   if (stderr.trim() === "") return null;
   const parsed = parsedJsonOrNull(stderr);
   const code = parsed?.error?.code ?? parsed?.code ?? "unparseable_stderr";
-  return typeof code === "string" && /^[a-z0-9_]{1,64}$/.test(code)
-    ? code
-    : "invalid_stderr_code";
+  return typeof code === "string" && /^[a-z0-9_]{1,64}$/.test(code) ? code : "invalid_stderr_code";
 }
 
 function boundedOutputCode(value, fallback) {
   if (value === null || value === undefined) return null;
-  return typeof value === "string" && /^[a-z0-9_]{1,64}$/.test(value)
-    ? value
-    : fallback;
+  return typeof value === "string" && /^[a-z0-9_]{1,64}$/.test(value) ? value : fallback;
 }
 
 function observedChild(result, index, role) {
@@ -362,10 +369,7 @@ function observedChild(result, index, role) {
     role,
     signal: result.signal,
     spawnErrorCode: result.spawnErrorCode,
-    stdoutErrorCode: boundedOutputCode(
-      stdoutPayload?.error?.code,
-      "invalid_stdout_error_code",
-    ),
+    stdoutErrorCode: boundedOutputCode(stdoutPayload?.error?.code, "invalid_stdout_error_code"),
     stdoutStatus: boundedOutputCode(stdoutPayload?.status, "invalid_stdout_status"),
   };
 }
@@ -377,9 +381,10 @@ function receiptError(code, message) {
 }
 
 function assertExactReceiptKeys(value, expected, code) {
-  const actual = value !== null && typeof value === "object" && !Array.isArray(value)
-    ? Object.keys(value).sort()
-    : [];
+  const actual =
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? Object.keys(value).sort()
+      : [];
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw receiptError(code, `${code}: unexpected keys`);
   }
@@ -423,11 +428,9 @@ function validateReceiptContract(receipt) {
       }
     }
     if (
-      child.spawnErrorCode !== null
-      && (
-        typeof child.spawnErrorCode !== "string"
-        || !/^[A-Z][A-Z0-9_]{0,63}$/.test(child.spawnErrorCode)
-      )
+      child.spawnErrorCode !== null &&
+      (typeof child.spawnErrorCode !== "string" ||
+        !/^[A-Z][A-Z0-9_]{0,63}$/.test(child.spawnErrorCode))
     ) {
       throw receiptError("oracle_receipt_spawn_code_invalid", "native spawn code is invalid");
     }
@@ -435,15 +438,15 @@ function validateReceiptContract(receipt) {
       throw receiptError("oracle_receipt_exit_invalid", "numeric exit code is invalid");
     }
     if (
-      child.signal !== null
-      && (typeof child.signal !== "string" || !/^SIG[A-Z0-9]{1,29}$/.test(child.signal))
+      child.signal !== null &&
+      (typeof child.signal !== "string" || !/^SIG[A-Z0-9]{1,29}$/.test(child.signal))
     ) {
       throw receiptError("oracle_receipt_signal_invalid", "child signal is invalid");
     }
     if (
-      !validNormalizedCode(child.stdoutStatus)
-      || !validNormalizedCode(child.stdoutErrorCode)
-      || !validNormalizedCode(child.boundedStderrCode)
+      !validNormalizedCode(child.stdoutStatus) ||
+      !validNormalizedCode(child.stdoutErrorCode) ||
+      !validNormalizedCode(child.boundedStderrCode)
     ) {
       throw receiptError("oracle_receipt_code_invalid", "normalized child code is invalid");
     }
@@ -539,14 +542,20 @@ function captureLockDirectory(lockPath) {
 }
 
 function receiptChildrenFromRuns(runs) {
-  return runs.map((run) => observedChild(run.result ?? {
-    argv: run.argv,
-    numericExitCode: null,
-    signal: null,
-    spawnErrorCode: "UNREAPED_CHILD",
-    stderr: "",
-    stdout: "",
-  }, run.index, run.role));
+  return runs.map((run) =>
+    observedChild(
+      run.result ?? {
+        argv: run.argv,
+        numericExitCode: null,
+        signal: null,
+        spawnErrorCode: "UNREAPED_CHILD",
+        stderr: "",
+        stdout: "",
+      },
+      run.index,
+      run.role,
+    ),
+  );
 }
 
 async function waitAtMostOneSecondForChildren(runs) {
@@ -628,7 +637,8 @@ async function runSafeInputHandoffSchedule(environment, input, cliArgs) {
     );
     runs.push(owner);
     await supervisePhase("owner-empty", (signal) =>
-      waitForFixtureMarker(environment, "safe-owner-empty", signal));
+      waitForFixtureMarker(environment, "safe-owner-empty", signal),
+    );
     barriers.completed.push("owner_empty");
     snapshots.oldDirectory = captureLockDirectory(lockPath);
     barriers.oldDirectory = snapshots.oldDirectory.evidence;
@@ -643,10 +653,12 @@ async function runSafeInputHandoffSchedule(environment, input, cliArgs) {
     );
     runs.push(successor);
     await supervisePhase("successor-direct-replacement", (signal) =>
-      waitForFixtureMarker(environment, "safe-successor-replaced", signal));
+      waitForFixtureMarker(environment, "safe-successor-replaced", signal),
+    );
     barriers.completed.push("successor_direct_replacement");
     await supervisePhase("successor-critical-section", (signal) =>
-      waitForFixtureMarker(environment, "safe-successor-entered", signal));
+      waitForFixtureMarker(environment, "safe-successor-entered", signal),
+    );
     barriers.completed.push("successor_critical_section");
     snapshots.successorBeforeOldRelease = captureLockDirectory(lockPath);
     barriers.successorBeforeOldRelease = snapshots.successorBeforeOldRelease.evidence;
@@ -665,28 +677,30 @@ async function runSafeInputHandoffSchedule(environment, input, cliArgs) {
       runs.push(run);
       return { contenderId, run };
     });
-    await supervisePhase("contenders-blocked", (signal) => Promise.all(
-      contenders.map(({ contenderId }) => waitForFixtureMarker(
-        environment,
-        `safe-contender-${contenderId}-blocked`,
-        signal,
-      )),
-    ));
+    await supervisePhase("contenders-blocked", (signal) =>
+      Promise.all(
+        contenders.map(({ contenderId }) =>
+          waitForFixtureMarker(environment, `safe-contender-${contenderId}-blocked`, signal),
+        ),
+      ),
+    );
     barriers.blockedContenderIndexes = contenders.map(({ run }) => run.index);
     barriers.completed.push("contenders_blocked");
     barriers.enteredContenderIndexes = contenders
-      .filter(({ contenderId }) => existsSync(
-        fixtureMarkerPath(environment, `safe-contender-${contenderId}-entered`),
-      ))
+      .filter(({ contenderId }) =>
+        existsSync(fixtureMarkerPath(environment, `safe-contender-${contenderId}-entered`)),
+      )
       .map(({ run }) => run.index);
 
     const ownerReleasePublished = publishFixtureMarkerOnce(environment, "safe-owner-release");
     supervisor.actions.push({ action: "release_owner", published: ownerReleasePublished });
     await supervisePhase("owner-release-blocked", async (signal) => {
       while (true) {
-        const releaseCode = ["EEXIST", "ENOTEMPTY"].find((code) => existsSync(
-          fixtureMarkerPath(environment, `safe-owner-release-blocked-${code.toLowerCase()}`),
-        ));
+        const releaseCode = ["EEXIST", "ENOTEMPTY"].find((code) =>
+          existsSync(
+            fixtureMarkerPath(environment, `safe-owner-release-blocked-${code.toLowerCase()}`),
+          ),
+        );
         if (releaseCode !== undefined) {
           barriers.ownerReleaseCode = releaseCode;
           return;
@@ -699,9 +713,9 @@ async function runSafeInputHandoffSchedule(environment, input, cliArgs) {
     snapshots.successorAfterOldRelease = captureLockDirectory(lockPath);
     barriers.successorAfterOldRelease = snapshots.successorAfterOldRelease.evidence;
     barriers.enteredContenderIndexes = contenders
-      .filter(({ contenderId }) => existsSync(
-        fixtureMarkerPath(environment, `safe-contender-${contenderId}-entered`),
-      ))
+      .filter(({ contenderId }) =>
+        existsSync(fixtureMarkerPath(environment, `safe-contender-${contenderId}-entered`)),
+      )
       .map(({ run }) => run.index);
 
     const successorReleasePublished = publishFixtureMarkerOnce(
@@ -716,9 +730,7 @@ async function runSafeInputHandoffSchedule(environment, input, cliArgs) {
   } catch (error) {
     scheduleError = error;
     supervisor.outcome = error.code ?? "oracle_schedule_failed";
-    supervisor.timedOutPhase = error.code === "oracle_supervisor_timeout"
-      ? error.phase
-      : null;
+    supervisor.timedOutPhase = error.code === "oracle_supervisor_timeout" ? error.phase : null;
     await terminateAndReap(environment, runs, supervisor);
     barriers.childrenSettled = runs.every(({ result }) => result !== null);
   } finally {
@@ -755,19 +767,20 @@ async function runSupervisorFaultOracle(environment, inputRoot) {
   let scheduleError = null;
   let receiptFile;
   try {
-    await supervisePhase("fault-children-ready", (signal) => Promise.all([
-      waitForFixtureMarker(environment, "safe-supervisor-term-ready", signal),
-      waitForFixtureMarker(environment, "safe-supervisor-kill-ready", signal),
-    ]));
+    await supervisePhase("fault-children-ready", (signal) =>
+      Promise.all([
+        waitForFixtureMarker(environment, "safe-supervisor-term-ready", signal),
+        waitForFixtureMarker(environment, "safe-supervisor-kill-ready", signal),
+      ]),
+    );
     barriers.completed.push("fault_children_ready");
     await supervisePhase("fault-child-settle", (signal) =>
-      waitForFixtureMarker(environment, "safe-supervisor-never", signal));
+      waitForFixtureMarker(environment, "safe-supervisor-never", signal),
+    );
   } catch (error) {
     scheduleError = error;
     supervisor.outcome = error.code ?? "oracle_schedule_failed";
-    supervisor.timedOutPhase = error.code === "oracle_supervisor_timeout"
-      ? error.phase
-      : null;
+    supervisor.timedOutPhase = error.code === "oracle_supervisor_timeout" ? error.phase : null;
     await terminateAndReap(environment, runs, supervisor);
     barriers.ownerReleasePublished = existsSync(
       fixtureMarkerPath(environment, "safe-owner-release"),
@@ -827,10 +840,7 @@ function expectReceiptError(code, operation) {
 }
 
 function expectSafeError(code, operation) {
-  assert.throws(
-    operation,
-    (error) => error instanceof SafeCliInputError && error.code === code,
-  );
+  assert.throws(operation, (error) => error instanceof SafeCliInputError && error.code === code);
 }
 
 function withStatFields(stats, fields) {
@@ -1011,11 +1021,7 @@ test("command envelopes map only external fields and preserve machine flags", (t
   ];
 
   for (const fixture of cases) {
-    const input = createSafeInput(
-      environment,
-      fixture.command,
-      fixture.values,
-    );
+    const input = createSafeInput(environment, fixture.command, fixture.values);
     const hydrated = hydrateSafeCliOptions({
       command: fixture.command,
       inputRoot: input.inputRoot,
@@ -1031,24 +1037,19 @@ test("command envelopes map only external fields and preserve machine flags", (t
     }
     if (fixture.objectOption) {
       const [value] = Object.values(fixture.values);
-      assert.deepEqual(
-        JSON.parse(hydrated.options[fixture.objectOption]),
-        {
-          code: value.code,
-          message: fixture.objectOption === "blocker-json"
+      assert.deepEqual(JSON.parse(hydrated.options[fixture.objectOption]), {
+        code: value.code,
+        message:
+          fixture.objectOption === "blocker-json"
             ? "The operation stopped on a controlled blocker."
             : "The operation ended with a controlled error.",
-          retryable: value.retryable,
-          details: [],
-        },
-      );
+        retryable: value.retryable,
+        details: [],
+      });
     } else if (fixture.waiverOption) {
       // Unlike the diagnostic classes, waiver records carry the user-owned note verbatim as
       // bounded data: the note is a journaled record (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(a)).
-      assert.deepEqual(
-        JSON.parse(hydrated.options[fixture.waiverOption]),
-        fixture.values.waivers,
-      );
+      assert.deepEqual(JSON.parse(hydrated.options[fixture.waiverOption]), fixture.values.waivers);
     } else {
       for (const [key, value] of Object.entries(fixture.expected)) {
         assert.equal(hydrated.options[key], value);
@@ -1077,32 +1078,41 @@ test("revise-step waiver records are bounded and shape-checked at the transport"
       });
   };
 
-  expectSafeError("safe_input_schema_mismatch", hydrate([
-    { subject: { kind: "veto", key: "letter_keyword:0" } },
-  ]));
-  expectSafeError("safe_input_schema_mismatch", hydrate([
-    { subject: { kind: "check", key: "" } },
-  ]));
-  expectSafeError("safe_input_schema_mismatch", hydrate([
-    { subject: { kind: "check", key: "x".repeat(257) } },
-  ]));
-  expectSafeError("safe_input_schema_mismatch", hydrate([
-    {
-      subject: { kind: "check", key: "letter_keyword:0" },
-      note: "х".repeat(300),
-    },
-  ]));
-  expectSafeError("safe_input_schema_mismatch", hydrate([
-    {
-      subject: { kind: "check", key: "letter_keyword:0" },
-      unexpected: "field",
-    },
-  ]));
-  expectSafeError("safe_input_schema_mismatch", hydrate(
-    [...Array(17).keys()].map((index) => ({
-      subject: { kind: "check", key: `letter_keyword:${index}` },
-    })),
-  ));
+  expectSafeError(
+    "safe_input_schema_mismatch",
+    hydrate([{ subject: { kind: "veto", key: "letter_keyword:0" } }]),
+  );
+  expectSafeError("safe_input_schema_mismatch", hydrate([{ subject: { kind: "check", key: "" } }]));
+  expectSafeError(
+    "safe_input_schema_mismatch",
+    hydrate([{ subject: { kind: "check", key: "x".repeat(257) } }]),
+  );
+  expectSafeError(
+    "safe_input_schema_mismatch",
+    hydrate([
+      {
+        subject: { kind: "check", key: "letter_keyword:0" },
+        note: "х".repeat(300),
+      },
+    ]),
+  );
+  expectSafeError(
+    "safe_input_schema_mismatch",
+    hydrate([
+      {
+        subject: { kind: "check", key: "letter_keyword:0" },
+        unexpected: "field",
+      },
+    ]),
+  );
+  expectSafeError(
+    "safe_input_schema_mismatch",
+    hydrate(
+      [...Array(17).keys()].map((index) => ({
+        subject: { kind: "check", key: `letter_keyword:${index}` },
+      })),
+    ),
+  );
 
   const accepted = hydrate([
     { subject: { kind: "check", key: "letter_keyword:0" }, note: "Осознанное отклонение." },
@@ -1135,24 +1145,34 @@ test("publish-step carries the letter word-limit approval through the same waive
       });
   };
 
-  expectSafeError("safe_input_schema_mismatch", hydrate({
-    waivers: [{ subject: { kind: "veto", key: "letter_body_words_max:280" } }],
-  }));
-  expectSafeError("safe_input_schema_mismatch", hydrate({
-    waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" }, unexpected: "f" }],
-  }));
+  expectSafeError(
+    "safe_input_schema_mismatch",
+    hydrate({
+      waivers: [{ subject: { kind: "veto", key: "letter_body_words_max:280" } }],
+    }),
+  );
+  expectSafeError(
+    "safe_input_schema_mismatch",
+    hydrate({
+      waivers: [{ subject: { kind: "check", key: "letter_body_words_max:280" }, unexpected: "f" }],
+    }),
+  );
 
   const accepted = hydrate({
-    waivers: [{
-      subject: { kind: "check", key: "letter_body_words_max:280" },
-      note: "Пользователь: публикуй как есть.",
-    }],
+    waivers: [
+      {
+        subject: { kind: "check", key: "letter_body_words_max:280" },
+        note: "Пользователь: публикуй как есть.",
+      },
+    ],
   })();
   assert.equal(accepted.transported, true);
-  assert.deepEqual(JSON.parse(accepted.options["waivers-json"]), [{
-    subject: { kind: "check", key: "letter_body_words_max:280" },
-    note: "Пользователь: публикуй как есть.",
-  }]);
+  assert.deepEqual(JSON.parse(accepted.options["waivers-json"]), [
+    {
+      subject: { kind: "check", key: "letter_body_words_max:280" },
+      note: "Пользователь: публикуй как есть.",
+    },
+  ]);
 
   const withBlocker = hydrate({
     blocker: {
@@ -1180,7 +1200,8 @@ test("transport conflicts fail before root or ledger access", () => {
         "source-ref": "hostile-sentinel",
         runner: "codex",
       },
-    }));
+    }),
+  );
   expectSafeError("safe_input_conflicting_flags", () =>
     hydrateSafeCliOptions({
       command: "resolve",
@@ -1189,7 +1210,8 @@ test("transport conflicts fail before root or ledger access", () => {
         id: "proc_test",
         "input-file": "input-0123456789abcdef0123456789abcdef.json",
       },
-    }));
+    }),
+  );
   expectSafeError("safe_input_command_mismatch", () =>
     hydrateSafeCliOptions({
       command: "begin-step",
@@ -1198,7 +1220,8 @@ test("transport conflicts fail before root or ledger access", () => {
         id: "proc_test",
         "input-file": "input-0123456789abcdef0123456789abcdef.json",
       },
-    }));
+    }),
+  );
 });
 
 test("update companyHint conflicts with clear-company-hint", (t) => {
@@ -1218,7 +1241,8 @@ test("update companyHint conflicts with clear-company-hint", (t) => {
         id: "proc_test",
         "input-file": input.basename,
       },
-    }));
+    }),
+  );
 });
 
 test("strict JSON rejects duplicate, trailing, injected, and mismatched envelopes", (t) => {
@@ -1246,84 +1270,89 @@ test("strict JSON rejects duplicate, trailing, injected, and mismatched envelope
     {
       command: "fail-step",
       code: "safe_input_schema_mismatch",
-      source: (nonce) => JSON.stringify({
-        schemaVersion: 1,
-        command: "fail-step",
-        nonce,
-        values: {
-          error: {
-            code: "bounded_message",
-            message: "я".repeat(257),
-            retryable: true,
+      source: (nonce) =>
+        JSON.stringify({
+          schemaVersion: 1,
+          command: "fail-step",
+          nonce,
+          values: {
+            error: {
+              code: "bounded_message",
+              message: "я".repeat(257),
+              retryable: true,
+            },
           },
-        },
-      }),
+        }),
     },
     {
       command: "fail-step",
       code: "safe_input_schema_mismatch",
-      source: (nonce) => JSON.stringify({
-        schemaVersion: 1,
-        command: "fail-step",
-        nonce,
-        values: {
-          error: {
-            code: "NOT_A_STABLE_CODE",
-            message: "A failure.",
-            retryable: true,
+      source: (nonce) =>
+        JSON.stringify({
+          schemaVersion: 1,
+          command: "fail-step",
+          nonce,
+          values: {
+            error: {
+              code: "NOT_A_STABLE_CODE",
+              message: "A failure.",
+              retryable: true,
+            },
           },
-        },
-      }),
+        }),
     },
     {
       command: "fail-step",
       code: "safe_input_schema_mismatch",
-      source: (nonce) => JSON.stringify({
-        schemaVersion: 1,
-        command: "fail-step",
-        nonce,
-        values: {
-          error: {
-            code: `a_${"x".repeat(64)}`,
-            message: "A failure.",
-            retryable: true,
+      source: (nonce) =>
+        JSON.stringify({
+          schemaVersion: 1,
+          command: "fail-step",
+          nonce,
+          values: {
+            error: {
+              code: `a_${"x".repeat(64)}`,
+              message: "A failure.",
+              retryable: true,
+            },
           },
-        },
-      }),
+        }),
     },
     {
       command: "fail-step",
       code: "safe_input_schema_mismatch",
-      source: (nonce) => JSON.stringify({
-        schemaVersion: 1,
-        command: "fail-step",
-        nonce,
-        values: {
-          error: {
-            code: "bounded_details",
-            message: "A failure.",
-            retryable: true,
-            details: Array.from({ length: 9 }, () => "detail"),
+      source: (nonce) =>
+        JSON.stringify({
+          schemaVersion: 1,
+          command: "fail-step",
+          nonce,
+          values: {
+            error: {
+              code: "bounded_details",
+              message: "A failure.",
+              retryable: true,
+              details: Array.from({ length: 9 }, () => "detail"),
+            },
           },
-        },
-      }),
+        }),
     },
     {
       command: "fail-step",
       code: "safe_input_schema_mismatch",
-      source: (nonce) => JSON.stringify({
-        schemaVersion: 1,
-        command: "fail-step",
-        nonce,
-        values: {
-          error: {
-            code: "bounded_detail",
-            message: "A failure.",
-            retryable: true,
-            details: ["x".repeat(257)],
+      source: (nonce) =>
+        JSON.stringify({
+          schemaVersion: 1,
+          command: "fail-step",
+          nonce,
+          values: {
+            error: {
+              code: "bounded_detail",
+              message: "A failure.",
+              retryable: true,
+              details: ["x".repeat(257)],
+            },
           },
-        },
-      }),
+        }),
     },
     {
       code: "safe_input_invalid_json",
@@ -1374,15 +1403,21 @@ test("strict JSON rejects duplicate, trailing, injected, and mismatched envelope
 
   for (const fixture of fixtures) {
     const command = fixture.command ?? "start";
-    const input = createSafeInput(environment, command, {}, {
-      source: fixture.source,
-    });
+    const input = createSafeInput(
+      environment,
+      command,
+      {},
+      {
+        source: fixture.source,
+      },
+    );
     expectSafeError(fixture.code, () =>
       readSafeCliInput({
         basename: input.basename,
         command,
         inputRoot: input.inputRoot,
-      }));
+      }),
+    );
   }
 });
 
@@ -1403,18 +1438,20 @@ test("UTF-8, BOM, NUL, surrogate, and exact size boundaries fail closed", (t) =>
     "emoji 😀",
   );
 
-  const exact = createSafeInput(environment, "find-company", {}, {
-    source: (nonce) => {
-      const bytes = Buffer.from(
-        `{"schemaVersion":1,"command":"find-company","nonce":"${nonce}","values":{"query":"exact"}}`,
-      );
-      assert.ok(bytes.length < safeCliInputMaxBytes);
-      return Buffer.concat([
-        bytes,
-        Buffer.alloc(safeCliInputMaxBytes - bytes.length, 0x20),
-      ]);
+  const exact = createSafeInput(
+    environment,
+    "find-company",
+    {},
+    {
+      source: (nonce) => {
+        const bytes = Buffer.from(
+          `{"schemaVersion":1,"command":"find-company","nonce":"${nonce}","values":{"query":"exact"}}`,
+        );
+        assert.ok(bytes.length < safeCliInputMaxBytes);
+        return Buffer.concat([bytes, Buffer.alloc(safeCliInputMaxBytes - bytes.length, 0x20)]);
+      },
     },
-  });
+  );
   assert.equal(
     readSafeCliInput({
       basename: exact.basename,
@@ -1424,49 +1461,63 @@ test("UTF-8, BOM, NUL, surrogate, and exact size boundaries fail closed", (t) =>
     "exact",
   );
 
-  const oversize = createSafeInput(environment, "find-company", {}, {
-    source: (nonce) => {
-      const bytes = Buffer.from(
-        `{"schemaVersion":1,"command":"find-company","nonce":"${nonce}","values":{"query":"large"}}`,
-      );
-      return Buffer.concat([
-        bytes,
-        Buffer.alloc(safeCliInputMaxBytes + 1 - bytes.length, 0x20),
-      ]);
+  const oversize = createSafeInput(
+    environment,
+    "find-company",
+    {},
+    {
+      source: (nonce) => {
+        const bytes = Buffer.from(
+          `{"schemaVersion":1,"command":"find-company","nonce":"${nonce}","values":{"query":"large"}}`,
+        );
+        return Buffer.concat([bytes, Buffer.alloc(safeCliInputMaxBytes + 1 - bytes.length, 0x20)]);
+      },
     },
-  });
+  );
   expectSafeError("safe_input_oversize", () =>
     readSafeCliInput({
       basename: oversize.basename,
       command: "find-company",
       inputRoot: oversize.inputRoot,
-    }));
-
-  const validSource = (nonce) => Buffer.from(
-    `{"schemaVersion":1,"command":"find-company","nonce":"${nonce}","values":{"query":"bytes"}}`,
+    }),
   );
-  const invalidUtf8 = createSafeInput(environment, "find-company", {}, {
-    source: Buffer.from([0xc3, 0x28]),
-  });
-  const bom = createSafeInput(environment, "find-company", {}, {
-    source: (nonce) => Buffer.concat([
-      Buffer.from([0xef, 0xbb, 0xbf]),
-      validSource(nonce),
-    ]),
-  });
-  const rawNul = createSafeInput(environment, "find-company", {}, {
-    source: (nonce) => Buffer.concat([
-      validSource(nonce),
-      Buffer.from([0]),
-    ]),
-  });
+
+  const validSource = (nonce) =>
+    Buffer.from(
+      `{"schemaVersion":1,"command":"find-company","nonce":"${nonce}","values":{"query":"bytes"}}`,
+    );
+  const invalidUtf8 = createSafeInput(
+    environment,
+    "find-company",
+    {},
+    {
+      source: Buffer.from([0xc3, 0x28]),
+    },
+  );
+  const bom = createSafeInput(
+    environment,
+    "find-company",
+    {},
+    {
+      source: (nonce) => Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), validSource(nonce)]),
+    },
+  );
+  const rawNul = createSafeInput(
+    environment,
+    "find-company",
+    {},
+    {
+      source: (nonce) => Buffer.concat([validSource(nonce), Buffer.from([0])]),
+    },
+  );
   for (const input of [invalidUtf8, bom, rawNul]) {
     expectSafeError("safe_input_invalid_utf8", () =>
       readSafeCliInput({
         basename: input.basename,
         command: "find-company",
         inputRoot: input.inputRoot,
-      }));
+      }),
+    );
   }
 });
 
@@ -1490,7 +1541,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
         basename,
         command: "start",
         inputRoot: root,
-      }));
+      }),
+    );
   }
 
   expectSafeError("safe_input_root_invalid", () =>
@@ -1498,7 +1550,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       basename: "input-0123456789abcdef0123456789abcdef.json",
       command: "start",
       inputRoot: join(environment.workspaceRoot, "missing-input-root"),
-    }));
+    }),
+  );
 
   const wideRoot = join(environment.workspaceRoot, "wide-input-root");
   mkdirSync(wideRoot, { mode: 0o755 });
@@ -1508,7 +1561,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       basename: "input-0123456789abcdef0123456789abcdef.json",
       command: "start",
       inputRoot: wideRoot,
-    }));
+    }),
+  );
 
   const specialRoot = join(environment.workspaceRoot, "special-input-root");
   mkdirSync(specialRoot, { mode: 0o700 });
@@ -1518,7 +1572,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       basename: "input-0123456789abcdef0123456789abcdef.json",
       command: "start",
       inputRoot: specialRoot,
-    }));
+    }),
+  );
 
   const realRoot = join(environment.workspaceRoot, "real-input-root");
   mkdirSync(realRoot, { mode: 0o700 });
@@ -1530,7 +1585,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       basename: "input-0123456789abcdef0123456789abcdef.json",
       command: "start",
       inputRoot: linkedRoot,
-    }));
+    }),
+  );
 
   const wrongMode = createSafeInput(environment, "start", {
     sourceRef: "direct-outreach:wrong-mode",
@@ -1541,7 +1597,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       basename: wrongMode.basename,
       command: "start",
       inputRoot: wrongMode.inputRoot,
-    }));
+    }),
+  );
 
   const specialMode = createSafeInput(environment, "start", {
     sourceRef: "direct-outreach:special-mode",
@@ -1553,8 +1610,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
           const stats = target.lstatSync(path, options);
           return path === specialMode.path
             ? withStatFields(stats, {
-              mode: (stats.mode & ~0o7777n) | 0o4600n,
-            })
+                mode: (stats.mode & ~0o7777n) | 0o4600n,
+              })
             : stats;
         };
       }
@@ -1567,7 +1624,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       command: "start",
       fileSystem: specialModeFs,
       inputRoot: specialMode.inputRoot,
-    }));
+    }),
+  );
 
   const hardlinked = createSafeInput(environment, "start", {
     sourceRef: "direct-outreach:hardlink",
@@ -1578,7 +1636,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       basename: hardlinked.basename,
       command: "start",
       inputRoot: hardlinked.inputRoot,
-    }));
+    }),
+  );
 
   const directoryNonce = randomBytes(16).toString("hex");
   const directoryBasename = `input-${directoryNonce}.json`;
@@ -1588,7 +1647,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       basename: directoryBasename,
       command: "start",
       inputRoot: root,
-    }));
+    }),
+  );
 
   const symlinkNonce = randomBytes(16).toString("hex");
   const symlinkBasename = `input-${symlinkNonce}.json`;
@@ -1601,7 +1661,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       basename: symlinkBasename,
       command: "start",
       inputRoot: root,
-    }));
+    }),
+  );
 
   expectSafeError("safe_input_root_invalid", () =>
     readSafeCliInput({
@@ -1609,7 +1670,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       command: "start",
       inputRoot: root,
       uid: process.getuid() + 1,
-    }));
+    }),
+  );
 
   const wrongPathOwner = createSafeInput(environment, "start", {
     sourceRef: "direct-outreach:wrong-path-owner",
@@ -1621,8 +1683,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
           const stats = target.lstatSync(path, options);
           return path === wrongPathOwner.path
             ? withStatFields(stats, {
-              uid: BigInt(process.getuid() + 1),
-            })
+                uid: BigInt(process.getuid() + 1),
+              })
             : stats;
         };
       }
@@ -1635,7 +1697,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       command: "start",
       fileSystem: pathOwnerFs,
       inputRoot: wrongPathOwner.inputRoot,
-    }));
+    }),
+  );
 
   const wrongDescriptorOwner = createSafeInput(environment, "start", {
     sourceRef: "direct-outreach:wrong-descriptor-owner",
@@ -1645,10 +1708,9 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
     get(target, property, receiver) {
       if (property === "fstatSync") {
         return (descriptor, options) =>
-          withStatFields(
-            target.fstatSync(descriptor, options),
-            { uid: BigInt(process.getuid() + 1) },
-          );
+          withStatFields(target.fstatSync(descriptor, options), {
+            uid: BigInt(process.getuid() + 1),
+          });
       }
       if (property === "closeSync") {
         return (descriptor) => {
@@ -1665,7 +1727,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       command: "start",
       fileSystem: descriptorOwnerFs,
       inputRoot: wrongDescriptorOwner.inputRoot,
-    }));
+    }),
+  );
   assert.equal(descriptorOwnerCloseCount, 1);
 
   const noNoFollowFs = new Proxy(nodeFileSystem, {
@@ -1682,7 +1745,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       command: "start",
       fileSystem: noNoFollowFs,
       inputRoot: wrongDescriptorOwner.inputRoot,
-    }));
+    }),
+  );
 
   expectSafeError("safe_input_unsupported_platform", () =>
     readSafeCliInput({
@@ -1690,7 +1754,8 @@ test("unsafe paths, roots, file types, modes, ownership, and links are rejected"
       command: "start",
       inputRoot: root,
       platform: "win32",
-    }));
+    }),
+  );
 });
 
 test("descriptor identity and mutation checks reject replacements and always close", (t) => {
@@ -1734,7 +1799,8 @@ test("descriptor identity and mutation checks reject replacements and always clo
       command: "start",
       fileSystem: replacementFs,
       inputRoot: replaced.inputRoot,
-    }));
+    }),
+  );
   assert.equal(replacementCloseCount, 1);
 
   const mutated = createSafeInput(environment, "start", {
@@ -1769,7 +1835,8 @@ test("descriptor identity and mutation checks reject replacements and always clo
       command: "start",
       fileSystem: mutationFs,
       inputRoot: mutated.inputRoot,
-    }));
+    }),
+  );
   assert.equal(mutationCloseCount, 1);
 });
 
@@ -1792,10 +1859,7 @@ test("transported downstream failures are stable, redacted, and byte-stable", (t
     invalidDomain.basename,
   );
   assert.equal(rejected.status, 1);
-  assert.equal(
-    JSON.parse(rejected.stderr).error.code,
-    "safe_input_value_invalid",
-  );
+  assert.equal(JSON.parse(rejected.stderr).error.code, "safe_input_value_invalid");
   assert.doesNotMatch(rejected.stderr, new RegExp(sentinel));
   assert.doesNotMatch(rejected.stderr, new RegExp(invalidDomain.inputRoot));
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
@@ -1834,10 +1898,7 @@ test("transported downstream failures are stable, redacted, and byte-stable", (t
     `{"${sentinel}`,
   );
   assert.equal(malformedLegacy.status, 1);
-  assert.equal(
-    JSON.parse(malformedLegacy.stderr).error.code,
-    "invalid_cli_json",
-  );
+  assert.equal(JSON.parse(malformedLegacy.stderr).error.code, "invalid_cli_json");
   assert.doesNotMatch(malformedLegacy.stderr, new RegExp(sentinel));
   assert.doesNotMatch(malformedLegacy.stderr, /position|column|Unexpected/i);
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
@@ -1928,13 +1989,9 @@ test("transported company-domain policy denial is redacted and byte-stable", (t)
   const create = createSafeInput(environment, "create-company", {
     displayName: "Safe Domain Company",
   });
-  const company = requireCliSuccess(runCli(
-    environment,
-    create.inputRoot,
-    "create-company",
-    "--input-file",
-    create.basename,
-  )).company;
+  const company = requireCliSuccess(
+    runCli(environment, create.inputRoot, "create-company", "--input-file", create.basename),
+  ).company;
   const forbiddenDomain = "https://ＴＥＮＡＮＴ．ＰＩＮＰＯＩＮＴＨＱ．ＣＯＭ.:443/postings/1";
   const add = createSafeInput(environment, "add-company-domain", {
     domain: forbiddenDomain,
@@ -1950,10 +2007,7 @@ test("transported company-domain policy denial is redacted and byte-stable", (t)
     add.basename,
   );
   assert.equal(rejected.status, 1);
-  assert.equal(
-    JSON.parse(rejected.stderr).error.code,
-    "company_domain_forbidden",
-  );
+  assert.equal(JSON.parse(rejected.stderr).error.code, "company_domain_forbidden");
   assert.doesNotMatch(rejected.stderr, /pinpointhq|https?:|postings/i);
   assert.doesNotMatch(rejected.stderr, new RegExp(add.inputRoot));
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
@@ -1979,18 +2033,12 @@ test("transported create-company denies a forbidden domain before any company ex
     create.basename,
   );
   assert.equal(rejected.status, 1);
-  assert.equal(
-    JSON.parse(rejected.stderr).error.code,
-    "company_domain_forbidden",
-  );
+  assert.equal(JSON.parse(rejected.stderr).error.code, "company_domain_forbidden");
   assert.doesNotMatch(rejected.stderr, /greenhouse|https?:|jobs/i);
   assert.doesNotMatch(rejected.stderr, new RegExp(create.inputRoot));
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
   assert.equal(existsSync(create.path), true);
-  assert.deepEqual(
-    JSON.parse(readFileSync(environment.ledgerPath, "utf8")).companies,
-    [],
-  );
+  assert.deepEqual(JSON.parse(readFileSync(environment.ledgerPath, "utf8")).companies, []);
 });
 
 test("transported diagnostics replace hostile prose before ledger publication", (t) => {
@@ -2001,32 +2049,28 @@ test("transported diagnostics replace hostile prose before ledger publication", 
     ledger: emptyV3Log(),
     prefix: "job-search-safe-input-failure-prose-",
   });
-  const failureStartInput = createSafeInput(
-    failureEnvironment,
-    "start",
-    { sourceRef: "direct-outreach:safe-diagnostic-failure" },
+  const failureStartInput = createSafeInput(failureEnvironment, "start", {
+    sourceRef: "direct-outreach:safe-diagnostic-failure",
+  });
+  const failureStarted = requireCliSuccess(
+    runCli(
+      failureEnvironment,
+      failureStartInput.inputRoot,
+      "start",
+      "--input-file",
+      failureStartInput.basename,
+      "--runner",
+      "codex",
+    ),
   );
-  const failureStarted = requireCliSuccess(runCli(
-    failureEnvironment,
-    failureStartInput.inputRoot,
-    "start",
-    "--input-file",
-    failureStartInput.basename,
-    "--runner",
-    "codex",
-  ));
-  const failureInput = createSafeInput(
-    failureEnvironment,
-    "fail-step",
-    {
-      error: {
-        code: "vacancy_fetch_failed",
-        message: `A failure ${sentinel} ${hostileUrl}`,
-        retryable: true,
-        details: [`detail ${sentinel}`, hostileUrl],
-      },
+  const failureInput = createSafeInput(failureEnvironment, "fail-step", {
+    error: {
+      code: "vacancy_fetch_failed",
+      message: `A failure ${sentinel} ${hostileUrl}`,
+      retryable: true,
+      details: [`detail ${sentinel}`, hostileUrl],
     },
-  );
+  });
   const failedResult = runCli(
     failureEnvironment,
     failureInput.inputRoot,
@@ -2044,19 +2088,12 @@ test("transported diagnostics replace hostile prose before ledger publication", 
   assert.equal(failed.status, "failed");
   assert.doesNotMatch(failedResult.stdout, new RegExp(sentinel));
   assert.doesNotMatch(failedResult.stdout, /secret\.invalid/);
-  const failureLedgerSource = readFileSync(
-    failureEnvironment.ledgerPath,
-    "utf8",
-  );
+  const failureLedgerSource = readFileSync(failureEnvironment.ledgerPath, "utf8");
   assert.doesNotMatch(failureLedgerSource, new RegExp(sentinel));
   assert.doesNotMatch(failureLedgerSource, /secret\.invalid/);
-  const failureStep = JSON.parse(failureLedgerSource)
-    .processes[0].steps.get_vacancy;
+  const failureStep = JSON.parse(failureLedgerSource).processes[0].steps.get_vacancy;
   assert.equal(failureStep.error.code, "vacancy_fetch_failed");
-  assert.equal(
-    failureStep.error.message,
-    "The operation ended with a controlled error.",
-  );
+  assert.equal(failureStep.error.message, "The operation ended with a controlled error.");
   assert.deepEqual(failureStep.error.details, []);
   assert.equal(existsSync(failureInput.path), true);
 
@@ -2064,61 +2101,56 @@ test("transported diagnostics replace hostile prose before ledger publication", 
     ledger: emptyV3Log(),
     prefix: "job-search-safe-input-blocker-prose-",
   });
-  const blockerStartInput = createSafeInput(
-    blockerEnvironment,
-    "start",
-    { sourceRef: "fixture:quality-platform-engineer" },
+  const blockerStartInput = createSafeInput(blockerEnvironment, "start", {
+    sourceRef: "fixture:quality-platform-engineer",
+  });
+  const blockerStarted = requireCliSuccess(
+    runCli(
+      blockerEnvironment,
+      blockerStartInput.inputRoot,
+      "start",
+      "--input-file",
+      blockerStartInput.basename,
+      "--runner",
+      "codex",
+    ),
   );
-  const blockerStarted = requireCliSuccess(runCli(
-    blockerEnvironment,
-    blockerStartInput.inputRoot,
-    "start",
-    "--input-file",
-    blockerStartInput.basename,
-    "--runner",
-    "codex",
-  ));
   const updateInput = createSafeInput(blockerEnvironment, "update", {
     companyObserved: "Fixture Systems",
     role: "Quality Platform Engineer",
   });
-  requireCliSuccess(runCli(
-    blockerEnvironment,
-    updateInput.inputRoot,
-    "update",
-    "--id",
-    blockerStarted.process.id,
-    "--input-file",
-    updateInput.basename,
-  ));
-  requireCliSuccess(runCli(
-    blockerEnvironment,
-    updateInput.inputRoot,
-    "reserve-output",
-    "--id",
-    blockerStarted.process.id,
-  ));
-  const blockerProcess = JSON.parse(
-    readFileSync(blockerEnvironment.ledgerPath, "utf8"),
-  ).processes[0];
+  requireCliSuccess(
+    runCli(
+      blockerEnvironment,
+      updateInput.inputRoot,
+      "update",
+      "--id",
+      blockerStarted.process.id,
+      "--input-file",
+      updateInput.basename,
+    ),
+  );
+  requireCliSuccess(
+    runCli(
+      blockerEnvironment,
+      updateInput.inputRoot,
+      "reserve-output",
+      "--id",
+      blockerStarted.process.id,
+    ),
+  );
+  const blockerProcess = JSON.parse(readFileSync(blockerEnvironment.ledgerPath, "utf8"))
+    .processes[0];
   const publicationId = "publication_safe_blocker_prose";
-  stageBlockedVacancy(
-    blockerEnvironment,
-    blockerProcess,
-    publicationId,
-  );
-  const blockerInput = createSafeInput(
-    blockerEnvironment,
-    "publish-step",
-    {
-      blocker: {
-        code: "market_ambiguous",
-        message: `A blocker ${sentinel} ${hostileUrl}`,
-        retryable: true,
-        details: [`detail ${sentinel}`, hostileUrl],
-      },
+  stageBlockedVacancy(blockerEnvironment, blockerProcess, publicationId);
+  const blockerInput = createSafeInput(blockerEnvironment, "publish-step", {
+    blocker: {
+      code: "market_ambiguous",
+      message: `A blocker ${sentinel} ${hostileUrl}`,
+      retryable: true,
+      details: [`detail ${sentinel}`, hostileUrl],
     },
-  );
+  });
   const blockedResult = runCli(
     blockerEnvironment,
     blockerInput.inputRoot,
@@ -2140,19 +2172,12 @@ test("transported diagnostics replace hostile prose before ledger publication", 
   assert.equal(blocked.status, "blocked");
   assert.doesNotMatch(blockedResult.stdout, new RegExp(sentinel));
   assert.doesNotMatch(blockedResult.stdout, /secret\.invalid/);
-  const blockerLedgerSource = readFileSync(
-    blockerEnvironment.ledgerPath,
-    "utf8",
-  );
+  const blockerLedgerSource = readFileSync(blockerEnvironment.ledgerPath, "utf8");
   assert.doesNotMatch(blockerLedgerSource, new RegExp(sentinel));
   assert.doesNotMatch(blockerLedgerSource, /secret\.invalid/);
-  const blockerStep = JSON.parse(blockerLedgerSource)
-    .processes[0].steps.get_vacancy;
+  const blockerStep = JSON.parse(blockerLedgerSource).processes[0].steps.get_vacancy;
   assert.equal(blockerStep.blocker.code, "market_ambiguous");
-  assert.equal(
-    blockerStep.blocker.message,
-    "The operation stopped on a controlled blocker.",
-  );
+  assert.equal(blockerStep.blocker.message, "The operation stopped on a controlled blocker.");
   assert.deepEqual(blockerStep.blocker.details, []);
   assert.equal(existsSync(blockerInput.path), true);
 });
@@ -2176,7 +2201,8 @@ test("same immutable payload supports retry and concurrent duplicate semantics",
         input.basename,
         "--runner",
         "codex",
-      )),
+      ),
+    ),
   );
   assert.equal(results.filter((result) => result.code === 0).length, 1);
   assert.equal(results.filter((result) => result.code === 2).length, attempts - 1);
@@ -2189,7 +2215,8 @@ test("same immutable payload supports retry and concurrent duplicate semantics",
   const log = JSON.parse(readFileSync(environment.ledgerPath, "utf8"));
   assert.equal(log.processes.length, 1);
   const payloadRecords = payloads.flatMap((payload) =>
-    payload.status === "created" ? [payload.process] : payload.matches);
+    payload.status === "created" ? [payload.process] : payload.matches,
+  );
   assert.deepEqual(new Set(payloadRecords.map(({ id }) => id)), new Set([log.processes[0].id]));
   assert.deepEqual(
     new Set(payloadRecords.map(({ source_ref }) => source_ref)),
@@ -2213,13 +2240,7 @@ test("POSIX direct replacement preserves exact same-payload child outcomes", asy
   const input = createSafeInput(environment, "start", {
     sourceRef: "direct-outreach:same-handoff-payload",
   });
-  const cliArgs = [
-    "start",
-    "--input-file",
-    input.basename,
-    "--runner",
-    "codex",
-  ];
+  const cliArgs = ["start", "--input-file", input.basename, "--runner", "codex"];
   const outcome = await runSafeInputHandoffSchedule(environment, input, cliArgs);
   const receipt = JSON.parse(outcome.receiptFile.source);
   const children = receipt.children;
@@ -2236,7 +2257,10 @@ test("POSIX direct replacement preserves exact same-payload child outcomes", asy
   assert.deepEqual(receipt.supervisor, outcome.supervisor);
   assert.equal(outcome.supervisor.outcome, "completed");
   assert.equal(outcome.supervisor.timedOutPhase, null);
-  assert.deepEqual(outcome.supervisor.reapedChildIndexes, Array.from({ length: 12 }, (_, i) => i));
+  assert.deepEqual(
+    outcome.supervisor.reapedChildIndexes,
+    Array.from({ length: 12 }, (_, i) => i),
+  );
   assert.deepEqual(outcome.supervisor.actions, [
     { action: "release_owner", published: true },
     { action: "release_successor", published: true },
@@ -2269,10 +2293,12 @@ test("POSIX direct replacement preserves exact same-payload child outcomes", asy
   assert.equal(successorAfter.rawOwnerSource, successorBefore.rawOwnerSource);
   assert.equal(["EEXIST", "ENOTEMPTY"].includes(outcome.barriers.ownerReleaseCode), true);
   assert.equal(
-    existsSync(fixtureMarkerPath(
-      environment,
-      `safe-owner-release-blocked-${outcome.barriers.ownerReleaseCode.toLowerCase()}`,
-    )),
+    existsSync(
+      fixtureMarkerPath(
+        environment,
+        `safe-owner-release-blocked-${outcome.barriers.ownerReleaseCode.toLowerCase()}`,
+      ),
+    ),
     true,
   );
   for (let contenderIndex = 0; contenderIndex < 10; contenderIndex += 1) {
@@ -2316,14 +2342,27 @@ test("POSIX direct replacement preserves exact same-payload child outcomes", asy
     ...Array.from({ length: 11 }, (_, index) => `${index + 1}:2:duplicate`),
   ];
   assert.deepEqual(
-    children.map(({ index, numericExitCode, stdoutStatus }) =>
-      `${index}:${numericExitCode}:${stdoutStatus}`),
+    children.map(
+      ({ index, numericExitCode, stdoutStatus }) => `${index}:${numericExitCode}:${stdoutStatus}`,
+    ),
     expectedOutcomes,
   );
-  assert.deepEqual(children.map(({ spawnErrorCode }) => spawnErrorCode), Array(12).fill(null));
-  assert.deepEqual(children.map(({ signal }) => signal), Array(12).fill(null));
-  assert.deepEqual(children.map(({ boundedStderrCode }) => boundedStderrCode), Array(12).fill(null));
-  assert.deepEqual(children.map(({ stdoutErrorCode }) => stdoutErrorCode), Array(12).fill(null));
+  assert.deepEqual(
+    children.map(({ spawnErrorCode }) => spawnErrorCode),
+    Array(12).fill(null),
+  );
+  assert.deepEqual(
+    children.map(({ signal }) => signal),
+    Array(12).fill(null),
+  );
+  assert.deepEqual(
+    children.map(({ boundedStderrCode }) => boundedStderrCode),
+    Array(12).fill(null),
+  );
+  assert.deepEqual(
+    children.map(({ stdoutErrorCode }) => stdoutErrorCode),
+    Array(12).fill(null),
+  );
   const payloads = results.map(({ stdout }) => JSON.parse(stdout));
   assert.equal(children.length, outcome.runs.length);
   for (const [index, run] of outcome.runs.entries()) {
@@ -2340,17 +2379,18 @@ test("POSIX direct replacement preserves exact same-payload child outcomes", asy
     assert.equal(child.stdoutErrorCode, rawPayload.error?.code ?? null);
     assert.equal(child.boundedStderrCode, null);
   }
-  assert.deepEqual(payloads.map(({ status }) => status), [
-    "created",
-    ...Array(11).fill("duplicate"),
-  ]);
+  assert.deepEqual(
+    payloads.map(({ status }) => status),
+    ["created", ...Array(11).fill("duplicate")],
+  );
   assert.deepEqual(payloads[0].process, finalRecord);
   for (const payload of payloads.slice(1)) {
     assert.equal(payload.matches.length, 1);
     assert.deepEqual(payload.matches[0], finalRecord);
   }
   const payloadRecords = payloads.flatMap((payload) =>
-    payload.status === "created" ? [payload.process] : payload.matches);
+    payload.status === "created" ? [payload.process] : payload.matches,
+  );
   assert.equal(payloadRecords.length, 12);
   assert.equal(
     payloadRecords.every((record) => JSON.stringify(record) === JSON.stringify(finalRecord)),
@@ -2417,12 +2457,30 @@ test("oracle supervisor times out, signals, reaps, and receipts before failure",
     action: "reap",
     indexes: [0, 1],
   });
-  assert.deepEqual(receipt.children.map(({ numericExitCode }) => numericExitCode), [null, null]);
-  assert.deepEqual(receipt.children.map(({ signal }) => signal), ["SIGTERM", "SIGKILL"]);
-  assert.deepEqual(receipt.children.map(({ spawnErrorCode }) => spawnErrorCode), [null, null]);
-  assert.deepEqual(receipt.children.map(({ stdoutStatus }) => stdoutStatus), [null, null]);
-  assert.deepEqual(receipt.children.map(({ stdoutErrorCode }) => stdoutErrorCode), [null, null]);
-  assert.deepEqual(receipt.children.map(({ boundedStderrCode }) => boundedStderrCode), [null, null]);
+  assert.deepEqual(
+    receipt.children.map(({ numericExitCode }) => numericExitCode),
+    [null, null],
+  );
+  assert.deepEqual(
+    receipt.children.map(({ signal }) => signal),
+    ["SIGTERM", "SIGKILL"],
+  );
+  assert.deepEqual(
+    receipt.children.map(({ spawnErrorCode }) => spawnErrorCode),
+    [null, null],
+  );
+  assert.deepEqual(
+    receipt.children.map(({ stdoutStatus }) => stdoutStatus),
+    [null, null],
+  );
+  assert.deepEqual(
+    receipt.children.map(({ stdoutErrorCode }) => stdoutErrorCode),
+    [null, null],
+  );
+  assert.deepEqual(
+    receipt.children.map(({ boundedStderrCode }) => boundedStderrCode),
+    [null, null],
+  );
   assert.equal(receipt.children.length, outcome.runs.length);
   for (const [index, run] of outcome.runs.entries()) {
     const child = receipt.children[index];
@@ -2499,101 +2557,107 @@ test("real native spawn errors persist while EAGAIN identity stays exact", async
 
 test("receipt contract pins exact keys and UTF-8 field boundaries", (t) => {
   assert.equal(Buffer.byteLength(serializeReceipt(receiptAtExactBytes(32_768)), "utf8"), 32_768);
-  expectReceiptError(
-    "oracle_receipt_too_large",
-    () => serializeReceipt(receiptAtExactBytes(32_769)),
+  expectReceiptError("oracle_receipt_too_large", () =>
+    serializeReceipt(receiptAtExactBytes(32_769)),
   );
 
   validateReceiptContract(minimalReceipt());
-  expectReceiptError(
-    "oracle_receipt_shape_invalid",
-    () => validateReceiptContract({ ...minimalReceipt(), extra: true }),
+  expectReceiptError("oracle_receipt_shape_invalid", () =>
+    validateReceiptContract({ ...minimalReceipt(), extra: true }),
   );
   const missingTopKey = minimalReceipt();
   delete missingTopKey.barriers;
-  expectReceiptError(
-    "oracle_receipt_shape_invalid",
-    () => validateReceiptContract(missingTopKey),
-  );
-  expectReceiptError(
-    "oracle_receipt_child_invalid",
-    () => validateReceiptContract(minimalReceipt({
-      children: [{ ...minimalReceiptChild(), extra: true }],
-    })),
+  expectReceiptError("oracle_receipt_shape_invalid", () => validateReceiptContract(missingTopKey));
+  expectReceiptError("oracle_receipt_child_invalid", () =>
+    validateReceiptContract(
+      minimalReceipt({
+        children: [{ ...minimalReceiptChild(), extra: true }],
+      }),
+    ),
   );
 
   validateReceiptContract(minimalReceipt({ head: "f".repeat(40) }));
   for (const head of ["f".repeat(39), "f".repeat(41), "F".repeat(40)]) {
-    expectReceiptError(
-      "oracle_receipt_head_invalid",
-      () => validateReceiptContract(minimalReceipt({ head })),
+    expectReceiptError("oracle_receipt_head_invalid", () =>
+      validateReceiptContract(minimalReceipt({ head })),
     );
   }
-  expectReceiptError(
-    "oracle_receipt_command_invalid",
-    () => validateReceiptContract(minimalReceipt({ command: [process.execPath, "--test"] })),
+  expectReceiptError("oracle_receipt_command_invalid", () =>
+    validateReceiptContract(minimalReceipt({ command: [process.execPath, "--test"] })),
   );
 
   for (const argv of [[], [""], Array(16).fill("é".repeat(512))]) {
     validateReceiptContract(minimalReceipt({ children: [minimalReceiptChild({ argv })] }));
   }
-  expectReceiptError(
-    "oracle_receipt_argv_invalid",
-    () => validateReceiptContract(minimalReceipt({
-      children: [minimalReceiptChild({ argv: Array(17).fill("x") })],
-    })),
+  expectReceiptError("oracle_receipt_argv_invalid", () =>
+    validateReceiptContract(
+      minimalReceipt({
+        children: [minimalReceiptChild({ argv: Array(17).fill("x") })],
+      }),
+    ),
   );
-  expectReceiptError(
-    "oracle_receipt_argv_invalid",
-    () => validateReceiptContract(minimalReceipt({
-      children: [minimalReceiptChild({ argv: ["x".repeat(1_025)] })],
-    })),
+  expectReceiptError("oracle_receipt_argv_invalid", () =>
+    validateReceiptContract(
+      minimalReceipt({
+        children: [minimalReceiptChild({ argv: ["x".repeat(1_025)] })],
+      }),
+    ),
   );
 
   for (const spawnErrorCode of ["E", "EAGAIN", `E${"A".repeat(63)}`]) {
-    const source = serializeReceipt(minimalReceipt({
-      children: [minimalReceiptChild({ numericExitCode: null, spawnErrorCode })],
-    }));
+    const source = serializeReceipt(
+      minimalReceipt({
+        children: [minimalReceiptChild({ numericExitCode: null, spawnErrorCode })],
+      }),
+    );
     assert.equal(JSON.parse(source).children[0].spawnErrorCode, spawnErrorCode);
   }
   for (const spawnErrorCode of ["eagain", `E${"A".repeat(64)}`]) {
-    expectReceiptError(
-      "oracle_receipt_spawn_code_invalid",
-      () => validateReceiptContract(minimalReceipt({
-        children: [minimalReceiptChild({ spawnErrorCode })],
-      })),
+    expectReceiptError("oracle_receipt_spawn_code_invalid", () =>
+      validateReceiptContract(
+        minimalReceipt({
+          children: [minimalReceiptChild({ spawnErrorCode })],
+        }),
+      ),
     );
   }
 
   for (const signal of ["SIGA", `SIG${"A".repeat(29)}`]) {
-    validateReceiptContract(minimalReceipt({
-      children: [minimalReceiptChild({ numericExitCode: null, signal })],
-    }));
+    validateReceiptContract(
+      minimalReceipt({
+        children: [minimalReceiptChild({ numericExitCode: null, signal })],
+      }),
+    );
   }
-  expectReceiptError(
-    "oracle_receipt_signal_invalid",
-    () => validateReceiptContract(minimalReceipt({
-      children: [minimalReceiptChild({ signal: `SIG${"A".repeat(30)}` })],
-    })),
+  expectReceiptError("oracle_receipt_signal_invalid", () =>
+    validateReceiptContract(
+      minimalReceipt({
+        children: [minimalReceiptChild({ signal: `SIG${"A".repeat(30)}` })],
+      }),
+    ),
   );
-  expectReceiptError(
-    "oracle_receipt_signal_invalid",
-    () => validateReceiptContract(minimalReceipt({
-      children: [minimalReceiptChild({ signal: "SIG" })],
-    })),
+  expectReceiptError("oracle_receipt_signal_invalid", () =>
+    validateReceiptContract(
+      minimalReceipt({
+        children: [minimalReceiptChild({ signal: "SIG" })],
+      }),
+    ),
   );
   for (const field of ["stdoutStatus", "stdoutErrorCode", "boundedStderrCode"]) {
     for (const valid of ["a", "a".repeat(64)]) {
-      validateReceiptContract(minimalReceipt({
-        children: [minimalReceiptChild({ [field]: valid })],
-      }));
+      validateReceiptContract(
+        minimalReceipt({
+          children: [minimalReceiptChild({ [field]: valid })],
+        }),
+      );
     }
     for (const invalid of ["", "A", "a".repeat(65)]) {
-      expectReceiptError(
-        "oracle_receipt_code_invalid",
-        () => validateReceiptContract(minimalReceipt({
-          children: [minimalReceiptChild({ [field]: invalid })],
-        })),
+      expectReceiptError("oracle_receipt_code_invalid", () =>
+        validateReceiptContract(
+          minimalReceipt({
+            children: [minimalReceiptChild({ [field]: invalid })],
+          }),
+        ),
       );
     }
   }
@@ -2607,9 +2671,8 @@ test("receipt contract pins exact keys and UTF-8 field boundaries", (t) => {
   const previousReceiptPath = process.env.R1_03E_RECEIPT_PATH;
   process.env.R1_03E_RECEIPT_PATH = join(nestedEvidenceDirectory, "receipt.json");
   try {
-    expectReceiptError(
-      "oracle_receipt_path_invalid",
-      () => writeR103eReceipt(environment, "accepted", minimalReceipt()),
+    expectReceiptError("oracle_receipt_path_invalid", () =>
+      writeR103eReceipt(environment, "accepted", minimalReceipt()),
     );
   } finally {
     if (previousReceiptPath === undefined) {
@@ -2628,34 +2691,38 @@ test("different nonce payloads preserve independent concurrent starts", async (t
   const inputs = Array.from({ length: 10 }, (_, index) =>
     createSafeInput(environment, "start", {
       sourceRef: `direct-outreach:safe-concurrent-${index}`,
-    }));
-  const results = await Promise.all(inputs.map((input) =>
-    runCliAsync(
-      environment,
-      input.inputRoot,
-      "start",
-      "--input-file",
-      input.basename,
-      "--runner",
-      "codex",
-    )));
-  assert.deepEqual(results.map((result) => result.code), Array(10).fill(0));
+    }),
+  );
+  const results = await Promise.all(
+    inputs.map((input) =>
+      runCliAsync(
+        environment,
+        input.inputRoot,
+        "start",
+        "--input-file",
+        input.basename,
+        "--runner",
+        "codex",
+      ),
+    ),
+  );
+  assert.deepEqual(
+    results.map((result) => result.code),
+    Array(10).fill(0),
+  );
   const payloads = results.map((result) => JSON.parse(result.stdout));
-  assert.deepEqual(payloads.map(({ status }) => status), Array(10).fill("created"));
+  assert.deepEqual(
+    payloads.map(({ status }) => status),
+    Array(10).fill("created"),
+  );
   const log = JSON.parse(readFileSync(environment.ledgerPath, "utf8"));
   const expectedSources = Array.from(
     { length: inputs.length },
     (_, index) => `direct-outreach:safe-concurrent-${index}`,
   ).sort();
   assert.equal(log.processes.length, 10);
-  assert.deepEqual(
-    log.processes.map(({ source_ref }) => source_ref).sort(),
-    expectedSources,
-  );
-  assert.deepEqual(
-    log.processes.map(({ source_key }) => source_key).sort(),
-    expectedSources,
-  );
+  assert.deepEqual(log.processes.map(({ source_ref }) => source_ref).sort(), expectedSources);
+  assert.deepEqual(log.processes.map(({ source_key }) => source_key).sort(), expectedSources);
   assert.deepEqual(
     payloads.map(({ process }) => process.id).sort(),
     log.processes.map(({ id }) => id).sort(),
@@ -2669,7 +2736,10 @@ test("different nonce payloads preserve independent concurrent starts", async (t
     new Set(log.processes.map((record) => record.steps.get_vacancy.state)),
     new Set(["running"]),
   );
-  assert.equal(inputs.every((input) => existsSync(input.path)), true);
+  assert.equal(
+    inputs.every((input) => existsSync(input.path)),
+    true,
+  );
 });
 
 test("safe-input handoff inventory matches expected, declared, and executed modes", () => {
@@ -2692,9 +2762,14 @@ test("the default command map is the process-log vocabulary and nothing else", (
     prefix: "job-search-safe-input-schema-map-",
   });
   const inputRoot = ensureInputRoot(environment);
-  const basename = createSafeInput(environment, "start", { sourceRef: "https://example.com/1" }, {
-    inputRoot,
-  }).basename;
+  const basename = createSafeInput(
+    environment,
+    "start",
+    { sourceRef: "https://example.com/1" },
+    {
+      inputRoot,
+    },
+  ).basename;
 
   // A command from another CLI is refused by the default map, so the two vocabularies cannot
   // merge by accident.
@@ -2713,11 +2788,12 @@ test("the default command map is the process-log vocabulary and nothing else", (
   for (const inherited of ["toString", "constructor", "hasOwnProperty", "valueOf"]) {
     const inheritedInput = createSafeInput(environment, inherited, {}, { inputRoot });
     assert.throws(
-      () => readSafeCliInput({
-        basename: inheritedInput.basename,
-        command: inherited,
-        inputRoot,
-      }),
+      () =>
+        readSafeCliInput({
+          basename: inheritedInput.basename,
+          command: inherited,
+          inputRoot,
+        }),
       (error) => {
         assert.ok(
           error instanceof SafeCliInputError,
@@ -2765,11 +2841,15 @@ test("an injected command map validates a bounded list of strings", (t) => {
     { urls: ["a"], unexpected: "x" },
     { userAgent: "agent/1" },
   ]) {
-    assert.throws(read(values), (error) => {
-      assert.ok(error instanceof SafeCliInputError);
-      assert.equal(error.code, "safe_input_schema_mismatch", JSON.stringify(values));
-      return true;
-    }, JSON.stringify(values));
+    assert.throws(
+      read(values),
+      (error) => {
+        assert.ok(error instanceof SafeCliInputError);
+        assert.equal(error.code, "safe_input_schema_mismatch", JSON.stringify(values));
+        return true;
+      },
+      JSON.stringify(values),
+    );
   }
 
   // The declared defaults are frozen literals, not values derived from the module under test.

@@ -29,7 +29,11 @@ const explicitSkillNames = [
 ];
 const codexPolicy = "policy:\n  allow_implicit_invocation: false\n";
 const agentNames = ["letter-reader", "telegram-labeler", "telegram-reader"];
-const agentModels = { "telegram-reader": "haiku", "telegram-labeler": "sonnet", "letter-reader": "sonnet" };
+const agentModels = {
+  "telegram-reader": "haiku",
+  "telegram-labeler": "sonnet",
+  "letter-reader": "sonnet",
+};
 // Two agents deliberately share one canon (the labeller is the reader on a stronger model); the
 // third has its own. Pinned per agent, because a generator that served every agent the same canon
 // would pass a check written against one file.
@@ -76,10 +80,7 @@ test("generated proxies are current and load canonical files first", () => {
   const manifest = JSON.parse(
     readFileSync(resolve(repoRoot, "instructions/skills/manifest.json"), "utf8"),
   );
-  assert.deepEqual(
-    manifest.skills.map((skill) => skill.name).sort(),
-    explicitSkillNames,
-  );
+  assert.deepEqual(manifest.skills.map((skill) => skill.name).sort(), explicitSkillNames);
   for (const skill of manifest.skills) {
     assert.equal(skill.claude["disable-model-invocation"], true);
     assert.equal(skill.codex.allow_implicit_invocation, false);
@@ -87,7 +88,10 @@ test("generated proxies are current and load canonical files first", () => {
   for (const runtime of [".agents", ".claude"]) {
     const wrapper = readFileSync(resolve(repoRoot, runtime, "skills/get-vacancy/SKILL.md"), "utf8");
     assert.match(wrapper, /^---\nname: get-vacancy\n/);
-    assert.match(wrapper, /Before taking any task action, read `instructions\/skills\/get-vacancy\.md` in full/);
+    assert.match(
+      wrapper,
+      /Before taking any task action, read `instructions\/skills\/get-vacancy\.md` in full/,
+    );
   }
   for (const skillName of explicitSkillNames) {
     const metadata = readFileSync(
@@ -109,7 +113,9 @@ test("generated proxies are current and load canonical files first", () => {
 });
 
 test("a generated agent has reading as its only tool, the model the manifest names, and the canon verbatim as its body", (t) => {
-  const manifest = JSON.parse(readFileSync(resolve(repoRoot, "instructions/skills/manifest.json"), "utf8"));
+  const manifest = JSON.parse(
+    readFileSync(resolve(repoRoot, "instructions/skills/manifest.json"), "utf8"),
+  );
   assert.deepEqual(manifest.agents.map((agent) => agent.name).sort(), agentNames);
   assert.equal(manifest.runtimes.claude.agent_root, ".claude/agents");
   for (const agent of manifest.agents) {
@@ -119,7 +125,14 @@ test("a generated agent has reading as its only tool, the model the manifest nam
     assert.equal(agent.common, agentCanons[agent.name], agent.name);
     const canon = readFileSync(resolve(repoRoot, agentCanons[agent.name]), "utf8");
     const generated = readFileSync(resolve(repoRoot, `.claude/agents/${agent.name}.md`), "utf8");
-    assert.match(generated, new RegExp(`^---\\nname: ${agent.name}\\ndescription: "[^\\n]+"\\ntools: Read\\nmodel: ${agentModels[agent.name]}\\n---\\n`, "u"), agent.name);
+    assert.match(
+      generated,
+      new RegExp(
+        `^---\\nname: ${agent.name}\\ndescription: "[^\\n]+"\\ntools: Read\\nmodel: ${agentModels[agent.name]}\\n---\\n`,
+        "u",
+      ),
+      agent.name,
+    );
     assert.equal(generated.endsWith(`\n${canon}`), true, agent.name);
     assert.doesNotMatch(generated, /tools: .*(Bash|Write|Edit|WebFetch|WebSearch|Agent)/u);
   }
@@ -136,7 +149,11 @@ test("a generated agent has reading as its only tool, the model the manifest nam
   for (const tools of [["Bash"], [], "Read", ["read"]]) {
     armed.agents[0].claude.tools = tools;
     writeFileSync(manifestPath, `${JSON.stringify(armed, null, 2)}\n`, "utf8");
-    assert.match(runProxySync(fixtureRoot, "--check").stderr, /Invalid agent tool allowlist/, JSON.stringify(tools));
+    assert.match(
+      runProxySync(fixtureRoot, "--check").stderr,
+      /Invalid agent tool allowlist/,
+      JSON.stringify(tools),
+    );
   }
   armed.agents[0].claude = { tools: ["Read"], model: "haiku", permissionMode: "bypassPermissions" };
   writeFileSync(manifestPath, `${JSON.stringify(armed, null, 2)}\n`, "utf8");
@@ -145,10 +162,7 @@ test("a generated agent has reading as its only tool, the model the manifest nam
 
 test("Claude proxy metadata gates every per-role file-backed step", () => {
   for (const skill of explicitSkillNames) {
-    const wrapper = readFileSync(
-      resolve(repoRoot, `.claude/skills/${skill}/SKILL.md`),
-      "utf8",
-    );
+    const wrapper = readFileSync(resolve(repoRoot, `.claude/skills/${skill}/SKILL.md`), "utf8");
     assert.match(wrapper, /disable-model-invocation: true/);
   }
 });
@@ -160,10 +174,7 @@ test("checker detects missing, drifted, and orphan generated inventory without d
   assert.equal(JSON.parse(initialWrite.stdout).files, 26);
   assert.equal(runProxySync(fixtureRoot, "--check").status, 0);
 
-  const metadataPath = resolve(
-    fixtureRoot,
-    ".agents/skills/get-vacancy/agents/openai.yaml",
-  );
+  const metadataPath = resolve(fixtureRoot, ".agents/skills/get-vacancy/agents/openai.yaml");
   rmSync(metadataPath);
   const missing = runProxySync(fixtureRoot, "--check");
   assert.equal(missing.status, 1);
@@ -178,18 +189,9 @@ test("checker detects missing, drifted, and orphan generated inventory without d
   assert.equal(runProxySync(fixtureRoot, "--write").status, 0);
   assert.equal(readFileSync(metadataPath, "utf8"), codexPolicy);
 
-  const orphanFile = resolve(
-    fixtureRoot,
-    ".agents/skills/retired-skill/SKILL.md",
-  );
-  const orphanDirectory = resolve(
-    fixtureRoot,
-    ".claude/skills/retired-empty",
-  );
-  const orphanMetadata = resolve(
-    fixtureRoot,
-    ".agents/skills/get-vacancy/agents/stale.yaml",
-  );
+  const orphanFile = resolve(fixtureRoot, ".agents/skills/retired-skill/SKILL.md");
+  const orphanDirectory = resolve(fixtureRoot, ".claude/skills/retired-empty");
+  const orphanMetadata = resolve(fixtureRoot, ".agents/skills/get-vacancy/agents/stale.yaml");
   mkdirSync(dirname(orphanFile), { recursive: true });
   mkdirSync(orphanDirectory, { recursive: true });
   writeFileSync(orphanFile, "orphan-sentinel\n", "utf8");
@@ -226,10 +228,7 @@ test("checker rejects changed runtime roots and never follows generated-path sym
   const fixtureRoot = createProxyFixture(t);
   assert.equal(runProxySync(fixtureRoot, "--write").status, 0);
 
-  const metadataPath = resolve(
-    fixtureRoot,
-    ".agents/skills/get-vacancy/agents/openai.yaml",
-  );
+  const metadataPath = resolve(fixtureRoot, ".agents/skills/get-vacancy/agents/openai.yaml");
   const outsideTarget = resolve(fixtureRoot, "outside-metadata.yaml");
   writeFileSync(outsideTarget, codexPolicy, "utf8");
   rmSync(metadataPath);
@@ -245,10 +244,7 @@ test("checker rejects changed runtime roots and never follows generated-path sym
   rmSync(metadataPath);
   assert.equal(runProxySync(fixtureRoot, "--write").status, 0);
 
-  const manifestPath = resolve(
-    fixtureRoot,
-    "instructions/skills/manifest.json",
-  );
+  const manifestPath = resolve(fixtureRoot, "instructions/skills/manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   manifest.runtimes.codex.skill_root = ".agents/other";
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
@@ -277,14 +273,8 @@ test(
     const fixtureRoot = createProxyFixture(t);
     assert.equal(runProxySync(fixtureRoot, "--write").status, 0);
 
-    const metadataPath = resolve(
-      fixtureRoot,
-      ".agents/skills/get-vacancy/agents/openai.yaml",
-    );
-    const orphanDirectory = resolve(
-      fixtureRoot,
-      ".agents/skills/unreadable-orphan",
-    );
+    const metadataPath = resolve(fixtureRoot, ".agents/skills/get-vacancy/agents/openai.yaml");
+    const orphanDirectory = resolve(fixtureRoot, ".agents/skills/unreadable-orphan");
     rmSync(metadataPath);
     mkdirSync(orphanDirectory);
     writeFileSync(resolve(orphanDirectory, "sentinel.txt"), "do-not-read\n", "utf8");
@@ -294,27 +284,16 @@ test(
     chmodSync(orphanDirectory, 0o700);
     assert.equal(writeWithUnreadableOrphan.status, 1, writeWithUnreadableOrphan.stderr);
     assert.equal(readFileSync(metadataPath, "utf8"), codexPolicy);
-    assert.equal(
-      JSON.parse(writeWithUnreadableOrphan.stdout).status,
-      "written_with_orphans",
-    );
-    assert.match(
-      writeWithUnreadableOrphan.stderr,
-      /\.agents\/skills\/unreadable-orphan/,
-    );
+    assert.equal(JSON.parse(writeWithUnreadableOrphan.stdout).status, "written_with_orphans");
+    assert.match(writeWithUnreadableOrphan.stderr, /\.agents\/skills\/unreadable-orphan/);
   },
 );
 
 test("manifest fixes every skill to its repository-owned canonical source", (t) => {
   const fixtureRoot = createProxyFixture(t);
-  const manifestPath = resolve(
-    fixtureRoot,
-    "instructions/skills/manifest.json",
-  );
+  const manifestPath = resolve(fixtureRoot, "instructions/skills/manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  const researchSkill = manifest.skills.find(
-    (skill) => skill.name === "research-company",
-  );
+  const researchSkill = manifest.skills.find((skill) => skill.name === "research-company");
   const outsideCanonical = resolve(fixtureRoot, "outside-research-company.md");
   writeFileSync(outsideCanonical, "# external canonical\n", "utf8");
   researchSkill.common = outsideCanonical;
@@ -322,26 +301,17 @@ test("manifest fixes every skill to its repository-owned canonical source", (t) 
 
   const externalReference = runProxySync(fixtureRoot, "--write");
   assert.equal(externalReference.status, 1);
-  assert.match(
-    externalReference.stderr,
-    /Invalid canonical skill path for research-company/,
-  );
+  assert.match(externalReference.stderr, /Invalid canonical skill path for research-company/);
 
   researchSkill.common = "instructions/skills/research-company.md";
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  const canonicalPath = resolve(
-    fixtureRoot,
-    "instructions/skills/research-company.md",
-  );
+  const canonicalPath = resolve(fixtureRoot, "instructions/skills/research-company.md");
   rmSync(canonicalPath);
   symlinkSync(outsideCanonical, canonicalPath);
 
   const symlinkedCanonical = runProxySync(fixtureRoot, "--check");
   assert.equal(symlinkedCanonical.status, 1);
-  assert.match(
-    symlinkedCanonical.stderr,
-    /Invalid canonical skill path for research-company/,
-  );
+  assert.match(symlinkedCanonical.stderr, /Invalid canonical skill path for research-company/);
 });
 
 test("root proxies declare different runners but the same operating contract", () => {

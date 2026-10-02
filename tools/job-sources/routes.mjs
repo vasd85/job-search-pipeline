@@ -20,15 +20,13 @@ const SAFE_SEGMENT = /^[A-Za-z0-9._~-]+$/;
 const TRAVERSAL_SEGMENT = /(?:^|\/)\.\.?(?:\/|$)/;
 const ASHBY_POSTING_HOST = "jobs.ashbyhq.com";
 const PINPOINT_SUFFIX = ".pinpointhq.com";
-const UNVERIFIED =
-  "vendor-documented and audit-observed; not verified by this repository";
+const UNVERIFIED = "vendor-documented and audit-observed; not verified by this repository";
 
 export const sourceRouteInventory = Object.freeze({
   ashby: Object.freeze({
     sourceId: "ashby",
     primaryRoute: "board_aggregate",
-    urlTemplate:
-      "https://api.ashbyhq.com/posting-api/job-board/{board}?includeCompensation=true",
+    urlTemplate: "https://api.ashbyhq.com/posting-api/job-board/{board}?includeCompensation=true",
     aggregateKeys: Object.freeze(["jobs"]),
     compensationFields: Object.freeze(["compensation", "compensationTierSummary"]),
     statusFields: Object.freeze(["status"]),
@@ -84,13 +82,7 @@ export const statusVocabulary = Object.freeze({
   ]),
   // `unlisted` lives here and not under closed: it is the same real-world condition an unlisted
   // flag describes, and one condition must not carry two bounded names.
-  private: Object.freeze([
-    "confidential",
-    "internal",
-    "private",
-    "restricted",
-    "unlisted",
-  ]),
+  private: Object.freeze(["confidential", "internal", "private", "restricted", "unlisted"]),
 });
 
 function isRecord(value) {
@@ -98,12 +90,7 @@ function isRecord(value) {
 }
 
 function usableSegment(value) {
-  return (
-    typeof value === "string" &&
-    value !== "." &&
-    value !== ".." &&
-    SAFE_SEGMENT.test(value)
-  );
+  return typeof value === "string" && value !== "." && value !== ".." && SAFE_SEGMENT.test(value);
 }
 
 function hasTraversal(sourceRef) {
@@ -162,9 +149,7 @@ function ashbyRoute(url) {
   // own `application` step. Anything else fails closed rather than guessing which segment is
   // the board.
   const segments = segmentsOf(url);
-  const shape =
-    segments.length === 2 ||
-    (segments.length === 3 && segments[2] === "application");
+  const shape = segments.length === 2 || (segments.length === 3 && segments[2] === "application");
   if (!shape) return null;
   const [board, postingId] = segments;
   if (!usableSegment(board) || !usableSegment(postingId)) return null;
@@ -201,9 +186,7 @@ export function resolveSourceRoute(sourceRef) {
 function outcome(name, posting) {
   return Object.freeze({
     outcome: name,
-    retryable: Object.hasOwn(failureRetryability, name)
-      ? failureRetryability[name]
-      : false,
+    retryable: Object.hasOwn(failureRetryability, name) ? failureRetryability[name] : false,
     posting,
   });
 }
@@ -212,9 +195,9 @@ function postingsOf(routeFacts, payload) {
   const list = Array.isArray(payload)
     ? payload
     : isRecord(payload)
-      ? routeFacts.aggregateKeys
+      ? (routeFacts.aggregateKeys
           .map((key) => payload[key])
-          .find((value) => Array.isArray(value)) ?? null
+          .find((value) => Array.isArray(value)) ?? null)
       : null;
   if (list === null) return null;
   // A non-empty list without a single posting object is an unusable body, not an empty board.
@@ -275,8 +258,7 @@ export function selectPostingFromAggregate(sourceId, body, postingId) {
   // retryable access failure, never a permanent absence.
   if (postings.length === 0) return outcome("access_failure", null);
 
-  const posting =
-    postings.find((entry) => matchesPostingId(entry, postingId)) ?? null;
+  const posting = postings.find((entry) => matchesPostingId(entry, postingId)) ?? null;
   if (posting === null) return outcome("absent", null);
 
   return outcome(classify(routeFacts, posting), posting);

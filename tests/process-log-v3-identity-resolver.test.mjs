@@ -1,20 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import test from "node:test";
-import {
-  readLogV3,
-  validateLogV3,
-} from "../tools/lib/process-log-core.mjs";
+import { readLogV3, validateLogV3 } from "../tools/lib/process-log-core.mjs";
 import {
   linkFileBackedProcessCompanyV3,
   resolveFileBackedProcessV3,
   startFileBackedProcessV3,
   updateFileBackedProcessV3,
 } from "../tools/lib/process-log-v3-lifecycle.mjs";
-import {
-  createHistoricalV2Log,
-  createValidV3Log,
-} from "./fixtures/process-log-v3.mjs";
+import { createHistoricalV2Log, createValidV3Log } from "./fixtures/process-log-v3.mjs";
 import { createDisposableWorkspace } from "./fixtures/disposable-workspace.mjs";
 
 const mutationTimestamp = "2026-07-23T14:00:00.000Z";
@@ -49,11 +43,14 @@ function tempLedger(t, log = emptyV3Log()) {
   }).ledgerPath;
 }
 
-function createRunningProcess(ledgerPath, {
-  companyHint = "Initial Hint",
-  processId = "proc_identity_001",
-  sourceRef = "https://identity.test/jobs/sdet",
-} = {}) {
+function createRunningProcess(
+  ledgerPath,
+  {
+    companyHint = "Initial Hint",
+    processId = "proc_identity_001",
+    sourceRef = "https://identity.test/jobs/sdet",
+  } = {},
+) {
   return startFileBackedProcessV3(
     ledgerPath,
     {
@@ -108,11 +105,12 @@ test("record mutation cannot move the ledger root clock backward", (t) => {
   const before = readFileSync(ledgerPath, "utf8");
 
   assert.throws(
-    () => updateFileBackedProcessV3(
-      ledgerPath,
-      { processId: created.id, companyHint: "Later hint" },
-      { clock: () => "2026-07-23T13:27:00.000Z" },
-    ),
+    () =>
+      updateFileBackedProcessV3(
+        ledgerPath,
+        { processId: created.id, companyHint: "Later hint" },
+        { clock: () => "2026-07-23T13:27:00.000Z" },
+      ),
     (error) => error.code === "invalid_mutation_timestamp",
   );
   assert.equal(readFileSync(ledgerPath, "utf8"), before);
@@ -166,14 +164,12 @@ test("published identity is frozen while exact no-ops and hint-only updates rema
   const initialBytes = readFileSync(ledgerPath, "utf8");
 
   assert.throws(
-    () => updateFileBackedProcessV3(
-      ledgerPath,
-      {
+    () =>
+      updateFileBackedProcessV3(ledgerPath, {
         processId,
         companyObserved: "Drifted Company",
         role: "Drifted Role",
-      },
-    ),
+      }),
     (error) => error.code === "identity_update_not_authorized",
   );
   assert.equal(readFileSync(ledgerPath, "utf8"), initialBytes);
@@ -208,14 +204,12 @@ test("published identity is frozen while exact no-ops and hint-only updates rema
 
   const beforeMixed = readFileSync(ledgerPath, "utf8");
   assert.throws(
-    () => updateFileBackedProcessV3(
-      ledgerPath,
-      {
+    () =>
+      updateFileBackedProcessV3(ledgerPath, {
         processId,
         companyHint: "Must Not Commit",
         role: "Drifted Role",
-      },
-    ),
+      }),
     (error) => error.code === "identity_update_not_authorized",
   );
   assert.equal(readFileSync(ledgerPath, "utf8"), beforeMixed);
@@ -226,33 +220,27 @@ test("v3 update rejects invalid, missing, and historical targets without changin
   const before = readFileSync(ledgerPath, "utf8");
 
   assert.throws(
-    () => updateFileBackedProcessV3(
-      ledgerPath,
-      {
+    () =>
+      updateFileBackedProcessV3(ledgerPath, {
         processId: "proc_historical_001",
         role: "Changed Role",
-      },
-    ),
+      }),
     (error) => error.code === "historical_process_read_only",
   );
   assert.throws(
-    () => updateFileBackedProcessV3(
-      ledgerPath,
-      {
+    () =>
+      updateFileBackedProcessV3(ledgerPath, {
         processId: "proc_missing",
         role: "Changed Role",
-      },
-    ),
+      }),
     (error) => error.code === "process_not_found",
   );
   assert.throws(
-    () => updateFileBackedProcessV3(
-      ledgerPath,
-      {
+    () =>
+      updateFileBackedProcessV3(ledgerPath, {
         processId: "proc_historical_001",
         unsupported: "value",
-      },
-    ),
+      }),
     (error) => error.code === "invalid_update_input",
   );
   assert.equal(readFileSync(ledgerPath, "utf8"), before);
@@ -300,13 +288,11 @@ test("v3 company linking rejects unknown companies and historical processes byte
   const created = createRunningProcess(fileBackedPath);
   const fileBackedBefore = readFileSync(fileBackedPath, "utf8");
   assert.throws(
-    () => linkFileBackedProcessCompanyV3(
-      fileBackedPath,
-      {
+    () =>
+      linkFileBackedProcessCompanyV3(fileBackedPath, {
         processId: created.id,
         companyId: "company_missing",
-      },
-    ),
+      }),
     (error) => error.code === "company_not_found",
   );
   assert.equal(readFileSync(fileBackedPath, "utf8"), fileBackedBefore);
@@ -314,13 +300,11 @@ test("v3 company linking rejects unknown companies and historical processes byte
   const historicalPath = tempLedger(t, historicalOnlyV3Log());
   const historicalBefore = readFileSync(historicalPath, "utf8");
   assert.throws(
-    () => linkFileBackedProcessCompanyV3(
-      historicalPath,
-      {
+    () =>
+      linkFileBackedProcessCompanyV3(historicalPath, {
         processId: "proc_historical_001",
         companyId: "company_example_labs",
-      },
-    ),
+      }),
     (error) => error.code === "historical_process_read_only",
   );
   assert.equal(readFileSync(historicalPath, "utf8"), historicalBefore);
@@ -328,17 +312,12 @@ test("v3 company linking rejects unknown companies and historical processes byte
 
 test("resolver returns one file-backed process by exact id or normalized source/output selector", () => {
   const log = createValidV3Log();
-  const fileBacked = log.processes.find(
-    (record) => record.id === "proc_file_backed_001",
-  );
+  const fileBacked = log.processes.find((record) => record.id === "proc_file_backed_001");
   fileBacked.output_dir = "output/café-senior-sdet";
   validateLogV3(log);
   const before = structuredClone(log);
 
-  assert.equal(
-    resolveFileBackedProcessV3(log, { id: fileBacked.id }).id,
-    fileBacked.id,
-  );
+  assert.equal(resolveFileBackedProcessV3(log, { id: fileBacked.id }).id, fileBacked.id);
   assert.equal(
     resolveFileBackedProcessV3(log, {
       sourceRef: "https://EXAMPLE.test/careers/sdet/?utm_source=fixture",
@@ -360,19 +339,23 @@ test("resolver fails closed when one key match differs by a parameter version 2 
   const before = structuredClone(log);
 
   assert.throws(
-    () => resolveFileBackedProcessV3(log, {
-      sourceRef: "https://example.test/careers/sdet?trk=different-campaign",
-    }),
-    (error) => error.code === "process_ambiguous"
-      && error.message === "process_ambiguous: legacy source-key collision makes sourceRef ambiguous; use an exact process id",
+    () =>
+      resolveFileBackedProcessV3(log, {
+        sourceRef: "https://example.test/careers/sdet?trk=different-campaign",
+      }),
+    (error) =>
+      error.code === "process_ambiguous" &&
+      error.message ===
+        "process_ambiguous: legacy source-key collision makes sourceRef ambiguous; use an exact process id",
   );
   // A meaningful parameter is not a collision after the cutover, it is a different posting — so the
   // selector reports that it matches nothing rather than resolving onto, or being confused by, the
   // vacancy next to it. Fail-closed in both directions: neither answer is the wrong record.
   assert.throws(
-    () => resolveFileBackedProcessV3(log, {
-      sourceRef: "https://example.test/careers/sdet?query=different-vacancy",
-    }),
+    () =>
+      resolveFileBackedProcessV3(log, {
+        sourceRef: "https://example.test/careers/sdet?query=different-vacancy",
+      }),
     (error) => error.code === "process_not_found",
   );
   assert.equal(
@@ -427,9 +410,10 @@ test("resolver emits stable selector-conflict, not-found, and ambiguous errors",
     (error) => error.code === "process_not_found",
   );
   assert.throws(
-    () => resolveFileBackedProcessV3(log, {
-      sourceRef: "https://example.test/careers/sdet?utm_medium=fixture",
-    }),
+    () =>
+      resolveFileBackedProcessV3(log, {
+        sourceRef: "https://example.test/careers/sdet?utm_medium=fixture",
+      }),
     (error) => error.code === "process_ambiguous",
   );
 });

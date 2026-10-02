@@ -40,7 +40,8 @@ export const declaredOrders = Object.freeze(["newest-first"]);
  * stays visible in one function rather than spread across a reader.
  */
 export function parseCollectionHeader(text) {
-  if (typeof text !== "string") fail("pretriage_invalid_header", "The header text must be a string.");
+  if (typeof text !== "string")
+    fail("pretriage_invalid_header", "The header text must be a string.");
   let collectedAt = null;
   let declaredOrder = null;
   for (const raw of text.split(/\r\n|\r|\n/u)) {

@@ -89,10 +89,7 @@ export const ZONE_TABLE = Object.freeze({
     "telegram-sweeps",
     "triage-batches",
   ]),
-  stateNested: Object.freeze([
-    ".claude/.cc-writes",
-    ".claude/settings.local.json",
-  ]),
+  stateNested: Object.freeze([".claude/.cc-writes", ".claude/settings.local.json"]),
   statePrefixes: Object.freeze([
     "process-log.backup-",
     "process-log.json",
@@ -122,9 +119,11 @@ export function fail(code, message, details) {
 
 /** The zone table a folder of this kind is built with. */
 export function zoneTableFor(kind) {
-  if (!FOLDER_KINDS.includes(kind)) fail("ops_tree_invalid_arguments", `unknown folder kind: ${kind}`);
+  if (!FOLDER_KINDS.includes(kind))
+    fail("ops_tree_invalid_arguments", `unknown folder kind: ${kind}`);
   const table = structuredClone(ZONE_TABLE);
-  if (kind === "rehearsal") table.stateNames = [...table.stateNames, ...REHEARSAL_STATE_NAMES].sort();
+  if (kind === "rehearsal")
+    table.stateNames = [...table.stateNames, ...REHEARSAL_STATE_NAMES].sort();
   return table;
 }
 
@@ -237,21 +236,34 @@ function isRecord(value) {
 export const OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
 function validPin(pin) {
-  return isRecord(pin)
-    && typeof pin.tag === "string"
-    && OBJECT_ID_PATTERN.test(pin.commit ?? "")
-    && OBJECT_ID_PATTERN.test(pin.tree ?? "")
-    && typeof pin.repository === "string";
+  return (
+    isRecord(pin) &&
+    typeof pin.tag === "string" &&
+    OBJECT_ID_PATTERN.test(pin.commit ?? "") &&
+    OBJECT_ID_PATTERN.test(pin.tree ?? "") &&
+    typeof pin.repository === "string"
+  );
 }
 
 function validZones(zones) {
   if (!isRecord(zones)) return false;
   const lists = [
-    "candidateExcludes", "dependencies", "handover", "metadataBasenames", "service",
-    "servicePrefixes", "stateNames", "stateNested", "statePrefixes",
+    "candidateExcludes",
+    "dependencies",
+    "handover",
+    "metadataBasenames",
+    "service",
+    "servicePrefixes",
+    "stateNames",
+    "stateNested",
+    "statePrefixes",
   ];
-  return typeof zones.candidate === "string"
-    && lists.every((key) => Array.isArray(zones[key]) && zones[key].every((item) => typeof item === "string"));
+  return (
+    typeof zones.candidate === "string" &&
+    lists.every(
+      (key) => Array.isArray(zones[key]) && zones[key].every((item) => typeof item === "string"),
+    )
+  );
 }
 
 /** Parses and shape-checks a manifest; `null` for bytes that are not one. */
@@ -263,18 +275,18 @@ export function parseManifest(bytes) {
     return null;
   }
   if (
-    !isRecord(value)
-    || value.schema !== MANIFEST_SCHEMA
-    || value.schema_version !== MANIFEST_SCHEMA_VERSION
-    || !FOLDER_KINDS.includes(value.kind)
-    || !["ready", "building"].includes(value.state)
-    || !validPin(value.engine)
-    || !validPin(value.candidate)
-    || typeof value.built_at !== "string"
-    || !(value.previous === null || typeof value.previous === "string")
-    || !validZones(value.zones)
-    || !isRecord(value.files)
-    || !DIGESTED_ZONES.every((zone) => isRecord(value.files[zone]))
+    !isRecord(value) ||
+    value.schema !== MANIFEST_SCHEMA ||
+    value.schema_version !== MANIFEST_SCHEMA_VERSION ||
+    !FOLDER_KINDS.includes(value.kind) ||
+    !["ready", "building"].includes(value.state) ||
+    !validPin(value.engine) ||
+    !validPin(value.candidate) ||
+    typeof value.built_at !== "string" ||
+    !(value.previous === null || typeof value.previous === "string") ||
+    !validZones(value.zones) ||
+    !isRecord(value.files) ||
+    !DIGESTED_ZONES.every((zone) => isRecord(value.files[zone]))
   ) {
     return null;
   }
@@ -296,7 +308,8 @@ export function readManifest(root) {
   try {
     stats = lstatSync(path);
   } catch (error) {
-    if (error?.code !== "ENOENT") fail("ops_manifest_invalid", "the folder's manifest is not readable");
+    if (error?.code !== "ENOENT")
+      fail("ops_manifest_invalid", "the folder's manifest is not readable");
   }
   if (stats === null) {
     if (existsSync(join(root, SERVICE_DIRECTORY_NAME))) {
@@ -309,7 +322,8 @@ export function readManifest(root) {
   }
   if (!stats.isFile()) fail("ops_manifest_invalid", `${MANIFEST_FILE_NAME} is not a regular file`);
   const manifest = parseManifest(readFileSync(path, "utf8"));
-  if (manifest === null) fail("ops_manifest_invalid", `${MANIFEST_FILE_NAME} is not a valid ops manifest`);
+  if (manifest === null)
+    fail("ops_manifest_invalid", `${MANIFEST_FILE_NAME} is not a valid ops manifest`);
   return manifest;
 }
 
@@ -351,7 +365,8 @@ function printablePath(path) {
  * relative paths only, at most 512 bytes — so the CLI does not replace it with a generic line.
  */
 export function driftMessage(drift, manifest) {
-  const shown = drift.slice(0, 3)
+  const shown = drift
+    .slice(0, 3)
     .map((row) => `${row.kind} ${row.zone} ${printablePath(row.path)}`)
     .join("; ");
   const more = drift.length > 3 ? ` and ${drift.length - 3} more` : "";

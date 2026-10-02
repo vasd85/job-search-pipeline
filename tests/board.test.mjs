@@ -18,12 +18,21 @@ const IMPORT = join(repoRoot, "tools", "board", "import.mjs");
 
 const configRoot = mkdtempSync(join(tmpdir(), "board-gitconfig-"));
 const globalConfig = join(configRoot, "gitconfig");
-writeFileSync(globalConfig, [
-  "[user]", "\tname = Board Probe", "\temail = probe@example.com",
-  "[init]", "\tdefaultBranch = main",
-  "[commit]", "\tgpgsign = false",
-  "[tag]", "\tgpgsign = false", "",
-].join("\n"));
+writeFileSync(
+  globalConfig,
+  [
+    "[user]",
+    "\tname = Board Probe",
+    "\temail = probe@example.com",
+    "[init]",
+    "\tdefaultBranch = main",
+    "[commit]",
+    "\tgpgsign = false",
+    "[tag]",
+    "\tgpgsign = false",
+    "",
+  ].join("\n"),
+);
 process.env.GIT_CONFIG_GLOBAL = globalConfig;
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 for (const key of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete process.env[key];
@@ -75,8 +84,10 @@ function temporary(t, label) {
 }
 
 function task(id, type, title, extra = "") {
-  return `---\nid: ${id}\ntype: ${type}\ntitle: ${title}\nstatus: open\npriority: p2\ncreated: 2026-09-01\n`
-    + `source: probe\ndepends: []\n${extra}---\n\n## Acceptance\n\nNone.\n`;
+  return (
+    `---\nid: ${id}\ntype: ${type}\ntitle: ${title}\nstatus: open\npriority: p2\ncreated: 2026-09-01\n` +
+    `source: probe\ndepends: []\n${extra}---\n\n## Acceptance\n\nNone.\n`
+  );
 }
 
 // --- board:import ---------------------------------------------------------------------------
@@ -106,8 +117,10 @@ function importFixture(t) {
 }
 
 function draft({ draftId = "20260923-a1", title = "new thing", type = "feat", extra = "" } = {}) {
-  return `---\ntype: ${type}\ntitle: ${title}\nstatus: open\npriority: p2\ncreated: 2026-09-23\n`
-    + `source: a run\ndepends: []\ndraft_id: ${draftId}\n${extra}---\n\n## Facts\n\nObserved.\n`;
+  return (
+    `---\ntype: ${type}\ntitle: ${title}\nstatus: open\npriority: p2\ncreated: 2026-09-23\n` +
+    `source: a run\ndepends: []\ndraft_id: ${draftId}\n${extra}---\n\n## Facts\n\nObserved.\n`
+  );
 }
 
 function putDraft(ops, name, text) {
@@ -119,7 +132,10 @@ function pairs(ops) {
 }
 
 function staged(root) {
-  return git(root, "status", "--porcelain", "--untracked-files=all").split("\n").filter(Boolean).sort();
+  return git(root, "status", "--porcelain", "--untracked-files=all")
+    .split("\n")
+    .filter(Boolean)
+    .sort();
 }
 
 test("board:import numbers the draft, commits only its file, pushes, records the pair and deletes the draft", (t) => {
@@ -131,15 +147,21 @@ test("board:import numbers the draft, commits only its file, pushes, records the
 
   const result = run(IMPORT, ["--ops-root", ops, "--board-root", a]);
   assert.equal(result.status, 0, JSON.stringify(result.err));
-  assert.deepEqual(result.out.imported, [{ draft_id: "20260923-a1", file: "board/003-feat-new-thing.md", id: 3 }]);
+  assert.deepEqual(result.out.imported, [
+    { draft_id: "20260923-a1", file: "board/003-feat-new-thing.md", id: 3 },
+  ]);
 
   const text = readFileSync(join(a, "board", "003-feat-new-thing.md"), "utf8");
   assert.equal(text, `---\nid: 3\n${draft().slice(4)}`);
-  assert.deepEqual(git(a, "show", "--name-only", "--format=", "HEAD").trim().split("\n"), ["board/003-feat-new-thing.md"]);
+  assert.deepEqual(git(a, "show", "--name-only", "--format=", "HEAD").trim().split("\n"), [
+    "board/003-feat-new-thing.md",
+  ]);
   assert.match(git(a, "log", "-1", "--format=%B"), /Board-Import-Draft: 20260923-a1/u);
   assert.deepEqual(staged(a), ["A  board/scratch.md"]);
   assert.equal(git(bare, "rev-parse", "main").trim(), git(a, "rev-parse", "HEAD").trim());
-  assert.deepEqual(pairs(ops), [{ draft_id: "20260923-a1", file: "board/003-feat-new-thing.md", id: 3 }]);
+  assert.deepEqual(pairs(ops), [
+    { draft_id: "20260923-a1", file: "board/003-feat-new-thing.md", id: 3 },
+  ]);
   assert.equal(existsSync(join(ops, "outbox", "tasks", "new-thing.md")), false);
 });
 
@@ -176,18 +198,22 @@ test("another machine taking the number first is a refusal: the commit is taken 
   write(a, "board/scratch.md", "half done\n");
   git(a, "add", "board/scratch.md");
   const before = git(a, "rev-parse", "HEAD").trim();
-  assert.throws(() => importDrafts({
-    boardRoot: a,
-    hooks: {
-      beforePush: () => {
-        write(b, "board/003-feat-rival.md", task(3, "feat", "rival"));
-        git(b, "add", "-A");
-        git(b, "commit", "-q", "-m", "rival");
-        git(b, "push", "-q", "origin", "main");
-      },
-    },
-    opsRoot: ops,
-  }), (error) => error instanceof BoardError && error.code === "board_import_push_refused");
+  assert.throws(
+    () =>
+      importDrafts({
+        boardRoot: a,
+        hooks: {
+          beforePush: () => {
+            write(b, "board/003-feat-rival.md", task(3, "feat", "rival"));
+            git(b, "add", "-A");
+            git(b, "commit", "-q", "-m", "rival");
+            git(b, "push", "-q", "origin", "main");
+          },
+        },
+        opsRoot: ops,
+      }),
+    (error) => error instanceof BoardError && error.code === "board_import_push_refused",
+  );
   assert.equal(git(a, "rev-parse", "HEAD").trim(), before);
   assert.equal(existsSync(join(a, "board", "003-feat-new-thing.md")), false);
   assert.deepEqual(staged(a), ["A  board/scratch.md"]);
@@ -202,18 +228,33 @@ test("another machine taking the number first is a refusal: the commit is taken 
 test("a run interrupted before its push is finished by the next one, not filed twice", (t) => {
   const { a, bare, ops } = importFixture(t);
   putDraft(ops, "new-thing.md", draft());
-  assert.throws(() => importDrafts({
-    boardRoot: a,
-    hooks: { beforePush: () => { throw new Error("interrupted"); } },
-    opsRoot: ops,
-  }), /interrupted/u);
+  assert.throws(
+    () =>
+      importDrafts({
+        boardRoot: a,
+        hooks: {
+          beforePush: () => {
+            throw new Error("interrupted");
+          },
+        },
+        opsRoot: ops,
+      }),
+    /interrupted/u,
+  );
   assert.notEqual(git(bare, "rev-parse", "main").trim(), git(a, "rev-parse", "HEAD").trim());
 
   const again = run(IMPORT, ["--ops-root", ops, "--board-root", a]);
   assert.equal(again.status, 0, JSON.stringify(again.err));
-  assert.deepEqual(again.out.imported, [{ draft_id: "20260923-a1", file: "board/003-feat-new-thing.md", id: 3 }]);
+  assert.deepEqual(again.out.imported, [
+    { draft_id: "20260923-a1", file: "board/003-feat-new-thing.md", id: 3 },
+  ]);
   assert.equal(git(bare, "rev-parse", "main").trim(), git(a, "rev-parse", "HEAD").trim());
-  assert.equal(git(bare, "ls-tree", "--name-only", "main", "board/").split("\n").filter((line) => line.includes("new-thing")).length, 1);
+  assert.equal(
+    git(bare, "ls-tree", "--name-only", "main", "board/")
+      .split("\n")
+      .filter((line) => line.includes("new-thing")).length,
+    1,
+  );
   assert.equal(existsSync(join(ops, "outbox", "tasks", "new-thing.md")), false);
 });
 
@@ -221,11 +262,19 @@ test("a run interrupted before its push, then overtaken, is taken back and refus
   const { a, b, ops } = importFixture(t);
   putDraft(ops, "new-thing.md", draft());
   const before = git(a, "rev-parse", "HEAD").trim();
-  assert.throws(() => importDrafts({
-    boardRoot: a,
-    hooks: { beforePush: () => { throw new Error("interrupted"); } },
-    opsRoot: ops,
-  }), /interrupted/u);
+  assert.throws(
+    () =>
+      importDrafts({
+        boardRoot: a,
+        hooks: {
+          beforePush: () => {
+            throw new Error("interrupted");
+          },
+        },
+        opsRoot: ops,
+      }),
+    /interrupted/u,
+  );
   write(b, "board/003-feat-rival.md", task(3, "feat", "rival"));
   git(b, "add", "-A");
   git(b, "commit", "-q", "-m", "rival");
@@ -244,8 +293,10 @@ test("a run interrupted before its push, then overtaken, is taken back and refus
 test("a draft already recorded is only deleted", (t) => {
   const { a, ops } = importFixture(t);
   putDraft(ops, "new-thing.md", draft());
-  writeFileSync(join(ops, "outbox", "tasks", ".imported.json"),
-    `${JSON.stringify({ imported: [{ draft_id: "20260923-a1", file: "board/003-feat-new-thing.md", id: 3 }], schema_version: 1 })}\n`);
+  writeFileSync(
+    join(ops, "outbox", "tasks", ".imported.json"),
+    `${JSON.stringify({ imported: [{ draft_id: "20260923-a1", file: "board/003-feat-new-thing.md", id: 3 }], schema_version: 1 })}\n`,
+  );
   const head = git(a, "rev-parse", "HEAD").trim();
   const result = run(IMPORT, ["--ops-root", ops, "--board-root", a]);
   assert.equal(result.status, 0, JSON.stringify(result.err));
@@ -292,7 +343,10 @@ test("the refusal codes are the ones the README lists and the sources throw", ()
   const listed = [...section.matchAll(/`(board_[a-z_]+)`/gu)].map((match) => match[1]).sort();
   assert.deepEqual(listed, PINNED_CODES);
   const sources = ["import.mjs", "git.mjs", "draft.mjs"]
-    .map((name) => readFileSync(join(repoRoot, "tools", "board", name), "utf8")).join("\n");
-  const thrown = [...new Set([...sources.matchAll(/"(board_[a-z_]+)"/gu)].map((match) => match[1]))].sort();
+    .map((name) => readFileSync(join(repoRoot, "tools", "board", name), "utf8"))
+    .join("\n");
+  const thrown = [
+    ...new Set([...sources.matchAll(/"(board_[a-z_]+)"/gu)].map((match) => match[1])),
+  ].sort();
   assert.deepEqual(thrown, PINNED_CODES);
 });

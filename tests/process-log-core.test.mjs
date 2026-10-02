@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  readFileSync,
-} from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -151,20 +149,29 @@ test("company search ignores the diaeresis in every script and keeps every other
   assert.equal(normalizeSearchText("Mu\u0308ller"), "muller");
   // A breve and a dakuten tell letters apart, so they stay.
   assert.notEqual(normalizeSearchText("\u0419"), normalizeSearchText("\u0418"));
-  assert.notEqual(normalizeSearchText("\u30ab\u30fc\u30c9"), normalizeSearchText("\u30ab\u30fc\u30c8"));
+  assert.notEqual(
+    normalizeSearchText("\u30ab\u30fc\u30c9"),
+    normalizeSearchText("\u30ab\u30fc\u30c8"),
+  );
   assert.equal(normalizeSearchText("Zo\u00eb"), "zoe");
   assert.equal(normalizeSearchText("Andr\u00e9"), "andr\u00e9");
 });
 
 test("the diaeresis is the only difference from a locale-free lowercase", () => {
-  const plain = (value) => value.normalize("NFKC").toLocaleLowerCase("ru-RU")
-    .replace(/[^\p{L}\p{N}]+/gu, " ").trim().replace(/\s+/g, " ");
+  const plain = (value) =>
+    value
+      .normalize("NFKC")
+      .toLocaleLowerCase("ru-RU")
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim()
+      .replace(/\s+/g, " ");
   const differing = [];
   for (let codePoint = 0; codePoint <= 0x10ffff; codePoint += 1) {
     if (codePoint >= 0xd800 && codePoint <= 0xdfff) continue;
     const text = `a${String.fromCodePoint(codePoint)}b`;
     if (normalizeSearchText(text) === plain(text)) continue;
-    if (!text.normalize("NFKC").toLowerCase().normalize("NFD").includes("\u0308")) differing.push(codePoint);
+    if (!text.normalize("NFKC").toLowerCase().normalize("NFD").includes("\u0308"))
+      differing.push(codePoint);
   }
   assert.deepEqual(differing, []);
 });
@@ -183,14 +190,8 @@ test("companies of equal rank are listed in the default language's order", () =>
 });
 
 test("first-party derivation uses job-source boundaries without substring false positives", () => {
-  assert.equal(
-    extractObviousFirstPartyDomain("https://tabby.pinpointhq.com/en/postings/qa"),
-    null,
-  );
-  assert.equal(
-    extractObviousFirstPartyDomain("https://ПРИМЕР.pinpointhq.com/postings/qa"),
-    null,
-  );
+  assert.equal(extractObviousFirstPartyDomain("https://tabby.pinpointhq.com/en/postings/qa"), null);
+  assert.equal(extractObviousFirstPartyDomain("https://ПРИМЕР.pinpointhq.com/postings/qa"), null);
   assert.equal(
     extractObviousFirstPartyDomain("https://careers.example.com/jobs/qa"),
     "example.com",
@@ -308,25 +309,29 @@ test("legacy source collision report is deterministic, pairwise, and leaves inpu
   assert.deepEqual(buildLegacySourceCollisionReport(log), {
     status: "collision",
     collision_count: 1,
-    collisions: [{
-      source_key: sourceKey,
-      records: [
-        {
-          process_id: "proc_a",
-          source_ref: "https://example.test/jobs/1?query=alpha",
-          duplicate_of: null,
-        },
-        {
-          process_id: "proc_b",
-          source_ref: "https://example.test/jobs/1?query=beta",
-          duplicate_of: "proc_a",
-        },
-      ],
-      witnesses: [{
-        process_ids: ["proc_a", "proc_b"],
-        fields: ["query"],
-      }],
-    }],
+    collisions: [
+      {
+        source_key: sourceKey,
+        records: [
+          {
+            process_id: "proc_a",
+            source_ref: "https://example.test/jobs/1?query=alpha",
+            duplicate_of: null,
+          },
+          {
+            process_id: "proc_b",
+            source_ref: "https://example.test/jobs/1?query=beta",
+            duplicate_of: "proc_a",
+          },
+        ],
+        witnesses: [
+          {
+            process_ids: ["proc_a", "proc_b"],
+            fields: ["query"],
+          },
+        ],
+      },
+    ],
   });
   assert.deepEqual(log, before);
   assert.deepEqual(buildLegacySourceCollisionReport({ processes: [] }), {
@@ -364,10 +369,12 @@ test("source key policy versions are explicit, nested, and computed by one code 
   // prose, and tests/instruction-contracts.test.mjs binds that prose to this export.
   const strippedByV1 = new Set(sourceKeyTrackingParameters(1));
   const strippedByV2 = new Set(sourceKeyTrackingParameters(2));
-  assert.deepEqual(
-    [...strippedByV1].filter((parameter) => !strippedByV2.has(parameter)).sort(),
-    ["query", "refid", "source", "tab"],
-  );
+  assert.deepEqual([...strippedByV1].filter((parameter) => !strippedByV2.has(parameter)).sort(), [
+    "query",
+    "refid",
+    "source",
+    "tab",
+  ]);
 
   assert.throws(() => sourceKeyTrackingParameters(3), /unknown source key policy version: 3/);
   assert.throws(
@@ -397,7 +404,10 @@ test("source key policy versions are explicit, nested, and computed by one code 
   // an ordinary parameter and must survive under both versions; nothing else pins the underscore.
   for (const version of sourceKeyPolicyVersions) {
     assert.equal(
-      normalizeSourceRefForVersion("https://example.test/jobs/1?utm=a&utmx=b&utm_source=c", version),
+      normalizeSourceRefForVersion(
+        "https://example.test/jobs/1?utm=a&utmx=b&utm_source=c",
+        version,
+      ),
       "https://example.test/jobs/1?utm=a&utmx=b",
       `version ${version}`,
     );
@@ -448,8 +458,8 @@ test("version 2 refines version 1, so a stored key can split but never merge", (
     for (let right = left + 1; right < references.length; right += 1) {
       comparedPairs += 1;
       if (
-        normalizeSourceRefForVersion(references[left], 2)
-        === normalizeSourceRefForVersion(references[right], 2)
+        normalizeSourceRefForVersion(references[left], 2) ===
+        normalizeSourceRefForVersion(references[right], 2)
       ) {
         assert.equal(
           normalizeSourceRefForVersion(references[left], 1),
@@ -557,36 +567,40 @@ test("source key projection sees the lone changing record the collision report c
   // The link that the projection breaks, named rather than summarised: its two ends share a stored
   // key today and land on different projected keys afterwards.
   assert.equal(projection.broken_duplicate_link_count, 1);
-  assert.deepEqual(projection.broken_duplicate_links, [{
-    process_id: "proc_split_b",
-    duplicate_of: "proc_split_a",
-    stored_source_key: "https://example.test/jobs/1",
-    projected_source_key: "https://example.test/jobs/1?query=beta",
-    duplicate_of_projected_source_key: "https://example.test/jobs/1?query=alpha",
-  }]);
-  assert.deepEqual(projection.split_groups, [{
-    stored_source_key: "https://example.test/jobs/1",
-    projected_source_keys: [
-      "https://example.test/jobs/1?query=alpha",
-      "https://example.test/jobs/1?query=beta",
-    ],
-    members: [
-      {
-        process_id: "proc_split_a",
-        record_class: "file-backed",
-        source_ref: "https://example.test/jobs/1?query=alpha",
-        projected_source_key: "https://example.test/jobs/1?query=alpha",
-        duplicate_of: null,
-      },
-      {
-        process_id: "proc_split_b",
-        record_class: "file-backed",
-        source_ref: "https://example.test/jobs/1?query=beta",
-        projected_source_key: "https://example.test/jobs/1?query=beta",
-        duplicate_of: "proc_split_a",
-      },
-    ],
-  }]);
+  assert.deepEqual(projection.broken_duplicate_links, [
+    {
+      process_id: "proc_split_b",
+      duplicate_of: "proc_split_a",
+      stored_source_key: "https://example.test/jobs/1",
+      projected_source_key: "https://example.test/jobs/1?query=beta",
+      duplicate_of_projected_source_key: "https://example.test/jobs/1?query=alpha",
+    },
+  ]);
+  assert.deepEqual(projection.split_groups, [
+    {
+      stored_source_key: "https://example.test/jobs/1",
+      projected_source_keys: [
+        "https://example.test/jobs/1?query=alpha",
+        "https://example.test/jobs/1?query=beta",
+      ],
+      members: [
+        {
+          process_id: "proc_split_a",
+          record_class: "file-backed",
+          source_ref: "https://example.test/jobs/1?query=alpha",
+          projected_source_key: "https://example.test/jobs/1?query=alpha",
+          duplicate_of: null,
+        },
+        {
+          process_id: "proc_split_b",
+          record_class: "file-backed",
+          source_ref: "https://example.test/jobs/1?query=beta",
+          projected_source_key: "https://example.test/jobs/1?query=beta",
+          duplicate_of: "proc_split_a",
+        },
+      ],
+    },
+  ]);
 });
 
 test("only a link the projection actually breaks is reported as broken", () => {
@@ -763,13 +777,15 @@ test("the merge detector fires on a coarsening projection, which version 2 can n
   const coarsening = buildSourceKeyVersionProjection(log, { toVersion: 1 });
   assert.deepEqual(coarsening.policy, { to_version: 1 });
   assert.equal(coarsening.merge_count, 1);
-  assert.deepEqual(coarsening.merges, [{
-    projected_source_key: "https://example.test/jobs/1",
-    stored_source_keys: [
-      "https://example.test/jobs/1?query=alpha",
-      "https://example.test/jobs/1?query=beta",
-    ],
-  }]);
+  assert.deepEqual(coarsening.merges, [
+    {
+      projected_source_key: "https://example.test/jobs/1",
+      stored_source_keys: [
+        "https://example.test/jobs/1?query=alpha",
+        "https://example.test/jobs/1?query=beta",
+      ],
+    },
+  ]);
   // A merge always implies a changed record, which is why the verdict reads `changed` alone.
   assert.equal(coarsening.changed_count, 2);
   assert.equal(coarsening.status, "split");
@@ -785,38 +801,41 @@ test("the merge detector fires on a coarsening projection, which version 2 can n
 test("every ordered list in the census has more than one element somewhere, and is sorted", () => {
   // With one element per list a dropped `sort` is invisible. Two split groups, two merges and two
   // broken links, all fed in reverse order, are the only way the ordering claims mean anything.
-  const projection = buildSourceKeyVersionProjection({
-    processes: [
-      {
-        id: "proc_01_beta",
-        source_ref: "https://example.test/jobs/z?query=beta",
-        source_key: "https://example.test/jobs/z?query=beta",
-        duplicate_of: null,
-      },
-      {
-        id: "proc_02_alpha",
-        source_ref: "https://example.test/jobs/z?query=alpha",
-        source_key: "https://example.test/jobs/z?query=alpha",
-        duplicate_of: null,
-      },
-      {
-        id: "proc_03_beta",
-        source_ref: "https://example.test/jobs/a?tab=beta",
-        source_key: "https://example.test/jobs/a?tab=beta",
-        duplicate_of: null,
-      },
-      {
-        id: "proc_04_alpha",
-        source_ref: "https://example.test/jobs/a?tab=alpha",
-        source_key: "https://example.test/jobs/a?tab=alpha",
-        duplicate_of: null,
-      },
-    ],
-  }, { toVersion: 1 });
-  assert.deepEqual(projection.merges.map((merge) => merge.projected_source_key), [
-    "https://example.test/jobs/a",
-    "https://example.test/jobs/z",
-  ]);
+  const projection = buildSourceKeyVersionProjection(
+    {
+      processes: [
+        {
+          id: "proc_01_beta",
+          source_ref: "https://example.test/jobs/z?query=beta",
+          source_key: "https://example.test/jobs/z?query=beta",
+          duplicate_of: null,
+        },
+        {
+          id: "proc_02_alpha",
+          source_ref: "https://example.test/jobs/z?query=alpha",
+          source_key: "https://example.test/jobs/z?query=alpha",
+          duplicate_of: null,
+        },
+        {
+          id: "proc_03_beta",
+          source_ref: "https://example.test/jobs/a?tab=beta",
+          source_key: "https://example.test/jobs/a?tab=beta",
+          duplicate_of: null,
+        },
+        {
+          id: "proc_04_alpha",
+          source_ref: "https://example.test/jobs/a?tab=alpha",
+          source_key: "https://example.test/jobs/a?tab=alpha",
+          duplicate_of: null,
+        },
+      ],
+    },
+    { toVersion: 1 },
+  );
+  assert.deepEqual(
+    projection.merges.map((merge) => merge.projected_source_key),
+    ["https://example.test/jobs/a", "https://example.test/jobs/z"],
+  );
   assert.deepEqual(
     projection.changed.map((record) => record.process_id),
     ["proc_01_beta", "proc_02_alpha", "proc_03_beta", "proc_04_alpha"],
@@ -885,15 +904,20 @@ test("a mixed-version ledger is where two stored keys could converge, and the ce
     ],
   });
   assert.equal(mixed.merge_count, 1);
-  assert.deepEqual(mixed.merges, [{
-    projected_source_key: "https://example.test/jobs/1?query=alpha",
-    stored_source_keys: [
-      "https://example.test/jobs/1",
-      "https://example.test/jobs/1?query=alpha",
-    ],
-  }]);
+  assert.deepEqual(mixed.merges, [
+    {
+      projected_source_key: "https://example.test/jobs/1?query=alpha",
+      stored_source_keys: [
+        "https://example.test/jobs/1",
+        "https://example.test/jobs/1?query=alpha",
+      ],
+    },
+  ]);
   // The already-migrated record is not reported as changing; only the legacy one is.
-  assert.deepEqual(mixed.changed.map((record) => record.process_id), ["proc_legacy"]);
+  assert.deepEqual(
+    mixed.changed.map((record) => record.process_id),
+    ["proc_legacy"],
+  );
 });
 
 test("search ranks aliases and domains and protects short queries", () => {
@@ -905,16 +929,17 @@ test("search ranks aliases and domains and protects short queries", () => {
   assert.equal(searchProcesses(log, "rush")[0].match.type, "substring");
   assert.equal(searchProcesses(log, "https://careers.semrush.com/jobs")[0].match.type, "domain");
   assert.equal(searchProcesses(log, "x5 digi")[0].process.id, "proc_new");
-  assert.deepEqual(searchProcesses(log, "").map((result) => result.process.id), ["proc_new", "proc_old"]);
+  assert.deepEqual(
+    searchProcesses(log, "").map((result) => result.process.id),
+    ["proc_new", "proc_old"],
+  );
 });
 
 test("process search orders equivalent ISO encodings by instant, not lexical text", () => {
   const log = searchFixture();
   log.updated_at = "2026-07-20T09:00:00.000Z";
-  log.processes.find(({ id }) => id === "proc_old").started_at =
-    "2026-07-20T10:00:00.000+02:00";
-  log.processes.find(({ id }) => id === "proc_new").started_at =
-    "2026-07-20T09:00:00.000Z";
+  log.processes.find(({ id }) => id === "proc_old").started_at = "2026-07-20T10:00:00.000+02:00";
+  log.processes.find(({ id }) => id === "proc_new").started_at = "2026-07-20T09:00:00.000Z";
 
   assert.deepEqual(
     searchProcesses(log, "").map((result) => result.process.id),
@@ -971,23 +996,29 @@ test("migration preserves a dynamic v1 baseline", () => {
     schema_version: 1,
     duplicate_policy: "prompt",
     updated_at: "2026-07-20T10:00:00.000Z",
-    processes: [{
-      id: "proc_1",
-      started_at: "2026-07-20T09:00:00.000Z",
-      source_ref: "https://careers.example.com/job/1",
-      source_key: "https://careers.example.com/job/1",
-      company: "Компания (Company)",
-      role: "QA Engineer",
-      runner: "claude-code",
-      output_dir: null,
-      status: "started",
-      duplicate_of: null,
-    }],
+    processes: [
+      {
+        id: "proc_1",
+        started_at: "2026-07-20T09:00:00.000Z",
+        source_ref: "https://careers.example.com/job/1",
+        source_key: "https://careers.example.com/job/1",
+        company: "Компания (Company)",
+        role: "QA Engineer",
+        runner: "claude-code",
+        output_dir: null,
+        status: "started",
+        duplicate_of: null,
+      },
+    ],
   };
   const before = buildMigrationBaseline(v1);
   const migrated = migrateV1ToV2(v1).log;
   assert.equal(validateLog(migrated), migrated);
-  assert.deepEqual(migrated.companies[0].search_terms, ["Компания (Company)", "Компания", "Company"]);
+  assert.deepEqual(migrated.companies[0].search_terms, [
+    "Компания (Company)",
+    "Компания",
+    "Company",
+  ]);
   assert.deepEqual(migrated.companies[0].domains, ["example.com"]);
   assert.deepEqual(compareMigrationBaselines(before, buildMigrationBaseline(migrated)), {
     equal: true,
@@ -1001,25 +1032,36 @@ test("migration does not treat an ATS hostname as a company domain", () => {
     schema_version: 1,
     duplicate_policy: "prompt",
     updated_at: "2026-07-20T10:00:00.000Z",
-    processes: [{
-      id: "proc_ats",
-      started_at: "2026-07-20T09:00:00.000Z",
-      source_ref: "https://example-company.breezy.hr/p/qa",
-      source_key: "https://example-company.breezy.hr/p/qa",
-      company: "Example Company",
-      role: "QA Engineer",
-      runner: "claude-code",
-      output_dir: null,
-      status: "started",
-      duplicate_of: null,
-    }],
+    processes: [
+      {
+        id: "proc_ats",
+        started_at: "2026-07-20T09:00:00.000Z",
+        source_ref: "https://example-company.breezy.hr/p/qa",
+        source_key: "https://example-company.breezy.hr/p/qa",
+        company: "Example Company",
+        role: "QA Engineer",
+        runner: "claude-code",
+        output_dir: null,
+        status: "started",
+        duplicate_of: null,
+      },
+    ],
   };
   assert.deepEqual(migrateV1ToV2(v1).log.companies[0].domains, []);
 });
 
 test("v3 CLI records starts and token-guarded failures before any output", (t) => {
   const path = tempLog(t, emptyV3Log());
-  const started = runCli(path, "start", "--source-ref", "https://example.com/jobs/1", "--runner", "codex", "--company-hint", "Example");
+  const started = runCli(
+    path,
+    "start",
+    "--source-ref",
+    "https://example.com/jobs/1",
+    "--runner",
+    "codex",
+    "--company-hint",
+    "Example",
+  );
   assert.equal(started.status, 0, started.stderr);
   const record = JSON.parse(started.stdout).process;
   assert.equal(record.company_hint, "Example");
@@ -1043,17 +1085,31 @@ test("v3 CLI records starts and token-guarded failures before any output", (t) =
     }),
   );
   assert.equal(failed.status, 0, failed.stderr);
-  assert.equal(
-    JSON.parse(failed.stdout).process.steps.get_vacancy.state,
-    "failed",
-  );
+  assert.equal(JSON.parse(failed.stdout).process.steps.get_vacancy.state, "failed");
 });
 
 test("CLI duplicate detection happens without mutating the log", (t) => {
   const path = tempLog(t, emptyV3Log());
-  assert.equal(runCli(path, "start", "--source-ref", "https://example.com/jobs/1?utm_source=x", "--runner", "codex").status, 0);
+  assert.equal(
+    runCli(
+      path,
+      "start",
+      "--source-ref",
+      "https://example.com/jobs/1?utm_source=x",
+      "--runner",
+      "codex",
+    ).status,
+    0,
+  );
   const before = readFileSync(path, "utf8");
-  const duplicate = runCli(path, "start", "--source-ref", "https://example.com/jobs/1", "--runner", "claude-code");
+  const duplicate = runCli(
+    path,
+    "start",
+    "--source-ref",
+    "https://example.com/jobs/1",
+    "--runner",
+    "claude-code",
+  );
   assert.equal(duplicate.status, 2);
   assert.equal(JSON.parse(duplicate.stdout).status, "duplicate");
   assert.equal(readFileSync(path, "utf8"), before);
@@ -1079,10 +1135,7 @@ test("v3 CLI rejects a top-level v2 ledger without mutating it", (t) => {
   const before = readFileSync(path, "utf8");
   const validation = runCli(path, "validate");
   assert.equal(validation.status, 1);
-  assert.equal(
-    JSON.parse(validation.stderr).error.code,
-    "process_log_validation_failed",
-  );
+  assert.equal(JSON.parse(validation.stderr).error.code, "process_log_validation_failed");
   assert.deepEqual(JSON.parse(validation.stderr).error, {
     code: "process_log_validation_failed",
     message: "Process log failed structural validation.",
@@ -1095,52 +1148,81 @@ test("v3 CLI rejects a top-level v2 ledger without mutating it", (t) => {
 
 test("v3 CLI manages aliases, domains, guarded links, and output reservation", (t) => {
   const path = tempLog(t, emptyV3Log());
-  const start = JSON.parse(runCli(path, "start", "--source-ref", "direct-outreach:one", "--runner", "codex").stdout);
-  assert.equal(runCli(
-    path,
-    "update",
-    "--id",
-    start.process.id,
-    "--company-observed",
-    "Example Labs",
-    "--role",
-    "QA Engineer",
-  ).status, 0);
-  const first = JSON.parse(runCli(path, "create-company", "--display-name", "Example", "--term", "Экзампл", "--domain", "example.com").stdout);
-  assert.equal(runCli(path, "link-company", "--id", start.process.id, "--company-id", first.company.id).status, 0);
-  assert.equal(runCli(path, "add-company-term", "--id", first.company.id, "--term", "Shared Name").status, 0);
-  assert.equal(runCli(path, "add-company-domain", "--id", first.company.id, "--domain", "www.example.org/path").status, 0);
-  assert.equal(runCli(path, "rename-company", "--id", first.company.id, "--display-name", "Example Labs").status, 0);
+  const start = JSON.parse(
+    runCli(path, "start", "--source-ref", "direct-outreach:one", "--runner", "codex").stdout,
+  );
+  assert.equal(
+    runCli(
+      path,
+      "update",
+      "--id",
+      start.process.id,
+      "--company-observed",
+      "Example Labs",
+      "--role",
+      "QA Engineer",
+    ).status,
+    0,
+  );
+  const first = JSON.parse(
+    runCli(
+      path,
+      "create-company",
+      "--display-name",
+      "Example",
+      "--term",
+      "Экзампл",
+      "--domain",
+      "example.com",
+    ).stdout,
+  );
+  assert.equal(
+    runCli(path, "link-company", "--id", start.process.id, "--company-id", first.company.id).status,
+    0,
+  );
+  assert.equal(
+    runCli(path, "add-company-term", "--id", first.company.id, "--term", "Shared Name").status,
+    0,
+  );
+  assert.equal(
+    runCli(path, "add-company-domain", "--id", first.company.id, "--domain", "www.example.org/path")
+      .status,
+    0,
+  );
+  assert.equal(
+    runCli(path, "rename-company", "--id", first.company.id, "--display-name", "Example Labs")
+      .status,
+    0,
+  );
   const reservation = runCli(path, "reserve-output", "--id", start.process.id);
   assert.equal(reservation.status, 0, reservation.stderr);
-  assert.equal(
-    JSON.parse(reservation.stdout).output_dir,
-    "output/example-labs-qa-engineer",
-  );
+  assert.equal(JSON.parse(reservation.stdout).output_dir, "output/example-labs-qa-engineer");
 
   const second = JSON.parse(runCli(path, "create-company", "--display-name", "Another").stdout);
-  assert.equal(runCli(path, "add-company-term", "--id", second.company.id, "--term", "Shared Name").status, 0);
+  assert.equal(
+    runCli(path, "add-company-term", "--id", second.company.id, "--term", "Shared Name").status,
+    0,
+  );
   const ambiguous = JSON.parse(runCli(path, "find-company", "--query", "Shared Name").stdout);
   assert.equal(ambiguous.matches.length, 2);
   const beforeAmbiguousCreate = readFileSync(path, "utf8");
-  const ambiguousCreate = runCli(
-    path,
-    "create-company",
-    "--display-name",
-    "Shared Name",
-  );
+  const ambiguousCreate = runCli(path, "create-company", "--display-name", "Shared Name");
   assert.equal(ambiguousCreate.status, 2);
   assert.equal(JSON.parse(ambiguousCreate.stdout).status, "ambiguous");
   assert.equal(readFileSync(path, "utf8"), beforeAmbiguousCreate);
-  assert.equal(runCli(path, "remove-company-term", "--id", second.company.id, "--term", "Shared Name").status, 0);
-  assert.equal(runCli(path, "remove-company-domain", "--id", first.company.id, "--domain", "example.com").status, 0);
+  assert.equal(
+    runCli(path, "remove-company-term", "--id", second.company.id, "--term", "Shared Name").status,
+    0,
+  );
+  assert.equal(
+    runCli(path, "remove-company-domain", "--id", first.company.id, "--domain", "example.com")
+      .status,
+    0,
+  );
 
   const finalLog = JSON.parse(readFileSync(path, "utf8"));
   assert.equal(finalLog.processes[0].company_id, first.company.id);
-  assert.equal(
-    finalLog.processes[0].output_dir,
-    "output/example-labs-qa-engineer",
-  );
+  assert.equal(finalLog.processes[0].output_dir, "output/example-labs-qa-engineer");
   assert.equal(finalLog.processes[0].steps.get_vacancy.state, "running");
   const finalCompany = finalLog.companies.find((company) => company.id === first.company.id);
   assert.equal(finalCompany.display_name, "Example Labs");
@@ -1204,21 +1286,17 @@ test("the duplicate chain reads the whole history of one vacancy from either end
     }),
   ]);
 
-  const expectedMembers = [
-    "proc_july_posting",
-    "proc_august_technical",
-    "proc_august_fresh",
-  ];
+  const expectedMembers = ["proc_july_posting", "proc_august_technical", "proc_august_fresh"];
   for (const seed of expectedMembers) {
     const chain = buildDuplicateChain(log, seed);
     assert.equal(chain.status, "chain");
     assert.equal(chain.member_count, 3);
-    assert.deepEqual(chain.members.map((member) => member.process_id), expectedMembers);
+    assert.deepEqual(
+      chain.members.map((member) => member.process_id),
+      expectedMembers,
+    );
   }
-  assert.equal(
-    buildDuplicateChain(log, "proc_july_posting").members[0].record_class,
-    "historical",
-  );
+  assert.equal(buildDuplicateChain(log, "proc_july_posting").members[0].record_class, "historical");
   assert.equal(buildDuplicateChain(log, "proc_unrelated").status, "single");
   assert.equal(buildDuplicateChain(log, "proc_missing").status, "unknown_process");
 });

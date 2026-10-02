@@ -35,10 +35,13 @@ function resolverContext({
 }
 
 test("explicit Python DOCX renderer has highest priority", () => {
-  const backend = resolveLibreOfficeBackend({
-    docxRenderer: "/runtime/render_docx.py",
-    python: "/runtime/python3",
-  }, resolverContext());
+  const backend = resolveLibreOfficeBackend(
+    {
+      docxRenderer: "/runtime/render_docx.py",
+      python: "/runtime/python3",
+    },
+    resolverContext(),
+  );
 
   assert.equal(backend.kind, "python-renderer");
   assert.equal(backend.command, "/runtime/python3");
@@ -47,14 +50,18 @@ test("explicit Python DOCX renderer has highest priority", () => {
 });
 
 test("macOS resolver skips a system GUI wrapper and selects a later runtime headless override", () => {
-  const backend = resolveLibreOfficeBackend({}, resolverContext({
-    pathEntries: ["/test/system/bin", "/test/runtime/dependencies/bin/override"],
-    executablePaths: [systemWrapper, runtimeOverride, "/usr/bin/open"],
-    wrappers: {
-      [systemWrapper]: "#!/bin/sh\nexec /Applications/LibreOffice.app/Contents/MacOS/soffice \"$@\"\n",
-      [runtimeOverride]: "#!/bin/sh\nexec /runtime/libreoffice-headless/soffice \"$@\"\n",
-    },
-  }));
+  const backend = resolveLibreOfficeBackend(
+    {},
+    resolverContext({
+      pathEntries: ["/test/system/bin", "/test/runtime/dependencies/bin/override"],
+      executablePaths: [systemWrapper, runtimeOverride, "/usr/bin/open"],
+      wrappers: {
+        [systemWrapper]:
+          '#!/bin/sh\nexec /Applications/LibreOffice.app/Contents/MacOS/soffice "$@"\n',
+        [runtimeOverride]: '#!/bin/sh\nexec /runtime/libreoffice-headless/soffice "$@"\n',
+      },
+    }),
+  );
 
   assert.equal(backend.kind, "headless-soffice");
   assert.equal(backend.command, runtimeOverride);
@@ -62,13 +69,17 @@ test("macOS resolver skips a system GUI wrapper and selects a later runtime head
 });
 
 test("macOS resolver uses LaunchServices when only the system GUI LibreOffice is available", () => {
-  const backend = resolveLibreOfficeBackend({}, resolverContext({
-    pathEntries: ["/test/system/bin"],
-    executablePaths: [systemWrapper, "/usr/bin/open"],
-    wrappers: {
-      [systemWrapper]: "#!/bin/sh\nexec /Applications/LibreOffice.app/Contents/MacOS/soffice \"$@\"\n",
-    },
-  }));
+  const backend = resolveLibreOfficeBackend(
+    {},
+    resolverContext({
+      pathEntries: ["/test/system/bin"],
+      executablePaths: [systemWrapper, "/usr/bin/open"],
+      wrappers: {
+        [systemWrapper]:
+          '#!/bin/sh\nexec /Applications/LibreOffice.app/Contents/MacOS/soffice "$@"\n',
+      },
+    }),
+  );
 
   assert.equal(backend.kind, "macos-launchservices");
   assert.equal(backend.command, "/usr/bin/open");
@@ -77,11 +88,14 @@ test("macOS resolver uses LaunchServices when only the system GUI LibreOffice is
 
 test("configured runtime headless soffice is portable across desktop runtimes", () => {
   const configured = "/runtime/bin/soffice-headless";
-  const backend = resolveLibreOfficeBackend({}, resolverContext({
-    env: { CV_BUILDER_HEADLESS_SOFFICE: configured },
-    executablePaths: [configured],
-    directories: [],
-  }));
+  const backend = resolveLibreOfficeBackend(
+    {},
+    resolverContext({
+      env: { CV_BUILDER_HEADLESS_SOFFICE: configured },
+      executablePaths: [configured],
+      directories: [],
+    }),
+  );
 
   assert.equal(backend.kind, "headless-soffice");
   assert.equal(backend.command, configured);
@@ -90,14 +104,19 @@ test("configured runtime headless soffice is portable across desktop runtimes", 
 
 test("configured system GUI soffice is rejected instead of crashing inside a sandbox", () => {
   assert.throws(
-    () => resolveLibreOfficeBackend({}, resolverContext({
-      env: { CV_BUILDER_HEADLESS_SOFFICE: systemWrapper },
-      executablePaths: [systemWrapper],
-      directories: [],
-      wrappers: {
-        [systemWrapper]: "#!/bin/sh\nexec /Applications/LibreOffice.app/Contents/MacOS/soffice \"$@\"\n",
-      },
-    })),
+    () =>
+      resolveLibreOfficeBackend(
+        {},
+        resolverContext({
+          env: { CV_BUILDER_HEADLESS_SOFFICE: systemWrapper },
+          executablePaths: [systemWrapper],
+          directories: [],
+          wrappers: {
+            [systemWrapper]:
+              '#!/bin/sh\nexec /Applications/LibreOffice.app/Contents/MacOS/soffice "$@"\n',
+          },
+        }),
+      ),
     (error) => {
       assert.equal(error.code, "cv_renderer_unsafe_macos_soffice");
       return true;
@@ -107,10 +126,14 @@ test("configured system GUI soffice is rejected instead of crashing inside a san
 
 test("missing headless runtime and macOS application fails before LibreOffice is launched", () => {
   assert.throws(
-    () => resolveLibreOfficeBackend({}, resolverContext({
-      executablePaths: ["/usr/bin/open"],
-      directories: [],
-    })),
+    () =>
+      resolveLibreOfficeBackend(
+        {},
+        resolverContext({
+          executablePaths: ["/usr/bin/open"],
+          directories: [],
+        }),
+      ),
     (error) => {
       assert.equal(error.code, "cv_renderer_no_safe_backend");
       return true;
@@ -158,19 +181,25 @@ test("LaunchServices invocation always starts a separate background instance wit
 });
 
 test("runtime headless invocation never routes through the system GUI application", () => {
-  const invocation = buildLibreOfficeInvocation({
-    kind: "headless-soffice",
-    command: runtimeOverride,
-  }, {
-    docxPath: "/work/cv.docx",
-    qaDir: "/work/qa",
-    profileDir: "/work/qa/libreoffice-profile",
-    platform: "darwin",
-  });
+  const invocation = buildLibreOfficeInvocation(
+    {
+      kind: "headless-soffice",
+      command: runtimeOverride,
+    },
+    {
+      docxPath: "/work/cv.docx",
+      qaDir: "/work/qa",
+      profileDir: "/work/qa/libreoffice-profile",
+      platform: "darwin",
+    },
+  );
 
   assert.equal(invocation.command, runtimeOverride);
   assert.equal(invocation.args.includes("--headless"), true);
-  assert.equal(invocation.args.some((arg) => arg.includes("/Applications/LibreOffice.app")), false);
+  assert.equal(
+    invocation.args.some((arg) => arg.includes("/Applications/LibreOffice.app")),
+    false,
+  );
 });
 
 test("renderer environment normalizes macOS temp directories without replacing HOME", () => {
@@ -189,10 +218,13 @@ test("renderer environment normalizes macOS temp directories without replacing H
 });
 
 test("non-macOS runtimes preserve the existing PATH soffice behavior", () => {
-  const backend = resolveLibreOfficeBackend({}, resolverContext({
-    platform: "linux",
-    directories: [],
-  }));
+  const backend = resolveLibreOfficeBackend(
+    {},
+    resolverContext({
+      platform: "linux",
+      directories: [],
+    }),
+  );
 
   assert.equal(backend.kind, "headless-soffice");
   assert.equal(backend.command, "soffice");

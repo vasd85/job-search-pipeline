@@ -50,10 +50,12 @@ export function acceptsWorkingHours(value) {
 
 /** The config bound of the home countries: at least one, distinct, each a one-line name. */
 export function acceptsHomeCountries(value) {
-  return value.length > 0
-    && value.length <= MAX_HOME_COUNTRIES
-    && value.every(acceptsSingleLine)
-    && new Set(value).size === value.length;
+  return (
+    value.length > 0 &&
+    value.length <= MAX_HOME_COUNTRIES &&
+    value.every(acceptsSingleLine) &&
+    new Set(value).size === value.length
+  );
 }
 
 /** The markets of a validated config. */

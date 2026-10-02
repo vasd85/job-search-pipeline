@@ -132,7 +132,8 @@ export function loadBatchArtifacts(artifactsDir) {
   }
   if (!stats.isDirectory()) fail("artifacts_unreadable", "The artifacts path is not a directory.");
   const entries = listDirectory(artifactsDir);
-  if (entries === null) fail("artifacts_unreadable", "The artifacts directory could not be listed.");
+  if (entries === null)
+    fail("artifacts_unreadable", "The artifacts directory could not be listed.");
 
   const captures = [];
   const unexpected = [];
@@ -194,18 +195,17 @@ export function loadBatchArtifacts(artifactsDir) {
   scan(tracesDirName, TRACE_FILE, traces);
   scan(blindDirName, INPUT_FILE, blind);
 
-  const indices = [...new Set([
-    ...captures.map((capture) => capture.index),
-    ...inputs.keys(),
-    ...traces.keys(),
-  ])].sort((left, right) => left - right);
+  const indices = [
+    ...new Set([...captures.map((capture) => capture.index), ...inputs.keys(), ...traces.keys()]),
+  ].sort((left, right) => left - right);
 
   return {
     blind,
     dir: artifactsDir,
     indices,
-    captures: captures.sort((left, right) =>
-      left.index - right.index || left.file.localeCompare(right.file)),
+    captures: captures.sort(
+      (left, right) => left.index - right.index || left.file.localeCompare(right.file),
+    ),
     inputs,
     traces,
     manifest: optionalJsonFile(artifactsDir, manifestFileName),

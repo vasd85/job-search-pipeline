@@ -32,7 +32,11 @@ const exampleLanguages = coverLetterLanguagesFor({ root: candidateExampleRootFor
 // treats it as a personal marker. They are read from the layer.
 const [defaultSignature, greekSignature] = exampleLanguages.map((language) => language.signature);
 const validateCoverLetter = (letterBytes, brief, options = {}) =>
-  validateCoverLetterWith(letterBytes, brief, { languages: exampleLanguages, limits: exampleLimits, ...options });
+  validateCoverLetterWith(letterBytes, brief, {
+    languages: exampleLanguages,
+    limits: exampleLimits,
+    ...options,
+  });
 const validateCoverLetterFindings = (letterBytes, brief, options = {}) =>
   validateCoverLetterFindingsWith(letterBytes, brief, {
     languages: exampleLanguages,
@@ -40,18 +44,7 @@ const validateCoverLetterFindings = (letterBytes, brief, options = {}) =>
     ...options,
   });
 const expectedContract = Object.freeze({
-  forbiddenTypography: Object.freeze([
-    "—",
-    "–",
-    "“",
-    "”",
-    "‘",
-    "’",
-    "«",
-    "»",
-    "…",
-    "--",
-  ]),
+  forbiddenTypography: Object.freeze(["—", "–", "“", "”", "‘", "’", "«", "»", "…", "--"]),
   forbiddenTerms: Object.freeze([
     "Cursor",
     "excited",
@@ -205,22 +198,22 @@ function makeBrief(language = "English", keywordTerms) {
   return {
     role: { vacancyLanguage: language },
     coverLetterPlan: {
-      keywordTerms: keywordTerms ?? (
-        language === "Greek"
+      keywordTerms:
+        keywordTerms ??
+        (language === "Greek"
           ? ["αυτοματισμός", "δοκιμές API", "στρατηγική"]
-          : ["TypeScript", "Playwright", "API testing"]
-      ),
+          : ["TypeScript", "Playwright", "API testing"]),
     },
   };
 }
 
 function makeBodyWords(language, count) {
-  const required = language === "Greek"
-    ? ["αυτοματισμός", "δοκιμές", "API", "στρατηγική"]
-    : ["TypeScript", "Playwright", "API", "testing"];
+  const required =
+    language === "Greek"
+      ? ["αυτοματισμός", "δοκιμές", "API", "στρατηγική"]
+      : ["TypeScript", "Playwright", "API", "testing"];
   const filler = language === "Greek" ? "ποιότητα" : "quality";
-  return [...required, ...Array(Math.max(0, count - required.length)).fill(filler)]
-    .slice(0, count);
+  return [...required, ...Array(Math.max(0, count - required.length)).fill(filler)].slice(0, count);
 }
 
 function splitParagraphs(words, count) {
@@ -248,20 +241,17 @@ function makeLetter({
   trailingNewline = true,
 } = {}) {
   const greek = language === "Greek";
-  const resolvedTitle = title ?? (
-    greek ? "Αξιόπιστη μηχανική ποιότητας" : "Reliable Quality Engineering"
-  );
-  const resolvedSignature = signature ?? (
-    greek ? greekSignature : defaultSignature
-  );
-  const resolvedParagraphs = paragraphs
-    ?? splitParagraphs(makeBodyWords(language, words), paragraphCount);
+  const resolvedTitle =
+    title ?? (greek ? "Αξιόπιστη μηχανική ποιότητας" : "Reliable Quality Engineering");
+  const resolvedSignature = signature ?? (greek ? greekSignature : defaultSignature);
+  const resolvedParagraphs =
+    paragraphs ?? splitParagraphs(makeBodyWords(language, words), paragraphCount);
   return [
     resolvedTitle,
     ...(blankAfterTitle ? [""] : []),
-    ...resolvedParagraphs.flatMap((paragraph, index) => (
-      index === resolvedParagraphs.length - 1 ? [paragraph] : [paragraph, ""]
-    )),
+    ...resolvedParagraphs.flatMap((paragraph, index) =>
+      index === resolvedParagraphs.length - 1 ? [paragraph] : [paragraph, ""],
+    ),
     ...(blankBeforeSignature ? [""] : []),
     resolvedSignature,
     ...(trailingNewline ? [""] : []),
@@ -289,7 +279,10 @@ function assertHasExactError(letterBytes, brief, expectedError) {
 
 test("the letter gate reads its languages from the layer and refuses to run without them", () => {
   // The example configures Greek beside the default language; nothing in the engine names it.
-  assert.deepEqual(exampleLanguages.map((language) => language.name), ["English", "Greek"]);
+  assert.deepEqual(
+    exampleLanguages.map((language) => language.name),
+    ["English", "Greek"],
+  );
   const refusal = "role.vacancyLanguage must be exactly one of English, Greek";
   for (const { name } of exampleLanguages) {
     const { errors } = validateCoverLetterFindings(
@@ -299,13 +292,19 @@ test("the letter gate reads its languages from the layer and refuses to run with
     assert.equal(errors.includes(refusal), false, `${name} is refused by the letter gate`);
   }
   for (const token of ["en", "German", "greek"]) {
-    const { errors } = validateCoverLetterFindings(encoder.encode("Title\n\nBody.\n"), makeBrief(token));
+    const { errors } = validateCoverLetterFindings(
+      encoder.encode("Title\n\nBody.\n"),
+      makeBrief(token),
+    );
     assert.ok(errors.includes(refusal), `${token} is accepted by the letter gate`);
   }
   // No languages, no letter: a signature this file made up would pass a gate the candidate never
   // configured.
   const letter = bytes(makeLetter());
-  assert.throws(() => validateCoverLetterWith(letter, makeBrief(), { limits: exampleLimits }), TypeError);
+  assert.throws(
+    () => validateCoverLetterWith(letter, makeBrief(), { limits: exampleLimits }),
+    TypeError,
+  );
   assert.throws(
     () => validateCoverLetterWith(letter, makeBrief(), { languages: [], limits: exampleLimits }),
     TypeError,
@@ -324,8 +323,10 @@ const cyrillicLanguage = Object.freeze({
 });
 
 function languageErrors(letter, language, languages) {
-  return validateCoverLetterWith(bytes(letter), makeBrief(language, ["Playwright"]), { languages, limits: exampleLimits })
-    .filter((error) => error.includes("script"));
+  return validateCoverLetterWith(bytes(letter), makeBrief(language, ["Playwright"]), {
+    languages,
+    limits: exampleLimits,
+  }).filter((error) => error.includes("script"));
 }
 
 test("a letter carries its own script, and the scripts of the other configured languages only where its pack admits them", () => {
@@ -345,7 +346,10 @@ test("a letter carries its own script, and the scripts of the other configured l
   // A configured language needs its own script and may carry the ones its pack admits.
   const greekWithLatin = replaceFirstBodyWord(baseGreekLetter, "Playwright");
   assert.deepEqual(languageErrors(greekWithLatin, "Greek", withCyrillic), []);
-  const greekWithCyrillic = baseGreekLetter.replace("Αξιόπιστη μηχανική ποιότητας", "Αξιόπιστη μηχανική качество");
+  const greekWithCyrillic = baseGreekLetter.replace(
+    "Αξιόπιστη μηχανική ποιότητας",
+    "Αξιόπιστη μηχανική качество",
+  );
   assert.deepEqual(languageErrors(greekWithCyrillic, "Greek", withCyrillic), [
     "cover-letter.txt title must use Greek script",
   ]);
@@ -354,7 +358,12 @@ test("a letter carries its own script, and the scripts of the other configured l
 
 test("every configured subject word refuses a title in every letter, and each letter is signed in its own language", () => {
   const withCyrillic = [...exampleLanguages, cyrillicLanguage];
-  for (const title of ["Subject: Reliable tests", "Θέμα: Reliable tests", "Относно: Reliable tests", "subject : Reliable tests"]) {
+  for (const title of [
+    "Subject: Reliable tests",
+    "Θέμα: Reliable tests",
+    "Относно: Reliable tests",
+    "subject : Reliable tests",
+  ]) {
     const errors = validateCoverLetterWith(bytes(makeLetter({ title })), makeBrief(), {
       languages: withCyrillic,
       limits: exampleLimits,
@@ -366,18 +375,28 @@ test("every configured subject word refuses a title in every letter, and each le
   }
   // The subject word is escaped: a pack's word is text, never a pattern.
   const dotted = { ...cyrillicLanguage, subjectPrefix: "Re." };
-  const errors = validateCoverLetterWith(bytes(makeLetter({ title: "Rex: Reliable tests" })), makeBrief(), {
-    languages: [...exampleLanguages, dotted],
-    limits: exampleLimits,
-  });
-  assert.equal(errors.some((error) => error.includes("prefix")), false);
+  const errors = validateCoverLetterWith(
+    bytes(makeLetter({ title: "Rex: Reliable tests" })),
+    makeBrief(),
+    {
+      languages: [...exampleLanguages, dotted],
+      limits: exampleLimits,
+    },
+  );
+  assert.equal(
+    errors.some((error) => error.includes("prefix")),
+    false,
+  );
   // The default language is signed with the config's signature, a configured one with its pack's,
   // each read here straight from its file.
   const example = candidateExampleRootFor(repoRoot);
-  assert.deepEqual(exampleLanguages.map((language) => language.signature), [
-    JSON.parse(readFileSync(join(example, "config.json"), "utf8")).letter.signature,
-    JSON.parse(readFileSync(join(example, "languages", "Greek", "pack.json"), "utf8")).signature,
-  ]);
+  assert.deepEqual(
+    exampleLanguages.map((language) => language.signature),
+    [
+      JSON.parse(readFileSync(join(example, "config.json"), "utf8")).letter.signature,
+      JSON.parse(readFileSync(join(example, "languages", "Greek", "pack.json"), "utf8")).signature,
+    ],
+  );
   assert.notEqual(defaultSignature, greekSignature);
 });
 
@@ -400,20 +419,31 @@ test("the letter gate measures against the limits it is given and refuses to run
   const brief = makeBrief();
   const short = bytes(makeLetter({ words: 110, paragraphCount: 3 }));
   // What the example's limits refuse, these accept, and the other way round.
-  assert.deepEqual(validateCoverLetterWith(short, brief, { languages: exampleLanguages, limits }), []);
+  assert.deepEqual(
+    validateCoverLetterWith(short, brief, { languages: exampleLanguages, limits }),
+    [],
+  );
   assert.deepEqual(validateCoverLetter(short, brief), [
     "cover-letter.txt body must contain 4 to 5 paragraphs",
     "cover-letter.txt body must contain 230 to 260 words",
   ]);
-  assert.deepEqual(validateCoverLetterWith(bytes(baseEnglishLetter), brief, { languages: exampleLanguages, limits }), [
-    "cover-letter.txt body must contain 2 to 3 paragraphs",
-    "cover-letter.txt body must contain 100 to 130 words",
-  ]);
+  assert.deepEqual(
+    validateCoverLetterWith(bytes(baseEnglishLetter), brief, {
+      languages: exampleLanguages,
+      limits,
+    }),
+    [
+      "cover-letter.txt body must contain 2 to 3 paragraphs",
+      "cover-letter.txt body must contain 100 to 130 words",
+    ],
+  );
   // The approval range moves with the limits.
   assert.deepEqual(parseBodyWordApproval("letter_body_words_max:140", limits), { maximum: 140 });
   assert.equal(parseBodyWordApproval("letter_body_words_max:151", limits), null);
   assert.equal(parseBodyWordApproval("letter_body_words_max:280", limits), null);
-  assert.deepEqual(parseBodyWordApproval("letter_body_words_max:280", exampleLimits), { maximum: 280 });
+  assert.deepEqual(parseBodyWordApproval("letter_body_words_max:280", exampleLimits), {
+    maximum: 280,
+  });
   // No limits, no measurement: a number chosen here would gate a letter the candidate never sized.
   assert.throws(() => validateCoverLetterWith(short, brief), TypeError);
   assert.throws(() => validateCoverLetterFindingsWith(short, brief, { waivers: [] }), TypeError);
@@ -423,7 +453,11 @@ test("the letter gate measures against the limits it is given and refuses to run
   // A partial set is no set: without the cap an approval of any size would parse.
   const { approvedMaximum: _cap, ...uncapped } = exampleLimits.bodyWords;
   assert.throws(
-    () => parseBodyWordApproval("letter_body_words_max:5000", { ...exampleLimits, bodyWords: uncapped }),
+    () =>
+      parseBodyWordApproval("letter_body_words_max:5000", {
+        ...exampleLimits,
+        bodyWords: uncapped,
+      }),
     TypeError,
   );
   // A key of another kind is answered without the limits: only an approval needs the range.
@@ -438,7 +472,10 @@ test("valid English and Greek letters pass at every numeric boundary", () => {
     ["Greek", 260, 5],
   ]) {
     assert.deepEqual(
-      validateCoverLetter(bytes(makeLetter({ language, words, paragraphCount })), makeBrief(language)),
+      validateCoverLetter(
+        bytes(makeLetter({ language, words, paragraphCount })),
+        makeBrief(language),
+      ),
       [],
       `${language} ${words} words ${paragraphCount} paragraphs`,
     );
@@ -624,10 +661,7 @@ const mutationScenarios = [
   },
   {
     id: "one-sided-single-column-table-markup",
-    letter: baseEnglishLetter.replace(
-      "TypeScript Playwright",
-      "| TypeScript\n| ---\n| Playwright",
-    ),
+    letter: baseEnglishLetter.replace("TypeScript Playwright", "| TypeScript\n| ---\n| Playwright"),
     brief: makeBrief(),
     error: "cover-letter.txt must not contain table markup",
   },
@@ -692,19 +726,13 @@ const mutationScenarios = [
   },
   {
     id: "nested-link-label-markup",
-    letter: baseEnglishLetter.replace(
-      "TypeScript",
-      "[[TypeScript]](/reference)",
-    ),
+    letter: baseEnglishLetter.replace("TypeScript", "[[TypeScript]](/reference)"),
     brief: makeBrief(),
     error: "cover-letter.txt must not contain link markup",
   },
   {
     id: "escaped-closing-bracket-link-markup",
-    letter: baseEnglishLetter.replace(
-      "TypeScript",
-      "[TypeScript \\] quality](/reference)",
-    ),
+    letter: baseEnglishLetter.replace("TypeScript", "[TypeScript \\] quality](/reference)"),
     brief: makeBrief(),
     error: "cover-letter.txt must not contain link markup",
   },
@@ -728,19 +756,13 @@ const mutationScenarios = [
   },
   {
     id: "multiline-reference-definition-markup",
-    letter: baseEnglishLetter.replace(
-      "TypeScript",
-      "[TypeScript]\n[TypeScript]:\n  /reference",
-    ),
+    letter: baseEnglishLetter.replace("TypeScript", "[TypeScript]\n[TypeScript]:\n  /reference"),
     brief: makeBrief(),
     error: "cover-letter.txt must not contain link markup",
   },
   {
     id: "multiline-reference-label-definition-markup",
-    letter: baseEnglishLetter.replace(
-      "TypeScript",
-      "[TypeScript\nquality]: /reference",
-    ),
+    letter: baseEnglishLetter.replace("TypeScript", "[TypeScript\nquality]: /reference"),
     brief: makeBrief(),
     error: "cover-letter.txt must not contain link markup",
   },
@@ -893,7 +915,10 @@ const mutationScenarios = [
   },
   {
     id: "greek-body-without-greek",
-    letter: makeLetter({ language: "Greek", paragraphs: ["API 123", ...baseGreekParagraphs.slice(1)] }),
+    letter: makeLetter({
+      language: "Greek",
+      paragraphs: ["API 123", ...baseGreekParagraphs.slice(1)],
+    }),
     brief: makeBrief("Greek"),
     error: "cover-letter.txt body paragraph 1 must use Greek script",
   },
@@ -1116,14 +1141,8 @@ test("every declared invalid mutation reaches its exact validator pin", async (t
 
 test("missing-keyword diagnostics are repository-owned and bounded", () => {
   const hostileTerm = "private-value\n" + "x".repeat(4096);
-  const errors = validateCoverLetter(
-    bytes(baseEnglishLetter),
-    makeBrief("English", [hostileTerm]),
-  );
-  assert.deepEqual(
-    errors,
-    ["cover-letter.txt body must contain planned keyword at index 0"],
-  );
+  const errors = validateCoverLetter(bytes(baseEnglishLetter), makeBrief("English", [hostileTerm]));
+  assert.deepEqual(errors, ["cover-letter.txt body must contain planned keyword at index 0"]);
   assert.doesNotMatch(errors.join("\n"), /private-value|x{32}/u);
   assert.ok(errors.join("\n").length < 128);
 });
@@ -1131,10 +1150,7 @@ test("missing-keyword diagnostics are repository-owned and bounded", () => {
 test("near misses do not trigger whole-term forbidden or keyword checks", () => {
   const letter = replaceFirstBodyWord(baseEnglishLetter, "Cursorless");
   assert.doesNotMatch(validateCoverLetter(bytes(letter), makeBrief()).join("\n"), /Cursor/u);
-  const intrawordUnderscore = replaceFirstBodyWord(
-    baseEnglishLetter,
-    "foo_bar_baz TypeScript",
-  );
+  const intrawordUnderscore = replaceFirstBodyWord(baseEnglishLetter, "foo_bar_baz TypeScript");
   assert.deepEqual(validateCoverLetter(bytes(intrawordUnderscore), makeBrief()), []);
   assert.deepEqual(
     validateCoverLetter(bytes(baseEnglishLetter), makeBrief("English", ["Playwright"])),
@@ -1146,11 +1162,13 @@ test("keyword survival is the classified conflict subset and honors active waive
   const missingKeyword = makeBrief("English", ["TypeScript", "GraphQL"]);
   const findings = validateCoverLetterFindings(bytes(baseEnglishLetter), missingKeyword);
   assert.deepEqual(findings.errors, [], "intrinsic checks stay clean on a valid letter");
-  assert.deepEqual(findings.conflicts, [{
-    code: "letter_keyword",
-    subject: { kind: "check", key: "letter_keyword:1" },
-    message: "cover-letter.txt body must contain planned keyword at index 1",
-  }]);
+  assert.deepEqual(findings.conflicts, [
+    {
+      code: "letter_keyword",
+      subject: { kind: "check", key: "letter_keyword:1" },
+      message: "cover-letter.txt body must contain planned keyword at index 1",
+    },
+  ]);
   assert.deepEqual(findings.notices, []);
 
   const waiver = {
@@ -1197,18 +1215,23 @@ test("an approved upper word limit downgrades the over-limit finding to a notice
   const letter261 = bytes(makeLetter({ words: 261 }));
 
   const unapproved = validateCoverLetterFindings(letter261, brief);
-  assert.ok(unapproved.errors.includes(wordLimitError), "without an approval 261 words stay an error");
+  assert.ok(
+    unapproved.errors.includes(wordLimitError),
+    "without an approval 261 words stay an error",
+  );
   assert.deepEqual(unapproved.conflicts, [], "an unapproved overrun is never a journaled conflict");
 
   const approved = validateCoverLetterFindings(letter261, brief, { waivers: [wordApproval(261)] });
   assert.deepEqual(approved.errors, []);
   assert.deepEqual(approved.conflicts, []);
-  assert.deepEqual(approved.notices, [{
-    code: "letter_body_words",
-    subject: { kind: "check", key: "letter_body_words_max:261" },
-    message: "cover-letter.txt body has 261 words over the 260 default, within the approved 261",
-    waiver_id: "waiver_words_261",
-  }]);
+  assert.deepEqual(approved.notices, [
+    {
+      code: "letter_body_words",
+      subject: { kind: "check", key: "letter_body_words_max:261" },
+      message: "cover-letter.txt body has 261 words over the 260 default, within the approved 261",
+      waiver_id: "waiver_words_261",
+    },
+  ]);
   assert.deepEqual(
     validateCoverLetter(letter261, brief, { waivers: [wordApproval(261)] }),
     [],
@@ -1227,13 +1250,15 @@ test("the approved maximum is bounded, absolute, and never touches the lower lim
     "300 words pass under an approval of 300",
   );
   assert.ok(
-    validateCoverLetterFindings(at301, brief, { waivers: [wordApproval(300)] }).errors
-      .includes(wordLimitError),
+    validateCoverLetterFindings(at301, brief, { waivers: [wordApproval(300)] }).errors.includes(
+      wordLimitError,
+    ),
     "301 words fail under an approval of 300",
   );
   assert.ok(
-    validateCoverLetterFindings(at301, brief, { waivers: [wordApproval(301)] }).errors
-      .includes(wordLimitError),
+    validateCoverLetterFindings(at301, brief, { waivers: [wordApproval(301)] }).errors.includes(
+      wordLimitError,
+    ),
     "an approval above the cap is ignored, not honoured",
   );
   assert.ok(
@@ -1292,11 +1317,12 @@ test("a letter naming a private project is refused and one naming a public proje
     material: "cover_letter",
     root: candidateExampleRootFor(repoRoot),
   });
-  const naming = (project) => validateCoverLetterFindings(
-    bytes(withWords(baseEnglishLetter, `I built ${project} on my own time.`)),
-    makeBrief(),
-    { constraints },
-  );
+  const naming = (project) =>
+    validateCoverLetterFindings(
+      bytes(withWords(baseEnglishLetter, `I built ${project} on my own time.`)),
+      makeBrief(),
+      { constraints },
+    );
   const publicProject = naming("lindenbench");
   assert.deepEqual(publicProject.candidateErrors, []);
   assert.deepEqual(publicProject.errors, []);
@@ -1412,7 +1438,9 @@ test("a live candidate layer does not lift one engine refusal", () => {
     baseEnglishLetter,
     "Jordan Vale wrote; Cursor excited us—yes.",
   );
-  const found = validateCoverLetterFindings(bytes(withEngineBreaches), makeBrief(), { constraints });
+  const found = validateCoverLetterFindings(bytes(withEngineBreaches), makeBrief(), {
+    constraints,
+  });
   assert.equal(found.candidateErrors.length, 1);
   for (const expected of [
     "cover-letter.txt must not contain forbidden typography: —",

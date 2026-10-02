@@ -8,11 +8,11 @@ LaunchAgent `com.job-search-pipeline.backup`. The durability boundary is owned b
 
 The copies lie **on the same disk** as the original. The whole list follows from that:
 
-| Failure | Covered? |
-| --- | --- |
-| Accidental deletion of `output/` or the ledger | yes |
-| A bad write that corrupted a file | yes — yesterday's copy is intact |
-| Loss of the disk or theft of the machine | **no** |
+| Failure                                             | Covered?                                             |
+| --------------------------------------------------- | ---------------------------------------------------- |
+| Accidental deletion of `output/` or the ledger      | yes                                                  |
+| A bad write that corrupted a file                   | yes — yesterday's copy is intact                     |
+| Loss of the disk or theft of the machine            | **no**                                               |
 | Corruption noticed later than 7 days after the fact | **no** — rotation has already deleted anything older |
 
 The last two rows remain outside this procedure. An off-disk copy and its encryption are a separate decision of
@@ -24,12 +24,12 @@ and the batches hold data of third-party companies).
 Four members under locks, two per lock. A pair is copied **while holding the very lock its writers
 take**, so a snapshot is either consistent or loudly refused:
 
-| Member | Lock | Why a pair |
-| --- | --- | --- |
-| `process-log.json` | process log | the ledger and the artifacts it refers to |
-| `output/` | process log | a canonical file appears only inside a publication transaction under this lock |
-| `triage-ledger.json` | triage ledger | the index |
-| `triage-batches/` | triage ledger | `recordBatch` writes a batch's record under the same lock |
+| Member               | Lock          | Why a pair                                                                     |
+| -------------------- | ------------- | ------------------------------------------------------------------------------ |
+| `process-log.json`   | process log   | the ledger and the artifacts it refers to                                      |
+| `output/`            | process log   | a canonical file appears only inside a publication transaction under this lock |
+| `triage-ledger.json` | triage ledger | the index                                                                      |
+| `triage-batches/`    | triage ledger | `recordBatch` writes a batch's record under the same lock                      |
 
 The locks are taken **one after the other, never together**: no writer in the repository takes
 both, and nothing defines an order between them — holding them together would mean inventing one.
@@ -37,13 +37,13 @@ both, and nothing defines an order between them — holding them together would 
 Then, without a lock, five members that only a run or the user by hand writes and that are in no
 repository. Each is copied if it exists; its absence is the status `absent`, not a refusal:
 
-| Member | Role | How it is written |
-| --- | --- | --- |
-| `telegram-sources.json` | the Telegram collector's list of channels — the user's manual work | by hand |
-| `telegram-sweep-state.json` | the positions of the channel sweep | a temporary file and a rename |
-| `records/` | the corpus of letter corrections — an artifact of a run | a record is written once |
-| `outbox/` | task drafts from a run; `board:import` takes and deletes them | by the run session |
-| `ops-manifest.json` | the operational folder's marker: the engine and layer tags the folder is rebuilt from ([Restore](#8-restore)) | a temporary file and a rename |
+| Member                      | Role                                                                                                          | How it is written             |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `telegram-sources.json`     | the Telegram collector's list of channels — the user's manual work                                            | by hand                       |
+| `telegram-sweep-state.json` | the positions of the channel sweep                                                                            | a temporary file and a rename |
+| `records/`                  | the corpus of letter corrections — an artifact of a run                                                       | a record is written once      |
+| `outbox/`                   | task drafts from a run; `board:import` takes and deletes them                                                 | by the run session            |
+| `ops-manifest.json`         | the operational folder's marker: the engine and layer tags the folder is rebuilt from ([Restore](#8-restore)) | a temporary file and a rename |
 
 The JSON members (`telegram-*.json`, `ops-manifest.json`) are parsed after the copy the same way
 their owner parses them; if parsing fails, the snapshot is refused (`backup_member_unreadable`),
@@ -179,21 +179,21 @@ is in the checkout now. A difference names the changed, missing and extra files 
 
 ## 6. Refusals and what to do about them
 
-| Code | What happened | What to do |
-| --- | --- | --- |
-| `backup_root_unmarked` | the tree has no operational-folder marker | run the copy in the operational folder or the operational folder. Neither a flag nor `cd` gets around this: the tree that is copied is the one the file lies in |
-| `backup_root_rehearsal` | the marker names a rehearsal folder | its state dies with it and is not copied |
-| `backup_root_manifest_invalid` | `ops-manifest.json` is unreadable, or there is an `.ops-tree/` without it | restore the marker with a cutover onto the current pair of tags ([tools/ops-tree/README.md](../../tools/ops-tree/README.md)) |
-| `backup_root_not_operational` | the tree has no `process-log.json` | this is not the operational folder. The file's absence is a development protection; run the right copy instead of creating the file |
-| `backup_member_unreadable` | a JSON member of [What is copied](#2-what-is-copied) does not parse | **the snapshot is refused on purpose**, as with an unreadable ledger. Fix the file — its owner will refuse it the same way; the old copies are intact |
-| `backup_unsupported_entry` | a member of the wrong kind: a file instead of a directory, a link, a device | find out who put it there; the tool will not copy a pointer instead of the state |
-| `backup_path_not_absolute` | `--script` got a relative path | give an absolute one: a relative one would be completed from the launch directory |
-| `triage_ledger_locked` | someone holds the triage ledger's lock | a `/score-jobs` is running. Retry later; if the lock belongs to nobody — [A lock left behind by a killed run](#7-a-lock-left-behind-by-a-killed-run) |
-| `process_log_lock_timeout` | the process log's lock is busy longer than the wait | a per-role step is running. Retry later; this lock recovers by itself 30 seconds after a dead owner |
-| `triage_ledger_unreadable`, `triage_ledger_invalid` | the ledger is unreadable or fails validation | **the snapshot is refused on purpose**: a copy of corrupted state would take a slot and push out a good one. Fix the state; the old copies are intact |
-| `backup_snapshot_exists` | a directory with this stamp already exists | it is never overwritten. A run within the same second is a repeat; otherwise find out who created it |
-| `backup_destination_inside_source` | the destination is inside the checkout | the destination must be outside: otherwise it would copy itself and become operational state itself |
-| `backup_tree_too_large`, `backup_tree_too_deep` | the snapshot went beyond its bounds (100000 entries, 8 GiB, 32 levels) | find out what grew; the tool does not copy half a tree |
+| Code                                                | What happened                                                               | What to do                                                                                                                                                      |
+| --------------------------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `backup_root_unmarked`                              | the tree has no operational-folder marker                                   | run the copy in the operational folder or the operational folder. Neither a flag nor `cd` gets around this: the tree that is copied is the one the file lies in |
+| `backup_root_rehearsal`                             | the marker names a rehearsal folder                                         | its state dies with it and is not copied                                                                                                                        |
+| `backup_root_manifest_invalid`                      | `ops-manifest.json` is unreadable, or there is an `.ops-tree/` without it   | restore the marker with a cutover onto the current pair of tags ([tools/ops-tree/README.md](../../tools/ops-tree/README.md))                                    |
+| `backup_root_not_operational`                       | the tree has no `process-log.json`                                          | this is not the operational folder. The file's absence is a development protection; run the right copy instead of creating the file                             |
+| `backup_member_unreadable`                          | a JSON member of [What is copied](#2-what-is-copied) does not parse         | **the snapshot is refused on purpose**, as with an unreadable ledger. Fix the file — its owner will refuse it the same way; the old copies are intact           |
+| `backup_unsupported_entry`                          | a member of the wrong kind: a file instead of a directory, a link, a device | find out who put it there; the tool will not copy a pointer instead of the state                                                                                |
+| `backup_path_not_absolute`                          | `--script` got a relative path                                              | give an absolute one: a relative one would be completed from the launch directory                                                                               |
+| `triage_ledger_locked`                              | someone holds the triage ledger's lock                                      | a `/score-jobs` is running. Retry later; if the lock belongs to nobody — [A lock left behind by a killed run](#7-a-lock-left-behind-by-a-killed-run)            |
+| `process_log_lock_timeout`                          | the process log's lock is busy longer than the wait                         | a per-role step is running. Retry later; this lock recovers by itself 30 seconds after a dead owner                                                             |
+| `triage_ledger_unreadable`, `triage_ledger_invalid` | the ledger is unreadable or fails validation                                | **the snapshot is refused on purpose**: a copy of corrupted state would take a slot and push out a good one. Fix the state; the old copies are intact           |
+| `backup_snapshot_exists`                            | a directory with this stamp already exists                                  | it is never overwritten. A run within the same second is a repeat; otherwise find out who created it                                                            |
+| `backup_destination_inside_source`                  | the destination is inside the checkout                                      | the destination must be outside: otherwise it would copy itself and become operational state itself                                                             |
+| `backup_tree_too_large`, `backup_tree_too_deep`     | the snapshot went beyond its bounds (100000 entries, 8 GiB, 32 levels)      | find out what grew; the tool does not copy half a tree                                                                                                          |
 
 ## 7. A lock left behind by a killed run
 
@@ -261,6 +261,7 @@ the user to name the tag pair; it cannot supply that information.
 
    Any copy of the engine with `tools/ops-tree/` can run the command; `npm ci` in the export needs
    access to the package registry or its cache.
+
 5. **Copy the state members** from the snapshot into the new folder — only the members in the current table,
    except `ops-manifest.json`: the export wrote its own marker, and the
    snapshot's manifest is not a file of the folder.

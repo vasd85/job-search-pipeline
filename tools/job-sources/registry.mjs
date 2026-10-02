@@ -32,9 +32,7 @@ export const jobSourceRegistry = Object.freeze([
 function parseHostname(value) {
   const raw = String(value ?? "").trim();
   if (!raw || /\s/.test(raw)) return null;
-  const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(raw)
-    ? raw
-    : `https://${raw}`;
+  const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`;
   try {
     const url = new URL(candidate);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
@@ -52,9 +50,11 @@ function hostnameBelongsToFamily(hostname, domain) {
 export function detectJobSource(value) {
   const hostname = parseHostname(value);
   if (hostname === null) return null;
-  return jobSourceRegistry.find((candidate) =>
-    candidate.domainFamilies.some((domain) =>
-      hostnameBelongsToFamily(hostname, domain))) ?? null;
+  return (
+    jobSourceRegistry.find((candidate) =>
+      candidate.domainFamilies.some((domain) => hostnameBelongsToFamily(hostname, domain)),
+    ) ?? null
+  );
 }
 
 export function isEmployerDomainExcluded(value) {

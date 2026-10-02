@@ -33,18 +33,18 @@ the brief does not resolve, stop generation and fix the brief at the step that c
 
 ### 2.1. Exact map of application brief fields
 
-| Letter task | Authoritative field |
-| --- | --- |
-| Company, role and letter language | `role.company`, `role.title`, `role.vacancyLanguage` |
-| Confirmed challenge type and values | `company.challengeType`, `company.values` |
-| Concrete anchor points to the company | `company.tailoringHooks` |
-| Central claim and angle | `positioning.selectedLevers`, `positioning.angleHint` |
-| Permitted AI depth | `positioning.aiRegister` |
-| Permitted AI signals and constraints | `positioning.supportingSignals` |
-| Observable qualities for the mechanism | `experience.traits` |
-| Risks of a false claim | `experience.gaps` |
-| Permitted evidence | `experience.priorityEvidence`, filtered strictly by `coverLetterPlan.evidenceIds` |
-| Terms for the letter | `ats.keywords`, filtered strictly by `coverLetterPlan.keywordTerms` |
+| Letter task                            | Authoritative field                                                               |
+| -------------------------------------- | --------------------------------------------------------------------------------- |
+| Company, role and letter language      | `role.company`, `role.title`, `role.vacancyLanguage`                              |
+| Confirmed challenge type and values    | `company.challengeType`, `company.values`                                         |
+| Concrete anchor points to the company  | `company.tailoringHooks`                                                          |
+| Central claim and angle                | `positioning.selectedLevers`, `positioning.angleHint`                             |
+| Permitted AI depth                     | `positioning.aiRegister`                                                          |
+| Permitted AI signals and constraints   | `positioning.supportingSignals`                                                   |
+| Observable qualities for the mechanism | `experience.traits`                                                               |
+| Risks of a false claim                 | `experience.gaps`                                                                 |
+| Permitted evidence                     | `experience.priorityEvidence`, filtered strictly by `coverLetterPlan.evidenceIds` |
+| Terms for the letter                   | `ats.keywords`, filtered strictly by `coverLetterPlan.keywordTerms`               |
 
 Both sets of references have already been checked by the validator. Use them exactly: do not
 replace items with more convenient ones and do not add new ones from memory.

@@ -111,13 +111,13 @@ const artifactSources = Object.freeze({
 
 const currentResearchSource = artifactSources["company-research.json"];
 
-const protectedContracts = Object.freeze(
-  [...new Map(
+const protectedContracts = Object.freeze([
+  ...new Map(
     Object.values(fileBackedProtectedInputs)
       .flat()
       .map((contract) => [contract.kind, contract]),
-  ).values()],
-);
+  ).values(),
+]);
 
 function artifactMetadata(kind, path, schemaVersion, absolutePath) {
   const bytes = readFileSync(absolutePath);
@@ -197,10 +197,7 @@ function copyFixtureFile(source, destination) {
   copyFileSync(source, destination);
 }
 
-function createEnvironment(t, {
-  completedThrough = "get_vacancy",
-  failedCv = false,
-} = {}) {
+function createEnvironment(t, { completedThrough = "get_vacancy", failedCv = false } = {}) {
   const disposable = createDisposableWorkspace(t, {
     prefix: "job-search-v3-preflight-",
   });
@@ -248,23 +245,15 @@ function createEnvironment(t, {
     Object.entries(fileBackedProtectedInputs).map(([stepName, contracts]) => [
       stepName,
       contracts.map((contract) =>
-        artifactMetadata(
-          contract.kind,
-          contract.path,
-          null,
-          resolve(workspaceRoot, contract.path),
-        )),
+        artifactMetadata(contract.kind, contract.path, null, resolve(workspaceRoot, contract.path)),
+      ),
     ]),
   );
   const step1Inputs = [];
   const step1Artifacts = [jobDescription, vacancy];
   const step2Inputs = step1Artifacts;
   const step2Artifacts = [research];
-  const step3Inputs = [
-    ...step1Artifacts,
-    ...step2Artifacts,
-    ...protectedByStep.map_experience,
-  ];
+  const step3Inputs = [...step1Artifacts, ...step2Artifacts, ...protectedByStep.map_experience];
   const step3Artifacts = [brief];
   const steps = {
     get_vacancy: completedStep({
@@ -295,10 +284,7 @@ function createEnvironment(t, {
     });
   }
   if (failedCv) {
-    steps.generate_cv = failedCvStep([
-      ...step3Artifacts,
-      ...protectedByStep.generate_cv,
-    ]);
+    steps.generate_cv = failedCvStep([...step3Artifacts, ...protectedByStep.generate_cv]);
   }
 
   const fixtureUpdatedAt = failedCv
@@ -363,8 +349,7 @@ function causalFixtureTimestamp(environment, preferredTimestamp) {
 }
 
 function begin(environment, stepName, options = {}) {
-  const timestamp = options.timestamp
-    ?? causalFixtureTimestamp(environment, timestamps.begin);
+  const timestamp = options.timestamp ?? causalFixtureTimestamp(environment, timestamps.begin);
   return beginFileBackedStepV3(
     environment.ledgerPath,
     {
@@ -381,8 +366,7 @@ function begin(environment, stepName, options = {}) {
 }
 
 function fail(environment, stepName, attemptId, options = {}) {
-  const timestamp = options.timestamp
-    ?? causalFixtureTimestamp(environment, timestamps.fail);
+  const timestamp = options.timestamp ?? causalFixtureTimestamp(environment, timestamps.fail);
   return failFileBackedStepV3(
     environment.ledgerPath,
     {
@@ -403,8 +387,7 @@ function fail(environment, stepName, attemptId, options = {}) {
 }
 
 function retry(environment, stepName, options = {}) {
-  const timestamp = options.timestamp
-    ?? causalFixtureTimestamp(environment, timestamps.retry);
+  const timestamp = options.timestamp ?? causalFixtureTimestamp(environment, timestamps.retry);
   return retryFileBackedStepV3(
     environment.ledgerPath,
     {
@@ -421,8 +404,7 @@ function retry(environment, stepName, options = {}) {
 }
 
 function reopen(environment, stepName, options = {}) {
-  const timestamp = options.timestamp
-    ?? causalFixtureTimestamp(environment, timestamps.reopen);
+  const timestamp = options.timestamp ?? causalFixtureTimestamp(environment, timestamps.reopen);
   return reopenFileBackedStepV3(
     environment.ledgerPath,
     {
@@ -460,9 +442,7 @@ function makeValidCv(fileName = "Candidate_CV_Synthetic_Role.docx") {
       {
         type: "skills",
         heading: "Skills",
-        skills: [
-          { label: "Test Automation", body: "TypeScript Playwright" },
-        ],
+        skills: [{ label: "Test Automation", body: "TypeScript Playwright" }],
       },
       {
         type: "experience",
@@ -481,11 +461,7 @@ function makeValidCv(fileName = "Candidate_CV_Synthetic_Role.docx") {
 }
 
 function stageResearchPublication(environment, publicationId, source) {
-  const stagingDirectory = join(
-    environment.selectedOutputPath,
-    ".pipeline-tmp",
-    publicationId,
-  );
+  const stagingDirectory = join(environment.selectedOutputPath, ".pipeline-tmp", publicationId);
   mkdirSync(stagingDirectory, { recursive: true });
   copyFixtureFile(source, join(stagingDirectory, "company-research.json"));
 }
@@ -493,15 +469,12 @@ function stageResearchPublication(environment, publicationId, source) {
 // The publisher inspects the DOCX package, so staged bytes must be a real package rendered from
 // this exact cv. The marker keeps successive revisions byte-distinct, which the mixed-pair and
 // backup oracles below depend on.
-function stageCvPublication(environment, publicationId, {
-  marker = "initial",
-  docxBytes = null,
-} = {}) {
-  const stagingDirectory = join(
-    environment.selectedOutputPath,
-    ".pipeline-tmp",
-    publicationId,
-  );
+function stageCvPublication(
+  environment,
+  publicationId,
+  { marker = "initial", docxBytes = null } = {},
+) {
+  const stagingDirectory = join(environment.selectedOutputPath, ".pipeline-tmp", publicationId);
   mkdirSync(stagingDirectory, { recursive: true });
   const cv = makeValidCv();
   cv.sections[0].text += ` ${marker}.`;
@@ -529,11 +502,7 @@ function createMalformedCvDocxBytes(cv) {
 }
 
 function stageBlockedVacancyPublication(environment, publicationId) {
-  const stagingDirectory = join(
-    environment.selectedOutputPath,
-    ".pipeline-tmp",
-    publicationId,
-  );
+  const stagingDirectory = join(environment.selectedOutputPath, ".pipeline-tmp", publicationId);
   mkdirSync(stagingDirectory, { recursive: true });
   copyFileSync(
     join(environment.selectedOutputPath, "job-description.txt"),
@@ -559,8 +528,7 @@ function stageBlockedVacancyPublication(environment, publicationId) {
 }
 
 function publish(environment, stepName, attemptId, publicationId, options = {}) {
-  const timestamp = options.timestamp
-    ?? causalFixtureTimestamp(environment, timestamps.publish);
+  const timestamp = options.timestamp ?? causalFixtureTimestamp(environment, timestamps.publish);
   return publishFileBackedStepV3(
     environment.ledgerPath,
     {
@@ -581,8 +549,7 @@ function publish(environment, stepName, attemptId, publicationId, options = {}) 
 }
 
 function reconcile(environment, stepName, attemptId, publicationId, options = {}) {
-  const timestamp = options.timestamp
-    ?? causalFixtureTimestamp(environment, timestamps.reconcile);
+  const timestamp = options.timestamp ?? causalFixtureTimestamp(environment, timestamps.reconcile);
   return reconcileFileBackedStepV3(
     environment.ledgerPath,
     {
@@ -600,23 +567,13 @@ function reconcile(environment, stepName, attemptId, publicationId, options = {}
   );
 }
 
-function completeGenerationSteps(environment, {
-  completeCv = true,
-  completeLetter = true,
-} = {}) {
+function completeGenerationSteps(environment, { completeCv = true, completeLetter = true } = {}) {
   const cvSourcePath = join(environment.selectedOutputPath, "cv.json");
-  const cvDocxPath = join(
-    environment.selectedOutputPath,
-    "Candidate_Test.docx",
-  );
+  const cvDocxPath = join(environment.selectedOutputPath, "Candidate_Test.docx");
   const coverLetterPath = join(environment.selectedOutputPath, "cover-letter.txt");
-  writeFileSync(cvSourcePath, "{\"fixture\":\"cv\"}\n", "utf8");
+  writeFileSync(cvSourcePath, '{"fixture":"cv"}\n', "utf8");
   writeFileSync(cvDocxPath, "synthetic docx bytes", "utf8");
-  writeFileSync(
-    coverLetterPath,
-    "Senior Quality Engineer\n\nSynthetic cover letter.\n",
-    "utf8",
-  );
+  writeFileSync(coverLetterPath, "Senior Quality Engineer\n\nSynthetic cover letter.\n", "utf8");
 
   const log = readLogV3(environment.ledgerPath);
   const process = log.processes[0];
@@ -625,43 +582,28 @@ function completeGenerationSteps(environment, {
     process.steps.generate_cv = completedStep({
       artifacts: [
         artifactMetadata("cv_source", "cv.json", null, cvSourcePath),
-        artifactMetadata(
-          "cv_docx",
-          "Candidate_Test.docx",
-          null,
-          cvDocxPath,
-        ),
+        artifactMetadata("cv_docx", "Candidate_Test.docx", null, cvDocxPath),
       ],
       finishedAt: "2026-07-23T11:50:00.000Z",
-      inputs: [
-        ...briefArtifacts,
-        ...environment.protectedByStep.generate_cv,
-      ],
+      inputs: [...briefArtifacts, ...environment.protectedByStep.generate_cv],
       startedAt: "2026-07-23T11:30:00.000Z",
     });
   }
   if (completeLetter) {
     process.steps.write_cover_letter = completedStep({
-      artifacts: [
-        artifactMetadata(
-          "cover_letter",
-          "cover-letter.txt",
-          null,
-          coverLetterPath,
-        ),
-      ],
+      artifacts: [artifactMetadata("cover_letter", "cover-letter.txt", null, coverLetterPath)],
       finishedAt: "2026-07-23T12:00:00.000Z",
-      inputs: [
-        ...briefArtifacts,
-        ...environment.protectedByStep.write_cover_letter,
-      ],
+      inputs: [...briefArtifacts, ...environment.protectedByStep.write_cover_letter],
       startedAt: "2026-07-23T11:40:00.000Z",
     });
   }
   const latestFinishedAt = [
     process.steps.generate_cv.finished_at,
     process.steps.write_cover_letter.finished_at,
-  ].filter(Boolean).sort().at(-1);
+  ]
+    .filter(Boolean)
+    .sort()
+    .at(-1);
   if (latestFinishedAt) {
     process.updated_at = latestFinishedAt;
     log.updated_at = latestFinishedAt;
@@ -813,11 +755,7 @@ test("preflight rejects an ambiguous stable selector before reading another proc
   const before = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => preflight(
-      environment,
-      "research_company",
-      { sourceRef },
-    ),
+    () => preflight(environment, "research_company", { sourceRef }),
     (error) => error.code === "process_ambiguous",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
@@ -896,15 +834,16 @@ test("fail-step closes only the matching active attempt and preserves a compact 
   const beforeWrongToken = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => fail(environment, "generate_cv", begun.attempt_id, {
-      error: {
-        code: "synthetic_failure",
-        message: "A synthetic failure carrying a forbidden field.",
-        retryable: true,
-        details: [],
-        stack: "must not enter the ledger",
-      },
-    }),
+    () =>
+      fail(environment, "generate_cv", begun.attempt_id, {
+        error: {
+          code: "synthetic_failure",
+          message: "A synthetic failure carrying a forbidden field.",
+          retryable: true,
+          details: [],
+          stack: "must not enter the ledger",
+        },
+      }),
     (error) => error.code === "invalid_fail_step_input",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeWrongToken);
@@ -913,11 +852,20 @@ test("fail-step closes only the matching active attempt and preserves a compact 
   // forbidden only by accident - the message had to carry a Cyrillic letter and a code cannot - so
   // the rule is now stated outright and this is what holds it.
   assert.throws(
-    () => fail(environment, "generate_cv", begun.attempt_id, {
-      error: { code: "synthetic_failure", message: "synthetic_failure", retryable: true, details: [] },
-    }),
-    (error) => error.code === "invalid_fail_step_input"
-      && /error\.message must explain the diagnostic, not repeat fail-step error\.code/.test(error.message),
+    () =>
+      fail(environment, "generate_cv", begun.attempt_id, {
+        error: {
+          code: "synthetic_failure",
+          message: "synthetic_failure",
+          retryable: true,
+          details: [],
+        },
+      }),
+    (error) =>
+      error.code === "invalid_fail_step_input" &&
+      /error\.message must explain the diagnostic, not repeat fail-step error\.code/.test(
+        error.message,
+      ),
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeWrongToken);
 
@@ -970,18 +918,19 @@ test("direct lifecycle diagnostics reject unsafe persisted content before any le
   });
   const failureBefore = readFileSync(failedEnvironment.ledgerPath, "utf8");
   assert.throws(
-    () => fail(failedEnvironment, "generate_cv", begun.attempt_id, {
-      error: {
-        code: "unsafe_failure",
-        message: "The failure carries https://secret.example.test/raw-value",
-        retryable: true,
-        details: [],
-      },
-    }),
+    () =>
+      fail(failedEnvironment, "generate_cv", begun.attempt_id, {
+        error: {
+          code: "unsafe_failure",
+          message: "The failure carries https://secret.example.test/raw-value",
+          retryable: true,
+          details: [],
+        },
+      }),
     (error) =>
-      error instanceof ProcessLogLifecycleError
-      && error.code === "invalid_fail_step_input"
-      && !error.message.includes("secret.example.test"),
+      error instanceof ProcessLogLifecycleError &&
+      error.code === "invalid_fail_step_input" &&
+      !error.message.includes("secret.example.test"),
   );
   assert.equal(readFileSync(failedEnvironment.ledgerPath, "utf8"), failureBefore);
 
@@ -993,12 +942,8 @@ test("direct lifecycle diagnostics reject unsafe persisted content before any le
   stageBlockedVacancyPublication(blockedEnvironment, publicationId);
   const blockerBefore = readFileSync(blockedEnvironment.ledgerPath, "utf8");
   assert.throws(
-    () => publish(
-      blockedEnvironment,
-      "get_vacancy",
-      reopened.attempt_id,
-      publicationId,
-      {
+    () =>
+      publish(blockedEnvironment, "get_vacancy", reopened.attempt_id, publicationId, {
         outcome: "blocked",
         blocker: {
           code: "unsafe_blocker",
@@ -1006,12 +951,11 @@ test("direct lifecycle diagnostics reject unsafe persisted content before any le
           retryable: true,
           details: ["api_key=synthetic-secret-value"],
         },
-      },
-    ),
+      }),
     (error) =>
-      error instanceof ProcessLogLifecycleError
-      && error.code === "invalid_publish_step_input"
-      && !error.message.includes("synthetic-secret-value"),
+      error instanceof ProcessLogLifecycleError &&
+      error.code === "invalid_publish_step_input" &&
+      !error.message.includes("synthetic-secret-value"),
   );
   assert.equal(readFileSync(blockedEnvironment.ledgerPath, "utf8"), blockerBefore);
 });
@@ -1029,11 +973,12 @@ test("mutation clocks reject backward and future instants byte-stably with one e
   });
   const startBefore = readFileSync(startEnvironment.ledgerPath, "utf8");
   assert.throws(
-    () => startFileBackedProcessV3(
-      startEnvironment.ledgerPath,
-      { runner: "codex", sourceRef: "clock-fixture:backward-start" },
-      { clock: () => "2026-07-23T09:59:59.999Z" },
-    ),
+    () =>
+      startFileBackedProcessV3(
+        startEnvironment.ledgerPath,
+        { runner: "codex", sourceRef: "clock-fixture:backward-start" },
+        { clock: () => "2026-07-23T09:59:59.999Z" },
+      ),
     (error) => error.code === "invalid_mutation_timestamp",
   );
   assert.equal(readFileSync(startEnvironment.ledgerPath, "utf8"), startBefore);
@@ -1044,11 +989,12 @@ test("mutation clocks reject backward and future instants byte-stably with one e
     ["parseable_non_contract", "2026-07-23 13:00:00Z"],
   ]) {
     assert.throws(
-      () => startFileBackedProcessV3(
-        startEnvironment.ledgerPath,
-        { runner: "codex", sourceRef: `clock-fixture:${id}` },
-        { clock: () => clockValue },
-      ),
+      () =>
+        startFileBackedProcessV3(
+          startEnvironment.ledgerPath,
+          { runner: "codex", sourceRef: `clock-fixture:${id}` },
+          { clock: () => clockValue },
+        ),
       (error) => error.code === "invalid_mutation_timestamp",
     );
     assert.equal(readFileSync(startEnvironment.ledgerPath, "utf8"), startBefore);
@@ -1062,11 +1008,12 @@ test("mutation clocks reject backward and future instants byte-stably with one e
     },
   };
   assert.throws(
-    () => startFileBackedProcessV3(
-      startEnvironment.ledgerPath,
-      { runner: "codex", sourceRef: "clock-fixture:hostile-non-string" },
-      { clock: () => hostileClockValue },
-    ),
+    () =>
+      startFileBackedProcessV3(
+        startEnvironment.ledgerPath,
+        { runner: "codex", sourceRef: "clock-fixture:hostile-non-string" },
+        { clock: () => hostileClockValue },
+      ),
     (error) => {
       assert.equal(error.code, "invalid_mutation_timestamp");
       assert.doesNotMatch(error.message, /HOSTILE|SECRET/);
@@ -1079,9 +1026,10 @@ test("mutation clocks reject backward and future instants byte-stably with one e
   const beginEnvironment = createEnvironment(t, { completedThrough: "get_vacancy" });
   const beginBefore = readFileSync(beginEnvironment.ledgerPath, "utf8");
   assert.throws(
-    () => begin(beginEnvironment, "research_company", {
-      timestamp: "2026-07-23T10:09:59.999Z",
-    }),
+    () =>
+      begin(beginEnvironment, "research_company", {
+        timestamp: "2026-07-23T10:09:59.999Z",
+      }),
     (error) => error.code === "invalid_mutation_timestamp",
   );
   assert.equal(readFileSync(beginEnvironment.ledgerPath, "utf8"), beginBefore);
@@ -1093,9 +1041,10 @@ test("mutation clocks reject backward and future instants byte-stably with one e
   });
   const failBefore = readFileSync(failEnvironment.ledgerPath, "utf8");
   assert.throws(
-    () => fail(failEnvironment, "research_company", active.attempt_id, {
-      timestamp: "2026-07-23T12:59:59.999Z",
-    }),
+    () =>
+      fail(failEnvironment, "research_company", active.attempt_id, {
+        timestamp: "2026-07-23T12:59:59.999Z",
+      }),
     (error) => error.code === "invalid_mutation_timestamp",
   );
   assert.equal(readFileSync(failEnvironment.ledgerPath, "utf8"), failBefore);
@@ -1131,11 +1080,12 @@ test("mutation clocks reject backward and future instants byte-stably with one e
   });
   const futureBefore = readFileSync(futureEnvironment.ledgerPath, "utf8");
   assert.throws(
-    () => startFileBackedProcessV3(
-      futureEnvironment.ledgerPath,
-      { runner: "codex", sourceRef: "clock-fixture:future-start" },
-      { clock: () => "2026-07-23T15:05:00.001Z" },
-    ),
+    () =>
+      startFileBackedProcessV3(
+        futureEnvironment.ledgerPath,
+        { runner: "codex", sourceRef: "clock-fixture:future-start" },
+        { clock: () => "2026-07-23T15:05:00.001Z" },
+      ),
     (error) => error.code === "invalid_mutation_timestamp",
   );
   assert.equal(readFileSync(futureEnvironment.ledgerPath, "utf8"), futureBefore);
@@ -1202,8 +1152,7 @@ test("retry-step retains a blocked step's committed revision and artifact baseli
   const result = retry(environment, "research_company", {
     attemptId: "attempt_research_company_retry",
   });
-  const retried = readLogV3(environment.ledgerPath)
-    .processes[0].steps.research_company;
+  const retried = readLogV3(environment.ledgerPath).processes[0].steps.research_company;
 
   assert.equal(result.status, "retried");
   assert.equal(retried.state, "running");
@@ -1270,13 +1219,11 @@ test("Step 1 can fail and retry before output reservation", (t) => {
   );
   const failedBytes = readFileSync(environment.ledgerPath, "utf8");
   assert.throws(
-    () => updateFileBackedProcessV3(
-      environment.ledgerPath,
-      {
+    () =>
+      updateFileBackedProcessV3(environment.ledgerPath, {
         processId: environment.processId,
         companyObserved: "Unauthorized Failed Identity",
-      },
-    ),
+      }),
     (error) => error.code === "identity_update_not_authorized",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), failedBytes);
@@ -1307,10 +1254,7 @@ test("Step 1 can fail and retry before output reservation", (t) => {
   assert.equal(process.output_dir, null);
   assert.equal(process.steps.get_vacancy.state, "running");
   assert.equal(process.steps.get_vacancy.attempt, 2);
-  assert.equal(
-    process.steps.get_vacancy.active_attempt.id,
-    "attempt_get_vacancy_retry",
-  );
+  assert.equal(process.steps.get_vacancy.active_attempt.id, "attempt_get_vacancy_retry");
   assert.equal(updated.process.company_observed, "Retried Identity Labs");
   assert.equal(updated.process.role, "Retried Quality Engineer");
 });
@@ -1320,12 +1264,10 @@ test("reopen-step snapshots the committed baseline and stales every completed tr
   completeGenerationSteps(environment);
   const before = readLogV3(environment.ledgerPath).processes[0];
   const descendantFinishedAt = Object.fromEntries(
-    [
-      "research_company",
-      "map_experience",
-      "generate_cv",
-      "write_cover_letter",
-    ].map((stepName) => [stepName, before.steps[stepName].finished_at]),
+    ["research_company", "map_experience", "generate_cv", "write_cover_letter"].map((stepName) => [
+      stepName,
+      before.steps[stepName].finished_at,
+    ]),
   );
 
   const result = reopen(environment, "get_vacancy", {
@@ -1353,10 +1295,7 @@ test("reopen-step snapshots the committed baseline and stales every completed tr
   for (const stepName of result.invalidated_steps) {
     assert.equal(process.steps[stepName].state, "stale");
     assert.equal(process.steps[stepName].updated_at, timestamps.reopen);
-    assert.equal(
-      process.steps[stepName].finished_at,
-      descendantFinishedAt[stepName],
-    );
+    assert.equal(process.steps[stepName].finished_at, descendantFinishedAt[stepName]);
     assert.equal(process.steps[stepName].attempt, 1);
     assert.equal(process.steps[stepName].attempt_history.at(-1).outcome, "completed");
   }
@@ -1397,10 +1336,7 @@ test("reopen-step follows the Step 2/3 graph and never invalidates a generation 
   const mapResult = reopen(fromMap, "map_experience");
   const mapProcess = readLogV3(fromMap.ledgerPath).processes[0];
 
-  assert.deepEqual(mapResult.invalidated_steps, [
-    "generate_cv",
-    "write_cover_letter",
-  ]);
+  assert.deepEqual(mapResult.invalidated_steps, ["generate_cv", "write_cover_letter"]);
   assert.equal(mapProcess.steps.research_company.state, "completed");
 
   const sibling = createEnvironment(t, { completedThrough: "map_experience" });
@@ -1436,14 +1372,11 @@ test("a first research publication records the current version and refuses an ol
   older.schemaVersion = 1;
   writeFileSync(stagedPath, `${JSON.stringify(older, null, 2)}\n`, "utf8");
   assert.throws(
-    () => publish(
-      environment,
-      "research_company",
-      active.attempt_id,
-      "publication_research_first_v1",
-    ),
-    (error) => error.code === "candidate_bundle_invalid"
-      && /schemaVersion must be one of: 2/.test(error.message),
+    () =>
+      publish(environment, "research_company", active.attempt_id, "publication_research_first_v1"),
+    (error) =>
+      error.code === "candidate_bundle_invalid" &&
+      /schemaVersion must be one of: 2/.test(error.message),
   );
 });
 
@@ -1466,8 +1399,9 @@ test("a Step 3 publication refuses a brief of version 3 and records version 4", 
   stageBrief("publication_brief_v3", 3);
   assert.throws(
     () => publish(environment, "map_experience", reopened.attempt_id, "publication_brief_v3"),
-    (error) => error.code === "candidate_bundle_invalid"
-      && /schemaVersion 3 is unsupported/.test(error.message),
+    (error) =>
+      error.code === "candidate_bundle_invalid" &&
+      /schemaVersion 3 is unsupported/.test(error.message),
   );
   stageBrief("publication_brief_v4", 4);
   publish(environment, "map_experience", reopened.attempt_id, "publication_brief_v4");
@@ -1484,20 +1418,13 @@ test("authorized reopen can recover legacy ledger identity drift without moving 
   const driftedLog = readLogV3(environment.ledgerPath);
   driftedLog.processes[0].company_observed = "Legacy Drifted Company";
   driftedLog.processes[0].role = "Legacy Drifted Role";
-  writeFileSync(
-    environment.ledgerPath,
-    `${JSON.stringify(driftedLog, null, 2)}\n`,
-    "utf8",
-  );
+  writeFileSync(environment.ledgerPath, `${JSON.stringify(driftedLog, null, 2)}\n`, "utf8");
   readLogV3(environment.ledgerPath);
 
   const reopened = reopen(environment, "get_vacancy", {
     attemptId: "attempt_get_vacancy_legacy_identity_recovery",
   });
-  assert.deepEqual(reopened.invalidated_steps, [
-    "research_company",
-    "map_experience",
-  ]);
+  assert.deepEqual(reopened.invalidated_steps, ["research_company", "map_experience"]);
   const restored = updateFileBackedProcessV3(
     environment.ledgerPath,
     {
@@ -1526,26 +1453,19 @@ test("reopen-step rejects an upstream revision while a transitive descendant is 
   assert.throws(
     () => reopen(environment, "research_company"),
     (error) =>
-      error.code === "dependent_step_running"
-      && error.message.includes("write_cover_letter"),
+      error.code === "dependent_step_running" && error.message.includes("write_cover_letter"),
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
 });
 
 test("reopen-step changes only completed descendants while preserving pending and diagnostics", (t) => {
   const pending = createEnvironment(t, { completedThrough: "research_company" });
-  const pendingBefore = structuredClone(
-    readLogV3(pending.ledgerPath).processes[0].steps,
-  );
+  const pendingBefore = structuredClone(readLogV3(pending.ledgerPath).processes[0].steps);
   const pendingResult = reopen(pending, "research_company");
   const pendingAfter = readLogV3(pending.ledgerPath).processes[0].steps;
 
   assert.deepEqual(pendingResult.invalidated_steps, []);
-  for (const stepName of [
-    "map_experience",
-    "generate_cv",
-    "write_cover_letter",
-  ]) {
+  for (const stepName of ["map_experience", "generate_cv", "write_cover_letter"]) {
     assert.deepEqual(pendingAfter[stepName], pendingBefore[stepName]);
   }
 
@@ -1592,15 +1512,9 @@ test("reopen-step changes only completed descendants while preserving pending an
   };
   diagnosticProcess.updated_at = "2026-07-23T11:45:00.000Z";
   diagnosticsLog.updated_at = diagnosticProcess.updated_at;
-  writeFileSync(
-    diagnostics.ledgerPath,
-    `${JSON.stringify(diagnosticsLog, null, 2)}\n`,
-    "utf8",
-  );
+  writeFileSync(diagnostics.ledgerPath, `${JSON.stringify(diagnosticsLog, null, 2)}\n`, "utf8");
   readLogV3(diagnostics.ledgerPath);
-  const diagnosticBefore = structuredClone(
-    readLogV3(diagnostics.ledgerPath).processes[0].steps,
-  );
+  const diagnosticBefore = structuredClone(readLogV3(diagnostics.ledgerPath).processes[0].steps);
 
   const diagnosticResult = reopen(diagnostics, "research_company");
   const diagnosticAfter = readLogV3(diagnostics.ledgerPath).processes[0].steps;
@@ -1608,10 +1522,7 @@ test("reopen-step changes only completed descendants while preserving pending an
   assert.deepEqual(diagnosticResult.invalidated_steps, ["map_experience"]);
   assert.equal(diagnosticAfter.map_experience.state, "stale");
   assert.deepEqual(diagnosticAfter.generate_cv, diagnosticBefore.generate_cv);
-  assert.deepEqual(
-    diagnosticAfter.write_cover_letter,
-    diagnosticBefore.write_cover_letter,
-  );
+  assert.deepEqual(diagnosticAfter.write_cover_letter, diagnosticBefore.write_cover_letter);
 });
 
 test("reopen-step accepts a stale target and refreshes its exact protected-input snapshot", (t) => {
@@ -1632,8 +1543,7 @@ test("reopen-step accepts a stale target and refreshes its exact protected-input
   const result = reopen(environment, "map_experience", {
     attemptId: "attempt_map_experience_from_stale",
   });
-  const reopened = readLogV3(environment.ledgerPath)
-    .processes[0].steps.map_experience;
+  const reopened = readLogV3(environment.ledgerPath).processes[0].steps.map_experience;
 
   assert.equal(reopened.state, "running");
   assert.equal(reopened.attempt, 2);
@@ -1642,10 +1552,7 @@ test("reopen-step accepts a stale target and refreshes its exact protected-input
   assert.deepEqual(reopened.active_attempt.expected_artifacts, expectedArtifacts);
   assert.deepEqual(reopened.active_attempt.input_snapshot, result.input_snapshot);
   assert.notDeepEqual(reopened.active_attempt.input_snapshot, oldPublishedInputs);
-  assert.deepEqual(result.invalidated_steps, [
-    "generate_cv",
-    "write_cover_letter",
-  ]);
+  assert.deepEqual(result.invalidated_steps, ["generate_cv", "write_cover_letter"]);
 });
 
 test("reopen-step rejects invalid state, corrupt baseline, and stale prerequisite byte-stably", (t) => {
@@ -1658,11 +1565,7 @@ test("reopen-step rejects invalid state, corrupt baseline, and stale prerequisit
   assert.equal(readFileSync(pending.ledgerPath, "utf8"), pendingBefore);
 
   const corrupt = createEnvironment(t, { completedThrough: "research_company" });
-  appendFileSync(
-    join(corrupt.selectedOutputPath, "company-research.json"),
-    "\n",
-    "utf8",
-  );
+  appendFileSync(join(corrupt.selectedOutputPath, "company-research.json"), "\n", "utf8");
   const corruptBefore = readFileSync(corrupt.ledgerPath, "utf8");
   assert.throws(
     () => reopen(corrupt, "research_company"),
@@ -1672,8 +1575,7 @@ test("reopen-step rejects invalid state, corrupt baseline, and stale prerequisit
 
   const stale = createEnvironment(t, { completedThrough: "map_experience" });
   const staleLog = readLogV3(stale.ledgerPath);
-  staleLog.processes[0].steps.research_company.published_inputs[0].sha256 =
-    "f".repeat(64);
+  staleLog.processes[0].steps.research_company.published_inputs[0].sha256 = "f".repeat(64);
   writeFileSync(stale.ledgerPath, `${JSON.stringify(staleLog, null, 2)}\n`, "utf8");
   const staleBefore = readFileSync(stale.ledgerPath, "utf8");
   assert.throws(
@@ -1692,9 +1594,10 @@ test("reopen-step rejects duplicate and stale attempt tokens without changing th
   const beforeCollision = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => reopen(environment, "generate_cv", {
-      attemptId: "attempt_shared_collision",
-    }),
+    () =>
+      reopen(environment, "generate_cv", {
+        attemptId: "attempt_shared_collision",
+      }),
     (error) => error.code === "active_attempt_id_conflict",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeCollision);
@@ -1704,11 +1607,7 @@ test("reopen-step rejects duplicate and stale attempt tokens without changing th
   });
   const beforeStaleToken = readFileSync(environment.ledgerPath, "utf8");
   assert.throws(
-    () => fail(
-      environment,
-      "generate_cv",
-      "attempt_generate_cv_superseded",
-    ),
+    () => fail(environment, "generate_cv", "attempt_generate_cv_superseded"),
     (error) => error.code === "stale_attempt",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeStaleToken);
@@ -1758,26 +1657,17 @@ test("publish-step commits a validated first CV pair and removes transaction-own
   begin(environment, "generate_cv", { attemptId });
   const staged = stageCvPublication(environment, publicationId);
 
-  const result = publish(
-    environment,
-    "generate_cv",
-    attemptId,
-    publicationId,
-  );
+  const result = publish(environment, "generate_cv", attemptId, publicationId);
 
   assert.equal(result.status, "completed");
   assert.equal(result.revision, 1);
-  assert.deepEqual(
-    readFileSync(join(environment.selectedOutputPath, "cv.json")),
-    staged.cvBytes,
-  );
+  assert.deepEqual(readFileSync(join(environment.selectedOutputPath, "cv.json")), staged.cvBytes);
   assert.deepEqual(
     readFileSync(join(environment.selectedOutputPath, staged.cv.fileName)),
     staged.docxBytes,
   );
   assert.equal(existsSync(staged.stagingDirectory), false);
-  const step = readLogV3(environment.ledgerPath)
-    .processes[0].steps.generate_cv;
+  const step = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
   assert.equal(step.state, "completed");
   assert.equal(step.revision, 1);
   assert.equal(step.publication_transaction, null);
@@ -1792,7 +1682,10 @@ test("publish-step rejects an invalid CV DOCX before it journals anything", asyn
   const cases = [
     ["plain text", () => Buffer.from("synthetic staged DOCX initial\n", "utf8")],
     ["truncated package", (cv) => createDocxBytes({ cv }).subarray(0, 120)],
-    ["corrupted part checksum", (cv) => createDocxBytes({ cv, corruptCrcFor: "word/document.xml" })],
+    [
+      "corrupted part checksum",
+      (cv) => createDocxBytes({ cv, corruptCrcFor: "word/document.xml" }),
+    ],
     ["malformed required XML", (cv) => createMalformedCvDocxBytes(cv)],
     ["missing content types", (cv) => createDocxBytes({ cv, omit: ["[Content_Types].xml"] })],
     ["missing root relationships", (cv) => createDocxBytes({ cv, omit: ["_rels/.rels"] })],
@@ -1835,10 +1728,7 @@ test("publish-step rejects an invalid CV DOCX before it journals anything", asyn
       // Nothing was journaled, nothing was moved, and the staged candidate survives for a retry.
       assert.deepEqual(readFileSync(environment.ledgerPath), ledgerBefore);
       assert.equal(existsSync(join(environment.selectedOutputPath, "cv.json")), false);
-      assert.equal(
-        existsSync(join(environment.selectedOutputPath, staged.cv.fileName)),
-        false,
-      );
+      assert.equal(existsSync(join(environment.selectedOutputPath, staged.cv.fileName)), false);
       assert.equal(existsSync(staged.stagingDirectory), true);
 
       const step = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
@@ -1919,27 +1809,16 @@ test("same-digest CV revalidation closes a new attempt without increasing revisi
   const firstPublicationId = "publication_generate_cv_same_digest_001";
   begin(environment, "generate_cv", { attemptId: firstAttemptId });
   stageCvPublication(environment, firstPublicationId, { marker: "same bytes" });
-  publish(
-    environment,
-    "generate_cv",
-    firstAttemptId,
-    firstPublicationId,
-  );
+  publish(environment, "generate_cv", firstAttemptId, firstPublicationId);
 
   const secondAttemptId = "attempt_generate_cv_same_digest_002";
   const secondPublicationId = "publication_generate_cv_same_digest_002";
   reopen(environment, "generate_cv", { attemptId: secondAttemptId });
   stageCvPublication(environment, secondPublicationId, { marker: "same bytes" });
-  const result = publish(
-    environment,
-    "generate_cv",
-    secondAttemptId,
-    secondPublicationId,
-  );
+  const result = publish(environment, "generate_cv", secondAttemptId, secondPublicationId);
 
   assert.equal(result.revision, 1);
-  const step = readLogV3(environment.ledgerPath)
-    .processes[0].steps.generate_cv;
+  const step = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
   assert.equal(step.attempt, 2);
   assert.equal(step.revision, 1);
   assert.equal(step.attempt_history.length, 2);
@@ -1956,26 +1835,19 @@ test("blocked Step 1 capture commits its artifacts and journaled blocker atomica
   reopen(environment, "get_vacancy", { attemptId });
   stageBlockedVacancyPublication(environment, publicationId);
 
-  const result = publish(
-    environment,
-    "get_vacancy",
-    attemptId,
-    publicationId,
-    {
-      outcome: "blocked",
-      blocker: {
-        code: "market_ambiguous",
-        message: "The employment market for this vacancy must be chosen.",
-        retryable: true,
-        details: ["market value is unresolved"],
-      },
-      clock: () => clockCalls++ === 0 ? preparedAt : finishedAt,
+  const result = publish(environment, "get_vacancy", attemptId, publicationId, {
+    outcome: "blocked",
+    blocker: {
+      code: "market_ambiguous",
+      message: "The employment market for this vacancy must be chosen.",
+      retryable: true,
+      details: ["market value is unresolved"],
     },
-  );
+    clock: () => (clockCalls++ === 0 ? preparedAt : finishedAt),
+  });
 
   assert.equal(result.status, "blocked");
-  const step = readLogV3(environment.ledgerPath)
-    .processes[0].steps.get_vacancy;
+  const step = readLogV3(environment.ledgerPath).processes[0].steps.get_vacancy;
   assert.equal(step.state, "blocked");
   assert.equal(step.revision, 2);
   assert.equal(step.blocker.code, "market_ambiguous");
@@ -1997,34 +1869,21 @@ test("publish and reconcile reject stale attempt tokens without mutating prepare
   const beforePublish = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      "attempt_generate_cv_stale_worker",
-      publicationId,
-    ),
+    () => publish(environment, "generate_cv", "attempt_generate_cv_stale_worker", publicationId),
     (error) => error.code === "stale_attempt",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforePublish);
 
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-      { failAt: "after_journal_write" },
-    ),
+    () =>
+      publish(environment, "generate_cv", attemptId, publicationId, {
+        failAt: "after_journal_write",
+      }),
     (error) => error.code === "simulated_publication_crash",
   );
   const beforeReconcile = readFileSync(environment.ledgerPath, "utf8");
   assert.throws(
-    () => reconcile(
-      environment,
-      "generate_cv",
-      "attempt_generate_cv_stale_worker",
-      publicationId,
-    ),
+    () => reconcile(environment, "generate_cv", "attempt_generate_cv_stale_worker", publicationId),
     (error) => error.code === "stale_attempt",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeReconcile);
@@ -2042,17 +1901,18 @@ test("a Step 1 publication refuses a vacancy of the older version", (t) => {
   vacancy.schemaVersion = 1;
   writeFileSync(vacancyPath, `${JSON.stringify(vacancy, null, 2)}\n`, "utf8");
   assert.throws(
-    () => publish(environment, "get_vacancy", attemptId, publicationId, {
-      outcome: "blocked",
-      blocker: {
-        code: "market_ambiguous",
-        message: "The employment market for this vacancy must be chosen.",
-        retryable: true,
-        details: ["market value is unresolved"],
-      },
-    }),
-    (error) => error.code === "candidate_bundle_invalid"
-      && /schemaVersion must equal 2/.test(error.message),
+    () =>
+      publish(environment, "get_vacancy", attemptId, publicationId, {
+        outcome: "blocked",
+        blocker: {
+          code: "market_ambiguous",
+          message: "The employment market for this vacancy must be chosen.",
+          retryable: true,
+          details: ["market value is unresolved"],
+        },
+      }),
+    (error) =>
+      error.code === "candidate_bundle_invalid" && /schemaVersion must equal 2/.test(error.message),
   );
 });
 
@@ -2079,17 +1939,21 @@ test("a Step 1 recorded at version 1 is refused by the ledger, and its bytes und
   const bytes = Buffer.from(`${JSON.stringify(vacancy, null, 2)}\n`, "utf8");
   writeFileSync(vacancyPath, bytes);
   const log = readLogV3(environment.ledgerPath);
-  const entry = log.processes[0].steps.get_vacancy.artifacts.find((artifact) => artifact.kind === "vacancy");
+  const entry = log.processes[0].steps.get_vacancy.artifacts.find(
+    (artifact) => artifact.kind === "vacancy",
+  );
   Object.assign(entry, { bytes: bytes.byteLength, schema_version: 1, sha256: sha256Hex(bytes) });
   writeFileSync(environment.ledgerPath, `${JSON.stringify(log, null, 2)}\n`, "utf8");
 
   assert.throws(
-    () => validateProcessLogV3Deep(environment.ledgerPath, {
-      outputRoot: environment.outputRoot,
-      workspaceRoot: environment.workspaceRoot,
-    }),
-    (error) => error.code === "process_log_validation_failed"
-      && /schema_version must equal 2 for vacancy/.test(error.message),
+    () =>
+      validateProcessLogV3Deep(environment.ledgerPath, {
+        outputRoot: environment.outputRoot,
+        workspaceRoot: environment.workspaceRoot,
+      }),
+    (error) =>
+      error.code === "process_log_validation_failed" &&
+      /schema_version must equal 2 for vacancy/.test(error.message),
   );
 
   // The version is the ledger's, not the file's: the same bytes recorded under the current version
@@ -2099,7 +1963,8 @@ test("a Step 1 recorded at version 1 is refused by the ledger, and its bytes und
   const mismatched = validateProcessLogV3Deep(environment.ledgerPath, {
     outputRoot: environment.outputRoot,
     workspaceRoot: environment.workspaceRoot,
-  }).processes.find((entry_) => entry_.process_id === processId)
+  })
+    .processes.find((entry_) => entry_.process_id === processId)
     .steps.find((entry_) => entry_.name === "get_vacancy");
   assert.equal(mismatched.artifact_health, "corrupt");
 });
@@ -2112,12 +1977,8 @@ test("a prepared Step 1 publication blocks identity drift until recovery", (t) =
   stageBlockedVacancyPublication(environment, publicationId);
 
   assert.throws(
-    () => publish(
-      environment,
-      "get_vacancy",
-      attemptId,
-      publicationId,
-      {
+    () =>
+      publish(environment, "get_vacancy", attemptId, publicationId, {
         outcome: "blocked",
         blocker: {
           code: "market_ambiguous",
@@ -2126,20 +1987,17 @@ test("a prepared Step 1 publication blocks identity drift until recovery", (t) =
           details: ["market value is unresolved"],
         },
         failAt: "after_journal_write",
-      },
-    ),
+      }),
     (error) => error.code === "simulated_publication_crash",
   );
   const beforeUpdate = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => updateFileBackedProcessV3(
-      environment.ledgerPath,
-      {
+    () =>
+      updateFileBackedProcessV3(environment.ledgerPath, {
         processId,
         companyObserved: "Prepared Drift",
-      },
-    ),
+      }),
     (error) => error.code === "publication_recovery_required",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeUpdate);
@@ -2154,21 +2012,15 @@ test("a crash before the prepared journal leaves the running attempt and ledger 
   const before = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-      { failAt: "before_journal_write" },
-    ),
+    () =>
+      publish(environment, "generate_cv", attemptId, publicationId, {
+        failAt: "before_journal_write",
+      }),
     (error) => error.code === "simulated_publication_crash",
   );
 
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
-  assert.equal(
-    readLogV3(environment.ledgerPath).processes[0].steps.generate_cv.state,
-    "running",
-  );
+  assert.equal(readLogV3(environment.ledgerPath).processes[0].steps.generate_cv.state, "running");
 });
 
 for (const [boundary, expectedRecovery] of DECLARED_FIRST_CV_RECOVERY_CASES) {
@@ -2183,33 +2035,18 @@ for (const [boundary, expectedRecovery] of DECLARED_FIRST_CV_RECOVERY_CASES) {
     });
 
     assert.throws(
-      () => publish(
-        environment,
-        "generate_cv",
-        attemptId,
-        publicationId,
-        { failAt: boundary },
-      ),
+      () => publish(environment, "generate_cv", attemptId, publicationId, { failAt: boundary }),
       (error) => error.code === "simulated_publication_crash",
     );
 
-    const recovered = reconcile(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-    );
+    const recovered = reconcile(environment, "generate_cv", attemptId, publicationId);
     assert.equal(recovered.status, expectedRecovery);
-    const step = readLogV3(environment.ledgerPath)
-      .processes[0].steps.generate_cv;
+    const step = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
     if (expectedRecovery === "rolled_back") {
       assert.equal(step.state, "failed");
       assert.equal(step.revision, 0);
       assert.equal(existsSync(join(environment.selectedOutputPath, "cv.json")), false);
-      assert.equal(
-        existsSync(join(environment.selectedOutputPath, staged.cv.fileName)),
-        false,
-      );
+      assert.equal(existsSync(join(environment.selectedOutputPath, staged.cv.fileName)), false);
     } else {
       assert.equal(step.state, "completed");
       assert.equal(step.revision, 1);
@@ -2228,9 +2065,9 @@ for (const [boundary, expectedRecovery] of DECLARED_FIRST_CV_RECOVERY_CASES) {
 }
 
 test("first CV recovery inventory matches expected, declared, and executed cases", () => {
-  const declared = DECLARED_FIRST_CV_RECOVERY_CASES
-    .map(([boundary, recovery]) => `${boundary}=>${recovery}`)
-    .sort();
+  const declared = DECLARED_FIRST_CV_RECOVERY_CASES.map(
+    ([boundary, recovery]) => `${boundary}=>${recovery}`,
+  ).sort();
   assert.deepEqual(declared, [...EXPECTED_FIRST_CV_RECOVERY_CASES].sort());
   assert.deepEqual(
     [...executedFirstCvRecoveryCases].sort(),
@@ -2246,31 +2083,22 @@ test("a synchronous filesystem-boundary failure rolls back before releasing the 
   const staged = stageCvPublication(environment, publicationId);
 
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-      {
+    () =>
+      publish(environment, "generate_cv", attemptId, publicationId, {
         failAt: {
           boundary: "after_candidate:cv_source",
           crash: false,
         },
-      },
-    ),
+      }),
     (error) => error.code === "publication_failed",
   );
 
-  const step = readLogV3(environment.ledgerPath)
-    .processes[0].steps.generate_cv;
+  const step = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
   assert.equal(step.state, "failed");
   assert.equal(step.revision, 0);
   assert.equal(step.publication_transaction, null);
   assert.equal(existsSync(join(environment.selectedOutputPath, "cv.json")), false);
-  assert.equal(
-    existsSync(join(environment.selectedOutputPath, staged.cv.fileName)),
-    false,
-  );
+  assert.equal(existsSync(join(environment.selectedOutputPath, staged.cv.fileName)), false);
   assert.equal(existsSync(staged.stagingDirectory), false);
 });
 
@@ -2294,46 +2122,31 @@ test("a final ledger-write failure preserves an initial publication for tokened 
   });
 
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-      {
+    () =>
+      publish(environment, "generate_cv", attemptId, publicationId, {
         failAt: {
           boundary: "during_ledger_commit_write",
           crash: false,
         },
-      },
-    ),
+      }),
     assertFinalLedgerWriteFailure,
   );
 
-  const preparedStep = readLogV3(environment.ledgerPath)
-    .processes[0].steps.generate_cv;
+  const preparedStep = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
   assert.equal(preparedStep.state, "running");
   assert.equal(preparedStep.revision, 0);
   assert.equal(preparedStep.active_attempt.id, attemptId);
   assert.equal(preparedStep.publication_transaction.id, publicationId);
-  assert.deepEqual(
-    readFileSync(join(environment.selectedOutputPath, "cv.json")),
-    staged.cvBytes,
-  );
+  assert.deepEqual(readFileSync(join(environment.selectedOutputPath, "cv.json")), staged.cvBytes);
   assert.deepEqual(
     readFileSync(join(environment.selectedOutputPath, staged.cv.fileName)),
     staged.docxBytes,
   );
   assert.equal(existsSync(staged.stagingDirectory), true);
 
-  const recovered = reconcile(
-    environment,
-    "generate_cv",
-    attemptId,
-    publicationId,
-  );
+  const recovered = reconcile(environment, "generate_cv", attemptId, publicationId);
   assert.equal(recovered.status, "completed");
-  const completedStep = readLogV3(environment.ledgerPath)
-    .processes[0].steps.generate_cv;
+  const completedStep = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
   assert.equal(completedStep.revision, 1);
   assert.equal(completedStep.attempt_history.length, 1);
   assert.equal(completedStep.publication_transaction, null);
@@ -2348,12 +2161,7 @@ test("a final ledger-write failure preserves a complete CV revision without a mi
   const original = stageCvPublication(environment, firstPublicationId, {
     marker: "committed before final write fault",
   });
-  publish(
-    environment,
-    "generate_cv",
-    firstAttemptId,
-    firstPublicationId,
-  );
+  publish(environment, "generate_cv", firstAttemptId, firstPublicationId);
 
   const attemptId = "attempt_generate_cv_final_write_revision";
   const publicationId = "publication_generate_cv_final_write_revision";
@@ -2363,30 +2171,21 @@ test("a final ledger-write failure preserves a complete CV revision without a mi
   });
 
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-      {
+    () =>
+      publish(environment, "generate_cv", attemptId, publicationId, {
         failAt: {
           boundary: "during_ledger_commit_write",
           crash: false,
         },
-      },
-    ),
+      }),
     assertFinalLedgerWriteFailure,
   );
 
-  const preparedStep = readLogV3(environment.ledgerPath)
-    .processes[0].steps.generate_cv;
+  const preparedStep = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
   assert.equal(preparedStep.state, "running");
   assert.equal(preparedStep.revision, 1);
   assert.equal(preparedStep.publication_transaction.id, publicationId);
-  assert.deepEqual(
-    readFileSync(join(environment.selectedOutputPath, "cv.json")),
-    revised.cvBytes,
-  );
+  assert.deepEqual(readFileSync(join(environment.selectedOutputPath, "cv.json")), revised.cvBytes);
   assert.deepEqual(
     readFileSync(join(environment.selectedOutputPath, revised.cv.fileName)),
     revised.docxBytes,
@@ -2400,15 +2199,9 @@ test("a final ledger-write failure preserves a complete CV revision without a mi
     original.docxBytes,
   );
 
-  const recovered = reconcile(
-    environment,
-    "generate_cv",
-    attemptId,
-    publicationId,
-  );
+  const recovered = reconcile(environment, "generate_cv", attemptId, publicationId);
   assert.equal(recovered.status, "completed");
-  const completedStep = readLogV3(environment.ledgerPath)
-    .processes[0].steps.generate_cv;
+  const completedStep = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
   assert.equal(completedStep.revision, 2);
   assert.equal(completedStep.attempt_history.length, 2);
   assert.equal(existsSync(revised.stagingDirectory), false);
@@ -2423,53 +2216,36 @@ test("a final ledger-write failure during reconcile preserves the prepared journ
     marker: "final ledger write during reconcile",
   });
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-      { failAt: "before_ledger_commit" },
-    ),
+    () =>
+      publish(environment, "generate_cv", attemptId, publicationId, {
+        failAt: "before_ledger_commit",
+      }),
     (error) => error.code === "simulated_publication_crash",
   );
   const preparedLedger = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => reconcile(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-      {
+    () =>
+      reconcile(environment, "generate_cv", attemptId, publicationId, {
         failAt: {
           boundary: "during_ledger_commit_write",
           crash: false,
         },
-      },
-    ),
+      }),
     assertFinalLedgerWriteFailure,
   );
 
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), preparedLedger);
-  assert.deepEqual(
-    readFileSync(join(environment.selectedOutputPath, "cv.json")),
-    staged.cvBytes,
-  );
+  assert.deepEqual(readFileSync(join(environment.selectedOutputPath, "cv.json")), staged.cvBytes);
   assert.deepEqual(
     readFileSync(join(environment.selectedOutputPath, staged.cv.fileName)),
     staged.docxBytes,
   );
   assert.equal(existsSync(staged.stagingDirectory), true);
 
-  const recovered = reconcile(
-    environment,
-    "generate_cv",
-    attemptId,
-    publicationId,
-  );
+  const recovered = reconcile(environment, "generate_cv", attemptId, publicationId);
   assert.equal(recovered.status, "completed");
-  const completedStep = readLogV3(environment.ledgerPath)
-    .processes[0].steps.generate_cv;
+  const completedStep = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
   assert.equal(completedStep.revision, 1);
   assert.equal(completedStep.attempt_history.length, 1);
   assert.equal(existsSync(staged.stagingDirectory), false);
@@ -2484,12 +2260,7 @@ for (const [boundary, expectedRecovery] of DECLARED_REVISION_CV_RECOVERY_CASES) 
     const original = stageCvPublication(environment, firstPublicationId, {
       marker: "committed original",
     });
-    publish(
-      environment,
-      "generate_cv",
-      firstAttemptId,
-      firstPublicationId,
-    );
+    publish(environment, "generate_cv", firstAttemptId, firstPublicationId);
 
     const attemptId = `attempt_generate_cv_revision_${boundary.replaceAll(/[^0-9A-Za-z]/g, "_")}`;
     const publicationId = `publication_generate_cv_revision_${boundary.replaceAll(/[^0-9A-Za-z]/g, "_")}`;
@@ -2499,21 +2270,10 @@ for (const [boundary, expectedRecovery] of DECLARED_REVISION_CV_RECOVERY_CASES) 
     });
 
     assert.throws(
-      () => publish(
-        environment,
-        "generate_cv",
-        attemptId,
-        publicationId,
-        { failAt: boundary },
-      ),
+      () => publish(environment, "generate_cv", attemptId, publicationId, { failAt: boundary }),
       (error) => error.code === "simulated_publication_crash",
     );
-    const recovered = reconcile(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-    );
+    const recovered = reconcile(environment, "generate_cv", attemptId, publicationId);
     assert.equal(recovered.status, expectedRecovery);
 
     const expected = expectedRecovery === "completed" ? revised : original;
@@ -2525,12 +2285,8 @@ for (const [boundary, expectedRecovery] of DECLARED_REVISION_CV_RECOVERY_CASES) 
       readFileSync(join(environment.selectedOutputPath, expected.cv.fileName)),
       expected.docxBytes,
     );
-    const step = readLogV3(environment.ledgerPath)
-      .processes[0].steps.generate_cv;
-    assert.equal(
-      step.revision,
-      expectedRecovery === "completed" ? 2 : 1,
-    );
+    const step = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
+    assert.equal(step.revision, expectedRecovery === "completed" ? 2 : 1);
     assert.equal(step.state, expectedRecovery === "completed" ? "completed" : "failed");
     assert.equal(existsSync(revised.stagingDirectory), false);
     executedRevisionCvRecoveryCases.add(`${boundary}=>${expectedRecovery}`);
@@ -2538,9 +2294,9 @@ for (const [boundary, expectedRecovery] of DECLARED_REVISION_CV_RECOVERY_CASES) 
 }
 
 test("revision CV recovery inventory matches expected, declared, and executed cases", () => {
-  const declared = DECLARED_REVISION_CV_RECOVERY_CASES
-    .map(([boundary, recovery]) => `${boundary}=>${recovery}`)
-    .sort();
+  const declared = DECLARED_REVISION_CV_RECOVERY_CASES.map(
+    ([boundary, recovery]) => `${boundary}=>${recovery}`,
+  ).sort();
   assert.deepEqual(declared, [...EXPECTED_REVISION_CV_RECOVERY_CASES].sort());
   assert.deepEqual(
     [...executedRevisionCvRecoveryCases].sort(),
@@ -2555,25 +2311,17 @@ test("reconcile rejects unprovable candidate bytes and preserves the prepared jo
   begin(environment, "generate_cv", { attemptId });
   const staged = stageCvPublication(environment, publicationId);
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-      { failAt: "after_journal_write" },
-    ),
+    () =>
+      publish(environment, "generate_cv", attemptId, publicationId, {
+        failAt: "after_journal_write",
+      }),
     (error) => error.code === "simulated_publication_crash",
   );
   writeFileSync(join(staged.stagingDirectory, "cv.json"), "unowned bytes\n", "utf8");
   const before = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => reconcile(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-    ),
+    () => reconcile(environment, "generate_cv", attemptId, publicationId),
     (error) => error.code === "publication_recovery_conflict",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
@@ -2587,13 +2335,10 @@ test("input drift after journal preparation rolls recovery back with inputs_chan
   begin(environment, "generate_cv", { attemptId });
   stageCvPublication(environment, publicationId);
   assert.throws(
-    () => publish(
-      environment,
-      "generate_cv",
-      attemptId,
-      publicationId,
-      { failAt: "after_candidate:cv_docx" },
-    ),
+    () =>
+      publish(environment, "generate_cv", attemptId, publicationId, {
+        failAt: "after_candidate:cv_docx",
+      }),
     (error) => error.code === "simulated_publication_crash",
   );
   appendFileSync(
@@ -2601,15 +2346,9 @@ test("input drift after journal preparation rolls recovery back with inputs_chan
     "\nsynthetic drift\n",
   );
 
-  const recovered = reconcile(
-    environment,
-    "generate_cv",
-    attemptId,
-    publicationId,
-  );
+  const recovered = reconcile(environment, "generate_cv", attemptId, publicationId);
   assert.equal(recovered.status, "rolled_back");
-  const step = readLogV3(environment.ledgerPath)
-    .processes[0].steps.generate_cv;
+  const step = readLogV3(environment.ledgerPath).processes[0].steps.generate_cv;
   assert.equal(step.state, "failed");
   assert.equal(step.error.code, "inputs_changed");
   assert.equal(step.revision, 0);

@@ -28,14 +28,8 @@ const exampleMarkets = candidateMarkets({ root: candidateExampleRootFor(repoRoot
 const fixtureRoot = resolve(repoRoot, "tools/pipeline-artifacts/fixtures");
 const researchPath = resolve(fixtureRoot, "research-v2-over-vacancy-v2/company-research.json");
 const foreignVacancyPath = resolve(fixtureRoot, "vacancy-v2-completed/vacancy.json");
-const foreignJobDescriptionPath = resolve(
-  fixtureRoot,
-  "vacancy-v2-completed/job-description.txt",
-);
-const russianVacancyPath = resolve(
-  fixtureRoot,
-  "vacancy-russian-completed/vacancy.json",
-);
+const foreignJobDescriptionPath = resolve(fixtureRoot, "vacancy-v2-completed/job-description.txt");
+const russianVacancyPath = resolve(fixtureRoot, "vacancy-russian-completed/vacancy.json");
 const russianJobDescriptionPath = resolve(
   fixtureRoot,
   "vacancy-russian-completed/job-description.txt",
@@ -57,13 +51,10 @@ function readInputBytes(name = "completed-pass") {
 }
 
 function validateScenario(name, options = {}) {
-  return validateCompanyResearch(
-    makeCompanyResearchScenario(name),
-    {
-      ...readInputBytes(name),
-      ...options,
-    },
-  );
+  return validateCompanyResearch(makeCompanyResearchScenario(name), {
+    ...readInputBytes(name),
+    ...options,
+  });
 }
 
 function coverageRow(research, category) {
@@ -81,14 +72,17 @@ test("company research fixture catalog exposes every deterministic scenario", ()
 });
 
 test("completed research outside the home market validates exact Step 1 inputs", () => {
-  assert.deepEqual(validateScenario("completed-pass", {
-    outcome: "completed",
-    expectedProcess: {
-      id: "proc_fixture_step1_completed",
-      sourceRef: "https://example.test/jobs/senior-quality-engineer",
-      outputDir: "output/example-labs-senior-quality-engineer",
-    },
-  }), []);
+  assert.deepEqual(
+    validateScenario("completed-pass", {
+      outcome: "completed",
+      expectedProcess: {
+        id: "proc_fixture_step1_completed",
+        sourceRef: "https://example.test/jobs/senior-quality-engineer",
+        outputDir: "output/example-labs-senior-quality-engineer",
+      },
+    }),
+    [],
+  );
 
   const result = readAndValidateCompanyResearchBundle(
     researchPath,
@@ -104,10 +98,13 @@ test("coverage-blocked is an evidence result and does not force lifecycle blocki
   const research = makeCompanyResearchScenario("coverage-blocked-pass");
   assert.equal(coverageRow(research, "reviews_default_language").status, "blocked");
   assert.equal(research.verifyGate.status, "pass");
-  assert.deepEqual(validateCompanyResearch(research, {
-    ...readInputBytes(),
-    outcome: "completed",
-  }), []);
+  assert.deepEqual(
+    validateCompanyResearch(research, {
+      ...readInputBytes(),
+      outcome: "completed",
+    }),
+    [],
+  );
 });
 
 test("Verify Gate blocked is valid capture but cannot complete Step 2", () => {
@@ -172,9 +169,13 @@ test("the logistics follow the side of the layer's market", async (t) => {
   const markets = exampleMarkets;
   const vacancyDirectory = resolve(fixtureRoot, "vacancy-v2-completed");
   const jobDescriptionBytes = readFileSync(resolve(vacancyDirectory, "job-description.txt"));
-  const research = () => JSON.parse(
-    readFileSync(resolve(fixtureRoot, "research-v2-over-vacancy-v2/company-research.json"), "utf8"),
-  );
+  const research = () =>
+    JSON.parse(
+      readFileSync(
+        resolve(fixtureRoot, "research-v2-over-vacancy-v2/company-research.json"),
+        "utf8",
+      ),
+    );
   // The vacancy with its market set to `value`, and the research re-referenced to its bytes.
   const over = (value, mutateResearch = () => {}) => {
     const vacancy = JSON.parse(readFileSync(resolve(vacancyDirectory, "vacancy.json"), "utf8"));
@@ -209,19 +210,30 @@ test("the logistics follow the side of the layer's market", async (t) => {
   await t.test("outside home the logistics are researched, and n/a is refused", () => {
     assert.equal(over(markets.outsideHome.name), "");
     const errors = over(markets.outsideHome.name, withoutLogistics);
-    assert.match(errors, /contractor_payment_logistics must be researched for a market outside home/);
-    assert.match(errors, /status n\/a is allowed only for contractor_payment_logistics on the home market/);
+    assert.match(
+      errors,
+      /contractor_payment_logistics must be researched for a market outside home/,
+    );
+    assert.match(
+      errors,
+      /status n\/a is allowed only for contractor_payment_logistics on the home market/,
+    );
   });
 
   await t.test("on the home market the logistics must be n/a", () => {
-    assert.match(over(markets.home.name), /contractor_payment_logistics must be n\/a for the home market/);
+    assert.match(
+      over(markets.home.name),
+      /contractor_payment_logistics must be n\/a for the home market/,
+    );
     assert.equal(over(markets.home.name, withoutLogistics), "");
   });
 
   await t.test("the reference names the current version of the vacancy", () => {
     for (const version of [1, 3]) {
       assert.match(
-        over(markets.outsideHome.name, (value) => { value.inputs.vacancy.schemaVersion = version; }),
+        over(markets.outsideHome.name, (value) => {
+          value.inputs.vacancy.schemaVersion = version;
+        }),
         /inputs\.vacancy\.schemaVersion must be one of: 2$/m,
       );
     }
@@ -326,7 +338,9 @@ test("checked categories resolve to opened primary source records", async (t) =>
   const scenarios = [
     {
       name: "search result source type",
-      mutate: (research) => { research.sources[0].sourceType = "search_result"; },
+      mutate: (research) => {
+        research.sources[0].sourceType = "search_result";
+      },
       expected: /sources\[0\]\.sourceType must be one of/,
     },
     {
@@ -334,21 +348,28 @@ test("checked categories resolve to opened primary source records", async (t) =>
       mutate: (research) => {
         research.sources = research.sources.filter((source) => source.id !== "S02");
       },
-      expected: /sourceCoverage\.products_technical_complexity\.sourceIds reference does not exist: S02/,
+      expected:
+        /sourceCoverage\.products_technical_complexity\.sourceIds reference does not exist: S02/,
     },
     {
       name: "source absent from its primary category",
-      mutate: (research) => { research.sources[1].category = "stated_values"; },
+      mutate: (research) => {
+        research.sources[1].category = "stated_values";
+      },
       expected: /sources\[1\]\.id is not listed by its sourceCoverage row: S02/,
     },
     {
       name: "unlisted source URL",
-      mutate: (research) => { research.sources[1].url = "https://example.test/product-v2"; },
+      mutate: (research) => {
+        research.sources[1].url = "https://example.test/product-v2";
+      },
       expected: /url is not listed by its sourceCoverage row/,
     },
     {
       name: "missing values quote",
-      mutate: (research) => { research.sources[0].quotes = []; },
+      mutate: (research) => {
+        research.sources[0].quotes = [];
+      },
       expected: /checked stated_values coverage requires an original quote and its translation/,
     },
     {
@@ -394,12 +415,16 @@ test("claims preserve honest evidence states and checked-source provenance", asy
   const scenarios = [
     {
       name: "verified without source",
-      mutate: (claim) => { claim.sourceIds = []; },
+      mutate: (claim) => {
+        claim.sourceIds = [];
+      },
       expected: /sourceIds must contain at least one checked primary source when verified/,
     },
     {
       name: "dangling source",
-      mutate: (claim) => { claim.sourceIds = ["S99"]; },
+      mutate: (claim) => {
+        claim.sourceIds = ["S99"];
+      },
       expected: /sourceIds reference does not exist: S99/,
     },
     {
@@ -412,7 +437,9 @@ test("claims preserve honest evidence states and checked-source provenance", asy
     },
     {
       name: "verified with inference basis",
-      mutate: (claim) => { claim.inferenceBasis = "Synthetic forbidden basis."; },
+      mutate: (claim) => {
+        claim.inferenceBasis = "Synthetic forbidden basis.";
+      },
       expected: /inferenceBasis must be null unless inferred/,
     },
   ];
@@ -521,9 +548,7 @@ test("input references detect byte drift and cross-process reuse", () => {
   assert.match(errors, /inputs\.vacancy\.sha256 does not match/);
   assert.match(errors, /inputs\.vacancy content: process\.id does not match/);
 
-  errors = validateCompanyResearch(
-    makeCompanyResearchScenario("completed-pass"),
-  ).join("\n");
+  errors = validateCompanyResearch(makeCompanyResearchScenario("completed-pass")).join("\n");
   assert.match(errors, /vacancy\.json bytes are required for bundle validation/);
   assert.match(errors, /job-description\.txt bytes are required for bundle validation/);
 
@@ -561,14 +586,19 @@ test("invalid deterministic scenario exposes structural and reference failures",
 
 test("the research self-check reads the markets of the workspace's layer", (t) => {
   const validatorPath = resolve(repoRoot, "tools/pipeline-artifacts/validate-company-research.mjs");
-  const run = (workspaceRoot) => spawnSync(process.execPath, [
-    validatorPath,
-    resolve(fixtureRoot, "research-v2-over-vacancy-v2/company-research.json"),
-    resolve(fixtureRoot, "vacancy-v2-completed/vacancy.json"),
-    resolve(fixtureRoot, "vacancy-v2-completed/job-description.txt"),
-    "--outcome",
-    "completed",
-  ], { encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot } });
+  const run = (workspaceRoot) =>
+    spawnSync(
+      process.execPath,
+      [
+        validatorPath,
+        resolve(fixtureRoot, "research-v2-over-vacancy-v2/company-research.json"),
+        resolve(fixtureRoot, "vacancy-v2-completed/vacancy.json"),
+        resolve(fixtureRoot, "vacancy-v2-completed/job-description.txt"),
+        "--outcome",
+        "completed",
+      ],
+      { encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot } },
+    );
   const withLayer = mkdtempSync(join(tmpdir(), "job-search-research-cli-"));
   const withoutLayer = mkdtempSync(join(tmpdir(), "job-search-research-cli-bare-"));
   t.after(() => {
@@ -584,22 +614,23 @@ test("the research self-check reads the markets of the workspace's layer", (t) =
 });
 
 test("company research CLI validates the complete artifact bundle", (t) => {
-  const validatorPath = resolve(
-    repoRoot,
-    "tools/pipeline-artifacts/validate-company-research.mjs",
-  );
+  const validatorPath = resolve(repoRoot, "tools/pipeline-artifacts/validate-company-research.mjs");
   // The vacancy names one of the example's markets, which the CLI reads from the workspace's layer.
   const workspaceRoot = mkdtempSync(join(tmpdir(), "job-search-research-cli-"));
   t.after(() => rmSync(workspaceRoot, { force: true, recursive: true }));
   seedCandidateConfig(repoRoot, workspaceRoot);
-  const result = spawnSync(process.execPath, [
-    validatorPath,
-    researchPath,
-    foreignVacancyPath,
-    foreignJobDescriptionPath,
-    "--outcome",
-    "completed",
-  ], { encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot } });
+  const result = spawnSync(
+    process.execPath,
+    [
+      validatorPath,
+      researchPath,
+      foreignVacancyPath,
+      foreignJobDescriptionPath,
+      "--outcome",
+      "completed",
+    ],
+    { encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot } },
+  );
   assert.equal(result.status, 0, result.stderr);
   const summary = JSON.parse(result.stdout);
   assert.equal(summary.status, "valid");

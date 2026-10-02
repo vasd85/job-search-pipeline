@@ -29,8 +29,7 @@ const stateLabels = Object.freeze({
 });
 const stateDescriptions = Object.freeze({
   blocked: "Needs the information or the decision named in the diagnostic.",
-  complete:
-    "The files are published and intact; a manual check is required before use.",
+  complete: "The files are published and intact; a manual check is required before use.",
   corrupt: "One or more published artifacts failed their check.",
   failed: "The last attempt ended in an error.",
   historical: "The record predates the file-backed lifecycle and is available as history only.",
@@ -193,11 +192,7 @@ function formatBytes(value) {
 }
 
 function statePill(state, extraClass = "") {
-  const pill = element(
-    "span",
-    `state-pill ${extraClass}`.trim(),
-    stateLabels[state] ?? state,
-  );
+  const pill = element("span", `state-pill ${extraClass}`.trim(), stateLabels[state] ?? state);
   pill.dataset.state = state;
   return pill;
 }
@@ -243,11 +238,7 @@ function metadataGrid(items, className = "") {
     } else {
       valueNode = element("dd", null, displayValue(item.value));
     }
-    append(
-      wrapper,
-      element("dt", null, item.label),
-      valueNode,
-    );
+    append(wrapper, element("dt", null, item.label), valueNode);
     valueNode.classList.add("metadata-value");
     append(list, wrapper);
   }
@@ -290,11 +281,7 @@ function listRouteState() {
 }
 
 function updateListLocation(state) {
-  window.history.replaceState(
-    null,
-    "",
-    listLocation({ filter: state.filter, query: state.query }),
-  );
+  window.history.replaceState(null, "", listLocation({ filter: state.filter, query: state.query }));
 }
 
 function detailHref(processId) {
@@ -305,10 +292,11 @@ function detailHref(processId) {
 
 function renderListCard(result) {
   const process = result.process;
-  const companyName = result.company?.display_name
-    || process.company_observed
-    || process.company_hint
-    || "Company not identified";
+  const companyName =
+    result.company?.display_name ||
+    process.company_observed ||
+    process.company_hint ||
+    "Company not identified";
   const card = element("a", "process-card");
   card.href = detailHref(process.id);
   card.dataset.state = process.lifecycle_state;
@@ -327,16 +315,17 @@ function renderListCard(result) {
   append(top, identity, statePill(process.lifecycle_state));
 
   const source = element("span", "source-value", process.source_ref);
-  const meta = metadataGrid([
-    { label: "Started", value: formatDate(process.started_at) },
-    { label: "Source", node: source },
-    {
-      label: "Last step",
-      value: process.last_completed_step
-        ? stepLabels[process.last_completed_step]
-        : "None yet",
-    },
-  ], "card-metadata");
+  const meta = metadataGrid(
+    [
+      { label: "Started", value: formatDate(process.started_at) },
+      { label: "Source", node: source },
+      {
+        label: "Last step",
+        value: process.last_completed_step ? stepLabels[process.last_completed_step] : "None yet",
+      },
+    ],
+    "card-metadata",
+  );
   const footer = element("div", "card-footer");
   const signals = element("div", "card-signals");
   if (process.running_steps.length) {
@@ -362,30 +351,16 @@ function renderListCard(result) {
   if (process.readable_artifact_count > 0) {
     append(
       signals,
-      element(
-        "span",
-        "mini-signal",
-        `${process.readable_artifact_count} file artifact`,
-      ),
+      element("span", "mini-signal", `${process.readable_artifact_count} file artifact`),
     );
   }
   if (process.manual_review_required) {
-    append(
-      signals,
-      element("span", "mini-signal review", "Manual review required"),
-    );
+    append(signals, element("span", "mini-signal review", "Manual review required"));
   }
   if (process.has_cv) {
-    append(
-      signals,
-      element("span", "mini-signal", "DOCX published; review required"),
-    );
+    append(signals, element("span", "mini-signal", "DOCX published; review required"));
   }
-  append(
-    footer,
-    signals,
-    element("span", "open-label", "Open process →"),
-  );
+  append(footer, signals, element("span", "open-label", "Open process →"));
   append(card, top, meta, footer);
   return card;
 }
@@ -393,11 +368,8 @@ function renderListCard(result) {
 function renderListResults(payload, state, nodes) {
   nodes.results.replaceChildren();
   const filteredResults = filterProcessResults(payload.results, state.filter);
-  const queryDescription = payload.query
-    ? `for "${payload.query}"`
-    : "in the log";
-  nodes.summary.textContent =
-    `${filteredResults.length} of ${payload.count} ${queryDescription} · Newest first`;
+  const queryDescription = payload.query ? `for "${payload.query}"` : "in the log";
+  nodes.summary.textContent = `${filteredResults.length} of ${payload.count} ${queryDescription} · Newest first`;
 
   for (const button of nodes.filters.querySelectorAll("button")) {
     const active = button.dataset.filter === state.filter;
@@ -407,10 +379,7 @@ function renderListResults(payload, state, nodes) {
 
   if (payload.total_processes === 0 && !payload.query) {
     nodes.results.append(
-      emptyState(
-        "The log is empty",
-        "A new file-backed process appears here once Step 1 runs.",
-      ),
+      emptyState("The log is empty", "A new file-backed process appears here once Step 1 runs."),
     );
     return;
   }
@@ -424,16 +393,13 @@ function renderListResults(payload, state, nodes) {
       loadProcessList(state, nodes);
     });
     nodes.results.append(
-      emptyState(
-        "No matches",
-        "Change the query, pick another status, or show every process.",
-        { action: reset },
-      ),
+      emptyState("No matches", "Change the query, pick another status, or show every process.", {
+        action: reset,
+      }),
     );
     return;
   }
-  if (filteredResults.some((result) =>
-    result.process.manual_review_required)) {
+  if (filteredResults.some((result) => result.process.manual_review_required)) {
     nodes.results.append(renderManualReviewNotice());
   }
   for (const result of filteredResults) {
@@ -447,10 +413,10 @@ async function loadProcessList(state, nodes) {
   nodes.summary.textContent = "Refreshing the log…";
   nodes.results.replaceChildren(loadingState("Loading processes"));
   try {
-    const response = await fetch(
-      `/api/processes?q=${encodeURIComponent(state.query)}`,
-      { cache: "no-store", signal: listRequest.signal },
-    );
+    const response = await fetch(`/api/processes?q=${encodeURIComponent(state.query)}`, {
+      cache: "no-store",
+      signal: listRequest.signal,
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
     nodes.payload = payload;
@@ -461,11 +427,10 @@ async function loadProcessList(state, nodes) {
     const retry = actionButton("Retry");
     retry.addEventListener("click", () => loadProcessList(state, nodes));
     nodes.results.replaceChildren(
-      emptyState(
-        "Could not load the processes",
-        "Check the local server and try again.",
-        { action: retry, kind: "error" },
-      ),
+      emptyState("Could not load the processes", "Check the local server and try again.", {
+        action: retry,
+        kind: "error",
+      }),
     );
   }
 }
@@ -481,8 +446,7 @@ function renderListRoute() {
     pageIntro({
       eyebrow: "Local lifecycle",
       title: "Processes",
-      description:
-        "Vacancies, research and application artifacts in one verifiable flow.",
+      description: "Vacancies, research and application artifacts in one verifiable flow.",
     }),
   );
 
@@ -522,12 +486,7 @@ function renderListRoute() {
   }
   const summary = element("div", "list-summary", "Loading the log…");
   summary.setAttribute("aria-live", "polite");
-  append(
-    controls,
-    element("div", "search-control"),
-    element("div", "filter-control"),
-    summary,
-  );
+  append(controls, element("div", "search-control"), element("div", "filter-control"), summary);
   append(controls.children[0], searchLabel, searchWrap);
   append(controls.children[1], filterLabel, filters);
 
@@ -566,18 +525,21 @@ function renderDetailMeta(detail) {
   const process = detail.process;
   const sourceNode = element("dd");
   sourceNode.append(createExternalLink(process.source_ref));
-  return metadataGrid([
-    { label: "Started", value: formatDate(process.started_at) },
-    { label: "Updated", value: formatDate(process.updated_at) },
-    { label: "Source", node: sourceNode },
-    { label: "Process ID", value: process.id },
-    { label: "Runner", value: process.runner },
-    { label: "Output", value: process.output_dir || "Not reserved" },
-    {
-      label: "Company cluster",
-      value: detail.company?.display_name || "Not linked",
-    },
-  ], "detail-metadata");
+  return metadataGrid(
+    [
+      { label: "Started", value: formatDate(process.started_at) },
+      { label: "Updated", value: formatDate(process.updated_at) },
+      { label: "Source", node: sourceNode },
+      { label: "Process ID", value: process.id },
+      { label: "Runner", value: process.runner },
+      { label: "Output", value: process.output_dir || "Not reserved" },
+      {
+        label: "Company cluster",
+        value: detail.company?.display_name || "Not linked",
+      },
+    ],
+    "detail-metadata",
+  );
 }
 
 function renderLifecycleNotice(detail) {
@@ -590,8 +552,7 @@ function renderLifecycleNotice(detail) {
     element(
       "p",
       null,
-      stateDescriptions[lifecycle.state]
-        ?? "The state comes from the verified lifecycle ledger.",
+      stateDescriptions[lifecycle.state] ?? "The state comes from the verified lifecycle ledger.",
     ),
   );
   const flags = element("div", "notice-signals");
@@ -623,11 +584,7 @@ function renderManualReviewNotice() {
       null,
       "Publication health does not prove source fidelity, factuality, freshness or the quality of the materials.",
     ),
-    element(
-      "code",
-      "review-checklist-path",
-      "docs/runbooks/application-readiness-checklist.md",
-    ),
+    element("code", "review-checklist-path", "docs/runbooks/application-readiness-checklist.md"),
   );
   return notice;
 }
@@ -648,11 +605,7 @@ function renderTimeline(detail) {
     const marker = element("div", "timeline-marker", stepNumbers[step.name]);
     const body = element("div", "timeline-body");
     const heading = element("div", "timeline-heading");
-    append(
-      heading,
-      element("h3", null, stepLabels[step.name] ?? step.name),
-      statePill(step.state),
-    );
+    append(heading, element("h3", null, stepLabels[step.name] ?? step.name), statePill(step.state));
     append(body, heading);
     const health = element("div", "health-row");
     append(
@@ -662,11 +615,7 @@ function renderTimeline(detail) {
         null,
         `Artifacts: ${artifactHealthLabels[step.artifact_health] ?? step.artifact_health}`,
       ),
-      element(
-        "span",
-        null,
-        `Inputs: ${inputHealthLabels[step.input_health] ?? step.input_health}`,
-      ),
+      element("span", null, `Inputs: ${inputHealthLabels[step.input_health] ?? step.input_health}`),
     );
     append(body, health);
     if (step.diagnostic) {
@@ -687,14 +636,7 @@ function renderTimeline(detail) {
       append(body, issues);
     }
     const time = step.finished_at ?? step.updated_at ?? step.started_at;
-    append(
-      body,
-      element(
-        "p",
-        "timeline-time",
-        time ? formatDate(time) : "No attempts yet",
-      ),
-    );
+    append(body, element("p", "timeline-time", time ? formatDate(time) : "No attempts yet"));
     append(item, marker, body);
     timeline.append(item);
   }
@@ -745,55 +687,55 @@ function renderVacancy(data) {
     root,
     semanticSection(
       "Role",
-      metadataGrid([
-        { label: "Company", value: role.company },
-        { label: "Title", value: role.title },
-        { label: "ATS", value: role.ats },
-        { label: "Language", value: role.vacancyLanguage },
-        { label: "Market", value: role.market?.value },
-        { label: "Market evidence", value: role.market?.evidence },
-      ], "semantic-metadata"),
+      metadataGrid(
+        [
+          { label: "Company", value: role.company },
+          { label: "Title", value: role.title },
+          { label: "ATS", value: role.ats },
+          { label: "Language", value: role.vacancyLanguage },
+          { label: "Market", value: role.market?.value },
+          { label: "Market evidence", value: role.market?.evidence },
+        ],
+        "semantic-metadata",
+      ),
     ),
     semanticSection(
       "Feasibility",
-      metadataGrid([
-        {
-          label: "Work model",
-          value: feasibility.workModel?.sourceText
-            || feasibility.workModel?.normalized,
-        },
-        { label: "Locations", value: feasibility.locations },
-        { label: "Employment", value: feasibility.employmentType },
-        { label: "Timezone", value: feasibility.timezoneOverlap },
-        {
-          label: "Authorization / residency",
-          value: feasibility.workAuthorizationResidency,
-        },
-        { label: "Relocation / visa", value: feasibility.relocationVisaSupport },
-        { label: "Salary", value: feasibility.salary },
-      ], "semantic-metadata"),
+      metadataGrid(
+        [
+          {
+            label: "Work model",
+            value: feasibility.workModel?.sourceText || feasibility.workModel?.normalized,
+          },
+          { label: "Locations", value: feasibility.locations },
+          { label: "Employment", value: feasibility.employmentType },
+          { label: "Timezone", value: feasibility.timezoneOverlap },
+          {
+            label: "Authorization / residency",
+            value: feasibility.workAuthorizationResidency,
+          },
+          { label: "Relocation / visa", value: feasibility.relocationVisaSupport },
+          { label: "Salary", value: feasibility.salary },
+        ],
+        "semantic-metadata",
+      ),
     ),
   );
-  const sections = Object.entries(data.sectionIndex ?? {}).map(
-    ([name, value]) => [
-      {
-        responsibilities: "Responsibilities",
-        requirements: "Requirements",
-        niceToHaves: "Nice to haves",
-      }[name] ?? name,
-      value.presence,
-      value.sourceHeadings,
-      value.embeddedIn,
-    ],
-  );
+  const sections = Object.entries(data.sectionIndex ?? {}).map(([name, value]) => [
+    {
+      responsibilities: "Responsibilities",
+      requirements: "Requirements",
+      niceToHaves: "Nice to haves",
+    }[name] ?? name,
+    value.presence,
+    value.sourceHeadings,
+    value.embeddedIn,
+  ]);
   append(
     root,
     semanticSection(
       "JD structure",
-      simpleTable(
-        ["Section", "Presence", "Source headings", "Embedded in"],
-        sections,
-      ),
+      simpleTable(["Section", "Presence", "Source headings", "Embedded in"], sections),
     ),
   );
   const ambiguityList = (data.ambiguities ?? []).map(
@@ -801,10 +743,7 @@ function renderVacancy(data) {
   );
   append(
     root,
-    semanticSection(
-      "Ambiguities",
-      unorderedTextList(ambiguityList, "No blocking ambiguities."),
-    ),
+    semanticSection("Ambiguities", unorderedTextList(ambiguityList, "No blocking ambiguities.")),
   );
   return root;
 }
@@ -850,11 +789,7 @@ function renderCompanyResearch(data) {
       null,
       researchStatusLabels[data.verifyGate?.status] ?? data.verifyGate?.status,
     ),
-    element(
-      "span",
-      null,
-      `${data.verifyGate?.checkedInvariants?.length ?? 0} invariants`,
-    ),
+    element("span", null, `${data.verifyGate?.checkedInvariants?.length ?? 0} invariants`),
   );
   append(root, gate);
 
@@ -875,11 +810,7 @@ function renderCompanyResearch(data) {
   const analysis = element("div", "analysis-grid");
   for (const [key, block] of Object.entries(data.analysis ?? {})) {
     const card = element("section", "analysis-card");
-    append(
-      card,
-      element("h4", null, analysisLabels[key] ?? key),
-      renderResearchClaims(block),
-    );
+    append(card, element("h4", null, analysisLabels[key] ?? key), renderResearchClaims(block));
     analysis.append(card);
   }
   append(root, semanticSection("Analysis", analysis));
@@ -892,7 +823,11 @@ function renderCompanyResearch(data) {
       element("span", "claim-id", hook.id),
       element("h4", null, hook.challengeType),
       element("p", null, hook.fact),
-      element("small", null, `Claims: ${hook.claimIds.join(", ")} · Sources: ${hook.sourceIds.join(", ")}`),
+      element(
+        "small",
+        null,
+        `Claims: ${hook.claimIds.join(", ")} · Sources: ${hook.sourceIds.join(", ")}`,
+      ),
     );
     hooks.append(card);
   }
@@ -904,10 +839,7 @@ function renderCompanyResearch(data) {
   );
   append(
     root,
-    semanticSection(
-      "Open questions",
-      unorderedTextList(questions, "No open questions."),
-    ),
+    semanticSection("Open questions", unorderedTextList(questions, "No open questions.")),
   );
 
   const sourceList = element("div", "source-list");
@@ -922,11 +854,7 @@ function renderCompanyResearch(data) {
     append(
       body,
       createExternalLink(source.url),
-      element(
-        "p",
-        "muted",
-        `${source.sourceType} · ${formatDate(source.observedAt)}`,
-      ),
+      element("p", "muted", `${source.sourceType} · ${formatDate(source.observedAt)}`),
     );
     for (const quote of source.quotes ?? []) {
       const quoteNode = element("blockquote");
@@ -955,33 +883,37 @@ function compactCardGrid(cards) {
 }
 
 function renderPriorityEvidenceCards(items) {
-  return compactCardGrid((items ?? []).map((item) => {
-    const view = priorityEvidenceCardView(item);
-    const card = element("article", "compact-card");
-    append(
-      card,
-      element("span", "claim-id", `${view.id} · ${view.meta}`),
-      element("h4", null, view.claim),
-      unorderedTextList(view.proof),
-      element("small", null, view.sourceLine),
-    );
-    return card;
-  }));
+  return compactCardGrid(
+    (items ?? []).map((item) => {
+      const view = priorityEvidenceCardView(item);
+      const card = element("article", "compact-card");
+      append(
+        card,
+        element("span", "claim-id", `${view.id} · ${view.meta}`),
+        element("h4", null, view.claim),
+        unorderedTextList(view.proof),
+        element("small", null, view.sourceLine),
+      );
+      return card;
+    }),
+  );
 }
 
 function renderTraitCards(items) {
-  return compactCardGrid((items ?? []).map((item) => {
-    const view = traitCardView(item);
-    const card = element("article", "compact-card");
-    append(
-      card,
-      element("span", "claim-id", view.id),
-      element("h4", null, view.trait),
-      element("p", null, view.behavior),
-      element("small", null, view.sourceLine),
-    );
-    return card;
-  }));
+  return compactCardGrid(
+    (items ?? []).map((item) => {
+      const view = traitCardView(item);
+      const card = element("article", "compact-card");
+      append(
+        card,
+        element("span", "claim-id", view.id),
+        element("h4", null, view.trait),
+        element("p", null, view.behavior),
+        element("small", null, view.sourceLine),
+      );
+      return card;
+    }),
+  );
 }
 
 function renderGapCards(gaps) {
@@ -1016,11 +948,14 @@ function renderApplicationBrief(data) {
   const positionBlock = element("div", "positioning-block");
   append(
     positionBlock,
-    metadataGrid([
-      { label: "Angle", value: positioning.angleHint },
-      { label: "AI register", value: positioning.aiRegister },
-      { label: "Challenge", value: data.company?.challengeType },
-    ], "semantic-metadata"),
+    metadataGrid(
+      [
+        { label: "Angle", value: positioning.angleHint },
+        { label: "AI register", value: positioning.aiRegister },
+        { label: "Challenge", value: data.company?.challengeType },
+      ],
+      "semantic-metadata",
+    ),
   );
   for (const lever of positioning.selectedLevers ?? []) {
     const card = element("article", "lever-card");
@@ -1041,16 +976,10 @@ function renderApplicationBrief(data) {
       "Selected evidence",
       renderPriorityEvidenceCards(data.experience?.priorityEvidence),
     ),
-    semanticSection(
-      "Traits",
-      renderTraitCards(data.experience?.traits),
-    ),
+    semanticSection("Traits", renderTraitCards(data.experience?.traits)),
   );
 
-  append(
-    root,
-    semanticSection("Gaps", renderGapCards(data.experience?.gaps)),
-  );
+  append(root, semanticSection("Gaps", renderGapCards(data.experience?.gaps)));
 
   const keywordRows = (data.ats?.keywords ?? []).map((keyword) => [
     keyword.term,
@@ -1063,10 +992,7 @@ function renderApplicationBrief(data) {
     root,
     semanticSection(
       "ATS plan",
-      simpleTable(
-        ["Keyword", "Support", "Evidence / gap", "Placements", "Mode"],
-        keywordRows,
-      ),
+      simpleTable(["Keyword", "Support", "Evidence / gap", "Placements", "Mode"], keywordRows),
     ),
   );
 
@@ -1074,12 +1000,15 @@ function renderApplicationBrief(data) {
   const cvContent = element("div", "plan-stack");
   append(
     cvContent,
-    metadataGrid([
-      { label: "Structure", value: cvPlan.structure },
-      { label: "Header", value: cvPlan.headerPositioning?.text },
-      { label: "Project", value: cvPlan.projectDecision?.decision },
-      { label: "Project rationale", value: cvPlan.projectDecision?.rationale },
-    ], "semantic-metadata"),
+    metadataGrid(
+      [
+        { label: "Structure", value: cvPlan.structure },
+        { label: "Header", value: cvPlan.headerPositioning?.text },
+        { label: "Project", value: cvPlan.projectDecision?.decision },
+        { label: "Project rationale", value: cvPlan.projectDecision?.rationale },
+      ],
+      "semantic-metadata",
+    ),
   );
   const checks = (cvPlan.checks?.requiredEvidence ?? []).map(
     (check) => `${check.id}: ${check.description}`,
@@ -1092,10 +1021,13 @@ function renderApplicationBrief(data) {
     root,
     semanticSection(
       "Cover letter plan",
-      metadataGrid([
-        { label: "Evidence", value: letterPlan.evidenceIds },
-        { label: "Keywords", value: letterPlan.keywordTerms },
-      ], "semantic-metadata"),
+      metadataGrid(
+        [
+          { label: "Evidence", value: letterPlan.evidenceIds },
+          { label: "Keywords", value: letterPlan.keywordTerms },
+        ],
+        "semantic-metadata",
+      ),
     ),
   );
   return root;
@@ -1161,8 +1093,7 @@ function renderArtifactError(container, error, retry) {
   container.replaceChildren(
     emptyState(
       "Artifact unavailable",
-      artifactErrorLabels[error.code]
-        ?? "The published file could not be read safely.",
+      artifactErrorLabels[error.code] ?? "The published file could not be read safely.",
       { action: retryButton, kind: "error" },
     ),
   );
@@ -1208,11 +1139,7 @@ function renderArtifactWorkspace(detail) {
       title,
       element("div", "eyebrow", `${stepNumbers[artifact.step]} · ${stepLabels[artifact.step]}`),
       element("h3", null, artifactLabels[artifact.kind] ?? artifact.kind),
-      element(
-        "p",
-        null,
-        `${artifactHints[artifact.kind] ?? ""} · ${formatBytes(artifact.bytes)}`,
-      ),
+      element("p", null, `${artifactHints[artifact.kind] ?? ""} · ${formatBytes(artifact.bytes)}`),
     );
     const content = element("div", "reader-content");
     reader.replaceChildren(title, content);
@@ -1224,9 +1151,7 @@ function renderArtifactWorkspace(detail) {
       // produces a brief that parses and then fails to render, so this branch is untested for the
       // failing case; the reopen assertion covers only the valid one.
       if (cache.has(artifact.kind)) {
-        content.replaceChildren(
-          renderArtifactContent(artifact, cache.get(artifact.kind)),
-        );
+        content.replaceChildren(renderArtifactContent(artifact, cache.get(artifact.kind)));
         return;
       }
       const response = await fetch(artifact.read_url, { cache: "no-store" });
@@ -1243,21 +1168,21 @@ function renderArtifactWorkspace(detail) {
       cache.set(artifact.kind, text);
       content.replaceChildren(renderArtifactContent(artifact, text));
     } catch (error) {
-      renderArtifactError(
-        content,
-        error,
-        () => {
-          cache.delete(artifact.kind);
-          selectArtifact(artifact);
-        },
-      );
+      renderArtifactError(content, error, () => {
+        cache.delete(artifact.kind);
+        selectArtifact(artifact);
+      });
     }
   }
 
   for (const artifact of detail.artifacts) {
     const button = actionButton("", "artifact-nav-button");
     const label = element("span", null, artifactLabels[artifact.kind] ?? artifact.kind);
-    const hint = element("small", null, `${stepNumbers[artifact.step]} · ${formatBytes(artifact.bytes)}`);
+    const hint = element(
+      "small",
+      null,
+      `${stepNumbers[artifact.step]} · ${formatBytes(artifact.bytes)}`,
+    );
     append(button, label, hint);
     button.addEventListener("click", () => selectArtifact(artifact));
     buttons.set(artifact.kind, button);
@@ -1273,10 +1198,7 @@ function renderCvCard(detail) {
   const section = element("section", "detail-section cv-section");
   append(
     section,
-    sectionHeading(
-      "CV",
-      "CV content is deliberately kept out of the browser preview.",
-    ),
+    sectionHeading("CV", "CV content is deliberately kept out of the browser preview."),
   );
   const card = element("div", "cv-card");
   const icon = element("div", "cv-icon", "DOCX");
@@ -1287,9 +1209,7 @@ function renderCvCard(detail) {
     element(
       "h3",
       null,
-      detail.cv?.docx_path
-        ? "DOCX published; review required"
-        : "DOCX not published yet",
+      detail.cv?.docx_path ? "DOCX published; review required" : "DOCX not published yet",
     ),
     element(
       "p",
@@ -1328,10 +1248,11 @@ function renderHistoricalDetail(detail) {
 
 function renderDetail(detail) {
   const process = detail.process;
-  const companyName = detail.company?.display_name
-    || process.company_observed
-    || process.company_hint
-    || "Company not identified";
+  const companyName =
+    detail.company?.display_name ||
+    process.company_observed ||
+    process.company_hint ||
+    "Company not identified";
   document.title = `${companyName} · ${process.role || "Process"}`;
   const back = element("a", "back-link", "← Back to processes");
   back.href = detailBackHref();
@@ -1342,29 +1263,20 @@ function renderDetail(detail) {
     fragment,
     back,
     pageIntro({
-      eyebrow: process.mode === "historical"
-        ? "Historical record"
-        : "File-backed process",
+      eyebrow: process.mode === "historical" ? "Historical record" : "File-backed process",
       title: companyName,
       description: process.role || "Role not identified yet",
       actions: [headerActions],
     }),
     renderLifecycleNotice(detail),
-    detail.lifecycle.manual_review_required
-      ? renderManualReviewNotice()
-      : null,
+    detail.lifecycle.manual_review_required ? renderManualReviewNotice() : null,
     renderDetailMeta(detail),
   );
 
   if (process.mode === "historical") {
     append(fragment, renderHistoricalDetail(detail));
   } else {
-    append(
-      fragment,
-      renderTimeline(detail),
-      renderArtifactWorkspace(detail),
-      renderCvCard(detail),
-    );
+    append(fragment, renderTimeline(detail), renderArtifactWorkspace(detail), renderCvCard(detail));
   }
   mainNode.replaceChildren(fragment);
 }
@@ -1376,21 +1288,17 @@ async function renderDetailRoute(processId) {
   document.title = "Loading the process…";
   mainNode.replaceChildren(loadingState("Loading the process"));
   try {
-    const response = await fetch(
-      `/api/processes/${encodeURIComponent(processId)}`,
-      { cache: "no-store", signal: detailRequest.signal },
-    );
+    const response = await fetch(`/api/processes/${encodeURIComponent(processId)}`, {
+      cache: "no-store",
+      signal: detailRequest.signal,
+    });
     if (response.status === 404) {
       mainNode.replaceChildren(
-        emptyState(
-          "Process not found",
-          "The link may be stale, or the process id may be wrong.",
-          {
-            action: Object.assign(element("a", "button secondary", "Back to the list"), {
-              href: "/",
-            }),
-          },
-        ),
+        emptyState("Process not found", "The link may be stale, or the process id may be wrong.", {
+          action: Object.assign(element("a", "button secondary", "Back to the list"), {
+            href: "/",
+          }),
+        }),
       );
       return;
     }
@@ -1415,11 +1323,9 @@ function renderUnknownRoute() {
   const home = element("a", "button secondary", "Back to processes");
   home.href = "/";
   mainNode.replaceChildren(
-    emptyState(
-      "Page not found",
-      "The local reader has a process list and detail pages.",
-      { action: home },
-    ),
+    emptyState("Page not found", "The local reader has a process list and detail pages.", {
+      action: home,
+    }),
   );
 }
 

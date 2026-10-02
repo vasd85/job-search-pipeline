@@ -21,10 +21,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
-import {
-  createRunningPublicationStep,
-  createValidV3Log,
-} from "./fixtures/process-log-v3.mjs";
+import { createRunningPublicationStep, createValidV3Log } from "./fixtures/process-log-v3.mjs";
 import {
   MANIFEST_FILE_NAME,
   readManifest,
@@ -52,15 +49,25 @@ function gitEnvironment() {
 }
 
 function git(cwd, args) {
-  const result = spawnSync("git", [
-    "-c", "user.name=Fixture Author",
-    "-c", "user.email=fixture@example.invalid",
-    "-c", "commit.gpgsign=false",
-    "-c", "tag.gpgsign=false",
-    "-c", "init.defaultBranch=main",
-    "-c", "core.hooksPath=/dev/null",
-    ...args,
-  ], { cwd, encoding: "utf8", env: gitEnvironment() });
+  const result = spawnSync(
+    "git",
+    [
+      "-c",
+      "user.name=Fixture Author",
+      "-c",
+      "user.email=fixture@example.invalid",
+      "-c",
+      "commit.gpgsign=false",
+      "-c",
+      "tag.gpgsign=false",
+      "-c",
+      "init.defaultBranch=main",
+      "-c",
+      "core.hooksPath=/dev/null",
+      ...args,
+    ],
+    { cwd, encoding: "utf8", env: gitEnvironment() },
+  );
   assert.equal(result.status, 0, `git ${args.join(" ")}: ${result.stderr}`);
   return result.stdout.trim();
 }
@@ -107,7 +114,10 @@ function treeSnapshot(directory) {
       const relativePath = relativeDirectory === "" ? name : `${relativeDirectory}/${name}`;
       const stats = lstatSync(join(absolute, name));
       if (stats.isDirectory()) walk(relativePath);
-      else rows[relativePath] = `${stats.mode}:${createHash("sha256").update(readFileSync(join(absolute, name))).digest("hex")}`;
+      else
+        rows[relativePath] = `${stats.mode}:${createHash("sha256")
+          .update(readFileSync(join(absolute, name)))
+          .digest("hex")}`;
     }
   };
   walk("");
@@ -139,7 +149,7 @@ function engineFiles(control, extra = {}) {
     "README.md": "# Fixture engine\n",
     "docs/guide.md": "guide\n",
     "package-lock.json": `${JSON.stringify({ lockfileVersion: 3, packages: { "": {} } })}\n`,
-    "package.json": "{\"name\":\"fixture-engine\",\"private\":true}\n",
+    "package.json": '{"name":"fixture-engine","private":true}\n',
     [STUB_CONTROL]: `${JSON.stringify(control)}\n`,
     "tools/bootstrap.mjs": stubScript(1, "bootstrap"),
     "tools/build.sh": { content: "#!/bin/sh\nexit 0\n", executable: true },
@@ -158,7 +168,7 @@ const PASSING = Object.freeze({
 
 const CANDIDATE_FILES = Object.freeze({
   "board/0001-task.md": "a board task\n",
-  "config.json": "{\"schema_version\":1}\n",
+  "config.json": '{"schema_version":1}\n',
   "profile.md": "# Fixture profile\n",
   "research/notes.md": "private research\n",
   "rules.md": "# Rules\n",
@@ -181,20 +191,26 @@ function fixtureFolder(t, { control = PASSING, extra = {}, withState = true } = 
   makeRepository(engineRepo, engineFiles(control, extra), "release-20260901");
   makeRepository(candidateRepo, CANDIDATE_FILES, "candidate-20260901");
   const root = join(base, "folder");
-  exportFolder({
-    candidate: "candidate-20260901",
-    candidateRepo,
-    engineRepo,
-    release: "release-20260901",
-    root,
-  }, context());
+  exportFolder(
+    {
+      candidate: "candidate-20260901",
+      candidateRepo,
+      engineRepo,
+      release: "release-20260901",
+      root,
+    },
+    context(),
+  );
   if (withState) {
-    writeFileSync(join(root, "process-log.json"), `${JSON.stringify(createValidV3Log(), null, 2)}\n`);
+    writeFileSync(
+      join(root, "process-log.json"),
+      `${JSON.stringify(createValidV3Log(), null, 2)}\n`,
+    );
     mkdirSync(join(root, "output/example-labs-senior-sdet"), { recursive: true });
     writeFileSync(join(root, "output/example-labs-senior-sdet/cv.json"), "{}\n");
     mkdirSync(join(root, "records/letter-corrections"), { recursive: true });
-    writeFileSync(join(root, "records/letter-corrections/record.json"), "{\"id\":1}\n");
-    writeFileSync(join(root, ".claude/settings.local.json"), "{\"local\":true}\n");
+    writeFileSync(join(root, "records/letter-corrections/record.json"), '{"id":1}\n');
+    writeFileSync(join(root, ".claude/settings.local.json"), '{"local":true}\n');
   }
   return { base, candidateRepo, engineRepo, root };
 }
@@ -215,9 +231,16 @@ function writeOverride(root, command, reason) {
   chmodSync(inputRoot, 0o700);
   const nonce = createHash("sha256").update(`${command}${reason}`).digest("hex").slice(0, 32);
   const name = `input-${nonce}.json`;
-  writeFileSync(join(inputRoot, name), JSON.stringify({
-    command, nonce, schemaVersion: 1, values: { overrideReason: reason },
-  }), { mode: 0o600 });
+  writeFileSync(
+    join(inputRoot, name),
+    JSON.stringify({
+      command,
+      nonce,
+      schemaVersion: 1,
+      values: { overrideReason: reason },
+    }),
+    { mode: 0o600 },
+  );
   return name;
 }
 
@@ -241,18 +264,34 @@ test("export builds a folder without .git from two tags and records both, the zo
   assert.equal(manifest.state, "ready");
   assert.equal(manifest.previous, null);
   assert.equal(manifest.engine.tag, "release-20260901");
-  assert.equal(manifest.engine.commit, git(fixture.engineRepo, ["rev-parse", "release-20260901^{commit}"]));
-  assert.equal(manifest.engine.tree, git(fixture.engineRepo, ["rev-parse", "release-20260901^{tree}"]));
+  assert.equal(
+    manifest.engine.commit,
+    git(fixture.engineRepo, ["rev-parse", "release-20260901^{commit}"]),
+  );
+  assert.equal(
+    manifest.engine.tree,
+    git(fixture.engineRepo, ["rev-parse", "release-20260901^{tree}"]),
+  );
   assert.equal(manifest.candidate.tag, "candidate-20260901");
   assert.deepEqual(manifest.zones, zoneTableFor("operational"));
   assert.equal(manifest.files.engine["tools/build.sh"].executable, true);
   assert.equal(manifest.files.engine["README.md"].executable, false);
   assert.ok(manifest.files.dependencies["tools/cv-builder/node_modules/fixture-dep/index.js"]);
   assert.deepEqual(Object.keys(manifest.files.candidate).sort(), [
-    "candidate/config.json", "candidate/profile.md", "candidate/rules.md",
+    "candidate/config.json",
+    "candidate/profile.md",
+    "candidate/rules.md",
   ]);
-  assert.equal(existsSync(join(root, "candidate/board")), false, "the board never enters the folder");
-  assert.equal(existsSync(join(root, "candidate/research")), false, "private research never enters the folder");
+  assert.equal(
+    existsSync(join(root, "candidate/board")),
+    false,
+    "the board never enters the folder",
+  );
+  assert.equal(
+    existsSync(join(root, "candidate/research")),
+    false,
+    "private research never enters the folder",
+  );
   assert.equal(verifyFolder(root).status, "clean");
 });
 
@@ -264,41 +303,79 @@ test("export refuses a root inside a repository, a non-empty root, a malformed t
     engineRepo: fixture.engineRepo,
     release: "release-20260901",
   };
-  assertCode(() => exportFolder({ ...input, root: join(fixture.engineRepo, "inside") }, context()), "ops_tree_root_inside_repository");
+  assertCode(
+    () => exportFolder({ ...input, root: join(fixture.engineRepo, "inside") }, context()),
+    "ops_tree_root_inside_repository",
+  );
   assert.equal(existsSync(join(fixture.engineRepo, "inside")), false);
-  assertCode(() => exportFolder({ ...input, root: fixture.root }, context()), "ops_tree_root_not_empty");
-  assertCode(() => exportFolder({ ...input, release: "v1", root: join(fixture.base, "a") }, context()), "ops_tree_invalid_tag");
+  assertCode(
+    () => exportFolder({ ...input, root: fixture.root }, context()),
+    "ops_tree_root_not_empty",
+  );
+  assertCode(
+    () => exportFolder({ ...input, release: "v1", root: join(fixture.base, "a") }, context()),
+    "ops_tree_invalid_tag",
+  );
   git(fixture.engineRepo, ["branch", "release-20260999"]);
-  assertCode(() => exportFolder({ ...input, release: "release-20260999", root: join(fixture.base, "b") }, context()), "ops_tree_tag_missing");
+  assertCode(
+    () =>
+      exportFolder(
+        { ...input, release: "release-20260999", root: join(fixture.base, "b") },
+        context(),
+      ),
+    "ops_tree_tag_missing",
+  );
 });
 
 test("an engine tag that tracks a path of the state zone is refused before the folder exists", (t) => {
   const base = scratch(t, "ops-tree-overlap-");
-  makeRepository(join(base, "engine"), engineFiles(PASSING, { "output/leak.txt": "x\n" }), "release-20260901");
+  makeRepository(
+    join(base, "engine"),
+    engineFiles(PASSING, { "output/leak.txt": "x\n" }),
+    "release-20260901",
+  );
   makeRepository(join(base, "private"), CANDIDATE_FILES, "candidate-20260901");
-  assertCode(() => exportFolder({
-    candidate: "candidate-20260901",
-    candidateRepo: join(base, "private"),
-    engineRepo: join(base, "engine"),
-    release: "release-20260901",
-    root: join(base, "folder"),
-  }, context()), "ops_tree_image_overlaps_state");
+  assertCode(
+    () =>
+      exportFolder(
+        {
+          candidate: "candidate-20260901",
+          candidateRepo: join(base, "private"),
+          engineRepo: join(base, "engine"),
+          release: "release-20260901",
+          root: join(base, "folder"),
+        },
+        context(),
+      ),
+    "ops_tree_image_overlaps_state",
+  );
   assert.deepEqual(readdirSync(join(base, "folder/.ops-tree/staging")), []);
 });
 
 test("an export that differs from the tagged blobs is refused", (t) => {
   const base = scratch(t, "ops-tree-attributes-");
-  makeRepository(join(base, "engine"), engineFiles(PASSING, {
-    ".gitattributes": "docs/guide.md export-ignore\n",
-  }), "release-20260901");
+  makeRepository(
+    join(base, "engine"),
+    engineFiles(PASSING, {
+      ".gitattributes": "docs/guide.md export-ignore\n",
+    }),
+    "release-20260901",
+  );
   makeRepository(join(base, "private"), CANDIDATE_FILES, "candidate-20260901");
-  assertCode(() => exportFolder({
-    candidate: "candidate-20260901",
-    candidateRepo: join(base, "private"),
-    engineRepo: join(base, "engine"),
-    release: "release-20260901",
-    root: join(base, "folder"),
-  }, context()), "ops_tree_export_mismatch");
+  assertCode(
+    () =>
+      exportFolder(
+        {
+          candidate: "candidate-20260901",
+          candidateRepo: join(base, "private"),
+          engineRepo: join(base, "engine"),
+          release: "release-20260901",
+          root: join(base, "folder"),
+        },
+        context(),
+      ),
+    "ops_tree_export_mismatch",
+  );
 });
 
 test("the zone table: state, handover, service and metadata are never digested; the rest is engine", () => {
@@ -324,24 +401,67 @@ test("the zone table: state, handover, service and metadata are never digested; 
 
 test("verify refuses a modified, added, removed or retyped file of each digested zone, naming path and zone", (t) => {
   const cases = [
-    ["modified engine", (root) => writeFileSync(join(root, "docs/guide.md"), "changed\n"), "engine_tree_drift", "modified engine docs/guide.md"],
-    ["added at the root", (root) => writeFileSync(join(root, "pqs_tags.json"), "{}\n"), "engine_tree_drift", "added engine pqs_tags.json"],
-    ["removed engine", (root) => rmSync(join(root, "README.md")), "engine_tree_drift", "removed engine README.md"],
-    ["exec bit", (root) => chmodSync(join(root, "tools/build.sh"), 0o644), "engine_tree_drift", "modified engine tools/build.sh"],
-    ["dependency", (root) => writeFileSync(join(root, "tools/cv-builder/node_modules/fixture-dep/index.js"), "2\n"), "engine_tree_drift", "modified dependencies"],
-    ["candidate", (root) => writeFileSync(join(root, "candidate/profile.md"), "edited in place\n"), "candidate_snapshot_drift", "modified candidate candidate/profile.md"],
-    ["candidate added", (root) => writeFileSync(join(root, "candidate/extra.md"), "x\n"), "candidate_snapshot_drift", "added candidate candidate/extra.md"],
+    [
+      "modified engine",
+      (root) => writeFileSync(join(root, "docs/guide.md"), "changed\n"),
+      "engine_tree_drift",
+      "modified engine docs/guide.md",
+    ],
+    [
+      "added at the root",
+      (root) => writeFileSync(join(root, "pqs_tags.json"), "{}\n"),
+      "engine_tree_drift",
+      "added engine pqs_tags.json",
+    ],
+    [
+      "removed engine",
+      (root) => rmSync(join(root, "README.md")),
+      "engine_tree_drift",
+      "removed engine README.md",
+    ],
+    [
+      "exec bit",
+      (root) => chmodSync(join(root, "tools/build.sh"), 0o644),
+      "engine_tree_drift",
+      "modified engine tools/build.sh",
+    ],
+    [
+      "dependency",
+      (root) =>
+        writeFileSync(join(root, "tools/cv-builder/node_modules/fixture-dep/index.js"), "2\n"),
+      "engine_tree_drift",
+      "modified dependencies",
+    ],
+    [
+      "candidate",
+      (root) => writeFileSync(join(root, "candidate/profile.md"), "edited in place\n"),
+      "candidate_snapshot_drift",
+      "modified candidate candidate/profile.md",
+    ],
+    [
+      "candidate added",
+      (root) => writeFileSync(join(root, "candidate/extra.md"), "x\n"),
+      "candidate_snapshot_drift",
+      "added candidate candidate/extra.md",
+    ],
   ];
   for (const [label, mutate, code, fragment] of cases) {
     const { root } = fixtureFolder(t);
     mutate(root);
-    assert.throws(() => verifyFolder(root), (error) => {
-      assert.equal(error.code, code, label);
-      assert.match(error.message, new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), label);
-      assert.ok(Buffer.byteLength(error.message) <= 512, label);
-      assert.equal(error.message.includes(root), false, `${label}: no absolute path`);
-      return true;
-    });
+    assert.throws(
+      () => verifyFolder(root),
+      (error) => {
+        assert.equal(error.code, code, label);
+        assert.match(
+          error.message,
+          new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+          label,
+        );
+        assert.ok(Buffer.byteLength(error.message) <= 512, label);
+        assert.equal(error.message.includes(root), false, `${label}: no absolute path`);
+        return true;
+      },
+    );
   }
 });
 
@@ -376,19 +496,29 @@ test("cutover replaces both zones, drops files the release left, keeps the state
     research: readFileSync(join(root, "records/letter-corrections/record.json"), "utf8"),
   };
   nextRelease(fixture, "release-20260902", { "docs/guide.md": null, "docs/new.md": "new\n" });
-  commitAndTag(fixture.candidateRepo, { "profile.md": "# Fixture profile v2\n" }, "candidate-20260902");
+  commitAndTag(
+    fixture.candidateRepo,
+    { "profile.md": "# Fixture profile v2\n" },
+    "candidate-20260902",
+  );
 
-  const result = cutoverFolder({ candidate: "candidate-20260902", release: "release-20260902", root }, context());
+  const result = cutoverFolder(
+    { candidate: "candidate-20260902", release: "release-20260902", root },
+    context(),
+  );
   assert.equal(result.status, "cut_over");
   assert.equal(existsSync(join(root, "docs/guide.md")), false);
   assert.equal(readFileSync(join(root, "docs/new.md"), "utf8"), "new\n");
   assert.equal(readFileSync(join(root, "candidate/profile.md"), "utf8"), "# Fixture profile v2\n");
-  assert.deepEqual({
-    ledger: readFileSync(join(root, "process-log.json"), "utf8"),
-    local: readFileSync(join(root, ".claude/settings.local.json"), "utf8"),
-    output: readFileSync(join(root, "output/example-labs-senior-sdet/cv.json"), "utf8"),
-    research: readFileSync(join(root, "records/letter-corrections/record.json"), "utf8"),
-  }, stateBefore);
+  assert.deepEqual(
+    {
+      ledger: readFileSync(join(root, "process-log.json"), "utf8"),
+      local: readFileSync(join(root, ".claude/settings.local.json"), "utf8"),
+      output: readFileSync(join(root, "output/example-labs-senior-sdet/cv.json"), "utf8"),
+      research: readFileSync(join(root, "records/letter-corrections/record.json"), "utf8"),
+    },
+    stateBefore,
+  );
   const manifest = readManifest(root);
   assert.equal(manifest.engine.tag, "release-20260902");
   assert.equal(manifest.candidate.tag, "candidate-20260902");
@@ -405,14 +535,25 @@ test("cutover replaces both zones, drops files the release left, keeps the state
 
 test("a pair the new engine refuses, or a ledger it cannot read, stops the cutover before any file moves", (t) => {
   for (const [label, control, code] of [
-    ["pair", { ...PASSING, bootstrap: { code: "candidate_document_missing", exit: 1 } }, "ops_tree_pair_check_failed"],
+    [
+      "pair",
+      { ...PASSING, bootstrap: { code: "candidate_document_missing", exit: 1 } },
+      "ops_tree_pair_check_failed",
+    ],
     ["ledger", { ...PASSING, validate: { exit: 1, report: {} } }, "cutover_ledger_unreadable"],
   ]) {
     const fixture = fixtureFolder(t);
-    nextRelease(fixture, "release-20260902", { [STUB_CONTROL]: `${JSON.stringify(control)}\n`, "docs/new.md": "new\n" });
+    nextRelease(fixture, "release-20260902", {
+      [STUB_CONTROL]: `${JSON.stringify(control)}\n`,
+      "docs/new.md": "new\n",
+    });
     const before = treeSnapshot(fixture.root);
     assert.throws(
-      () => cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root: fixture.root }, context()),
+      () =>
+        cutoverFolder(
+          { candidate: "candidate-20260901", release: "release-20260902", root: fixture.root },
+          context(),
+        ),
       (error) => {
         assert.equal(error.code, code, label);
         return true;
@@ -426,24 +567,37 @@ test("a pair the new engine refuses, or a ledger it cannot read, stops the cutov
 test("dry-run changes nothing and reports drift and the processes the swap would stop", (t) => {
   const fixture = fixtureFolder(t);
   const report = {
-    processes: [{
-      process_id: "proc_file_backed_001",
-      output: { code: null },
-      steps: [{ issues: ["published_inputs_stale"], name: "map_experience" }],
-    }],
+    processes: [
+      {
+        process_id: "proc_file_backed_001",
+        output: { code: null },
+        steps: [{ issues: ["published_inputs_stale"], name: "map_experience" }],
+      },
+    ],
   };
   nextRelease(fixture, "release-20260902", {
     [STUB_CONTROL]: `${JSON.stringify({ ...PASSING, validate: { exit: 2, report } })}\n`,
   });
   writeFileSync(join(fixture.root, "stray.txt"), "dropped by hand\n");
   const before = treeSnapshot(fixture.root);
-  const result = cutoverFolder({
-    candidate: "candidate-20260901", dryRun: true, release: "release-20260902", root: fixture.root,
-  }, context());
+  const result = cutoverFolder(
+    {
+      candidate: "candidate-20260901",
+      dryRun: true,
+      release: "release-20260902",
+      root: fixture.root,
+    },
+    context(),
+  );
   assert.equal(result.status, "dry_run");
   assert.deepEqual(result.drift, [{ kind: "added", path: "stray.txt", zone: "engine" }]);
-  assert.ok(result.stopped_by_swap.some((row) => row.process_id === "proc_file_backed_001"
-    && row.issues.includes("map_experience:published_inputs_stale")));
+  assert.ok(
+    result.stopped_by_swap.some(
+      (row) =>
+        row.process_id === "proc_file_backed_001" &&
+        row.issues.includes("map_experience:published_inputs_stale"),
+    ),
+  );
   assert.deepEqual(treeSnapshot(fixture.root), before);
 });
 
@@ -465,7 +619,11 @@ test("gates: a young running step and a prepared publication of any age refuse; 
     const fixture = fixtureFolder(t);
     writeLedger(fixture.root, scenario.ledger);
     nextRelease(fixture, "release-20260902", { "docs/new.md": "new\n" });
-    const input = { candidate: "candidate-20260901", release: "release-20260902", root: fixture.root };
+    const input = {
+      candidate: "candidate-20260901",
+      release: "release-20260902",
+      root: fixture.root,
+    };
     const clock = context({ now: () => new Date(scenario.now) });
     if (scenario.code === null) {
       const result = cutoverFolder(input, clock);
@@ -478,8 +636,13 @@ test("gates: a young running step and a prepared publication of any age refuse; 
     const inputFile = writeOverride(fixture.root, "cutover", "the user accepted the open step");
     const result = cutoverFolder({ ...input, inputFile }, clock);
     assert.equal(result.status, "cut_over");
-    assert.deepEqual(result.override, { lifted: [scenario.code], reason: "the user accepted the open step" });
-    const evidence = JSON.parse(readFileSync(join(fixture.root, ".ops-tree/cutovers", `${result.stamp}.json`), "utf8"));
+    assert.deepEqual(result.override, {
+      lifted: [scenario.code],
+      reason: "the user accepted the open step",
+    });
+    const evidence = JSON.parse(
+      readFileSync(join(fixture.root, ".ops-tree/cutovers", `${result.stamp}.json`), "utf8"),
+    );
     assert.equal(evidence.override.reason, "the user accepted the open step");
   }
 });
@@ -489,7 +652,11 @@ test("a triage lock refuses the cutover", (t) => {
   mkdirSync(join(fixture.root, "triage-ledger.json.lock"));
   nextRelease(fixture, "release-20260902", { "docs/new.md": "new\n" });
   assertCode(
-    () => cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root: fixture.root }, context()),
+    () =>
+      cutoverFolder(
+        { candidate: "candidate-20260901", release: "release-20260902", root: fixture.root },
+        context(),
+      ),
     "cutover_triage_locked",
   );
 });
@@ -505,7 +672,10 @@ test("rollback after a cutover restores the previous files and manifest, and can
   cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root }, context());
   const cutOver = treeSnapshot(root);
 
-  const back = rollbackFolder({ root }, context({ now: () => new Date("2026-09-24T13:00:00.000Z") }));
+  const back = rollbackFolder(
+    { root },
+    context({ now: () => new Date("2026-09-24T13:00:00.000Z") }),
+  );
   assert.equal(back.status, "rolled_back");
   assert.equal(readManifest(root).engine.tag, "release-20260901");
   assert.equal(verifyFolder(root).status, "clean");
@@ -516,7 +686,10 @@ test("rollback after a cutover restores the previous files and manifest, and can
   }
   assert.equal(existsSync(join(root, "docs/new.md")), false);
 
-  const forward = rollbackFolder({ root }, context({ now: () => new Date("2026-09-24T14:00:00.000Z") }));
+  const forward = rollbackFolder(
+    { root },
+    context({ now: () => new Date("2026-09-24T14:00:00.000Z") }),
+  );
   assert.equal(forward.status, "rolled_back");
   assert.equal(readManifest(root).engine.tag, "release-20260902");
   for (const [path, row] of Object.entries(cutOver)) {
@@ -530,10 +703,18 @@ test("an exception in the middle of the swap is reversed by the same process", (
   const { root } = fixture;
   nextRelease(fixture, "release-20260902", { "docs/new.md": "new\n" });
   const before = treeSnapshot(root);
-  assert.throws(() => cutoverFolder(
-    { candidate: "candidate-20260901", release: "release-20260902", root },
-    context({ beforeRename: (index) => { if (index === 5) throw new Error("injected fault"); } }),
-  ), /injected fault/);
+  assert.throws(
+    () =>
+      cutoverFolder(
+        { candidate: "candidate-20260901", release: "release-20260902", root },
+        context({
+          beforeRename: (index) => {
+            if (index === 5) throw new Error("injected fault");
+          },
+        }),
+      ),
+    /injected fault/,
+  );
   const after = treeSnapshot(root);
   for (const [path, row] of Object.entries(before)) {
     if (path.startsWith(".ops-tree/")) continue;
@@ -548,15 +729,30 @@ test("an interrupted rollback of a finished swap is reversed by the same process
   const fixture = fixtureFolder(t);
   const { root } = fixture;
   nextRelease(fixture, "release-20260902", { "docs/guide.md": null, "docs/new.md": "new\n" });
-  const cut = cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root }, context());
+  const cut = cutoverFolder(
+    { candidate: "candidate-20260901", release: "release-20260902", root },
+    context(),
+  );
   const before = treeSnapshot(root);
-  assert.throws(() => rollbackFolder({ root }, context({
-    beforeRename: (index) => { if (index === 5) throw new Error("injected fault"); },
-    now: () => new Date("2026-09-24T13:00:00.000Z"),
-  })), /injected fault/);
+  assert.throws(
+    () =>
+      rollbackFolder(
+        { root },
+        context({
+          beforeRename: (index) => {
+            if (index === 5) throw new Error("injected fault");
+          },
+          now: () => new Date("2026-09-24T13:00:00.000Z"),
+        }),
+      ),
+    /injected fault/,
+  );
   assert.deepEqual(treeSnapshot(root), before);
   assert.equal(readManifest(root).engine.tag, "release-20260902");
-  assert.equal(readManifest(join(root, ".ops-tree/previous", cut.stamp)).engine.tag, "release-20260901");
+  assert.equal(
+    readManifest(join(root, ".ops-tree/previous", cut.stamp)).engine.tag,
+    "release-20260901",
+  );
   assert.equal(verifyFolder(root).status, "clean");
 });
 
@@ -571,7 +767,11 @@ test("an image refused before the journal is written is deleted even if the rele
   writeFileSync(join(fixture.root, "docs/runtime/x"), "x\n");
   nextRelease(fixture, "release-20260902", { "docs/runtime/x": "shipped\n" });
   assertCode(
-    () => cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root: fixture.root }, context()),
+    () =>
+      cutoverFolder(
+        { candidate: "candidate-20260901", release: "release-20260902", root: fixture.root },
+        context(),
+      ),
     "ops_tree_image_overlaps_state",
   );
   assert.deepEqual(readdirSync(join(fixture.root, ".ops-tree/staging")), []);
@@ -583,7 +783,11 @@ test("a cutover refuses a folder whose swap journal is still there", (t) => {
   writeFileSync(join(fixture.root, ".ops-tree/journal.json"), "{}\n");
   nextRelease(fixture, "release-20260902", { "docs/new.md": "new\n" });
   assertCode(
-    () => cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root: fixture.root }, context()),
+    () =>
+      cutoverFolder(
+        { candidate: "candidate-20260901", release: "release-20260902", root: fixture.root },
+        context(),
+      ),
     "ops_tree_building",
   );
 });
@@ -592,31 +796,45 @@ test("a reversal never deletes an image holding a state file the folder has repl
   const fixture = fixtureFolder(t);
   const { root } = fixture;
   nextRelease(fixture, "release-20260902", { "docs/new.md": "new\n" });
-  assert.throws(() => cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root }, context({
-    beforeRename: (index, pair) => {
-      if (pair.from !== ".claude") return;
-      writeFileSync(join(root, ".claude/settings.local.json"), "{\"written\":\"meanwhile\"}\n");
-      throw new Error("injected fault");
+  assert.throws(
+    () =>
+      cutoverFolder(
+        { candidate: "candidate-20260901", release: "release-20260902", root },
+        context({
+          beforeRename: (index, pair) => {
+            if (pair.from !== ".claude") return;
+            writeFileSync(join(root, ".claude/settings.local.json"), '{"written":"meanwhile"}\n');
+            throw new Error("injected fault");
+          },
+        }),
+      ),
+    (error) => {
+      assert.match(error.message, /injected fault/);
+      assert.deepEqual(error.details.kept_image.holds, [".claude/settings.local.json"]);
+      return true;
     },
-  })), (error) => {
-    assert.match(error.message, /injected fault/);
-    assert.deepEqual(error.details.kept_image.holds, [".claude/settings.local.json"]);
-    return true;
-  });
+  );
   const [image] = readdirSync(join(root, ".ops-tree/staging"));
   assert.equal(
     readFileSync(join(root, ".ops-tree/staging", image, ".claude/settings.local.json"), "utf8"),
-    "{\"local\":true}\n",
+    '{"local":true}\n',
     "the original stays in the kept image",
   );
-  assert.equal(readFileSync(join(root, ".claude/settings.local.json"), "utf8"), "{\"written\":\"meanwhile\"}\n");
+  assert.equal(
+    readFileSync(join(root, ".claude/settings.local.json"), "utf8"),
+    '{"written":"meanwhile"}\n',
+  );
   assert.equal(
     readFileSync(join(root, "records/letter-corrections/record.json"), "utf8"),
-    "{\"id\":1}\n",
+    '{"id":1}\n',
     "the corpus came back",
   );
   assertCode(
-    () => cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root }, context()),
+    () =>
+      cutoverFolder(
+        { candidate: "candidate-20260901", release: "release-20260902", root },
+        context(),
+      ),
     "ops_tree_staging_holds_state",
   );
 });
@@ -637,7 +855,10 @@ test("after four cutovers three retained trees are kept, and a retained tree hol
   }
   const retained = readdirSync(join(root, ".ops-tree/previous")).sort();
   assert.deepEqual(retained, stamps, "the oldest tree carries the stray file and is kept");
-  assert.equal(readFileSync(join(root, ".ops-tree/previous", stamps[0], "stray.txt"), "utf8"), "kept by hand\n");
+  assert.equal(
+    readFileSync(join(root, ".ops-tree/previous", stamps[0], "stray.txt"), "utf8"),
+    "kept by hand\n",
+  );
 
   nextRelease(fixture, "release-20260906", { "docs/day-6.md": "6\n" });
   const sixth = cutoverFolder(
@@ -650,14 +871,23 @@ test("after four cutovers three retained trees are kept, and a retained tree hol
 
 test("the lock: a live holder refuses, an abandoned one is taken over by exactly one taker", (t) => {
   const { root } = fixtureFolder(t, { withState: false });
-  const alive = { hostname: () => "fixture-host", now: () => new Date(), processAlive: () => true, bootTime: () => 0 };
+  const alive = {
+    hostname: () => "fixture-host",
+    now: () => new Date(),
+    processAlive: () => true,
+    bootTime: () => 0,
+  };
   const first = acquireLock(alive, root);
   assertCode(() => acquireLock(alive, root), "ops_tree_locked");
   const dead = { ...alive, processAlive: () => false };
   const second = acquireLock(dead, root);
   assert.deepEqual(Object.keys(second.takeover).sort(), ["acquired_at", "pid"]);
   releaseLock(root, first);
-  assert.equal(existsSync(join(root, ".ops-tree/lock")), true, "a stale token never releases the new holder");
+  assert.equal(
+    existsSync(join(root, ".ops-tree/lock")),
+    true,
+    "a stale token never releases the new holder",
+  );
   releaseLock(root, second);
   assert.equal(existsSync(join(root, ".ops-tree/lock")), false);
   const stale = acquireLock(alive, root);
@@ -669,9 +899,15 @@ test("the lock: a live holder refuses, an abandoned one is taken over by exactly
     },
   };
   assertCode(() => acquireLock(loser, root), "ops_tree_locked");
-  assert.equal(JSON.parse(readFileSync(join(root, ".ops-tree/lock"), "utf8")).token, winner.token,
-    "the winner's lock is put back, not left aside");
-  assert.deepEqual(readdirSync(join(root, ".ops-tree")).filter((name) => name.startsWith("lock.stale-")), []);
+  assert.equal(
+    JSON.parse(readFileSync(join(root, ".ops-tree/lock"), "utf8")).token,
+    winner.token,
+    "the winner's lock is put back, not left aside",
+  );
+  assert.deepEqual(
+    readdirSync(join(root, ".ops-tree")).filter((name) => name.startsWith("lock.stale-")),
+    [],
+  );
   releaseLock(root, stale);
   releaseLock(root, winner);
   const foreign = acquireLock({ ...alive, hostname: () => "other-host" }, root);
@@ -685,7 +921,11 @@ test("a staging leftover holding state other than the ledger copy refuses the ne
   mkdirSync(join(leftover, "records"), { recursive: true });
   writeFileSync(join(leftover, "records/record.json"), "{}\n");
   nextRelease(fixture, "release-20260902", { "docs/new.md": "new\n" });
-  const input = { candidate: "candidate-20260901", release: "release-20260902", root: fixture.root };
+  const input = {
+    candidate: "candidate-20260901",
+    release: "release-20260902",
+    root: fixture.root,
+  };
   assertCode(() => cutoverFolder(input, context()), "ops_tree_staging_holds_state");
   rmSync(join(leftover, "records"), { recursive: true });
   writeFileSync(join(leftover, "process-log.json"), "{}\n");
@@ -707,9 +947,17 @@ function realEngineRepositories() {
   const engineRepo = join(base, "engine");
   mkdirSync(engineRepo);
   git(engineRepo, ["init", "-q"]);
-  const listed = spawnSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
-    cwd: repoRoot, encoding: "utf8", env: gitEnvironment(),
-  }).stdout.split("\0").filter(Boolean);
+  const listed = spawnSync(
+    "git",
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: gitEnvironment(),
+    },
+  )
+    .stdout.split("\0")
+    .filter(Boolean);
   for (const path of listed) {
     const source = join(repoRoot, path);
     if (!existsSync(source) || !statSync(source).isFile()) continue;
@@ -733,25 +981,34 @@ function realEngineRepositories() {
     }
   };
   collect("");
-  makeRepository(candidateRepo, { ...example, "board/0001-task.md": "task\n" }, "candidate-20260901");
+  makeRepository(
+    candidateRepo,
+    { ...example, "board/0001-task.md": "task\n" },
+    "candidate-20260901",
+  );
   realEngineCache = { base, candidateRepo, engineRepo };
   return realEngineCache;
 }
 
 function copyDependencies(directory) {
-  cpSync(join(repoRoot, "tools/cv-builder/node_modules"), join(directory, "node_modules"), { recursive: true });
+  cpSync(join(repoRoot, "tools/cv-builder/node_modules"), join(directory, "node_modules"), {
+    recursive: true,
+  });
 }
 
 function realFolder(t) {
   const { candidateRepo, engineRepo } = realEngineRepositories();
   const root = join(scratch(t, "ops-tree-real-folder-"), "folder");
-  exportFolder({
-    candidate: "candidate-20260901",
-    candidateRepo,
-    engineRepo,
-    release: "release-20260901",
-    root,
-  }, context({ install: copyDependencies }));
+  exportFolder(
+    {
+      candidate: "candidate-20260901",
+      candidateRepo,
+      engineRepo,
+      release: "release-20260901",
+      root,
+    },
+    context({ install: copyDependencies }),
+  );
   return root;
 }
 
@@ -762,7 +1019,9 @@ function realFolder(t) {
  */
 function interruptedCutover(t, root, { operation = "cutover", signal, stopWhen }) {
   const script = join(scratch(t, "ops-tree-child-"), "child.mjs");
-  writeFileSync(script, `import { spawnSync } from "node:child_process";
+  writeFileSync(
+    script,
+    `import { spawnSync } from "node:child_process";
 import { cpSync } from "node:fs";
 import { join } from "node:path";
 const { cutoverFolder, rollbackFolder } = await import(${JSON.stringify(treeModuleUrl)});
@@ -781,10 +1040,13 @@ const hooks = {
 if (operation === "rollback") rollbackFolder({ root }, hooks);
 else cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root }, hooks);
 process.stdout.write("finished");
-`);
-  return spawnSync(process.execPath, [
-    script, root, join(repoRoot, "tools/cv-builder/node_modules"), signal, stopWhen, operation,
-  ], { encoding: "utf8", env: gitEnvironment() });
+`,
+  );
+  return spawnSync(
+    process.execPath,
+    [script, root, join(repoRoot, "tools/cv-builder/node_modules"), signal, stopWhen, operation],
+    { encoding: "utf8", env: gitEnvironment() },
+  );
 }
 
 function runCli(cli, args) {
@@ -801,7 +1063,9 @@ test("a cutover killed while the root has no tools/ is recovered by the retained
   const journal = JSON.parse(readFileSync(join(root, ".ops-tree/journal.json"), "utf8"));
   const copy = join(root, ".ops-tree/previous", journal.stamp, "tools/ops-tree/cli.mjs");
 
-  const wrong = runCli(join(root, ".ops-tree/previous", journal.stamp, "tools/ops-tree/cli.mjs"), ["verify"]);
+  const wrong = runCli(join(root, ".ops-tree/previous", journal.stamp, "tools/ops-tree/cli.mjs"), [
+    "verify",
+  ]);
   assert.equal(JSON.parse(wrong.stderr).error.code, "ops_tree_recovery_refused");
   const recovered = runCli(copy, ["rollback"]);
   assert.equal(recovered.status, 0, recovered.stderr);
@@ -818,13 +1082,17 @@ test("a cutover killed while the root has no tools/ is recovered by the retained
 test("a cutover killed with tools/ still in place is recovered by the folder's own rollback; state survives", (t) => {
   const root = realFolder(t);
   mkdirSync(join(root, "records"), { recursive: true });
-  writeFileSync(join(root, "records/record.json"), "{\"kept\":true}\n");
+  writeFileSync(join(root, "records/record.json"), '{"kept":true}\n');
   mkdirSync(join(root, ".claude"), { recursive: true });
-  writeFileSync(join(root, ".claude/settings.local.json"), "{\"local\":true}\n");
+  writeFileSync(join(root, ".claude/settings.local.json"), '{"local":true}\n');
   const before = treeSnapshot(root);
   const child = interruptedCutover(t, root, { signal: "SIGKILL", stopWhen: "from:.github" });
   assert.equal(child.signal, "SIGKILL");
-  assert.equal(existsSync(join(root, "records/record.json")), true, "state stays in the root during the swap");
+  assert.equal(
+    existsSync(join(root, "records/record.json")),
+    true,
+    "state stays in the root during the swap",
+  );
   assertCode(() => verifyFolder(root), "ops_tree_building");
 
   const recovered = runCli(join(root, "tools/ops-tree/cli.mjs"), ["rollback"]);
@@ -834,25 +1102,36 @@ test("a cutover killed with tools/ still in place is recovered by the folder's o
     if (path.startsWith(".ops-tree/")) continue;
     assert.equal(after[path], row, path);
   }
-  assert.equal(readFileSync(join(root, "records/record.json"), "utf8"), "{\"kept\":true}\n");
+  assert.equal(readFileSync(join(root, "records/record.json"), "utf8"), '{"kept":true}\n');
   assert.equal(verifyFolder(root).status, "clean");
 });
 
 test("a rollback killed while the root has no tools/ is recovered by the copy its journal names", (t) => {
   const root = realFolder(t);
-  cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root }, context({
-    install: copyDependencies,
-    spawn: (command, args, options) => (command === process.execPath
-      ? { status: 0, stderr: "", stdout: "{}" }
-      : spawnSync(command, args, options)),
-  }));
+  cutoverFolder(
+    { candidate: "candidate-20260901", release: "release-20260902", root },
+    context({
+      install: copyDependencies,
+      spawn: (command, args, options) =>
+        command === process.execPath
+          ? { status: 0, stderr: "", stdout: "{}" }
+          : spawnSync(command, args, options),
+    }),
+  );
   const before = treeSnapshot(root);
-  const child = interruptedCutover(t, root, { operation: "rollback", signal: "SIGKILL", stopWhen: "to:tools" });
+  const child = interruptedCutover(t, root, {
+    operation: "rollback",
+    signal: "SIGKILL",
+    stopWhen: "to:tools",
+  });
   assert.equal(child.signal, "SIGKILL");
   assert.equal(existsSync(join(root, "tools")), false);
   const journal = JSON.parse(readFileSync(join(root, ".ops-tree/journal.json"), "utf8"));
   assert.equal(journal.operation, "rollback");
-  const recovered = runCli(join(root, ".ops-tree/previous", journal.stamp, "tools/ops-tree/cli.mjs"), ["rollback"]);
+  const recovered = runCli(
+    join(root, ".ops-tree/previous", journal.stamp, "tools/ops-tree/cli.mjs"),
+    ["rollback"],
+  );
   assert.equal(recovered.status, 0, recovered.stderr);
   const after = treeSnapshot(root);
   for (const [path, row] of Object.entries(before)) {
@@ -882,7 +1161,13 @@ test("the call points: process-log refuses on drift except validate, and preflig
 
   writeFileSync(join(root, "knowledge/precedence.md"), "edited in the operational folder\n");
   const ledgerBefore = readFileSync(join(root, "process-log.json"), "utf8");
-  const refused = runCli(processLog, ["start", "--source-ref", "synthetic:drift", "--runner", "codex"]);
+  const refused = runCli(processLog, [
+    "start",
+    "--source-ref",
+    "synthetic:drift",
+    "--runner",
+    "codex",
+  ]);
   assert.equal(refused.status, 1);
   const error = JSON.parse(refused.stderr).error;
   assert.equal(error.code, "engine_tree_drift");
@@ -906,7 +1191,9 @@ test("the call points: the triage batch and the Telegram sweep refuse a drifted 
   const batch = {
     batch_id: "drift-check",
     observed_at: "2026-09-27T10:00:00Z",
-    entries: [{ url: link, status: "open", decision: "MANUAL_REVIEW", flags: ["work_format_unknown"] }],
+    entries: [
+      { url: link, status: "open", decision: "MANUAL_REVIEW", flags: ["work_format_unknown"] },
+    ],
   };
   core.initLedger(ledgerPath);
   const collectorCode = (command) => {
@@ -925,8 +1212,14 @@ test("the call points: the triage batch and the Telegram sweep refuse a drifted 
   };
   // A clean folder passes the check: each call goes on to its own next refusal or result.
   const passes = () => {
-    assert.equal(core.planBatch(core.readLedger(ledgerPath), [link], { asOf: batch.observed_at }).links_in, 1);
-    assert.equal(core.recordBatch(ledgerPath, batch, { artifactsDir: null }).batch_id, "drift-check");
+    assert.equal(
+      core.planBatch(core.readLedger(ledgerPath), [link], { asOf: batch.observed_at }).links_in,
+      1,
+    );
+    assert.equal(
+      core.recordBatch(ledgerPath, batch, { artifactsDir: null }).batch_id,
+      "drift-check",
+    );
     assert.equal(collectorCode("sweep"), "config_missing");
     assert.equal(collectorCode("finalize"), "stage_missing");
   };
@@ -943,8 +1236,16 @@ test("the call points: the triage batch and the Telegram sweep refuse a drifted 
     // A held lock proves the order: a check behind the lock would wait on it and answer
     // triage_ledger_locked, and the lock would not be the one this test made.
     mkdirSync(lockPath);
-    assert.equal(errorCode(() => core.planBatch(ledger, [link], { asOf: batch.observed_at })), code, path);
-    assert.equal(errorCode(() => core.recordBatch(ledgerPath, batch, { artifactsDir: null })), code, path);
+    assert.equal(
+      errorCode(() => core.planBatch(ledger, [link], { asOf: batch.observed_at })),
+      code,
+      path,
+    );
+    assert.equal(
+      errorCode(() => core.recordBatch(ledgerPath, batch, { artifactsDir: null })),
+      code,
+      path,
+    );
     assert.equal(existsSync(lockPath), true);
     rmSync(lockPath, { recursive: true });
     assert.equal(readFileSync(ledgerPath, "utf8"), ledgerBefore, path);
@@ -974,7 +1275,10 @@ test("historical manifest zones survive verification and rollback; residual rese
   assert.equal(verifyFolder(root).status, "clean");
   nextRelease(fixture, "release-20260902", { "docs/new.md": "new\n" });
   cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root }, context());
-  assert.equal(readFileSync(join(root, "candidate/research/note.md"), "utf8"), "historical state\n");
+  assert.equal(
+    readFileSync(join(root, "candidate/research/note.md"), "utf8"),
+    "historical state\n",
+  );
   assertCode(() => verifyFolder(root), "candidate_snapshot_drift");
   rollbackFolder({ root }, context({ now: () => new Date("2026-09-25T12:00:00.000Z") }));
   assert.equal(zoneOf(readManifest(root).zones, "candidate/research/note.md"), "state");

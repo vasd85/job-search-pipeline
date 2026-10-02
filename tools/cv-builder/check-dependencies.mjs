@@ -1,11 +1,7 @@
 #!/usr/bin/env node
 
 import { createRequire } from "node:module";
-import {
-  lstatSync,
-  readFileSync,
-  realpathSync,
-} from "node:fs";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -40,12 +36,12 @@ function readJson(path, missingCode, label) {
 
 function packagePath(builderRoot, lockKey) {
   if (
-    typeof lockKey !== "string"
-    || !lockKey.startsWith("node_modules/")
-    || isAbsolute(lockKey)
-    || lockKey.includes("\\")
-    || normalize(lockKey) !== lockKey
-    || lockKey.split("/").includes("..")
+    typeof lockKey !== "string" ||
+    !lockKey.startsWith("node_modules/") ||
+    isAbsolute(lockKey) ||
+    lockKey.includes("\\") ||
+    normalize(lockKey) !== lockKey ||
+    lockKey.split("/").includes("..")
   ) {
     fail("toolchain_lockfile_mismatch", "cv-builder lockfile contains an unsafe package path");
   }
@@ -85,12 +81,18 @@ function packageNameForLockKey(lockKey) {
   const packageStart = segments.lastIndexOf("node_modules") + 1;
   const first = segments[packageStart];
   if (!first) {
-    fail("toolchain_lockfile_mismatch", `cv-builder lockfile has an invalid package identity: ${lockKey}`);
+    fail(
+      "toolchain_lockfile_mismatch",
+      `cv-builder lockfile has an invalid package identity: ${lockKey}`,
+    );
   }
   if (!first.startsWith("@")) return first;
   const second = segments[packageStart + 1];
   if (!second) {
-    fail("toolchain_lockfile_mismatch", `cv-builder lockfile has an invalid package identity: ${lockKey}`);
+    fail(
+      "toolchain_lockfile_mismatch",
+      `cv-builder lockfile has an invalid package identity: ${lockKey}`,
+    );
   }
   return `${first}/${second}`;
 }
@@ -112,15 +114,11 @@ export function checkCvBuilderDependencies(builderRoot = defaultBuilderRoot) {
     fail("toolchain_lockfile_mismatch", "cv-builder lockfile must use lockfileVersion 3");
   }
   if (
-    JSON.stringify(rootLock.dependencies ?? {})
-    !== JSON.stringify(packageJson.dependencies ?? {})
+    JSON.stringify(rootLock.dependencies ?? {}) !== JSON.stringify(packageJson.dependencies ?? {})
   ) {
     fail("toolchain_lockfile_mismatch", "cv-builder manifest and lockfile dependencies differ");
   }
-  if (
-    JSON.stringify(rootLock.engines ?? {})
-    !== JSON.stringify(packageJson.engines ?? {})
-  ) {
+  if (JSON.stringify(rootLock.engines ?? {}) !== JSON.stringify(packageJson.engines ?? {})) {
     fail("toolchain_lockfile_mismatch", "cv-builder manifest and lockfile engines differ");
   }
 
@@ -133,7 +131,10 @@ export function checkCvBuilderDependencies(builderRoot = defaultBuilderRoot) {
 
   for (const [lockKey, locked] of lockedPackages) {
     if (locked?.link === true || typeof locked?.version !== "string") {
-      fail("toolchain_lockfile_mismatch", `cv-builder lockfile has an unsupported package entry: ${lockKey}`);
+      fail(
+        "toolchain_lockfile_mismatch",
+        `cv-builder lockfile has an unsupported package entry: ${lockKey}`,
+      );
     }
     const dependencyPath = packagePath(exactRoot, lockKey);
     assertRegularPackageAncestors(exactRoot, lockKey);
@@ -165,17 +166,26 @@ export function checkCvBuilderDependencies(builderRoot = defaultBuilderRoot) {
     entryPath = requireFromBuilder.resolve("docx");
     requireFromBuilder("docx");
   } catch {
-    fail("toolchain_dependency_invalid", "locked dependency is not locally loadable: node_modules/docx");
+    fail(
+      "toolchain_dependency_invalid",
+      "locked dependency is not locally loadable: node_modules/docx",
+    );
   }
   const localDocxRoot = realpathSync(join(exactRoot, "node_modules", "docx"));
   let exactEntry;
   try {
     exactEntry = realpathSync(entryPath);
   } catch {
-    fail("toolchain_dependency_invalid", "locked dependency entrypoint is not readable: node_modules/docx");
+    fail(
+      "toolchain_dependency_invalid",
+      "locked dependency entrypoint is not readable: node_modules/docx",
+    );
   }
   if (!exactEntry.startsWith(`${localDocxRoot}${sep}`)) {
-    fail("toolchain_dependency_invalid", "docx must resolve from the local locked dependency graph");
+    fail(
+      "toolchain_dependency_invalid",
+      "docx must resolve from the local locked dependency graph",
+    );
   }
   assertRegularPath(exactEntry, "node_modules/docx entrypoint", "file");
 
@@ -191,13 +201,15 @@ function main() {
     process.stdout.write(`${JSON.stringify({ status: "ready", ...result })}\n`);
   } catch (error) {
     const known = error instanceof CvBuilderDependencyError;
-    process.stderr.write(`${JSON.stringify({
-      status: "error",
-      error: {
-        code: known ? error.code : "toolchain_dependency_check_failed",
-        message: known ? error.message : "dependency check failed unexpectedly",
-      },
-    })}\n`);
+    process.stderr.write(
+      `${JSON.stringify({
+        status: "error",
+        error: {
+          code: known ? error.code : "toolchain_dependency_check_failed",
+          message: known ? error.message : "dependency check failed unexpectedly",
+        },
+      })}\n`,
+    );
     process.exitCode = 1;
   }
 }

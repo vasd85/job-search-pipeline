@@ -70,9 +70,11 @@ export function run(context) {
       if (Number(header.index) !== record.index) {
         findings.push({ code: "capture_index_mismatch", index: record.index, file: capture.file });
       }
-      if (typeof header.normalization !== "string"
-        || header.normalization.length === 0
-        || header.normalization === "-") {
+      if (
+        typeof header.normalization !== "string" ||
+        header.normalization.length === 0 ||
+        header.normalization === "-"
+      ) {
         findings.push({
           code: "capture_normalization_unrecorded",
           index: record.index,
@@ -84,7 +86,11 @@ export function run(context) {
         ["adapter", "capture_adapter_absent"],
         ["fetched-at", "capture_fetched_at_absent"],
       ]) {
-        if (typeof header[field] !== "string" || header[field] === "-" || header[field].length === 0) {
+        if (
+          typeof header[field] !== "string" ||
+          header[field] === "-" ||
+          header[field].length === 0
+        ) {
           findings.push({ code, index: record.index, file: capture.file });
         }
       }
@@ -93,7 +99,11 @@ export function run(context) {
       // so writing the time in any other notation switched four gates off without a word. A stamp
       // the batch declined to write fails the batch; one it wrote unreadably now does too.
       if (presentButUnusable(header["fetched-at"])) {
-        findings.push({ code: "capture_fetched_at_unusable", index: record.index, file: capture.file });
+        findings.push({
+          code: "capture_fetched_at_unusable",
+          index: record.index,
+          file: capture.file,
+        });
       }
     }
   }

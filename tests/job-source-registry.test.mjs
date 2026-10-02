@@ -36,11 +36,18 @@ const frozenDomainFamilies = Object.freeze([
 
 test("registry is the exact frozen owner of intermediary domain families", () => {
   const actual = jobSourceRegistry.flatMap((source) =>
-    source.domainFamilies.map((domain) => [source.id, domain]));
+    source.domainFamilies.map((domain) => [source.id, domain]),
+  );
   assert.deepEqual(actual, frozenDomainFamilies);
-  assert.equal(new Set(jobSourceRegistry.map((source) => source.id)).size, jobSourceRegistry.length);
+  assert.equal(
+    new Set(jobSourceRegistry.map((source) => source.id)).size,
+    jobSourceRegistry.length,
+  );
   assert.equal(new Set(actual.map(([, domain]) => domain)).size, actual.length);
-  assert.equal(jobSourceRegistry.every((source) => source.employerDomainExcluded), true);
+  assert.equal(
+    jobSourceRegistry.every((source) => source.employerDomainExcluded),
+    true,
+  );
 });
 
 test("core detection and CLI denial consume the registry instead of local domain lists", () => {
@@ -66,8 +73,7 @@ test("route facts reuse the single matcher and leave the denial guard unconditio
   );
 
   assert.deepEqual(
-    [...registry.matchAll(/employerDomainExcluded:[^\n]*/g)].map((match) =>
-      match[0].trim()),
+    [...registry.matchAll(/employerDomainExcluded:[^\n]*/g)].map((match) => match[0].trim()),
     ["employerDomainExcluded: true,"],
   );
   assert.doesNotMatch(registry, /urlTemplate|includeCompensation|postings\.json/);
@@ -84,10 +90,7 @@ test("source detection and employer denial share exact label-boundary matching",
     detectJobSource("https://ＪＯＢＳ．ＧＲＥＥＮＨＯＵＳＥ．ＩＯ.:443/jobs/1")?.id,
     "greenhouse",
   );
-  assert.equal(
-    detectJobSource("https://ПРИМЕР.pinpointhq.com/postings/1")?.id,
-    "pinpoint",
-  );
+  assert.equal(detectJobSource("https://ПРИМЕР.pinpointhq.com/postings/1")?.id, "pinpoint");
   assert.equal(isEmployerDomainExcluded("greenhouse.io.."), true);
 
   for (const value of [
@@ -100,10 +103,7 @@ test("source detection and employer denial share exact label-boundary matching",
     assert.equal(detectJobSource(value), null, value);
     assert.equal(isEmployerDomainExcluded(value), false, value);
   }
-  assert.equal(
-    detectJobSource("https://evil.test@greenhouse.io/jobs/1")?.id,
-    "greenhouse",
-  );
+  assert.equal(detectJobSource("https://evil.test@greenhouse.io/jobs/1")?.id, "greenhouse");
 });
 
 test("invalid and non-network values do not become registered job sources", () => {

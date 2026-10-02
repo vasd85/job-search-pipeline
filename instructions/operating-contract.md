@@ -24,7 +24,7 @@ language, always.
 This is a different surface from the agent's own prose. What the agent writes in chat follows
 **Agent chat-message style** below; what a skill or playbook prescribes for a deliverable follows
 that skill's own rule. A rule that governs an engine message never names a language of its own: it
-says *the default language* and this section resolves it.
+says _the default language_ and this section resolves it.
 
 ## Languages
 

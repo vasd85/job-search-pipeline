@@ -12,7 +12,11 @@
 import { writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CandidateError, candidateLanguageNames, candidateRootForCommand } from "../candidate/load.mjs";
+import {
+  CandidateError,
+  candidateLanguageNames,
+  candidateRootForCommand,
+} from "../candidate/load.mjs";
 import { TriageVerifyError, fail } from "./errors.mjs";
 import { buildContext, cadences, runSuite, summarize } from "./suite.mjs";
 import { reportFileName } from "./artifacts.mjs";
@@ -96,7 +100,9 @@ export function main(argv) {
     options = parseArguments(argv);
   } catch (error) {
     if (error instanceof TriageVerifyError) {
-      process.stderr.write(`${JSON.stringify({ error: error.code, message: error.message })}\n${USAGE}\n`);
+      process.stderr.write(
+        `${JSON.stringify({ error: error.code, message: error.message })}\n${USAGE}\n`,
+      );
       return 1;
     }
     throw error;

@@ -67,15 +67,17 @@ export function parseArgs(argv) {
     } else if (flag === "--revision") {
       options.revision = true;
       index += 1;
-    } else if ([
-      "--brief",
-      "--qa-dir",
-      "--docx-renderer",
-      "--python",
-      "--pipeline-staging-dir",
-      "--revision-waivers",
-      "--workspace-root",
-    ].includes(flag)) {
+    } else if (
+      [
+        "--brief",
+        "--qa-dir",
+        "--docx-renderer",
+        "--python",
+        "--pipeline-staging-dir",
+        "--revision-waivers",
+        "--workspace-root",
+      ].includes(flag)
+    ) {
       const value = rest[index + 1];
       if (!value || value.startsWith("--")) throw new Error(`Missing value for ${flag}`);
       if (flag === "--brief") options.briefPath = resolve(value);
@@ -86,14 +88,14 @@ export function parseArgs(argv) {
       else if (flag === "--workspace-root") {
         options.workspaceRoot = resolve(value);
         options.workspaceRootProvided = true;
-      }
-      else options.python = value.includes("/") ? resolve(value) : value;
+      } else options.python = value.includes("/") ? resolve(value) : value;
       index += 2;
     } else {
       throw new Error(`Unknown option: ${flag}\n${usage()}`);
     }
   }
-  if (options.general && options.briefPath) throw new Error("Use either --brief or --general, not both");
+  if (options.general && options.briefPath)
+    throw new Error("Use either --brief or --general, not both");
   if (options.general && options.pipelineStagingDir) {
     throw new Error("--pipeline-staging-dir is only valid for a targeted CV");
   }
@@ -144,15 +146,19 @@ function run(command, args, options = {}) {
     timeout: options.timeoutMs,
   });
   if (result.error) {
-    const rendererSignalled = result.error.code === "ETIMEDOUT"
-      && terminateMatchingRenderer(options.pidFile, options.processMatchToken);
+    const rendererSignalled =
+      result.error.code === "ETIMEDOUT" &&
+      terminateMatchingRenderer(options.pidFile, options.processMatchToken);
     const suffix = result.error.code ? ` (${result.error.code})` : "";
-    const cleanup = result.error.code === "ETIMEDOUT"
-      ? rendererSignalled
-        ? "; the matching isolated renderer was sent SIGTERM"
-        : "; no matching renderer process was terminated"
-      : "";
-    const error = new Error(`${command} failed to execute${suffix}: ${result.error.message}${cleanup}`);
+    const cleanup =
+      result.error.code === "ETIMEDOUT"
+        ? rendererSignalled
+          ? "; the matching isolated renderer was sent SIGTERM"
+          : "; no matching renderer process was terminated"
+        : "";
+    const error = new Error(
+      `${command} failed to execute${suffix}: ${result.error.message}${cleanup}`,
+    );
     error.code = result.error.code;
     error.exitCode = 1;
     throw error;
@@ -162,7 +168,9 @@ function run(command, args, options = {}) {
     const exitDescription = result.signal
       ? `signal ${result.signal}`
       : `exit code ${result.status}`;
-    const error = new Error(`${command} failed with ${exitDescription}${detail ? `:\n${detail}` : ""}`);
+    const error = new Error(
+      `${command} failed with ${exitDescription}${detail ? `:\n${detail}` : ""}`,
+    );
     error.exitCode = result.status || 1;
     throw error;
   }
@@ -170,7 +178,8 @@ function run(command, args, options = {}) {
 }
 
 function assertFile(path, label) {
-  if (!existsSync(path) || statSync(path).size === 0) throw new Error(`${label} was not created: ${path}`);
+  if (!existsSync(path) || statSync(path).size === 0)
+    throw new Error(`${label} was not created: ${path}`);
 }
 
 function assertFreshGeneratedFile(path, label) {
@@ -200,20 +209,22 @@ function assertRegularFileWithoutSymlink(path, label) {
 
 function isStrictlyWithin(parent, child) {
   const pathFromParent = relative(parent, child);
-  return pathFromParent !== ""
-    && pathFromParent !== ".."
-    && !pathFromParent.startsWith(`..${sep}`)
-    && !isAbsolute(pathFromParent);
+  return (
+    pathFromParent !== "" &&
+    pathFromParent !== ".." &&
+    !pathFromParent.startsWith(`..${sep}`) &&
+    !isAbsolute(pathFromParent)
+  );
 }
 
 function assertSafePipelineDocxName(fileName) {
   if (
-    typeof fileName !== "string"
-    || !fileName.endsWith(".docx")
-    || fileName.startsWith(".")
-    || basename(fileName) !== fileName
-    || fileName.includes("/")
-    || fileName.includes("\\")
+    typeof fileName !== "string" ||
+    !fileName.endsWith(".docx") ||
+    fileName.startsWith(".") ||
+    basename(fileName) !== fileName ||
+    fileName.includes("/") ||
+    fileName.includes("\\")
   ) {
     throw new Error("pipeline cv.json fileName must be a non-hidden .docx basename");
   }
@@ -222,7 +233,10 @@ function assertSafePipelineDocxName(fileName) {
 export function validatePipelineStaging(options, brief, cv) {
   if (!options.pipelineStagingDir) return null;
 
-  const workspaceReal = assertDirectoryWithoutSymlink(options.workspaceRoot, "Pipeline workspace root");
+  const workspaceReal = assertDirectoryWithoutSymlink(
+    options.workspaceRoot,
+    "Pipeline workspace root",
+  );
   const outputRoot = join(options.workspaceRoot, "output");
   const outputRootReal = assertDirectoryWithoutSymlink(outputRoot, "Pipeline output root");
   if (!isStrictlyWithin(workspaceReal, outputRootReal)) {
@@ -231,7 +245,9 @@ export function validatePipelineStaging(options, brief, cv) {
 
   const outputDir = resolve(options.workspaceRoot, brief.process.outputDir);
   if (dirname(outputDir) !== outputRoot) {
-    throw new Error("application brief outputDir must be one direct child of the pipeline output root");
+    throw new Error(
+      "application brief outputDir must be one direct child of the pipeline output root",
+    );
   }
   const outputReal = assertDirectoryWithoutSymlink(outputDir, "Reserved output directory");
   if (!isStrictlyWithin(outputRootReal, outputReal)) {
@@ -240,7 +256,9 @@ export function validatePipelineStaging(options, brief, cv) {
 
   const canonicalBriefPath = join(outputDir, "application-brief.json");
   if (options.briefPath !== canonicalBriefPath) {
-    throw new Error(`pipeline build requires the canonical application brief: ${canonicalBriefPath}`);
+    throw new Error(
+      `pipeline build requires the canonical application brief: ${canonicalBriefPath}`,
+    );
   }
   assertRegularFileWithoutSymlink(canonicalBriefPath, "Canonical application-brief.json");
 
@@ -253,8 +271,8 @@ export function validatePipelineStaging(options, brief, cv) {
   const stagingDir = options.pipelineStagingDir;
   const publicationId = basename(stagingDir);
   if (
-    dirname(stagingDir) !== stagingParent
-    || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(publicationId)
+    dirname(stagingDir) !== stagingParent ||
+    !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(publicationId)
   ) {
     throw new Error("Pipeline staging directory must be .pipeline-tmp/<publication-id>");
   }
@@ -311,9 +329,8 @@ export function convertAndRender(docxPath, qaDir, { docxRenderer, python }) {
 
   // Each conversion gets a new profile. This prevents a headless renderer from attaching to an
   // already-running user LibreOffice process and also isolates concurrent pipeline builds.
-  const profileDir = backend.kind === "python-renderer"
-    ? null
-    : mkdtempSync(join(qaDir, "libreoffice-profile-"));
+  const profileDir =
+    backend.kind === "python-renderer" ? null : mkdtempSync(join(qaDir, "libreoffice-profile-"));
   const invocation = buildLibreOfficeInvocation(backend, {
     docxPath,
     qaDir,
@@ -330,8 +347,8 @@ export function convertAndRender(docxPath, qaDir, { docxRenderer, python }) {
   } catch (error) {
     if (backend.kind !== "macos-launchservices") throw error;
     const wrapped = new Error(
-      "cv_renderer_requires_external_execution: macOS LaunchServices could not complete the isolated LibreOffice conversion from this execution context; allow /usr/bin/open or rerun the builder with approved external execution"
-      + `\n${error.message}`,
+      "cv_renderer_requires_external_execution: macOS LaunchServices could not complete the isolated LibreOffice conversion from this execution context; allow /usr/bin/open or rerun the builder with approved external execution" +
+        `\n${error.message}`,
     );
     wrapped.code = "cv_renderer_requires_external_execution";
     wrapped.exitCode = error.exitCode || 1;
@@ -344,9 +361,9 @@ export function convertAndRender(docxPath, qaDir, { docxRenderer, python }) {
   } catch (error) {
     if (backend.kind !== "macos-launchservices") throw error;
     const wrapped = new Error(
-      "cv_renderer_launchservices_failed: the isolated LibreOffice instance exited without producing a valid PDF"
-      + `; inspect ${invocation.stdoutLog} and ${invocation.stderrLog}`
-      + `\n${error.message}`,
+      "cv_renderer_launchservices_failed: the isolated LibreOffice instance exited without producing a valid PDF" +
+        `; inspect ${invocation.stdoutLog} and ${invocation.stderrLog}` +
+        `\n${error.message}`,
     );
     wrapped.code = "cv_renderer_launchservices_failed";
     wrapped.exitCode = 1;
@@ -383,12 +400,14 @@ function readRevisionWaivers(waiversPath) {
     throw new Error("revision waivers file must contain valid JSON");
   }
   if (
-    !Array.isArray(parsed)
-    || parsed.some((record) =>
-      record === null
-      || typeof record !== "object"
-      || record.subject === null
-      || typeof record.subject !== "object")
+    !Array.isArray(parsed) ||
+    parsed.some(
+      (record) =>
+        record === null ||
+        typeof record !== "object" ||
+        record.subject === null ||
+        typeof record.subject !== "object",
+    )
   ) {
     throw new Error("revision waivers file must contain an array of waiver records with subjects");
   }
@@ -449,10 +468,12 @@ export function executeBuild(options, dependencies = {}) {
     throw new Error("the build needs the page budget of the candidate config");
   }
   const runPreflight = dependencies.runPreflight ?? readAndRunCvPreflight;
-  const renderCv = dependencies.renderCv ?? ((cvPath) => {
-    const renderResult = run(process.execPath, [resolve(toolDir, "render.js"), cvPath]);
-    return resolve(renderResult.stdout.split(/\r?\n/).at(-1));
-  });
+  const renderCv =
+    dependencies.renderCv ??
+    ((cvPath) => {
+      const renderResult = run(process.execPath, [resolve(toolDir, "render.js"), cvPath]);
+      return resolve(renderResult.stdout.split(/\r?\n/).at(-1));
+    });
   const inspectDocx = dependencies.inspectDocx ?? validateDocxStructure;
   const renderQa = dependencies.renderQa ?? convertAndRender;
 
@@ -487,7 +508,9 @@ export function executeBuild(options, dependencies = {}) {
       if (cvIsInRepo) {
         const expectedDir = resolve(repoRoot, preflight.brief.process.outputDir);
         if (dirname(options.cvPath) !== expectedDir) {
-          throw new Error(`application brief outputDir mismatch: expected cv.json under ${expectedDir}`);
+          throw new Error(
+            `application brief outputDir mismatch: expected cv.json under ${expectedDir}`,
+          );
         }
       }
     }
@@ -503,9 +526,8 @@ export function executeBuild(options, dependencies = {}) {
   assertFile(docxPath, "DOCX");
   const structuralChecks = inspectDocx(docxPath, cv);
 
-  const qaDir = pipelineStaging?.qaDir
-    ?? options.qaDir
-    ?? mkdtempSync(join(tmpdir(), "cv-builder-qa-"));
+  const qaDir =
+    pipelineStaging?.qaDir ?? options.qaDir ?? mkdtempSync(join(tmpdir(), "cv-builder-qa-"));
   const rendered = renderQa(docxPath, qaDir, options);
 
   // Return every QA location so the calling skill can inspect all pages in one operation. The PDF
@@ -521,8 +543,11 @@ export function executeBuild(options, dependencies = {}) {
     pageSize: rendered.pageSize,
     pageImages: rendered.pageImages,
     qaDir,
-    renderBackend: rendered.backend
-      ?? (options.docxRenderer ? `Python DOCX renderer: ${options.docxRenderer}` : "injected QA renderer"),
+    renderBackend:
+      rendered.backend ??
+      (options.docxRenderer
+        ? `Python DOCX renderer: ${options.docxRenderer}`
+        : "injected QA renderer"),
     rendererProfile: rendered.profileDir ?? null,
     structuralChecks,
     warnings: preflight.warnings,
@@ -536,7 +561,9 @@ export function executeBuild(options, dependencies = {}) {
   };
 
   if (rendered.pages > options.pageBudget) {
-    const error = new Error(`CV is ${rendered.pages} pages (>${options.pageBudget}). Review ${qaDir}, trim content, and rerun the same build command.`);
+    const error = new Error(
+      `CV is ${rendered.pages} pages (>${options.pageBudget}). Review ${qaDir}, trim content, and rerun the same build command.`,
+    );
     error.exitCode = 3;
     error.summary = summary;
     throw error;
@@ -549,12 +576,15 @@ export function executeBuild(options, dependencies = {}) {
 export function main(argv = process.argv.slice(2), dependencies = {}) {
   try {
     const options = parseArgs(argv);
-    const summary = executeBuild({
-      ...options,
-      languages: languagesFor(options.workspaceRoot),
-      markets: marketsFor(options.workspaceRoot),
-      pageBudget: pageBudgetFor(options.workspaceRoot),
-    }, dependencies);
+    const summary = executeBuild(
+      {
+        ...options,
+        languages: languagesFor(options.workspaceRoot),
+        markets: marketsFor(options.workspaceRoot),
+        pageBudget: pageBudgetFor(options.workspaceRoot),
+      },
+      dependencies,
+    );
     console.log(JSON.stringify(summary, null, 2));
   } catch (error) {
     if (error.summary) console.log(JSON.stringify(error.summary, null, 2));

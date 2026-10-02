@@ -22,7 +22,11 @@ export function run(context) {
 
   for (const record of context.records) {
     if (record.input === null) {
-      findings.push({ code: "record_not_verifiable", index: record.index, reason: "input_unavailable" });
+      findings.push({
+        code: "record_not_verifiable",
+        index: record.index,
+        reason: "input_unavailable",
+      });
       continue;
     }
     const { quotes } = record.evidence;
@@ -36,19 +40,26 @@ export function run(context) {
       .filter((capture) => capture.verified !== null && capture.verified.ok)
       .map((capture) => ({ file: capture.file, body: capture.verified.body }));
     if (bodies.length === 0) {
-      findings.push({ code: "record_not_verifiable", index: record.index, reason: "no_verified_capture" });
+      findings.push({
+        code: "record_not_verifiable",
+        index: record.index,
+        reason: "no_verified_capture",
+      });
       continue;
     }
     for (const quote of quotes) {
       quotesChecked += 1;
-      const exact = bodies.some((entry) => findLiteralOccurrences(entry.body, quote.value).length > 0);
+      const exact = bodies.some(
+        (entry) => findLiteralOccurrences(entry.body, quote.value).length > 0,
+      );
       if (exact) {
         quotesMatched += 1;
         continue;
       }
       const collapsed = collapseWhitespace(quote.value);
-      const nearMatch = collapsed.length > 0
-        && bodies.some((entry) => collapseWhitespace(entry.body).includes(collapsed));
+      const nearMatch =
+        collapsed.length > 0 &&
+        bodies.some((entry) => collapseWhitespace(entry.body).includes(collapsed));
       findings.push({
         code: nearMatch ? "quote_whitespace_variant" : "quote_absent",
         index: record.index,

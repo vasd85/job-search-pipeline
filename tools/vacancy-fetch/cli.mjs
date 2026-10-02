@@ -35,9 +35,24 @@ function resolveInputRoot() {
 
 const NUMERIC_OPTIONS = Object.freeze({
   "delay-ms": { key: "delayMs", min: 0, max: 600_000, fallback: 2000 },
-  "timeout-ms": { key: "timeoutMs", min: 1000, max: 120_000, fallback: transportDefaults.timeoutMs },
-  "max-bytes": { key: "maxBytes", min: 1024, max: 64 * 1024 * 1024, fallback: transportDefaults.maxBytes },
-  "max-redirects": { key: "maxRedirects", min: 0, max: 10, fallback: transportDefaults.maxRedirects },
+  "timeout-ms": {
+    key: "timeoutMs",
+    min: 1000,
+    max: 120_000,
+    fallback: transportDefaults.timeoutMs,
+  },
+  "max-bytes": {
+    key: "maxBytes",
+    min: 1024,
+    max: 64 * 1024 * 1024,
+    fallback: transportDefaults.maxBytes,
+  },
+  "max-redirects": {
+    key: "maxRedirects",
+    min: 0,
+    max: 10,
+    fallback: transportDefaults.maxRedirects,
+  },
 });
 
 const ALLOWED_OPTIONS = Object.freeze([
@@ -174,37 +189,42 @@ export async function main(argv, transport = {}) {
 
   // Counts and bounded codes only. No URL, no title, no page text.
   const { summary } = manifest;
-  process.stdout.write(`${JSON.stringify({
-    batch: manifest.batch.label,
-    isDefaultTransport: manifest.batch.isDefaultTransport,
-    manifest: manifestBasename,
-    stoppedEarly: manifest.stoppedEarly,
-    summary,
-    fallback: manifest.records
-      .filter((record) => record.fallback !== null)
-      .map((record) => ({
-        index: record.index,
-        outcome: record.outcome,
-        accessBarrier: record.accessBarrier,
-        reasons: record.reasons,
-      })),
-    // A second list rather than a longer first one: a record the layer could not serve and a
-    // record it served without being able to vouch for its completeness are different
-    // instructions to the caller. No `accessBarrier` here - a usable record never carries one,
-    // and a field that is always null is decoration, not information.
-    completenessCheck: manifest.records
-      .filter(browserCompletenessCheckOwed)
-      .map((record) => ({
-        index: record.index,
-        outcome: record.outcome,
-        reasons: record.reasons,
-      })),
-  }, null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        batch: manifest.batch.label,
+        isDefaultTransport: manifest.batch.isDefaultTransport,
+        manifest: manifestBasename,
+        stoppedEarly: manifest.stoppedEarly,
+        summary,
+        fallback: manifest.records
+          .filter((record) => record.fallback !== null)
+          .map((record) => ({
+            index: record.index,
+            outcome: record.outcome,
+            accessBarrier: record.accessBarrier,
+            reasons: record.reasons,
+          })),
+        // A second list rather than a longer first one: a record the layer could not serve and a
+        // record it served without being able to vouch for its completeness are different
+        // instructions to the caller. No `accessBarrier` here - a usable record never carries one,
+        // and a field that is always null is decoration, not information.
+        completenessCheck: manifest.records.filter(browserCompletenessCheckOwed).map((record) => ({
+          index: record.index,
+          outcome: record.outcome,
+          reasons: record.reasons,
+        })),
+      },
+      null,
+      2,
+    )}\n`,
+  );
 
   // The expression stays here, inline in the return, because that is the line the contract suite
   // anchors the documented sentence to; hiding it in a helper would leave this return unguarded.
-  return summary.needsBrowserFallback > 0 || summary.skipped > 0
-    || summary.needsBrowserCompletenessCheck > 0
+  return summary.needsBrowserFallback > 0 ||
+    summary.skipped > 0 ||
+    summary.needsBrowserCompletenessCheck > 0
     ? 2
     : 0;
 }
@@ -215,17 +235,21 @@ if (import.meta.main) {
   try {
     process.exitCode = await main(process.argv.slice(2));
   } catch (error) {
-    const code = error instanceof VacancyFetchError || error instanceof SafeCliInputError
-      ? error.code
-      : "unexpected_error";
+    const code =
+      error instanceof VacancyFetchError || error instanceof SafeCliInputError
+        ? error.code
+        : "unexpected_error";
     // Stable, bounded diagnostics: the code and the repository-owned message, never a stack, an
     // absolute path, a URL or a page body.
-    process.stderr.write(`${JSON.stringify({
-      error: code,
-      message: error instanceof VacancyFetchError || error instanceof SafeCliInputError
-        ? error.message
-        : "Unexpected failure.",
-    })}\n`);
+    process.stderr.write(
+      `${JSON.stringify({
+        error: code,
+        message:
+          error instanceof VacancyFetchError || error instanceof SafeCliInputError
+            ? error.message
+            : "Unexpected failure.",
+      })}\n`,
+    );
     process.exitCode = 1;
   }
 }

@@ -76,12 +76,7 @@ function parseSuccess(result) {
   return JSON.parse(result.stdout);
 }
 
-function assertCreated(
-  report,
-  outputRoot,
-  processLog,
-  processLogRecovered = false,
-) {
+function assertCreated(report, outputRoot, processLog, processLogRecovered = false) {
   assert.deepEqual(report.created, {
     output_root: outputRoot,
     process_log: processLog,
@@ -145,25 +140,35 @@ function runBootstrap(environment, ...args) {
 
 function runBootstrapAsync(environment, ...args) {
   return new Promise((resolveRun) => {
-    execFile(process.execPath, [bootstrapPath, ...args], {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env: rawEnvironment(environment),
-    }, (error, stdout, stderr) => {
-      resolveRun({ code: error?.code ?? 0, stderr, stdout });
-    });
+    execFile(
+      process.execPath,
+      [bootstrapPath, ...args],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: rawEnvironment(environment),
+      },
+      (error, stdout, stderr) => {
+        resolveRun({ code: error?.code ?? 0, stderr, stdout });
+      },
+    );
   });
 }
 
 function runBootstrapAsyncWithEnv(environment, env, ...args) {
   return new Promise((resolveRun) => {
-    execFile(process.execPath, [bootstrapPath, ...args], {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env: rawEnvironment(environment, env),
-    }, (error, stdout, stderr) => {
-      resolveRun({ code: error?.code ?? 0, stderr, stdout });
-    });
+    execFile(
+      process.execPath,
+      [bootstrapPath, ...args],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: rawEnvironment(environment, env),
+      },
+      (error, stdout, stderr) => {
+        resolveRun({ code: error?.code ?? 0, stderr, stdout });
+      },
+    );
   });
 }
 
@@ -309,10 +314,7 @@ test("ledger bootstrap scenario inventory is exact and every case executes", asy
           recovery_action: "run_bootstrap_init",
         });
         assert.equal(existsSync(environment.ledgerPath), false);
-        assert.deepEqual(
-          readdirSync(environment.workspaceRoot).sort(),
-          beforeEntries,
-        );
+        assert.deepEqual(readdirSync(environment.workspaceRoot).sort(), beforeEntries);
       },
     },
     {
@@ -337,10 +339,7 @@ test("ledger bootstrap scenario inventory is exact and every case executes", asy
           prefix: "job-search-bootstrap-ledger-exclusive-barrier-",
         });
         const barrierPath = join(environment.workspaceRoot, "publication-barrier");
-        const preloadPath = join(
-          environment.workspaceRoot,
-          "barrier-after-ledger-temp-write.cjs",
-        );
+        const preloadPath = join(environment.workspaceRoot, "barrier-after-ledger-temp-write.cjs");
         mkdirSync(barrierPath);
         writeFileSync(
           preloadPath,
@@ -382,28 +381,25 @@ syncBuiltinESMExports();
         );
 
         const results = await Promise.all(
-          Array.from({ length: 2 }, () => runBootstrapAsyncWithEnv(
-            environment,
-            {
-              NODE_OPTIONS: `--require=${preloadPath}`,
-              R1_07G_PUBLICATION_BARRIER_PATH: barrierPath,
-            },
-            "--init",
-          )),
+          Array.from({ length: 2 }, () =>
+            runBootstrapAsyncWithEnv(
+              environment,
+              {
+                NODE_OPTIONS: `--require=${preloadPath}`,
+                R1_07G_PUBLICATION_BARRIER_PATH: barrierPath,
+              },
+              "--init",
+            ),
+          ),
         );
-        assert.deepEqual(results.map((result) => result.code), [0, 0]);
+        assert.deepEqual(
+          results.map((result) => result.code),
+          [0, 0],
+        );
         const reports = results.map((result) => JSON.parse(result.stdout));
-        assert.equal(
-          reports.filter((report) => report.created.process_log).length,
-          1,
-        );
+        assert.equal(reports.filter((report) => report.created.process_log).length, 1);
         for (const report of reports) {
-          assertCreated(
-            report,
-            false,
-            report.created.process_log,
-            report.recovered.process_log,
-          );
+          assertCreated(report, false, report.created.process_log, report.recovered.process_log);
         }
         assertFreshLedgerFile(environment.ledgerPath);
       },
@@ -630,17 +626,14 @@ syncBuiltinESMExports();
           { encoding: "utf8", mode: 0o600 },
         );
 
-        const report = parseSuccess(runNode(
-          bootstrapPath,
-          ["--init"],
-          environment,
-          {
+        const report = parseSuccess(
+          runNode(bootstrapPath, ["--init"], environment, {
             env: {
               NODE_OPTIONS: `--require=${preloadPath}`,
               R1_07G_BOOTSTRAP_RESIDUE_PATH: residuePath,
             },
-          },
-        ));
+          }),
+        );
         assertCreated(report, false, false);
         assert.equal(existsSync(residuePath), false);
         assert.equal(lstatSync(environment.ledgerPath).nlink, 1);
@@ -657,10 +650,7 @@ syncBuiltinESMExports();
         });
         const residuePath = `${environment.ledgerPath}.4246.${randomUUID()}.tmp`;
         const heldPath = join(environment.workspaceRoot, "held-original-ledger.json");
-        const preloadPath = join(
-          environment.workspaceRoot,
-          "replace-ledger-after-lstat.cjs",
-        );
+        const preloadPath = join(environment.workspaceRoot, "replace-ledger-after-lstat.cjs");
         const before = readFileSync(environment.ledgerPath, "utf8");
         linkSync(environment.ledgerPath, residuePath);
         writeFileSync(
@@ -690,29 +680,26 @@ syncBuiltinESMExports();
           { encoding: "utf8", mode: 0o600 },
         );
 
-        assert.deepEqual(parseError(runNode(
-          bootstrapPath,
-          ["--init"],
-          environment,
+        assert.deepEqual(
+          parseError(
+            runNode(bootstrapPath, ["--init"], environment, {
+              env: {
+                NODE_OPTIONS: `--require=${preloadPath}`,
+                R1_07G_BOOTSTRAP_RESIDUE_PATH: residuePath,
+                R1_07G_HELD_LEDGER_PATH: heldPath,
+              },
+            }),
+          ),
           {
-            env: {
-              NODE_OPTIONS: `--require=${preloadPath}`,
-              R1_07G_BOOTSTRAP_RESIDUE_PATH: residuePath,
-              R1_07G_HELD_LEDGER_PATH: heldPath,
-            },
+            code: "invalid_process_log_environment",
+            message: "process log must be a single-link regular file",
           },
-        )), {
-          code: "invalid_process_log_environment",
-          message: "process log must be a single-link regular file",
-        });
+        );
         assert.equal(existsSync(environment.outputRoot), false);
         assert.equal(existsSync(residuePath), false);
         assert.equal(lstatSync(environment.ledgerPath).nlink, 1);
         assert.equal(lstatSync(heldPath).nlink, 1);
-        assert.notEqual(
-          lstatSync(environment.ledgerPath).ino,
-          lstatSync(heldPath).ino,
-        );
+        assert.notEqual(lstatSync(environment.ledgerPath).ino, lstatSync(heldPath).ino);
         assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
         assert.equal(readFileSync(heldPath, "utf8"), before);
       },
@@ -726,10 +713,7 @@ syncBuiltinESMExports();
           prefix: "job-search-bootstrap-ledger-residue-invalid-transition-",
         });
         const residuePath = `${environment.ledgerPath}.4247.${randomUUID()}.tmp`;
-        const preloadPath = join(
-          environment.workspaceRoot,
-          "invalidate-ledger-after-lstat.cjs",
-        );
+        const preloadPath = join(environment.workspaceRoot, "invalidate-ledger-after-lstat.cjs");
         linkSync(environment.ledgerPath, residuePath);
         writeFileSync(
           preloadPath,
@@ -755,20 +739,20 @@ syncBuiltinESMExports();
           { encoding: "utf8", mode: 0o600 },
         );
 
-        assert.deepEqual(parseError(runNode(
-          bootstrapPath,
-          ["--init"],
-          environment,
+        assert.deepEqual(
+          parseError(
+            runNode(bootstrapPath, ["--init"], environment, {
+              env: {
+                NODE_OPTIONS: `--require=${preloadPath}`,
+                R1_07G_BOOTSTRAP_RESIDUE_PATH: residuePath,
+              },
+            }),
+          ),
           {
-            env: {
-              NODE_OPTIONS: `--require=${preloadPath}`,
-              R1_07G_BOOTSTRAP_RESIDUE_PATH: residuePath,
-            },
+            code: "invalid_process_log_environment",
+            message: "process log must be a valid schema-v4 ledger",
           },
-        )), {
-          code: "invalid_process_log_environment",
-          message: "process log must be a valid schema-v4 ledger",
-        });
+        );
         assert.equal(existsSync(environment.outputRoot), false);
         assert.equal(existsSync(residuePath), false);
         assert.equal(lstatSync(environment.ledgerPath).nlink, 1);
@@ -784,10 +768,7 @@ syncBuiltinESMExports();
           prefix: "job-search-bootstrap-ledger-residue-access-transition-",
         });
         const residuePath = `${environment.ledgerPath}.4248.${randomUUID()}.tmp`;
-        const preloadPath = join(
-          environment.workspaceRoot,
-          "restrict-ledger-during-readdir.cjs",
-        );
+        const preloadPath = join(environment.workspaceRoot, "restrict-ledger-during-readdir.cjs");
         const before = readFileSync(environment.ledgerPath, "utf8");
         linkSync(environment.ledgerPath, residuePath);
         writeFileSync(
@@ -814,20 +795,20 @@ syncBuiltinESMExports();
         );
 
         try {
-          assert.deepEqual(parseError(runNode(
-            bootstrapPath,
-            ["--init"],
-            environment,
+          assert.deepEqual(
+            parseError(
+              runNode(bootstrapPath, ["--init"], environment, {
+                env: {
+                  NODE_OPTIONS: `--require=${preloadPath}`,
+                  R1_07G_BOOTSTRAP_RESIDUE_PATH: residuePath,
+                },
+              }),
+            ),
             {
-              env: {
-                NODE_OPTIONS: `--require=${preloadPath}`,
-                R1_07G_BOOTSTRAP_RESIDUE_PATH: residuePath,
-              },
+              code: "invalid_process_log_environment",
+              message: "process log must be readable and writable",
             },
-          )), {
-            code: "invalid_process_log_environment",
-            message: "process log must be readable and writable",
-          });
+          );
           assert.equal(existsSync(environment.outputRoot), false);
           assert.equal(existsSync(residuePath), false);
           assert.equal(lstatSync(environment.ledgerPath).nlink, 1);
@@ -921,7 +902,10 @@ test("bootstrap deterministically rejects wrong file, symlink, root, realpath, a
       prefix: "job-search-bootstrap-file-",
     });
     writeFileSync(environment.outputRoot, "not a directory\n", "utf8");
-    assert.equal(parseError(runBootstrap(environment, "--init")).code, "invalid_output_environment");
+    assert.equal(
+      parseError(runBootstrap(environment, "--init")).code,
+      "invalid_output_environment",
+    );
   });
 
   await t.test("direct symlink", () => {
@@ -932,7 +916,10 @@ test("bootstrap deterministically rejects wrong file, symlink, root, realpath, a
     });
     mkdirSync(join(environment.workspaceRoot, "real-output"));
     symlinkSync("real-output", environment.outputRoot);
-    assert.equal(parseError(runBootstrap(environment, "--check")).code, "invalid_output_environment");
+    assert.equal(
+      parseError(runBootstrap(environment, "--check")).code,
+      "invalid_output_environment",
+    );
   });
 
   await t.test("dangling symlink", () => {
@@ -942,7 +929,10 @@ test("bootstrap deterministically rejects wrong file, symlink, root, realpath, a
       prefix: "job-search-bootstrap-dangling-",
     });
     symlinkSync("missing-output", environment.outputRoot);
-    assert.equal(parseError(runBootstrap(environment, "--init")).code, "invalid_output_environment");
+    assert.equal(
+      parseError(runBootstrap(environment, "--init")).code,
+      "invalid_output_environment",
+    );
   });
 
   await t.test("wrong lexical output root", () => {
@@ -959,12 +949,9 @@ test("bootstrap deterministically rejects wrong file, symlink, root, realpath, a
       stderr: result.stderr,
     });
     assert.equal(error.code, "bootstrap_required");
-    const explicitWrong = runNode(
-      bootstrapPath,
-      ["--check"],
-      environment,
-      { env: { JOB_PIPELINE_OUTPUT_ROOT: wrongRoot } },
-    );
+    const explicitWrong = runNode(bootstrapPath, ["--check"], environment, {
+      env: { JOB_PIPELINE_OUTPUT_ROOT: wrongRoot },
+    });
     assert.equal(parseError(explicitWrong).code, "invalid_output_environment");
     assert.equal(existsSync(environment.outputRoot), false);
   });
@@ -980,17 +967,12 @@ test("bootstrap deterministically rejects wrong file, symlink, root, realpath, a
     symlinkSync(dirname(environment.workspaceRoot), aliasParent);
     const aliasRoot = join(aliasParent, basename(environment.workspaceRoot));
     assert.equal(lstatSync(aliasRoot).isSymbolicLink(), false);
-    const result = runNode(
-      bootstrapPath,
-      ["--check"],
-      environment,
-      {
-        env: {
-          JOB_PIPELINE_OUTPUT_ROOT: join(aliasRoot, "output"),
-          JOB_PIPELINE_WORKSPACE_ROOT: aliasRoot,
-        },
+    const result = runNode(bootstrapPath, ["--check"], environment, {
+      env: {
+        JOB_PIPELINE_OUTPUT_ROOT: join(aliasRoot, "output"),
+        JOB_PIPELINE_WORKSPACE_ROOT: aliasRoot,
       },
-    );
+    });
     assert.deepEqual(parseError(result), {
       code: "invalid_output_environment",
       message: "workspaceRoot must not use a symlinked path or ancestor",
@@ -1004,7 +986,10 @@ test("bootstrap deterministically rejects wrong file, symlink, root, realpath, a
     });
     chmodSync(environment.outputRoot, 0o555);
     try {
-      assert.equal(parseError(runBootstrap(environment, "--check")).code, "invalid_output_environment");
+      assert.equal(
+        parseError(runBootstrap(environment, "--check")).code,
+        "invalid_output_environment",
+      );
     } finally {
       chmodSync(environment.outputRoot, 0o700);
     }
@@ -1019,16 +1004,13 @@ test("concurrent init publishes each missing root once with deterministic follow
   const results = await Promise.all(
     Array.from({ length: 16 }, () => runBootstrapAsync(environment, "--init")),
   );
-  assert.deepEqual(results.map((result) => result.code), Array(16).fill(0));
+  assert.deepEqual(
+    results.map((result) => result.code),
+    Array(16).fill(0),
+  );
   const reports = results.map((result) => JSON.parse(result.stdout));
-  assert.equal(
-    reports.filter((report) => report.created.output_root).length,
-    1,
-  );
-  assert.equal(
-    reports.filter((report) => report.created.process_log).length,
-    1,
-  );
+  assert.equal(reports.filter((report) => report.created.output_root).length, 1);
+  assert.equal(reports.filter((report) => report.created.process_log).length, 1);
   for (const report of reports) {
     assert.equal(typeof report.recovered.process_log, "boolean");
     assertCreated(
@@ -1052,13 +1034,18 @@ test("init and reservation race has a stable retry path", async (t) => {
   startReadyProcess(environment, processId);
 
   const reservePromise = new Promise((resolveRun) => {
-    execFile(process.execPath, [processLogPath, "reserve-output", "--id", processId], {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env: rawEnvironment(environment),
-    }, (error, stdout, stderr) => {
-      resolveRun({ code: error?.code ?? 0, stderr, stdout });
-    });
+    execFile(
+      process.execPath,
+      [processLogPath, "reserve-output", "--id", processId],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: rawEnvironment(environment),
+      },
+      (error, stdout, stderr) => {
+        resolveRun({ code: error?.code ?? 0, stderr, stdout });
+      },
+    );
   });
   const [initialized, racedReserve] = await Promise.all([
     runBootstrapAsync(environment, "--init"),
@@ -1071,11 +1058,7 @@ test("init and reservation race has a stable retry path", async (t) => {
     assert.equal(JSON.parse(racedReserve.stderr).error.code, "bootstrap_required");
   }
 
-  const retried = runNode(
-    processLogPath,
-    ["reserve-output", "--id", processId],
-    environment,
-  );
+  const retried = runNode(processLogPath, ["reserve-output", "--id", processId], environment);
   assert.equal(retried.status, 0, retried.stderr);
   assert.match(JSON.parse(retried.stdout).status, /^(reserved|unchanged)$/);
   const record = readLogV3(environment.ledgerPath).processes[0];
@@ -1153,17 +1136,11 @@ test("fresh git archive initializes and reserves without install, then preflight
     { cwd: environment.workspaceRoot },
   );
   assert.equal(updated.status, 0, updated.stderr);
-  const reserved = runNode(
-    archivedCli,
-    ["reserve-output", "--id", processId],
-    environment,
-    { cwd: environment.workspaceRoot },
-  );
+  const reserved = runNode(archivedCli, ["reserve-output", "--id", processId], environment, {
+    cwd: environment.workspaceRoot,
+  });
   assert.equal(reserved.status, 0, reserved.stderr);
-  assert.equal(
-    JSON.parse(reserved.stdout).output_dir,
-    "output/archive-example-quality-engineer",
-  );
+  assert.equal(JSON.parse(reserved.stdout).output_dir, "output/archive-example-quality-engineer");
   assert.equal(existsSync(join(environment.workspaceRoot, "node_modules")), false);
 
   const preflight = spawnSync("npm", ["run", "preflight", "--silent"], {
@@ -1242,7 +1219,7 @@ test("check reports an absent candidate and refuses a broken one", (t) => {
   assert.deepEqual(absent.candidate, { created: false, path: root, status: "absent" });
 
   mkdirSync(root);
-  writeFileSync(join(root, "config.json"), "{\"schema_version\": 99}\n", "utf8");
+  writeFileSync(join(root, "config.json"), '{"schema_version": 99}\n', "utf8");
   assert.equal(
     parseError(runBootstrap(environment, "--check")).code,
     "candidate_schema_version_unsupported",
@@ -1271,13 +1248,16 @@ test("a broken constraints file is refused the same way a broken config is", (t)
   for (const document of ["config.json", "profile.md", "levers.md", "rules.md"]) {
     copyFileSync(join(repoRoot, "candidate.example", document), join(root, document));
   }
-  cpSync(join(repoRoot, "candidate.example", "languages"), join(root, "languages"), { recursive: true });
+  cpSync(join(repoRoot, "candidate.example", "languages"), join(root, "languages"), {
+    recursive: true,
+  });
   // A layer with no constraints file at all is a layer, not a fault: one written before the file
   // existed constrains nothing.
-  assert.deepEqual(
-    parseSuccess(runBootstrap(environment, "--check")).candidate,
-    { created: false, path: root, status: "ready" },
-  );
+  assert.deepEqual(parseSuccess(runBootstrap(environment, "--check")).candidate, {
+    created: false,
+    path: root,
+    status: "ready",
+  });
 
   writeFileSync(join(root, "constraints.json"), "{ not json\n", "utf8");
   assert.equal(
@@ -1317,19 +1297,31 @@ test("init refuses to seed a candidate into a primary worktree", (t) => {
 /** The marker `tools/ops-tree/` leaves: a manifest digesting whatever the folder holds now. */
 function markOperationalFolder(root) {
   const zones = zoneTableFor("operational");
-  const pin = (tag) => ({ commit: "a".repeat(40), repository: "/fixture/repository", tag, tree: "b".repeat(40) });
-  writeFileSync(join(root, "ops-manifest.json"), `${JSON.stringify({
-    schema: "job-search-pipeline/ops-manifest",
-    schema_version: 1,
-    kind: "operational",
-    state: "ready",
-    built_at: "2026-09-24T12:00:00.000Z",
-    previous: null,
-    engine: pin("release-20260924"),
-    candidate: pin("candidate-20260924"),
-    zones,
-    files: digestTree(root, zones),
-  }, null, 2)}\n`);
+  const pin = (tag) => ({
+    commit: "a".repeat(40),
+    repository: "/fixture/repository",
+    tag,
+    tree: "b".repeat(40),
+  });
+  writeFileSync(
+    join(root, "ops-manifest.json"),
+    `${JSON.stringify(
+      {
+        schema: "job-search-pipeline/ops-manifest",
+        schema_version: 1,
+        kind: "operational",
+        state: "ready",
+        built_at: "2026-09-24T12:00:00.000Z",
+        previous: null,
+        engine: pin("release-20260924"),
+        candidate: pin("candidate-20260924"),
+        zones,
+        files: digestTree(root, zones),
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 test("init never seeds the example into an operational folder, whichever half of its marker is left", (t) => {
@@ -1366,11 +1358,14 @@ test("the preflight's folder check reports a clean folder and refuses drift with
     release: "release-20260924",
   });
   writeFileSync(join(root, "tools/entry.mjs"), "export const changed = true;\n");
-  assert.throws(() => checkOperationalFolder(root), (error) => {
-    assert.equal(error.name, "BootstrapCliError");
-    assert.equal(error.code, "engine_tree_drift");
-    return true;
-  });
+  assert.throws(
+    () => checkOperationalFolder(root),
+    (error) => {
+      assert.equal(error.name, "BootstrapCliError");
+      assert.equal(error.code, "engine_tree_drift");
+      return true;
+    },
+  );
 });
 
 test("seed placement names every refusal direction and never guesses", (t) => {
@@ -1439,16 +1434,18 @@ test("the seed detector scrubs the pinned git redirection variables", () => {
   // Frozen as a literal rather than read back out of the module under test. The list is the
   // seed detector's, not the CI runner's: `GIT_COMMON_DIR` is what the primary-worktree check compares,
   // and the runner's list does not carry it.
-  assert.deepEqual([...GIT_REDIRECTION_VARIABLES], [
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_CEILING_DIRECTORIES",
-    "GIT_COMMON_DIR",
-    "GIT_DIR",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_WORK_TREE",
-  ]);
-
+  assert.deepEqual(
+    [...GIT_REDIRECTION_VARIABLES],
+    [
+      "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+      "GIT_CEILING_DIRECTORIES",
+      "GIT_COMMON_DIR",
+      "GIT_DIR",
+      "GIT_INDEX_FILE",
+      "GIT_OBJECT_DIRECTORY",
+      "GIT_WORK_TREE",
+    ],
+  );
 });
 
 test("init seeds the candidate layer in a rehearsal worktree", (t) => {
@@ -1463,15 +1460,17 @@ test("init seeds the candidate layer in a rehearsal worktree", (t) => {
   const rehearsal = join(environment.workspaceRoot, "rehearsal");
   gitIn(repository, "worktree", "add", "--quiet", "-b", "rehearsal/probe", rehearsal, "HEAD");
 
-  const report = JSON.parse(spawnSync(process.execPath, [bootstrapPath, "--init"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-    env: rawEnvironment(environment, {
-      JOB_PIPELINE_OUTPUT_ROOT: join(rehearsal, "output"),
-      JOB_PIPELINE_PROCESS_LOG: join(rehearsal, "process-log.json"),
-      JOB_PIPELINE_WORKSPACE_ROOT: rehearsal,
-    }),
-  }).stdout);
+  const report = JSON.parse(
+    spawnSync(process.execPath, [bootstrapPath, "--init"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: rawEnvironment(environment, {
+        JOB_PIPELINE_OUTPUT_ROOT: join(rehearsal, "output"),
+        JOB_PIPELINE_PROCESS_LOG: join(rehearsal, "process-log.json"),
+        JOB_PIPELINE_WORKSPACE_ROOT: rehearsal,
+      }),
+    }).stdout,
+  );
   assert.deepEqual(report.candidate, {
     created: true,
     path: candidateRootFor(rehearsal),
@@ -1491,7 +1490,10 @@ test("concurrent init publishes one candidate layer and leaves no staging residu
   const results = await Promise.all(
     Array.from({ length: 16 }, () => runBootstrapAsync(environment, "--init")),
   );
-  assert.deepEqual(results.map((result) => result.code), Array(16).fill(0));
+  assert.deepEqual(
+    results.map((result) => result.code),
+    Array(16).fill(0),
+  );
   const reports = results.map((result) => JSON.parse(result.stdout));
   const root = candidateRootFor(environment.workspaceRoot);
   for (const report of reports) {

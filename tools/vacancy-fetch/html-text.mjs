@@ -14,8 +14,20 @@
 // text is evidence that later checks quote from literally.
 
 const VOID_TAGS = new Set([
-  "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
-  "param", "source", "track", "wbr",
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr",
 ]);
 
 // Elements whose content is text rather than markup. The scanner must run to their exact closing
@@ -30,21 +42,62 @@ const RCDATA_TAGS = new Set(["textarea", "title"]);
 // Dropped while parsing: their text is never visible page content, so keeping it would put
 // script bodies and stylesheet rules into a file later read as the job description.
 const NEVER_TEXT_TAGS = new Set([
-  "base", "head", "link", "math", "meta", "noscript", "script", "style", "svg",
-  "template", "title",
+  "base",
+  "head",
+  "link",
+  "math",
+  "meta",
+  "noscript",
+  "script",
+  "style",
+  "svg",
+  "template",
+  "title",
 ]);
 
 // Page chrome for the generic fallback. Kept as an exported set rather than an inline literal so
 // an adapter states which chrome it drops instead of each adapter inventing its own list.
-export const genericChromeTags = Object.freeze([
-  "aside", "footer", "form", "header", "nav",
-]);
+export const genericChromeTags = Object.freeze(["aside", "footer", "form", "header", "nav"]);
 
 const BLOCK_TAGS = new Set([
-  "address", "article", "aside", "blockquote", "br", "caption", "dd", "div",
-  "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2",
-  "h3", "h4", "h5", "h6", "header", "hr", "legend", "li", "main", "nav", "ol",
-  "p", "pre", "section", "table", "tbody", "td", "tfoot", "th", "thead", "tr",
+  "address",
+  "article",
+  "aside",
+  "blockquote",
+  "br",
+  "caption",
+  "dd",
+  "div",
+  "dl",
+  "dt",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "header",
+  "hr",
+  "legend",
+  "li",
+  "main",
+  "nav",
+  "ol",
+  "p",
+  "pre",
+  "section",
+  "table",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "tr",
   "ul",
 ]);
 
@@ -63,14 +116,38 @@ const IMPLIED_END = new Map([
   ["p", new Set(["p"])],
 ]);
 
-const NAMED_ENTITIES = new Map(Object.entries({
-  amp: "&", apos: "'", bull: "•", copy: "©", dash: "–",
-  deg: "°", eacute: "é", euro: "€", gt: ">", hellip: "…",
-  laquo: "«", ldquo: "“", lsquo: "‘", lt: "<", mdash: "—",
-  middot: "·", nbsp: " ", ndash: "–", pound: "£",
-  quot: "\"", raquo: "»", rdquo: "”", reg: "®", rsquo: "’",
-  sect: "§", shy: "­", trade: "™", yen: "¥",
-}));
+const NAMED_ENTITIES = new Map(
+  Object.entries({
+    amp: "&",
+    apos: "'",
+    bull: "•",
+    copy: "©",
+    dash: "–",
+    deg: "°",
+    eacute: "é",
+    euro: "€",
+    gt: ">",
+    hellip: "…",
+    laquo: "«",
+    ldquo: "“",
+    lsquo: "‘",
+    lt: "<",
+    mdash: "—",
+    middot: "·",
+    nbsp: " ",
+    ndash: "–",
+    pound: "£",
+    quot: '"',
+    raquo: "»",
+    rdquo: "”",
+    reg: "®",
+    rsquo: "’",
+    sect: "§",
+    shy: "­",
+    trade: "™",
+    yen: "¥",
+  }),
+);
 
 const maxNodes = 200_000;
 const maxDepth = 256;
@@ -113,7 +190,7 @@ export function decodeEntities(value) {
     const body = value.slice(start + 1, end);
     const decoded = body.startsWith("#")
       ? decodeNumericEntity(body.slice(1))
-      : NAMED_ENTITIES.get(body.toLowerCase()) ?? null;
+      : (NAMED_ENTITIES.get(body.toLowerCase()) ?? null);
     if (decoded === null) {
       result += "&";
       index = start + 1;
@@ -172,7 +249,7 @@ function readAttributes(html, start) {
       index += 1;
       while (index < html.length && /\s/.test(html[index])) index += 1;
       const quote = html[index];
-      if (quote === "\"" || quote === "'") {
+      if (quote === '"' || quote === "'") {
         const close = html.indexOf(quote, index + 1);
         const stop = close === -1 ? html.length : close;
         value = html.slice(index + 1, stop);
@@ -233,10 +310,10 @@ export function parseHtml(html) {
         // The name has to end where a tag name may end, so `</scriptable` is not `</script`.
         const following = html[nameEnd];
         if (
-          following === undefined
-          || following === ">"
-          || following === "/"
-          || /\s/u.test(following)
+          following === undefined ||
+          following === ">" ||
+          following === "/" ||
+          /\s/u.test(following)
         ) {
           return at;
         }
@@ -431,8 +508,7 @@ export function collectText(node, { skipTags = [] } = {}) {
     }
     if (current.type === "element" && skip.has(current.tag)) return;
     const block = current.type === "element" && BLOCK_TAGS.has(current.tag);
-    const pre = preformatted
-      || (current.type === "element" && PREFORMATTED_TAGS.has(current.tag));
+    const pre = preformatted || (current.type === "element" && PREFORMATTED_TAGS.has(current.tag));
     if (block) parts.push("\n");
     for (const child of current.children) visit(child, pre);
     if (block) parts.push("\n");

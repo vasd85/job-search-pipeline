@@ -185,7 +185,7 @@ const DECLARED_DIAGNOSTIC_FORBIDDEN_VARIANTS = Object.freeze([
   ["credential_passwd", "credential_assignment", "passwd=syntheticValue123"],
   ["credential_secret", "credential_assignment", "secret=syntheticValue123"],
   ["credential_colon", "credential_assignment", "api_key: syntheticValue123"],
-  ["credential_double_quote", "credential_assignment", "api_key=\"syntheticValue123"],
+  ["credential_double_quote", "credential_assignment", 'api_key="syntheticValue123'],
   ["credential_single_quote", "credential_assignment", "api_key='syntheticValue123"],
   ["credential_whitespace", "credential_assignment", "api_key = syntheticValue123"],
   ["url_case", "url", "HTTPS://example.test/private"],
@@ -218,20 +218,20 @@ const DECLARED_DIAGNOSTIC_FORBIDDEN_VARIANTS = Object.freeze([
   ["posix_prefix_equal", "posix_absolute_path", "=/private/tmp/secret.txt"],
   ["posix_prefix_bracket", "posix_absolute_path", "[/private/tmp/secret.txt"],
   ["posix_prefix_brace", "posix_absolute_path", "{/private/tmp/secret.txt"],
-  ["posix_prefix_double_quote", "posix_absolute_path", "\"/private/tmp/secret.txt"],
+  ["posix_prefix_double_quote", "posix_absolute_path", '"/private/tmp/secret.txt'],
   ["posix_prefix_single_quote", "posix_absolute_path", "'/private/tmp/secret.txt"],
   ["unc_prefix_left_paren", "unc_path", "(\\\\server\\share\\secret.txt"],
   ["unc_prefix_equal", "unc_path", "=\\\\server\\share\\secret.txt"],
   ["unc_prefix_bracket", "unc_path", "[\\\\server\\share\\secret.txt"],
   ["unc_prefix_brace", "unc_path", "{\\\\server\\share\\secret.txt"],
-  ["unc_prefix_double_quote", "unc_path", "\"\\\\server\\share\\secret.txt"],
+  ["unc_prefix_double_quote", "unc_path", '"\\\\server\\share\\secret.txt'],
   ["unc_prefix_single_quote", "unc_path", "'\\\\server\\share\\secret.txt"],
   ["unc_single_character", "unc_path", "\\\\s\\x"],
   ["windows_prefix_left_paren", "windows_absolute_path", "(C:\\Users\\fixture\\secret.txt"],
   ["windows_prefix_equal", "windows_absolute_path", "=C:\\Users\\fixture\\secret.txt"],
   ["windows_prefix_bracket", "windows_absolute_path", "[C:\\Users\\fixture\\secret.txt"],
   ["windows_prefix_brace", "windows_absolute_path", "{C:\\Users\\fixture\\secret.txt"],
-  ["windows_prefix_double_quote", "windows_absolute_path", "\"C:\\Users\\fixture\\secret.txt"],
+  ["windows_prefix_double_quote", "windows_absolute_path", '"C:\\Users\\fixture\\secret.txt'],
   ["windows_prefix_single_quote", "windows_absolute_path", "'C:\\Users\\fixture\\secret.txt"],
   ["windows_lowercase_drive", "windows_absolute_path", "c:\\Users\\fixture\\secret.txt"],
   ["windows_forward_slash", "windows_absolute_path", "C:/Users/fixture/secret.txt"],
@@ -381,17 +381,11 @@ test("a stored source key must stay canonical, and a stored key version is a sch
   // is pinned, so per-record versioning cannot be added without a schema event.
   const versionedFileBacked = createValidV3Log();
   fileBackedProcess(versionedFileBacked).source_key_version = 2;
-  assertInvalid(
-    versionedFileBacked,
-    /processes\[1\] contains unknown key: source_key_version/,
-  );
+  assertInvalid(versionedFileBacked, /processes\[1\] contains unknown key: source_key_version/);
 
   const versionedHistorical = createValidV3Log();
   versionedHistorical.processes[0].source_key_version = 2;
-  assertInvalid(
-    versionedHistorical,
-    /processes\[0\] contains unknown key: source_key_version/,
-  );
+  assertInvalid(versionedHistorical, /processes\[0\] contains unknown key: source_key_version/);
 
   const bumped = createValidV3Log();
   bumped.schema_version = 3;
@@ -407,17 +401,11 @@ test("claude-ai-web remains historical provenance and cannot own a file-backed r
 test("file-backed records require exactly the five fixed step keys", () => {
   const missing = createValidV3Log();
   delete fileBackedProcess(missing).steps.write_cover_letter;
-  assertInvalid(
-    missing,
-    /processes\[1\]\.steps\.write_cover_letter must be an object/,
-  );
+  assertInvalid(missing, /processes\[1\]\.steps\.write_cover_letter must be an object/);
 
   const extra = createValidV3Log();
   fileBackedProcess(extra).steps.submit_application = createPendingStep();
-  assertInvalid(
-    extra,
-    /processes\[1\]\.steps contains unknown key: submit_application/,
-  );
+  assertInvalid(extra, /processes\[1\]\.steps contains unknown key: submit_application/);
 });
 
 test("unknown fields are rejected inside step and bundle metadata", () => {
@@ -565,9 +553,8 @@ test("persisted diagnostics enforce exact UTF-8 bounds and one-line content", as
   exactDiagnostic.code = "a".repeat(64);
   exactStep.attempt_history[0].error_code = exactDiagnostic.code;
   exactDiagnostic.message = utf8StringAtBytes(512);
-  exactDiagnostic.details = Array.from(
-    { length: 8 },
-    (_, index) => utf8StringAtBytes(256, `Я${index}`),
+  exactDiagnostic.details = Array.from({ length: 8 }, (_, index) =>
+    utf8StringAtBytes(256, `Я${index}`),
   );
   validateLogV3(exact);
   const singleCharacterCode = createValidV3Log();
@@ -613,51 +600,70 @@ test("persisted diagnostics enforce exact UTF-8 bounds and one-line content", as
         diagnostic.code = value;
         step.attempt_history[0].error_code = value;
       },
-      pattern: /processes\[1\]\.steps\.generate_cv\.error\.code must be a lowercase snake_case stable code/,
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.error\.code must be a lowercase snake_case stable code/,
     })),
     {
       id: "history_error_code_65_bytes",
       mutate: (_diagnostic, step) => {
         step.attempt_history[0].error_code = "a".repeat(65);
       },
-      pattern: /processes\[1\]\.steps\.generate_cv\.attempt_history\[0\]\.error_code must be at most 64 UTF-8 bytes/,
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.attempt_history\[0\]\.error_code must be at most 64 UTF-8 bytes/,
     },
     {
       id: "history_error_code_100_kib",
       mutate: (_diagnostic, step) => {
         step.attempt_history[0].error_code = "a".repeat(100 * 1024);
       },
-      pattern: /processes\[1\]\.steps\.generate_cv\.attempt_history\[0\]\.error_code must be at most 64 UTF-8 bytes/,
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.attempt_history\[0\]\.error_code must be at most 64 UTF-8 bytes/,
     },
     {
       id: "message_513_bytes",
-      mutate: (diagnostic) => { diagnostic.message = utf8StringAtBytes(513); },
+      mutate: (diagnostic) => {
+        diagnostic.message = utf8StringAtBytes(513);
+      },
       pattern: /processes\[1\]\.steps\.generate_cv\.error\.message must be at most 512 UTF-8 bytes/,
     },
     {
       id: "message_100_kib",
-      mutate: (diagnostic) => { diagnostic.message = `Ошибка ${"x".repeat(100 * 1024)}`; },
+      mutate: (diagnostic) => {
+        diagnostic.message = `Ошибка ${"x".repeat(100 * 1024)}`;
+      },
       pattern: /processes\[1\]\.steps\.generate_cv\.error\.message must be at most 512 UTF-8 bytes/,
     },
     {
       id: "details_9_items",
-      mutate: (diagnostic) => { diagnostic.details = Array(9).fill("bounded detail"); },
-      pattern: /processes\[1\]\.steps\.generate_cv\.error\.details must contain at most 8 item\(s\)/,
+      mutate: (diagnostic) => {
+        diagnostic.details = Array(9).fill("bounded detail");
+      },
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.error\.details must contain at most 8 item\(s\)/,
     },
     {
       id: "detail_257_bytes",
-      mutate: (diagnostic) => { diagnostic.details = ["a".repeat(257)]; },
-      pattern: /processes\[1\]\.steps\.generate_cv\.error\.details\[0\] must be at most 256 UTF-8 bytes/,
+      mutate: (diagnostic) => {
+        diagnostic.details = ["a".repeat(257)];
+      },
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.error\.details\[0\] must be at most 256 UTF-8 bytes/,
     },
     {
       id: "message_multiline",
-      mutate: (diagnostic) => { diagnostic.message = "Ошибка содержит\nвторую строку."; },
-      pattern: /processes\[1\]\.steps\.generate_cv\.error\.message must be one-line text without control characters/,
+      mutate: (diagnostic) => {
+        diagnostic.message = "Ошибка содержит\nвторую строку.";
+      },
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.error\.message must be one-line text without control characters/,
     },
     {
       id: "detail_control_character",
-      mutate: (diagnostic) => { diagnostic.details = ["synthetic\u0000detail"]; },
-      pattern: /processes\[1\]\.steps\.generate_cv\.error\.details\[0\] must be one-line text without control characters/,
+      mutate: (diagnostic) => {
+        diagnostic.details = ["synthetic\u0000detail"];
+      },
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.error\.details\[0\] must be one-line text without control characters/,
     },
     ...[
       ["message_carriage_return", "Ошибка\rвозврата."],
@@ -669,28 +675,43 @@ test("persisted diagnostics enforce exact UTF-8 bounds and one-line content", as
       ["message_paragraph_separator", "Ошибка\u2029продолжения."],
     ].map(([id, value]) => ({
       id,
-      mutate: (diagnostic) => { diagnostic.message = value; },
-      pattern: /processes\[1\]\.steps\.generate_cv\.error\.message must be one-line text without control characters/,
+      mutate: (diagnostic) => {
+        diagnostic.message = value;
+      },
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.error\.message must be one-line text without control characters/,
     })),
     {
       id: "message_unpaired_high_surrogate",
-      mutate: (diagnostic) => { diagnostic.message = "Ошибка \ud800"; },
-      pattern: /processes\[1\]\.steps\.generate_cv\.error\.message must contain valid Unicode scalar text/,
+      mutate: (diagnostic) => {
+        diagnostic.message = "Ошибка \ud800";
+      },
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.error\.message must contain valid Unicode scalar text/,
     },
     {
       id: "message_unpaired_low_surrogate",
-      mutate: (diagnostic) => { diagnostic.message = "Ошибка \udc00"; },
-      pattern: /processes\[1\]\.steps\.generate_cv\.error\.message must contain valid Unicode scalar text/,
+      mutate: (diagnostic) => {
+        diagnostic.message = "Ошибка \udc00";
+      },
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.error\.message must contain valid Unicode scalar text/,
     },
     {
       id: "message_unpaired_high_surrogate_max",
-      mutate: (diagnostic) => { diagnostic.message = "Ошибка \udbff"; },
-      pattern: /processes\[1\]\.steps\.generate_cv\.error\.message must contain valid Unicode scalar text/,
+      mutate: (diagnostic) => {
+        diagnostic.message = "Ошибка \udbff";
+      },
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.error\.message must contain valid Unicode scalar text/,
     },
     {
       id: "message_unpaired_low_surrogate_max",
-      mutate: (diagnostic) => { diagnostic.message = "Ошибка \udfff"; },
-      pattern: /processes\[1\]\.steps\.generate_cv\.error\.message must contain valid Unicode scalar text/,
+      mutate: (diagnostic) => {
+        diagnostic.message = "Ошибка \udfff";
+      },
+      pattern:
+        /processes\[1\]\.steps\.generate_cv\.error\.message must contain valid Unicode scalar text/,
     },
   ];
 
@@ -734,10 +755,7 @@ test("a persisted message explains rather than repeating the code, in any script
 });
 
 test("persisted diagnostics reject every frozen forbidden shape and preserve safe near-misses", async (t) => {
-  assert.deepEqual(
-    processLogDiagnosticForbiddenShapeIds,
-    EXPECTED_DIAGNOSTIC_FORBIDDEN_SHAPES,
-  );
+  assert.deepEqual(processLogDiagnosticForbiddenShapeIds, EXPECTED_DIAGNOSTIC_FORBIDDEN_SHAPES);
   assert.deepEqual(
     DECLARED_DIAGNOSTIC_FORBIDDEN_SHAPES.map(([id]) => id).sort(),
     [...EXPECTED_DIAGNOSTIC_FORBIDDEN_SHAPES].sort(),
@@ -829,10 +847,7 @@ test("persisted diagnostics reject every frozen forbidden shape and preserve saf
     "safe first diagnostic detail",
     "Bearer abcdefgh",
   ];
-  assertInvalid(
-    laterDetail,
-    /error\.details\[1\].*bearer_token/,
-  );
+  assertInvalid(laterDetail, /error\.details\[1\].*bearer_token/);
 });
 
 test("diagnostic forbidden-shape inventory matches expected, declared, and executed cases", () => {
@@ -847,10 +862,7 @@ test("diagnostic forbidden-shape inventory matches expected, declared, and execu
     declaredIds.filter((id) => !EXPECTED_DIAGNOSTIC_FORBIDDEN_SHAPES.includes(id)),
     [],
   );
-  assert.deepEqual(
-    [...executedDiagnosticShapes].sort(),
-    [...declaredSet].sort(),
-  );
+  assert.deepEqual([...executedDiagnosticShapes].sort(), [...declaredSet].sort());
   const declaredVariantIds = DECLARED_DIAGNOSTIC_FORBIDDEN_VARIANTS.map(([id]) => id);
   const declaredVariantSet = new Set(declaredVariantIds);
   assert.equal(declaredVariantSet.size, declaredVariantIds.length);
@@ -858,10 +870,7 @@ test("diagnostic forbidden-shape inventory matches expected, declared, and execu
     [...EXPECTED_DIAGNOSTIC_FORBIDDEN_VARIANTS].sort(),
     [...declaredVariantSet].sort(),
   );
-  assert.deepEqual(
-    [...executedDiagnosticVariants].sort(),
-    [...declaredVariantSet].sort(),
-  );
+  assert.deepEqual([...executedDiagnosticVariants].sort(), [...declaredVariantSet].sort());
 });
 
 test("future-skew ceiling accepts exactly five minutes and rejects the next millisecond", (t) => {
@@ -891,37 +900,51 @@ test("future-skew validation covers every declared timestamp owner", async (t) =
   const cases = [
     {
       id: "root.updated_at",
-      mutate(log) { log.updated_at = future; },
+      mutate(log) {
+        log.updated_at = future;
+      },
       path: "updated_at",
     },
     {
       id: "historical.started_at",
-      mutate(log) { log.processes[0].started_at = future; },
+      mutate(log) {
+        log.processes[0].started_at = future;
+      },
       path: "processes[0].started_at",
     },
     {
       id: "process.started_at",
-      mutate(log) { fileBackedProcess(log).started_at = future; },
+      mutate(log) {
+        fileBackedProcess(log).started_at = future;
+      },
       path: "processes[1].started_at",
     },
     {
       id: "process.updated_at",
-      mutate(log) { fileBackedProcess(log).updated_at = future; },
+      mutate(log) {
+        fileBackedProcess(log).updated_at = future;
+      },
       path: "processes[1].updated_at",
     },
     {
       id: "step.started_at",
-      mutate(log) { fileBackedProcess(log).steps.generate_cv.started_at = future; },
+      mutate(log) {
+        fileBackedProcess(log).steps.generate_cv.started_at = future;
+      },
       path: "processes[1].steps.generate_cv.started_at",
     },
     {
       id: "step.updated_at",
-      mutate(log) { fileBackedProcess(log).steps.generate_cv.updated_at = future; },
+      mutate(log) {
+        fileBackedProcess(log).steps.generate_cv.updated_at = future;
+      },
       path: "processes[1].steps.generate_cv.updated_at",
     },
     {
       id: "step.finished_at",
-      mutate(log) { fileBackedProcess(log).steps.generate_cv.finished_at = future; },
+      mutate(log) {
+        fileBackedProcess(log).steps.generate_cv.finished_at = future;
+      },
       path: "processes[1].steps.generate_cv.finished_at",
     },
     {
@@ -974,7 +997,9 @@ test("future-skew validation covers every declared timestamp owner", async (t) =
     },
     {
       id: "diagnostic.error.at",
-      mutate(log) { fileBackedProcess(log).steps.generate_cv.error.at = future; },
+      mutate(log) {
+        fileBackedProcess(log).steps.generate_cv.error.at = future;
+      },
       path: "processes[1].steps.generate_cv.error.at",
     },
     {
@@ -1009,7 +1034,9 @@ test("future-skew validation covers every declared timestamp owner", async (t) =
       fixture.mutate(log);
       assert.throws(
         () => validateLogV3(log),
-        new RegExp(`${fixture.path.replaceAll(/[.\[\]]/g, "\\$&")} must not be more than 300000 ms in the future`),
+        new RegExp(
+          `${fixture.path.replaceAll(/[.\[\]]/g, "\\$&")} must not be more than 300000 ms in the future`,
+        ),
       );
       executedFutureTimestampPaths.add(fixture.id);
     });
@@ -1061,17 +1088,23 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
   const cases = [
     {
       id: "historical_start_after_root",
-      mutate(log) { log.processes[0].started_at = "2026-07-23T12:30:00.001Z"; },
+      mutate(log) {
+        log.processes[0].started_at = "2026-07-23T12:30:00.001Z";
+      },
       pattern: /processes\[0\]\.started_at must not be after updated_at/,
     },
     {
       id: "process_start_before_update",
-      mutate(log) { fileBackedProcess(log).started_at = "2026-07-23T12:31:00.000Z"; },
+      mutate(log) {
+        fileBackedProcess(log).started_at = "2026-07-23T12:31:00.000Z";
+      },
       pattern: /processes\[1\]\.started_at must not be after processes\[1\]\.updated_at/,
     },
     {
       id: "root_after_process_update",
-      mutate(log) { log.updated_at = "2026-07-23T12:29:59.999Z"; },
+      mutate(log) {
+        log.updated_at = "2026-07-23T12:29:59.999Z";
+      },
       pattern: /processes\[1\]\.updated_at must not be after updated_at/,
     },
     {
@@ -1089,14 +1122,16 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
         const step = fileBackedProcess(log).steps.generate_cv;
         step.started_at = "2026-07-23T11:36:00.000Z";
       },
-      pattern: /steps\.generate_cv\.started_at must not be after processes\[1\]\.steps\.generate_cv\.updated_at/,
+      pattern:
+        /steps\.generate_cv\.started_at must not be after processes\[1\]\.steps\.generate_cv\.updated_at/,
     },
     {
       id: "step_updated_within_process",
       mutate(log) {
         const process = fileBackedProcess(log);
-        process.steps.generate_cv.updated_at =
-          new Date(Date.parse(process.updated_at) + 1).toISOString();
+        process.steps.generate_cv.updated_at = new Date(
+          Date.parse(process.updated_at) + 1,
+        ).toISOString();
       },
       pattern: /steps\.generate_cv\.updated_at must not be after processes\[1\]\.updated_at/,
     },
@@ -1105,14 +1140,16 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
       mutate(log) {
         fileBackedProcess(log).steps.generate_cv.updated_at = "2026-07-23T11:34:59.999Z";
       },
-      pattern: /steps\.generate_cv\.finished_at must not be after processes\[1\]\.steps\.generate_cv\.updated_at/,
+      pattern:
+        /steps\.generate_cv\.finished_at must not be after processes\[1\]\.steps\.generate_cv\.updated_at/,
     },
     {
       id: "step_start_before_finish",
       mutate(log) {
         fileBackedProcess(log).steps.generate_cv.started_at = "2026-07-23T11:36:00.000Z";
       },
-      pattern: /steps\.generate_cv\.started_at must not be after processes\[1\]\.steps\.generate_cv\.finished_at/,
+      pattern:
+        /steps\.generate_cv\.started_at must not be after processes\[1\]\.steps\.generate_cv\.finished_at/,
     },
     {
       id: "history_start_before_finish",
@@ -1120,7 +1157,8 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
         fileBackedProcess(log).steps.generate_cv.attempt_history[0].started_at =
           "2026-07-23T11:36:00.000Z";
       },
-      pattern: /attempt_history\[0\]\.started_at must not be after .*attempt_history\[0\]\.finished_at/,
+      pattern:
+        /attempt_history\[0\]\.started_at must not be after .*attempt_history\[0\]\.finished_at/,
     },
     {
       id: "history_start_within_process",
@@ -1131,8 +1169,9 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
         second.attempt = 2;
         step.attempt = 2;
         step.attempt_history.push(second);
-        step.attempt_history[0].started_at =
-          new Date(Date.parse(process.started_at) - 1).toISOString();
+        step.attempt_history[0].started_at = new Date(
+          Date.parse(process.started_at) - 1,
+        ).toISOString();
         step.attempt_history[0].finished_at = process.started_at;
       },
       pattern: /attempt_history\[0\]\.started_at must not be before processes\[1\]\.started_at/,
@@ -1152,7 +1191,8 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
         step.attempt_history.push(second);
         step.error.at = second.finished_at;
       },
-      pattern: /attempt_history\[1\]\.started_at must not be before .*attempt_history\[0\]\.finished_at/,
+      pattern:
+        /attempt_history\[1\]\.started_at must not be before .*attempt_history\[0\]\.finished_at/,
     },
     {
       id: "active_after_previous_attempt",
@@ -1170,7 +1210,8 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
         const step = runningRetry(log);
         step.active_attempt.started_at = "2026-07-23T11:39:59.999Z";
       },
-      pattern: /active_attempt\.started_at must equal processes\[1\]\.steps\.generate_cv\.started_at/,
+      pattern:
+        /active_attempt\.started_at must equal processes\[1\]\.steps\.generate_cv\.started_at/,
     },
     {
       id: "prepared_after_active",
@@ -1179,7 +1220,8 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
         step.publication_transaction.prepared_at = "2026-07-23T11:29:59.999Z";
         fileBackedProcess(log).steps.generate_cv = step;
       },
-      pattern: /publication_transaction\.prepared_at must not be before .*active_attempt\.started_at/,
+      pattern:
+        /publication_transaction\.prepared_at must not be before .*active_attempt\.started_at/,
     },
     {
       id: "prepared_within_process",
@@ -1204,14 +1246,16 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
         };
         fileBackedProcess(log).steps.generate_cv = step;
       },
-      pattern: /publication_transaction\.blocker\.at must equal .*publication_transaction\.prepared_at/,
+      pattern:
+        /publication_transaction\.blocker\.at must equal .*publication_transaction\.prepared_at/,
     },
     {
       id: "diagnostic_matches_finish",
       mutate(log) {
         fileBackedProcess(log).steps.generate_cv.error.at = "2026-07-23T11:34:59.999Z";
       },
-      pattern: /steps\.generate_cv\.error\.at must equal processes\[1\]\.steps\.generate_cv\.finished_at/,
+      pattern:
+        /steps\.generate_cv\.error\.at must equal processes\[1\]\.steps\.generate_cv\.finished_at/,
     },
     {
       id: "blocker_matches_finish",
@@ -1219,7 +1263,8 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
         const step = blockedTerminal(log);
         step.blocker.at = "2026-07-23T11:34:59.999Z";
       },
-      pattern: /steps\.generate_cv\.blocker\.at must equal processes\[1\]\.steps\.generate_cv\.finished_at/,
+      pattern:
+        /steps\.generate_cv\.blocker\.at must equal processes\[1\]\.steps\.generate_cv\.finished_at/,
     },
     {
       id: "terminal_history_matches_step",
@@ -1248,10 +1293,10 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
     {
       id: "terminal_history_matches_step_completed",
       mutate(log) {
-        fileBackedProcess(log).steps.write_cover_letter.started_at =
-          "2026-07-23T12:00:00.001Z";
+        fileBackedProcess(log).steps.write_cover_letter.started_at = "2026-07-23T12:00:00.001Z";
       },
-      pattern: /steps\.write_cover_letter\.started_at must equal .*attempt_history\[0\]\.started_at/,
+      pattern:
+        /steps\.write_cover_letter\.started_at must equal .*attempt_history\[0\]\.started_at/,
     },
     {
       id: "terminal_history_matches_step_stale",
@@ -1260,7 +1305,8 @@ test("file-backed chronology rejects every frozen causal-edge violation", async 
         step.state = "stale";
         step.started_at = "2026-07-23T12:00:00.001Z";
       },
-      pattern: /steps\.write_cover_letter\.started_at must equal .*attempt_history\[0\]\.started_at/,
+      pattern:
+        /steps\.write_cover_letter\.started_at must equal .*attempt_history\[0\]\.started_at/,
     },
   ];
 
@@ -1341,8 +1387,7 @@ test("current dependency edges require upstream completion before downstream sta
         ),
       );
       const incomplete = createValidV3Log();
-      const incompleteDependency =
-        fileBackedProcess(incomplete).steps[fixture.upstream];
+      const incompleteDependency = fileBackedProcess(incomplete).steps[fixture.upstream];
       incompleteDependency.state = "failed";
       incompleteDependency.revision = 0;
       incompleteDependency.published_inputs = [];
@@ -1394,10 +1439,7 @@ test("current dependency edges require upstream completion before downstream sta
 });
 
 test("dependency-edge inventory matches expected, declared, and executed legs", () => {
-  assert.deepEqual(
-    [...executedDependencyEdges].sort(),
-    [...EXPECTED_DEPENDENCY_EDGES].sort(),
-  );
+  assert.deepEqual([...executedDependencyEdges].sort(), [...EXPECTED_DEPENDENCY_EDGES].sort());
 });
 
 test("chronology compares ISO offsets by instant instead of lexicographically", () => {
@@ -1418,10 +1460,7 @@ test("chronology compares ISO offsets by instant instead of lexicographically", 
 });
 
 test("chronology inventory matches expected, declared, and executed cases", () => {
-  assert.deepEqual(
-    [...executedChronologyCases].sort(),
-    [...EXPECTED_CHRONOLOGY_CASES].sort(),
-  );
+  assert.deepEqual([...executedChronologyCases].sort(), [...EXPECTED_CHRONOLOGY_CASES].sort());
 });
 
 function letterStep(log) {
@@ -1474,23 +1513,16 @@ test("v4 revision fields are material-step-only and shape-checked", () => {
       note: "Пользователь принял риск после ревью.",
     }),
   ];
-  validLetter.attempt_history.at(-1).archived_artifacts =
-    structuredClone(validLetter.artifacts);
+  validLetter.attempt_history.at(-1).archived_artifacts = structuredClone(validLetter.artifacts);
   validateLogV3(valid);
 
   const nonMaterialWaivers = createValidV3Log();
   fileBackedProcess(nonMaterialWaivers).steps.map_experience.waivers = [];
-  assertInvalid(
-    nonMaterialWaivers,
-    /steps\.map_experience contains unknown key: waivers/,
-  );
+  assertInvalid(nonMaterialWaivers, /steps\.map_experience contains unknown key: waivers/);
 
   const nonMaterialAdoption = createValidV3Log();
   fileBackedProcess(nonMaterialAdoption).steps.map_experience.adoption_base = null;
-  assertInvalid(
-    nonMaterialAdoption,
-    /steps\.map_experience contains unknown key: adoption_base/,
-  );
+  assertInvalid(nonMaterialAdoption, /steps\.map_experience contains unknown key: adoption_base/);
 
   const badStatus = createValidV3Log();
   letterStep(badStatus).waivers = [validWaiver({ status: "revoked" })];
@@ -1510,26 +1542,17 @@ test("v4 revision fields are material-step-only and shape-checked", () => {
   letterStep(oversizedKey).waivers = [
     validWaiver({ subject: { kind: "check", key: "x".repeat(300) } }),
   ];
-  assertInvalid(
-    oversizedKey,
-    /waivers\[0\]\.subject\.key must be at most 256 UTF-8 bytes/,
-  );
+  assertInvalid(oversizedKey, /waivers\[0\]\.subject\.key must be at most 256 UTF-8 bytes/);
 
   const hostileNote = createValidV3Log();
   letterStep(hostileNote).waivers = [
     validWaiver({ note: "see https://hostile.example.test/leak" }),
   ];
-  assertInvalid(
-    hostileNote,
-    /waivers\[0\]\.note contains forbidden diagnostic shape: url/,
-  );
+  assertInvalid(hostileNote, /waivers\[0\]\.note contains forbidden diagnostic shape: url/);
 
   const conflictWithoutOperation = createValidV3Log();
   letterStep(conflictWithoutOperation).attempt_history.at(-1).open_conflicts = [];
-  assertInvalid(
-    conflictWithoutOperation,
-    /open_conflicts requires operation "revise"/,
-  );
+  assertInvalid(conflictWithoutOperation, /open_conflicts requires operation "revise"/);
 
   /*
    * The edit channel and the pre-attempt mark belong to the revision operation; the pending waiver
@@ -1538,14 +1561,19 @@ test("v4 revision fields are material-step-only and shape-checked", () => {
    */
   const plainAttempt = createValidV3Log();
   const plainLetter = openRunningLetterAttempt(plainAttempt);
-  plainLetter.pending_waivers = [{
-    id: "waiver_0002",
-    brief_digest: "2".repeat(64),
-    subject: { kind: "check", key: "letter_body_words_max:280" },
-  }];
+  plainLetter.pending_waivers = [
+    {
+      id: "waiver_0002",
+      brief_digest: "2".repeat(64),
+      subject: { kind: "check", key: "letter_body_words_max:280" },
+    },
+  ];
   validateLogV3(plainAttempt);
   plainLetter.pending_waivers[0].brief_digest = "not-a-digest";
-  assertInvalid(plainAttempt, /pending_waivers\[0\]\.brief_digest must be a lowercase hexadecimal SHA-256 digest/);
+  assertInvalid(
+    plainAttempt,
+    /pending_waivers\[0\]\.brief_digest must be a lowercase hexadecimal SHA-256 digest/,
+  );
   plainLetter.pending_waivers[0].brief_digest = "2".repeat(64);
   plainLetter.channel = "chat_command";
   assertInvalid(plainAttempt, /channel requires operation "revise"/);
@@ -1572,10 +1600,7 @@ test("v4 revision fields are material-step-only and shape-checked", () => {
   const archiveWithoutPublication = createValidV3Log();
   const failedCv = fileBackedProcess(archiveWithoutPublication).steps.generate_cv;
   failedCv.attempt_history.at(-1).archived_artifacts = [];
-  assertInvalid(
-    archiveWithoutPublication,
-    /archived_artifacts requires a committed publication/,
-  );
+  assertInvalid(archiveWithoutPublication, /archived_artifacts requires a committed publication/);
 
   const incompleteArchive = createValidV3Log();
   letterStep(incompleteArchive).attempt_history.at(-1).archived_artifacts = [];
@@ -1604,33 +1629,28 @@ test("v4 revision fields are material-step-only and shape-checked", () => {
     operation: "revise",
     channel: "chat_command",
     pre_attempt_state: "completed",
-    pending_waivers: [{
-      id: "waiver_0001",
-      brief_digest: "1".repeat(64),
-      subject: { kind: "check", key: "letter_keyword:1" },
-    }],
+    pending_waivers: [
+      {
+        id: "waiver_0001",
+        brief_digest: "1".repeat(64),
+        subject: { kind: "check", key: "letter_keyword:1" },
+      },
+    ],
   };
   const pendingDistinct = structuredClone(pendingClash);
   letterStep(pendingDistinct).active_attempt.pending_waivers[0].id = "waiver_0009";
   validateLogV3(pendingDistinct);
-  assertInvalid(
-    pendingClash,
-    /pending_waivers\[0\]\.id duplicates a journaled waiver id/,
-  );
+  assertInvalid(pendingClash, /pending_waivers\[0\]\.id duplicates a journaled waiver id/);
 
   const unanchoredWaiver = createValidV3Log();
-  letterStep(unanchoredWaiver).waivers = [
-    validWaiver({ created_at: "2026-07-01T00:00:00.000Z" }),
-  ];
+  letterStep(unanchoredWaiver).waivers = [validWaiver({ created_at: "2026-07-01T00:00:00.000Z" })];
   assertInvalid(
     unanchoredWaiver,
     /waivers\[0\]\.created_at must not be before processes\[1\]\.started_at/,
   );
 
   const futureWaiver = createValidV3Log();
-  letterStep(futureWaiver).waivers = [
-    validWaiver({ created_at: "2026-07-24T23:59:00.000Z" }),
-  ];
+  letterStep(futureWaiver).waivers = [validWaiver({ created_at: "2026-07-24T23:59:00.000Z" })];
   assertInvalid(
     futureWaiver,
     /waivers\[0\]\.created_at must not be after processes\[1\]\.updated_at/,
@@ -1656,22 +1676,21 @@ test("a restored revision mark must be anchored to a committed publication", () 
   const unanchored = createValidV3Log();
   const letter = letterStep(unanchored);
   const committed = letter.attempt_history.at(-1);
-  letter.attempt_history = [{
-    attempt: 1,
-    outcome: "failed",
-    started_at: committed.started_at,
-    finished_at: committed.finished_at,
-    input_snapshot: structuredClone(committed.input_snapshot),
-    error_code: "revision_abandoned",
-    publication_id: null,
-    operation: "revise",
-    channel: "chat_command",
-    pre_attempt_state: "completed",
-  }];
-  assertInvalid(
-    unanchored,
-    /attempt_history must end with outcome completed for state completed/,
-  );
+  letter.attempt_history = [
+    {
+      attempt: 1,
+      outcome: "failed",
+      started_at: committed.started_at,
+      finished_at: committed.finished_at,
+      input_snapshot: structuredClone(committed.input_snapshot),
+      error_code: "revision_abandoned",
+      publication_id: null,
+      operation: "revise",
+      channel: "chat_command",
+      pre_attempt_state: "completed",
+    },
+  ];
+  assertInvalid(unanchored, /attempt_history must end with outcome completed for state completed/);
 });
 
 test("a completed material step may end with a failed revise attempt that restored its mark", () => {
@@ -1699,10 +1718,7 @@ test("a completed material step may end with a failed revise attempt that restor
 
   const wrongMark = structuredClone(restored);
   letterStep(wrongMark).attempt_history.at(-1).pre_attempt_state = "stale";
-  assertInvalid(
-    wrongMark,
-    /attempt_history must end with outcome completed for state completed/,
-  );
+  assertInvalid(wrongMark, /attempt_history must end with outcome completed for state completed/);
 
   const plainFailure = structuredClone(restored);
   delete letterStep(plainFailure).attempt_history.at(-1).operation;
@@ -1748,19 +1764,13 @@ test("a restored revision mark survives the later stale transition it cannot see
   unanchoredLetter.attempt_history = unanchoredLetter.attempt_history.slice(-1);
   unanchoredLetter.attempt_history[0].attempt = 1;
   unanchoredLetter.attempt = 1;
-  assertInvalid(
-    unanchored,
-    /attempt_history must end with outcome completed for state stale/,
-  );
+  assertInvalid(unanchored, /attempt_history must end with outcome completed for state stale/);
 
   const plainFailure = structuredClone(restored);
   delete letterStep(plainFailure).attempt_history.at(-1).operation;
   delete letterStep(plainFailure).attempt_history.at(-1).channel;
   delete letterStep(plainFailure).attempt_history.at(-1).pre_attempt_state;
-  assertInvalid(
-    plainFailure,
-    /attempt_history must end with outcome completed for state stale/,
-  );
+  assertInvalid(plainFailure, /attempt_history must end with outcome completed for state stale/);
 
   // The carve-out reaches only the two marks a revision can restore: `blocked` and `failed` are
   // never one of them, so an abandoned revision entry may not stand as a blocked step's tail.
@@ -1774,10 +1784,7 @@ test("a restored revision mark survives the later stale transition it cannot see
     retryable: true,
     details: [],
   };
-  assertInvalid(
-    blockedStep,
-    /attempt_history must end with outcome blocked for state blocked/,
-  );
+  assertInvalid(blockedStep, /attempt_history must end with outcome blocked for state blocked/);
 
   // Only a close without a committed publication restores a mark, and a `blocked` entry is a
   // committed one — it carries a publication id. The lifecycle cannot emit this shape anyway:
@@ -1789,8 +1796,5 @@ test("a restored revision mark survives the later stale transition it cannot see
   blockedOutcomeEntry.publication_id = "publication_revise_blocked_0001";
   blockedOutcomeEntry.error_code = "human_qa_pending";
   blockedOutcomeEntry.open_conflicts = [];
-  assertInvalid(
-    blockedOutcome,
-    /attempt_history must end with outcome completed for state stale/,
-  );
+  assertInvalid(blockedOutcome, /attempt_history must end with outcome completed for state stale/);
 });

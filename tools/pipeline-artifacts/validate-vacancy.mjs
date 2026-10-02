@@ -3,7 +3,11 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { candidateLanguageNames, candidateMarkets, candidateRootForCommand } from "../candidate/load.mjs";
+import {
+  candidateLanguageNames,
+  candidateMarkets,
+  candidateRootForCommand,
+} from "../candidate/load.mjs";
 import { DEFAULT_LANGUAGE } from "../candidate/default-language.mjs";
 import { marketNames, marketSide } from "../candidate/markets.mjs";
 import {
@@ -68,8 +72,8 @@ function validateExpectedRole(role, expectedProcess, errors) {
   ];
   for (const [expectedKey, roleKey] of fields) {
     if (
-      expectedProcess[expectedKey] !== undefined
-      && role[roleKey] !== expectedProcess[expectedKey]
+      expectedProcess[expectedKey] !== undefined &&
+      role[roleKey] !== expectedProcess[expectedKey]
     ) {
       errors.push(`role.${roleKey} does not match the selected ledger process`);
     }
@@ -82,19 +86,20 @@ function validateSectionIndex(value, errors) {
 
   for (const sectionKey of SECTION_KEYS) {
     const path = `sectionIndex.${sectionKey}`;
-    const section = validateStrictObject(
-      sectionIndex[sectionKey],
-      path,
-      errors,
-      ["presence", "sourceHeadings", "embeddedIn"],
-    );
+    const section = validateStrictObject(sectionIndex[sectionKey], path, errors, [
+      "presence",
+      "sourceHeadings",
+      "embeddedIn",
+    ]);
     sections.set(sectionKey, section);
     validateEnum(section.presence, `${path}.presence`, errors, SECTION_PRESENCE_VALUES);
     const headings = validateStringArray(section.sourceHeadings, `${path}.sourceHeadings`, errors);
 
     if (section.presence === "separated") {
-      if (headings.length === 0) errors.push(`${path}.sourceHeadings must name at least one source heading when separated`);
-      if (section.embeddedIn !== null) errors.push(`${path}.embeddedIn must be null when separated`);
+      if (headings.length === 0)
+        errors.push(`${path}.sourceHeadings must name at least one source heading when separated`);
+      if (section.embeddedIn !== null)
+        errors.push(`${path}.embeddedIn must be null when separated`);
     } else if (section.presence === "embedded") {
       if (headings.length !== 0) errors.push(`${path}.sourceHeadings must be empty when embedded`);
       if (!SECTION_KEYS.includes(section.embeddedIn) || section.embeddedIn === sectionKey) {
@@ -109,7 +114,9 @@ function validateSectionIndex(value, errors) {
   for (const [sectionKey, section] of sections) {
     if (section.presence !== "embedded" || !SECTION_KEYS.includes(section.embeddedIn)) continue;
     if (sections.get(section.embeddedIn)?.presence !== "separated") {
-      errors.push(`sectionIndex.${sectionKey}.embeddedIn must point to a separated canonical section`);
+      errors.push(
+        `sectionIndex.${sectionKey}.embeddedIn must point to a separated canonical section`,
+      );
     }
   }
 }
@@ -134,22 +141,18 @@ function validateAmbiguities(value, errors) {
 
 export function validateVacancy(
   vacancy,
-  {
-    jobDescriptionBytes,
-    expectedProcess,
-    languages,
-    markets,
-    expectedSchemaVersion,
-    outcome,
-  } = {},
+  { jobDescriptionBytes, expectedProcess, languages, markets, expectedSchemaVersion, outcome } = {},
 ) {
   const errors = [];
-  const root = validateStrictObject(
-    vacancy,
-    "vacancy",
-    errors,
-    ["schemaVersion", "createdAt", "process", "role", "jobDescription", "sectionIndex", "ambiguities"],
-  );
+  const root = validateStrictObject(vacancy, "vacancy", errors, [
+    "schemaVersion",
+    "createdAt",
+    "process",
+    "role",
+    "jobDescription",
+    "sectionIndex",
+    "ambiguities",
+  ]);
   // A publication names the version it writes; a recorded vacancy is read under the version its
   // ledger entry records. Without either, the file is read under the version it declares.
   if (expectedSchemaVersion !== undefined) {
@@ -161,28 +164,35 @@ export function validateVacancy(
   }
   validateIsoTimestamp(root.createdAt, "createdAt", errors);
 
-  const process = validateStrictObject(
-    root.process,
-    "process",
-    errors,
-    ["id", "sourceRef", "finalUrl", "outputDir"],
-  );
+  const process = validateStrictObject(root.process, "process", errors, [
+    "id",
+    "sourceRef",
+    "finalUrl",
+    "outputDir",
+  ]);
   validateString(process.id, "process.id", errors);
   validateString(process.sourceRef, "process.sourceRef", errors);
   validateHttpUrl(process.finalUrl, "process.finalUrl", errors, { nullable: true });
   validateOutputDir(process.outputDir, "process.outputDir", errors);
   validateExpectedProcess(process, expectedProcess, errors);
 
-  const role = validateStrictObject(
-    root.role,
-    "role",
-    errors,
-    ["company", "title", "ats", "vacancyLanguage", "market", "feasibility"],
-  );
+  const role = validateStrictObject(root.role, "role", errors, [
+    "company",
+    "title",
+    "ats",
+    "vacancyLanguage",
+    "market",
+    "feasibility",
+  ]);
   validateString(role.company, "role.company", errors);
   validateString(role.title, "role.title", errors);
   validateString(role.ats, "role.ats", errors);
-  validateEnum(role.vacancyLanguage, "role.vacancyLanguage", errors, vacancyLanguagesOption(languages));
+  validateEnum(
+    role.vacancyLanguage,
+    "role.vacancyLanguage",
+    errors,
+    vacancyLanguagesOption(languages),
+  );
   validateExpectedRole(role, expectedProcess, errors);
 
   const market = validateStrictObject(role.market, "role.market", errors, ["value", "evidence"]);
@@ -194,27 +204,27 @@ export function validateVacancy(
   }
   validateNullableString(market.evidence, "role.market.evidence", errors);
 
-  const feasibility = validateStrictObject(
-    role.feasibility,
-    "role.feasibility",
-    errors,
-    [
-      "workModel",
-      "locations",
-      "employmentType",
-      "timezoneOverlap",
-      "workAuthorizationResidency",
-      "relocationVisaSupport",
-      "salary",
-    ],
-  );
+  const feasibility = validateStrictObject(role.feasibility, "role.feasibility", errors, [
+    "workModel",
+    "locations",
+    "employmentType",
+    "timezoneOverlap",
+    "workAuthorizationResidency",
+    "relocationVisaSupport",
+    "salary",
+  ]);
   const workModel = validateStrictObject(
     feasibility.workModel,
     "role.feasibility.workModel",
     errors,
     ["normalized", "sourceText"],
   );
-  validateEnum(workModel.normalized, "role.feasibility.workModel.normalized", errors, WORK_MODEL_VALUES);
+  validateEnum(
+    workModel.normalized,
+    "role.feasibility.workModel.normalized",
+    errors,
+    WORK_MODEL_VALUES,
+  );
   validateNullableString(workModel.sourceText, "role.feasibility.workModel.sourceText", errors);
   validateStringArray(feasibility.locations, "role.feasibility.locations", errors);
   for (const field of [
@@ -232,16 +242,11 @@ export function validateVacancy(
   } else {
     validateUtf8TextBytes(jobDescriptionBytes, "job-description.txt", errors);
   }
-  validateFileReference(
-    root.jobDescription,
-    "jobDescription",
-    errors,
-    {
-      expectedPath: "job-description.txt",
-      schemaVersion: "omit",
-      contentBytes: jobDescriptionBytes,
-    },
-  );
+  validateFileReference(root.jobDescription, "jobDescription", errors, {
+    expectedPath: "job-description.txt",
+    schemaVersion: "omit",
+    contentBytes: jobDescriptionBytes,
+  });
 
   validateSectionIndex(root.sectionIndex, errors);
   const ambiguities = validateAmbiguities(root.ambiguities, errors);
@@ -264,11 +269,7 @@ export function validateVacancy(
   return errors;
 }
 
-export function readAndValidateVacancyBundle(
-  vacancyPath,
-  jobDescriptionPath,
-  options = {},
-) {
+export function readAndValidateVacancyBundle(vacancyPath, jobDescriptionPath, options = {}) {
   const vacancy = JSON.parse(readFileSync(vacancyPath, "utf8"));
   const jobDescriptionBytes = readFileSync(jobDescriptionPath);
   const errors = validateVacancy(vacancy, { ...options, jobDescriptionBytes });
@@ -288,8 +289,8 @@ function main() {
   }
   if (args.length !== 2 || (outcomeIndex !== -1 && outcome === undefined)) {
     throw new Error(
-      "Usage: node tools/pipeline-artifacts/validate-vacancy.mjs "
-      + "<vacancy.json> <job-description.txt> [--outcome completed|blocked]",
+      "Usage: node tools/pipeline-artifacts/validate-vacancy.mjs " +
+        "<vacancy.json> <job-description.txt> [--outcome completed|blocked]",
     );
   }
 
@@ -297,19 +298,25 @@ function main() {
   const candidateRoot = candidateRootForCommand(checkoutRoot);
   const languages = candidateLanguageNames({ root: candidateRoot });
   const markets = candidateMarkets({ root: candidateRoot });
-  const { vacancy, jobDescriptionBytes } = readAndValidateVacancyBundle(
-    args[0],
-    args[1],
-    { languages, markets, outcome },
+  const { vacancy, jobDescriptionBytes } = readAndValidateVacancyBundle(args[0], args[1], {
+    languages,
+    markets,
+    outcome,
+  });
+  console.log(
+    JSON.stringify(
+      {
+        status: "valid",
+        schemaVersion: vacancy.schemaVersion,
+        processId: vacancy.process.id,
+        outputDir: vacancy.process.outputDir,
+        outcome: outcome ?? "capture",
+        jobDescriptionBytes: jobDescriptionBytes.byteLength,
+      },
+      null,
+      2,
+    ),
   );
-  console.log(JSON.stringify({
-    status: "valid",
-    schemaVersion: vacancy.schemaVersion,
-    processId: vacancy.process.id,
-    outputDir: vacancy.process.outputDir,
-    outcome: outcome ?? "capture",
-    jobDescriptionBytes: jobDescriptionBytes.byteLength,
-  }, null, 2));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

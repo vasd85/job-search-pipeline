@@ -166,12 +166,15 @@ test("the tracked example is a layer this engine reads", () => {
 test("the loader takes its root as a parameter and refuses anything else", (t) => {
   // A loader with a default root would read the operator's real candidate from inside the suite.
   for (const root of [undefined, "", "candidate", "./candidate", "/tmp/../tmp/candidate"]) {
-    assert.equal(refusalCode(() => loadCandidateConfig({ root })), "candidate_root_invalid");
+    assert.equal(
+      refusalCode(() => loadCandidateConfig({ root })),
+      "candidate_root_invalid",
+    );
   }
   const base = disposable(t, "job-search-candidate-symlink-");
   const outside = join(base, "outside");
   mkdirSync(outside);
-  writeFileSync(join(outside, "config.json"), "{\"schema_version\": 3}\n", "utf8");
+  writeFileSync(join(outside, "config.json"), '{"schema_version": 3}\n', "utf8");
   // The write boundary judges a target by the worktree it belongs to, so a layer that is really a
   // symbolic link out of the tree would escape it entirely. This reader refuses that root.
   symlinkSync(outside, join(base, candidateDirectoryName));
@@ -213,19 +216,23 @@ test("every disagreement with the schema is its own code, and a version mismatch
   );
   for (const [value, code] of [
     ["[]", "candidate_config_shape_invalid"],
-    ["\"text\"", "candidate_config_shape_invalid"],
+    ['"text"', "candidate_config_shape_invalid"],
     ["null", "candidate_config_shape_invalid"],
     ["{}", "candidate_schema_version_missing"],
-    ["{\"schema_version\": \"1\"}", "candidate_schema_version_unsupported"],
-    ["{\"schema_version\": 1}", "candidate_schema_version_unsupported"],
-    ["{\"schema_version\": 3, \"letter\": {\"max_words\": 120}}", "candidate_config_unknown_key"],
+    ['{"schema_version": "1"}', "candidate_schema_version_unsupported"],
+    ['{"schema_version": 1}', "candidate_schema_version_unsupported"],
+    ['{"schema_version": 3, "letter": {"max_words": 120}}', "candidate_config_unknown_key"],
   ]) {
-    assert.equal(refusalCode(() => validateCandidateConfig(JSON.parse(value))), code, value);
+    assert.equal(
+      refusalCode(() => validateCandidateConfig(JSON.parse(value))),
+      code,
+      value,
+    );
   }
   // A version this engine does not read is a refusal and never a field in a successful report:
   // a config written for another schema is a file whose meaning this code does not know.
   assert.equal(
-    refusalCode(() => loadCandidateConfig({ root: layerWith(t, "{\"schema_version\": 99}\n") })),
+    refusalCode(() => loadCandidateConfig({ root: layerWith(t, '{"schema_version": 99}\n') })),
     "candidate_schema_version_unsupported",
   );
   // A key the schema never declared must not be able to hide behind an empty object: the walk
@@ -251,9 +258,11 @@ test("every disagreement with the schema is its own code, and a version mismatch
 
 test("a schema entry with a type this reader does not know is a refusal of its own", () => {
   assert.equal(
-    refusalCode(() => validateCandidateConfig({ pay: { floor: 1 }, schema_version: 3 }, [
-      { path: "pay.floor", type: "number" },
-    ])),
+    refusalCode(() =>
+      validateCandidateConfig({ pay: { floor: 1 }, schema_version: 3 }, [
+        { path: "pay.floor", type: "number" },
+      ]),
+    ),
     "candidate_schema_key_type_unknown",
   );
 });
@@ -275,11 +284,18 @@ test("a declared key is required and typed, in both directions", () => {
     "candidate_config_key_missing",
   );
   assert.equal(
-    refusalCode(() => validateCandidateConfig({ letter: { max_words: "120" }, schema_version: 3 }, keys)),
+    refusalCode(() =>
+      validateCandidateConfig({ letter: { max_words: "120" }, schema_version: 3 }, keys),
+    ),
     "candidate_config_key_type_invalid",
   );
   assert.equal(
-    refusalCode(() => validateCandidateConfig({ letter: { max_words: 120, tone: "warm" }, schema_version: 3 }, keys)),
+    refusalCode(() =>
+      validateCandidateConfig(
+        { letter: { max_words: 120, tone: "warm" }, schema_version: 3 },
+        keys,
+      ),
+    ),
     "candidate_config_unknown_key",
   );
   assert.deepEqual(
@@ -289,14 +305,16 @@ test("a declared key is required and typed, in both directions", () => {
 });
 
 test("one reference form is recognised and a placeholder is not", () => {
-  const found = candidateKeyReferencesIn([
-    "the rule reads `candidate.config.letter.max_words` words",
-    "and `candidate.config.cv.page_budget`, and the same one twice:",
-    "candidate.config.letter.max_words",
-    "the form itself is candidate.config.<key>, which names no key",
-    "a bare candidate.config. names none either",
-    "Candidate.Config.Shouted is not the form",
-  ].join("\n"));
+  const found = candidateKeyReferencesIn(
+    [
+      "the rule reads `candidate.config.letter.max_words` words",
+      "and `candidate.config.cv.page_budget`, and the same one twice:",
+      "candidate.config.letter.max_words",
+      "the form itself is candidate.config.<key>, which names no key",
+      "a bare candidate.config. names none either",
+      "Candidate.Config.Shouted is not the form",
+    ].join("\n"),
+  );
   assert.deepEqual([...found].sort(), ["cv.page_budget", "letter.max_words"]);
 });
 
@@ -304,28 +322,35 @@ test("the coverage comparison is red in both directions on an injected root", (t
   const root = disposable(t, "job-search-candidate-keys-");
   mkdirSync(join(root, "nested"));
   writeFileSync(join(root, "rule.md"), "reads `candidate.config.letter.max_words` words\n", "utf8");
-  writeFileSync(join(root, "nested", "other.md"), "and `candidate.config.cv.page_budget`\n", "utf8");
+  writeFileSync(
+    join(root, "nested", "other.md"),
+    "and `candidate.config.cv.page_budget`\n",
+    "utf8",
+  );
   const referenced = scanCandidateKeyReferences({ roots: [root] });
   assert.deepEqual([...referenced], ["cv.page_budget", "letter.max_words"]);
 
   // A rule naming a key the schema does not declare.
-  assert.deepEqual(
-    compareCandidateKeyCoverage({ declared: ["cv.page_budget"], referenced }),
-    { undeclared: ["letter.max_words"], unreferenced: [] },
-  );
+  assert.deepEqual(compareCandidateKeyCoverage({ declared: ["cv.page_budget"], referenced }), {
+    undeclared: ["letter.max_words"],
+    unreferenced: [],
+  });
   // A schema key no rule names.
   assert.deepEqual(
-    compareCandidateKeyCoverage({ declared: ["cv.page_budget", "letter.max_words", "pay.floor"], referenced }),
+    compareCandidateKeyCoverage({
+      declared: ["cv.page_budget", "letter.max_words", "pay.floor"],
+      referenced,
+    }),
     { undeclared: [], unreferenced: ["pay.floor"] },
   );
   assert.deepEqual(
     compareCandidateKeyCoverage({ declared: ["cv.page_budget", "letter.max_words"], referenced }),
     { undeclared: [], unreferenced: [] },
   );
-  assert.deepEqual(
-    compareCandidateKeyCoverage({ declared: [], referenced: [] }),
-    { undeclared: [], unreferenced: [] },
-  );
+  assert.deepEqual(compareCandidateKeyCoverage({ declared: [], referenced: [] }), {
+    undeclared: [],
+    unreferenced: [],
+  });
   assert.equal(
     refusalCode(() => scanCandidateKeyReferences({ roots: [] })),
     "candidate_key_root_invalid",
@@ -393,116 +418,119 @@ test("the rules and the schema name the same keys", () => {
   assert.deepEqual(coverage.unreferenced, [], "the schema declares a key no rule names");
   // Frozen literally, so the comparison above is never a pass on two empty sets and a key added or
   // dropped on both sides at once is still a visible edit here.
-  assert.deepEqual([...referenced], [
-    "compensation.floors.comparable_cost_employment.amount",
-    "compensation.floors.comparable_cost_employment.basis",
-    "compensation.floors.comparable_cost_employment.currencies",
-    "compensation.floors.home_contractor.amount",
-    "compensation.floors.home_contractor.basis",
-    "compensation.floors.home_contractor.currencies",
-    "compensation.floors.home_employment.amount",
-    "compensation.floors.home_employment.basis",
-    "compensation.floors.home_employment.currencies",
-    "compensation.floors.outside_home_contractor.amount",
-    "compensation.floors.outside_home_contractor.basis",
-    "compensation.floors.outside_home_contractor.currencies",
-    "compensation.home_currency",
-    "compensation.home_rate_provider",
-    "compensation.target",
-    "cv.file_name_pattern",
-    "cv.page_budget",
-    "domain_fit.agency_outsourcing_vendor",
-    "domain_fit.complex_saas_b2b",
-    "domain_fit.data_platforms",
-    "domain_fit.developer_tools",
-    "domain_fit.distributed_systems",
-    "domain_fit.fintech_payments_trading",
-    "domain_fit.healthcare_biotech",
-    "domain_fit.infra_platforms",
-    "domain_fit.marketplaces",
-    "domain_fit.media_entertainment",
-    "domain_fit.other_complex",
-    "domain_fit.security_tooling",
-    "domain_fit.telecom",
-    "domain_fit.web3",
-    "languages.additional",
-    "languages.working",
-    "letter.body_paragraphs.max",
-    "letter.body_paragraphs.min",
-    "letter.body_words.approved_max",
-    "letter.body_words.max",
-    "letter.body_words.min",
-    "letter.body_words.target",
-    "letter.signature",
-    "markets.home.countries",
-    "markets.home.name",
-    "markets.home.timezone",
-    "markets.home.working_hours",
-    "markets.outside_home.location",
-    "markets.outside_home.name",
-    "markets.outside_home.timezone",
-    "mobility.excluded_destinations",
-    "mobility.feasible_residences",
-    "mobility.home_region",
-    "mobility.relocation_tiers.high",
-    "mobility.relocation_tiers.low",
-    "mobility.relocation_tiers.middle",
-    "mobility.self_relocation",
-    "mobility.west_near_subregion",
-    "mobility.west_tier",
-    "priorities.relocation_destinations",
-    "priorities.relocation_west",
-    "priorities.remote_company_regions",
-    "scoring.c.below_floor",
-    "scoring.c.local",
-    "scoring.c.max",
-    "scoring.c.reference",
-    "scoring.c.start",
-    "scoring.c.target",
-    "scoring.c.unknown",
-    "scoring.d.max",
-    "scoring.d.steps",
-    "scoring.d.unknown",
-    "scoring.m.cap_limits",
-    "scoring.m.cap_scores",
-    "scoring.m.max",
-    "scoring.m.relocation.bonus",
-    "scoring.m.relocation.high",
-    "scoring.m.relocation.low",
-    "scoring.m.relocation.max",
-    "scoring.m.relocation.middle",
-    "scoring.m.relocation.unknown",
-    "scoring.m.remote.broad_open",
-    "scoring.m.remote.broad_restricted",
-    "scoring.m.remote.far_local_open",
-    "scoring.m.remote.far_local_restricted",
-    "scoring.m.remote.far_unknown_open",
-    "scoring.m.remote.far_unknown_restricted",
-    "scoring.m.remote.near_local_open",
-    "scoring.m.remote.near_local_restricted",
-    "scoring.m.remote.near_unknown_open",
-    "scoring.m.remote.near_unknown_restricted",
-    "scoring.m.remote.other_far_local",
-    "scoring.m.remote.other_far_unknown",
-    "scoring.m.remote.other_near",
-    "scoring.m.remote.other_unknown",
-    "scoring.m.sponsored",
-    "scoring.m.unknown",
-    "scoring.s.automation.limited",
-    "scoring.s.automation.major",
-    "scoring.s.automation.max",
-    "scoring.s.automation.primary",
-    "scoring.s.automation.unknown",
-    "scoring.s.max",
-    "scoring.s.seniority.lower",
-    "scoring.s.seniority.max",
-    "scoring.s.seniority.mid",
-    "scoring.s.seniority.senior",
-    "scoring.s.seniority.unknown",
-    "scoring.s.tools.max",
-    "tool_match.frameworks",
-    "tool_match.languages",
-  ]);
+  assert.deepEqual(
+    [...referenced],
+    [
+      "compensation.floors.comparable_cost_employment.amount",
+      "compensation.floors.comparable_cost_employment.basis",
+      "compensation.floors.comparable_cost_employment.currencies",
+      "compensation.floors.home_contractor.amount",
+      "compensation.floors.home_contractor.basis",
+      "compensation.floors.home_contractor.currencies",
+      "compensation.floors.home_employment.amount",
+      "compensation.floors.home_employment.basis",
+      "compensation.floors.home_employment.currencies",
+      "compensation.floors.outside_home_contractor.amount",
+      "compensation.floors.outside_home_contractor.basis",
+      "compensation.floors.outside_home_contractor.currencies",
+      "compensation.home_currency",
+      "compensation.home_rate_provider",
+      "compensation.target",
+      "cv.file_name_pattern",
+      "cv.page_budget",
+      "domain_fit.agency_outsourcing_vendor",
+      "domain_fit.complex_saas_b2b",
+      "domain_fit.data_platforms",
+      "domain_fit.developer_tools",
+      "domain_fit.distributed_systems",
+      "domain_fit.fintech_payments_trading",
+      "domain_fit.healthcare_biotech",
+      "domain_fit.infra_platforms",
+      "domain_fit.marketplaces",
+      "domain_fit.media_entertainment",
+      "domain_fit.other_complex",
+      "domain_fit.security_tooling",
+      "domain_fit.telecom",
+      "domain_fit.web3",
+      "languages.additional",
+      "languages.working",
+      "letter.body_paragraphs.max",
+      "letter.body_paragraphs.min",
+      "letter.body_words.approved_max",
+      "letter.body_words.max",
+      "letter.body_words.min",
+      "letter.body_words.target",
+      "letter.signature",
+      "markets.home.countries",
+      "markets.home.name",
+      "markets.home.timezone",
+      "markets.home.working_hours",
+      "markets.outside_home.location",
+      "markets.outside_home.name",
+      "markets.outside_home.timezone",
+      "mobility.excluded_destinations",
+      "mobility.feasible_residences",
+      "mobility.home_region",
+      "mobility.relocation_tiers.high",
+      "mobility.relocation_tiers.low",
+      "mobility.relocation_tiers.middle",
+      "mobility.self_relocation",
+      "mobility.west_near_subregion",
+      "mobility.west_tier",
+      "priorities.relocation_destinations",
+      "priorities.relocation_west",
+      "priorities.remote_company_regions",
+      "scoring.c.below_floor",
+      "scoring.c.local",
+      "scoring.c.max",
+      "scoring.c.reference",
+      "scoring.c.start",
+      "scoring.c.target",
+      "scoring.c.unknown",
+      "scoring.d.max",
+      "scoring.d.steps",
+      "scoring.d.unknown",
+      "scoring.m.cap_limits",
+      "scoring.m.cap_scores",
+      "scoring.m.max",
+      "scoring.m.relocation.bonus",
+      "scoring.m.relocation.high",
+      "scoring.m.relocation.low",
+      "scoring.m.relocation.max",
+      "scoring.m.relocation.middle",
+      "scoring.m.relocation.unknown",
+      "scoring.m.remote.broad_open",
+      "scoring.m.remote.broad_restricted",
+      "scoring.m.remote.far_local_open",
+      "scoring.m.remote.far_local_restricted",
+      "scoring.m.remote.far_unknown_open",
+      "scoring.m.remote.far_unknown_restricted",
+      "scoring.m.remote.near_local_open",
+      "scoring.m.remote.near_local_restricted",
+      "scoring.m.remote.near_unknown_open",
+      "scoring.m.remote.near_unknown_restricted",
+      "scoring.m.remote.other_far_local",
+      "scoring.m.remote.other_far_unknown",
+      "scoring.m.remote.other_near",
+      "scoring.m.remote.other_unknown",
+      "scoring.m.sponsored",
+      "scoring.m.unknown",
+      "scoring.s.automation.limited",
+      "scoring.s.automation.major",
+      "scoring.s.automation.max",
+      "scoring.s.automation.primary",
+      "scoring.s.automation.unknown",
+      "scoring.s.max",
+      "scoring.s.seniority.lower",
+      "scoring.s.seniority.max",
+      "scoring.s.seniority.mid",
+      "scoring.s.seniority.senior",
+      "scoring.s.seniority.unknown",
+      "scoring.s.tools.max",
+      "tool_match.frameworks",
+      "tool_match.languages",
+    ],
+  );
 });
 
 test("the example carries every key, with the values the suite's letters are written for", () => {
@@ -512,7 +540,10 @@ test("the example carries every key, with the values the suite's letters are wri
   );
   // The pattern carries the example's own name, which a test does not quote: the publishability
   // scan treats the example's names as personal markers. Its shape is what is frozen here.
-  assert.match(values["cv.file_name_pattern"], /^[A-Z][a-z]+_[A-Z][a-z]+_CV_<Company>_<Role>\.docx$/);
+  assert.match(
+    values["cv.file_name_pattern"],
+    /^[A-Z][a-z]+_[A-Z][a-z]+_CV_<Company>_<Role>\.docx$/,
+  );
   delete values["cv.file_name_pattern"];
   // The signature is the same name, in the default language's script.
   assert.match(values["letter.signature"], /^[A-Z][a-z]+ [A-Z][a-z]+$/);
@@ -636,8 +667,16 @@ test("the example carries every key, with the values the suite's letters are wri
     "priorities.relocation_destinations": ["JP"],
     "priorities.relocation_west": false,
     "priorities.remote_company_regions": ["HOME"],
-    "tool_match.languages": [{name:"TypeScript",points:4,experience:"direct"},{name:"Java",points:1,experience:"transferable"},{name:"Python",points:5,experience:"direct"}],
-    "tool_match.frameworks": [{name:"Playwright",points:4,experience:"direct"},{name:"REST Assured",points:2,experience:"transferable"},{name:"PyTest",points:5,experience:"direct"}],
+    "tool_match.languages": [
+      { name: "TypeScript", points: 4, experience: "direct" },
+      { name: "Java", points: 1, experience: "transferable" },
+      { name: "Python", points: 5, experience: "direct" },
+    ],
+    "tool_match.frameworks": [
+      { name: "Playwright", points: 4, experience: "direct" },
+      { name: "REST Assured", points: 2, experience: "transferable" },
+      { name: "PyTest", points: 5, experience: "direct" },
+    ],
   });
   assert.throws(() => candidateConfigValue(config, "letter.body_words.floor"), TypeError);
   // The validated config is frozen all the way down: a reader cannot move a limit for the next one.
@@ -662,7 +701,11 @@ test("a value is checked against its bound and against the keys it is ordered wi
     ["letter.body_words.approved_max", 259],
     ["letter.body_words.max", 249],
   ]) {
-    assert.equal(refused(with_(path, value)), "candidate_config_value_invalid", `${path} = ${value}`);
+    assert.equal(
+      refused(with_(path, value)),
+      "candidate_config_value_invalid",
+      `${path} = ${value}`,
+    );
   }
   // Equal ends are allowed: an approved maximum equal to the maximum switches approvals off.
   assert.equal(refused(with_("letter.body_words.approved_max", 260)), null);
@@ -678,7 +721,11 @@ test("a value is checked against its bound and against the keys it is ordered wi
     "cvs\\Name_CV_<Company>_<Role>.docx",
     ".Name_CV_<Company>_<Role>.docx",
   ]) {
-    assert.equal(refused(with_("cv.file_name_pattern", pattern)), "candidate_config_value_invalid", pattern);
+    assert.equal(
+      refused(with_("cv.file_name_pattern", pattern)),
+      "candidate_config_value_invalid",
+      pattern,
+    );
   }
   assert.equal(refused(with_("cv.file_name_pattern", "CV_<Role>_<Company>_Name.docx")), null);
   // The refusal names the key and never the value: the value is the candidate's own.
@@ -698,17 +745,49 @@ test("the markets are checked against their bounds, and the two names differ", (
     return config;
   };
   const refused = (config) => refusalCode(() => validateCandidateConfig(config));
-  for (const name of ["", "Domestic", "home market", "home_market", "-home", "home-", "home--market", "9home", "a".repeat(41)]) {
-    assert.equal(refused(with_("home", "name", name)), "candidate_config_value_invalid", JSON.stringify(name));
+  for (const name of [
+    "",
+    "Domestic",
+    "home market",
+    "home_market",
+    "-home",
+    "home-",
+    "home--market",
+    "9home",
+    "a".repeat(41),
+  ]) {
+    assert.equal(
+      refused(with_("home", "name", name)),
+      "candidate_config_value_invalid",
+      JSON.stringify(name),
+    );
   }
   for (const name of ["home", "home-market", "eu2", "a".repeat(40)]) {
     assert.equal(refused(with_("home", "name", name)), null, name);
   }
   // Two markets with one name would make every artifact's market both of them at once.
   assert.equal(refused(with_("home", "name", "international")), "candidate_config_value_invalid");
-  for (const timezone of ["Invalid timezone:15", "UTC+15", "UTC-15", "UTC\u20133", "Invalid timezone", "utc+3", "UTC+03", "UTC +3", "+3"]) {
-    assert.equal(refused(with_("home", "timezone", timezone)), "candidate_config_value_invalid", timezone);
-    assert.equal(refused(with_("outside_home", "timezone", timezone)), "candidate_config_value_invalid", timezone);
+  for (const timezone of [
+    "Invalid timezone:15",
+    "UTC+15",
+    "UTC-15",
+    "UTC\u20133",
+    "Invalid timezone",
+    "utc+3",
+    "UTC+03",
+    "UTC +3",
+    "+3",
+  ]) {
+    assert.equal(
+      refused(with_("home", "timezone", timezone)),
+      "candidate_config_value_invalid",
+      timezone,
+    );
+    assert.equal(
+      refused(with_("outside_home", "timezone", timezone)),
+      "candidate_config_value_invalid",
+      timezone,
+    );
   }
   for (const timezone of ["UTC", "UTC+0", "UTC-3", "UTC+14", "UTC-12", "UTC+5:30", "UTC+5:45"]) {
     assert.equal(refused(with_("home", "timezone", timezone)), null, timezone);
@@ -716,10 +795,24 @@ test("the markets are checked against their bounds, and the two names differ", (
   // The working hours: two different clock times, the end 24:00 at the latest; an end before the
   // start is a window across midnight, not a mistake.
   for (const hours of [
-    "08:00-08:00", "8:00-21:00", "08:00-21", "08:00 - 21:00", "08:00\u201321:00", "24:00-08:00",
-    "08:00-24:30", "08:60-21:00", "25:00-21:00", "08:00-21:00-22:00", "", "08:00",
+    "08:00-08:00",
+    "8:00-21:00",
+    "08:00-21",
+    "08:00 - 21:00",
+    "08:00\u201321:00",
+    "24:00-08:00",
+    "08:00-24:30",
+    "08:60-21:00",
+    "25:00-21:00",
+    "08:00-21:00-22:00",
+    "",
+    "08:00",
   ]) {
-    assert.equal(refused(with_("home", "working_hours", hours)), "candidate_config_value_invalid", hours);
+    assert.equal(
+      refused(with_("home", "working_hours", hours)),
+      "candidate_config_value_invalid",
+      hours,
+    );
   }
   for (const hours of ["08:00-21:00", "09:30-18:15", "00:00-24:00", "22:00-06:00", "23:59-00:00"]) {
     assert.equal(refused(with_("home", "working_hours", hours)), null, hours);
@@ -729,11 +822,19 @@ test("the markets are checked against their bounds, and the two names differ", (
   delete withoutHours.markets.home.working_hours;
   assert.equal(refused(withoutHours), "candidate_config_key_missing");
   for (const countries of [[], ["Aland", "Aland"], ["Aland\nBorvia"], [" Aland"], [""]]) {
-    assert.equal(refused(with_("home", "countries", countries)), "candidate_config_value_invalid", JSON.stringify(countries));
+    assert.equal(
+      refused(with_("home", "countries", countries)),
+      "candidate_config_value_invalid",
+      JSON.stringify(countries),
+    );
   }
   assert.equal(refused(with_("home", "countries", ["Aland", "Borvia"])), null);
   for (const location of ["", "Two\nlines", " Padded"]) {
-    assert.equal(refused(with_("outside_home", "location", location)), "candidate_config_value_invalid", JSON.stringify(location));
+    assert.equal(
+      refused(with_("outside_home", "location", location)),
+      "candidate_config_value_invalid",
+      JSON.stringify(location),
+    );
   }
   // The refusal names the keys and never the values: the names are the candidate's own.
   try {
@@ -814,7 +915,10 @@ test("the scoring values are checked against their bounds and against each other
     validateCandidateConfig(with_("mobility.excluded_destinations", ["KH"]));
     assert.fail("an excluded residence must be refused");
   } catch (error) {
-    assert.match(error.message, /mobility\.excluded_destinations and mobility\.feasible_residences must share no member/);
+    assert.match(
+      error.message,
+      /mobility\.excluded_destinations and mobility\.feasible_residences must share no member/,
+    );
     assert.doesNotMatch(error.message, /KH/);
   }
 });
@@ -824,7 +928,13 @@ test("the scoring values a scorer input carries are the config's, checked by the
   const { config } = loadCandidateConfig({ root: exampleRoot });
   // The config's own shape: everything under mobility, compensation, tool_match and domain_fit but
   // the set rule 10 reads.
-  assert.deepEqual(Object.keys(values).sort(), ["compensation", "domain_fit", "mobility", "scoring", "tool_match"]);
+  assert.deepEqual(Object.keys(values).sort(), [
+    "compensation",
+    "domain_fit",
+    "mobility",
+    "scoring",
+    "tool_match",
+  ]);
   assert.deepEqual(values.compensation, JSON.parse(JSON.stringify(config.compensation)));
   assert.deepEqual(values.domain_fit, JSON.parse(JSON.stringify(config.domain_fit)));
   assert.deepEqual(values.tool_match, JSON.parse(JSON.stringify(config.tool_match)));
@@ -835,11 +945,20 @@ test("the scoring values a scorer input carries are the config's, checked by the
   // The same bounds and relations, restricted to the part the input carries.
   const broken = structuredClone(values);
   broken.mobility.home_region = ["MY"];
-  assert.equal(refusalCode(() => validateCandidateScoring(broken)), "candidate_config_value_invalid");
+  assert.equal(
+    refusalCode(() => validateCandidateScoring(broken)),
+    "candidate_config_value_invalid",
+  );
   const extra = structuredClone(values);
   extra.mobility.self_relocation = [];
-  assert.equal(refusalCode(() => validateCandidateScoring(extra)), "candidate_config_unknown_key");
-  assert.equal(refusalCode(() => validateCandidateScoring(null)), "candidate_config_shape_invalid");
+  assert.equal(
+    refusalCode(() => validateCandidateScoring(extra)),
+    "candidate_config_unknown_key",
+  );
+  assert.equal(
+    refusalCode(() => validateCandidateScoring(null)),
+    "candidate_config_shape_invalid",
+  );
   // A checkout without a layer configures nothing to score against.
   const base = disposable(t, "job-search-no-layer-");
   assert.equal(candidateScoringValues({ root: join(base, candidateDirectoryName) }), null);
@@ -850,54 +969,92 @@ test("independent ToolMatch prices are bounded, canonical, unique and honest abo
   for (const key of ["languages", "frameworks"]) {
     const canonical = key === "languages" ? "Java" : "Playwright";
     for (const entry of [
-      {name:canonical,points:-1,experience:"direct"}, {name:canonical,points:6,experience:"direct"},
-      {name:canonical,points:1.5,experience:"direct"}, {name:canonical,points:NaN,experience:"direct"},
-      {name:canonical,points:Infinity,experience:"direct"}, {name:canonical,points:1,experience:"none"},
-      {name:canonical,points:1,experience:"unknown"}, {name:canonical,points:1,experience:"invented"},
-      {name:canonical.toLowerCase(),points:1,experience:"direct"}, {name:canonical,points:1,experience:"direct",extra:true},
+      { name: canonical, points: -1, experience: "direct" },
+      { name: canonical, points: 6, experience: "direct" },
+      { name: canonical, points: 1.5, experience: "direct" },
+      { name: canonical, points: NaN, experience: "direct" },
+      { name: canonical, points: Infinity, experience: "direct" },
+      { name: canonical, points: 1, experience: "none" },
+      { name: canonical, points: 1, experience: "unknown" },
+      { name: canonical, points: 1, experience: "invented" },
+      { name: canonical.toLowerCase(), points: 1, experience: "direct" },
+      { name: canonical, points: 1, experience: "direct", extra: true },
     ]) {
-      const config = exampleConfig(); config.tool_match[key] = [entry];
-      assert.equal(refusalCode(() => validateCandidateConfig(config)), invalid);
+      const config = exampleConfig();
+      config.tool_match[key] = [entry];
+      assert.equal(
+        refusalCode(() => validateCandidateConfig(config)),
+        invalid,
+      );
     }
-    for (const points of [0,5]) {
-      const config=exampleConfig(); config.tool_match[key]=[{name:canonical,points,experience:"direct"}];
-      assert.equal(refusalCode(() => validateCandidateConfig(config)), null);
-      const duplicate=structuredClone(config); duplicate.tool_match[key].push({...duplicate.tool_match[key][0]});
-      assert.equal(refusalCode(() => validateCandidateConfig(duplicate)), invalid);
+    for (const points of [0, 5]) {
+      const config = exampleConfig();
+      config.tool_match[key] = [{ name: canonical, points, experience: "direct" }];
+      assert.equal(
+        refusalCode(() => validateCandidateConfig(config)),
+        null,
+      );
+      const duplicate = structuredClone(config);
+      duplicate.tool_match[key].push({ ...duplicate.tool_match[key][0] });
+      assert.equal(
+        refusalCode(() => validateCandidateConfig(duplicate)),
+        invalid,
+      );
     }
-    const empty=exampleConfig(); empty.tool_match[key]=[];
-    assert.equal(refusalCode(() => validateCandidateConfig(empty)), null);
-    const missing=structuredClone(empty); delete missing.tool_match[key];
-    assert.equal(refusalCode(() => validateCandidateConfig(missing)), "candidate_config_key_missing");
+    const empty = exampleConfig();
+    empty.tool_match[key] = [];
+    assert.equal(
+      refusalCode(() => validateCandidateConfig(empty)),
+      null,
+    );
+    const missing = structuredClone(empty);
+    delete missing.tool_match[key];
+    assert.equal(
+      refusalCode(() => validateCandidateConfig(missing)),
+      "candidate_config_key_missing",
+    );
   }
-  const old=exampleConfig(); old.schema_version=2;
-  assert.equal(refusalCode(() => validateCandidateConfig(old)), "candidate_schema_version_unsupported");
-  const wrong=exampleConfig(); wrong.scoring.s.tools.max=0;
-  assert.equal(refusalCode(() => validateCandidateConfig(wrong)), invalid);
+  const old = exampleConfig();
+  old.schema_version = 2;
+  assert.equal(
+    refusalCode(() => validateCandidateConfig(old)),
+    "candidate_schema_version_unsupported",
+  );
+  const wrong = exampleConfig();
+  wrong.scoring.s.tools.max = 0;
+  assert.equal(
+    refusalCode(() => validateCandidateConfig(wrong)),
+    invalid,
+  );
 });
 
 test("the Domain Fit placement puts every domain of the engine on one step of the scale", () => {
   // The vocabulary is the engine's and frozen here; the scorer input accepts exactly these names
   // besides the two it scores itself, and each one is a key of its own.
-  assert.deepEqual([...DOMAIN_FIT_DOMAINS], [
-    "agency_outsourcing_vendor",
-    "complex_saas_b2b",
-    "data_platforms",
-    "developer_tools",
-    "distributed_systems",
-    "fintech_payments_trading",
-    "healthcare_biotech",
-    "infra_platforms",
-    "marketplaces",
-    "media_entertainment",
-    "other_complex",
-    "security_tooling",
-    "telecom",
-    "web3",
-  ]);
+  assert.deepEqual(
+    [...DOMAIN_FIT_DOMAINS],
+    [
+      "agency_outsourcing_vendor",
+      "complex_saas_b2b",
+      "data_platforms",
+      "developer_tools",
+      "distributed_systems",
+      "fintech_payments_trading",
+      "healthcare_biotech",
+      "infra_platforms",
+      "marketplaces",
+      "media_entertainment",
+      "other_complex",
+      "security_tooling",
+      "telecom",
+      "web3",
+    ],
+  );
   assert.deepEqual(exampleConfig().scoring.d.steps, [0, 2, 4, 6, 8, 10]);
   assert.deepEqual(
-    candidateConfigKeys.filter((key) => key.path.startsWith("domain_fit.")).map((key) => [key.path, key.type]),
+    candidateConfigKeys
+      .filter((key) => key.path.startsWith("domain_fit."))
+      .map((key) => [key.path, key.type]),
     DOMAIN_FIT_DOMAINS.map((name) => [`domain_fit.${name}`, "integer"]),
   );
   const with_ = (name, value) => {
@@ -906,7 +1063,8 @@ test("the Domain Fit placement puts every domain of the engine on one step of th
     return config;
   };
   const refused = (config) => refusalCode(() => validateCandidateConfig(config));
-  for (const step of [0, 2, 4, 6, 8, 10]) assert.equal(refused(with_("web3", step)), null, String(step));
+  for (const step of [0, 2, 4, 6, 8, 10])
+    assert.equal(refused(with_("web3", step)), null, String(step));
   // Between two steps, outside the scale, or not a whole number: the D middle is read off the steps,
   // so a value between them would be a scale the record does not define.
   for (const value of [-3, 1, 5, 7, 11, 16, 30]) {
@@ -941,22 +1099,38 @@ test("the priorities are checked against their bounds and kept apart from the ex
   const refused = (config) => refusalCode(() => validateCandidateConfig(config));
   const invalid = "candidate_config_value_invalid";
   for (const regions of [["UNKNOWN"], ["West"], ["WEST", "WEST"], ["EU"]]) {
-    assert.equal(refused(with_("remote_company_regions", regions)), invalid, JSON.stringify(regions));
+    assert.equal(
+      refused(with_("remote_company_regions", regions)),
+      invalid,
+      JSON.stringify(regions),
+    );
   }
   for (const regions of [[], ["WEST"], ["OTHER", "HOME", "WEST"]]) {
     assert.equal(refused(with_("remote_company_regions", regions)), null, JSON.stringify(regions));
   }
   for (const destinations of [["jp"], ["XK"], ["JP", "JP"], ["WEST"], ["Japan"]]) {
-    assert.equal(refused(with_("relocation_destinations", destinations)), invalid, JSON.stringify(destinations));
+    assert.equal(
+      refused(with_("relocation_destinations", destinations)),
+      invalid,
+      JSON.stringify(destinations),
+    );
   }
   // A WEST country may be named on its own: without the flag the region is not ranked as a whole.
   for (const destinations of [[], ["DE"], ["DE", "JP"]]) {
-    assert.equal(refused(with_("relocation_destinations", destinations)), null, JSON.stringify(destinations));
+    assert.equal(
+      refused(with_("relocation_destinations", destinations)),
+      null,
+      JSON.stringify(destinations),
+    );
   }
   // An excluded destination is never a ranked one.
   assert.equal(refused(with_("relocation_destinations", ["JP", "AQ"])), invalid);
   for (const flag of ["true", 1, null]) {
-    assert.equal(refused(with_("relocation_west", flag)), "candidate_config_key_type_invalid", String(flag));
+    assert.equal(
+      refused(with_("relocation_west", flag)),
+      "candidate_config_key_type_invalid",
+      String(flag),
+    );
   }
   assert.equal(refused(with_("relocation_west", true)), null);
   const missing = exampleConfig();
@@ -982,7 +1156,13 @@ test("the priorities of a layer spell out the ranked destinations, less the excl
   assert.equal(priorities.relocationCountries.length, WEST_COUNTRY_CODES.length);
   assert.equal(Object.isFrozen(priorities.relocationCountries), true);
   // Nothing about the priorities travels in the scorer input.
-  assert.deepEqual(Object.keys(candidateScoringValues({ root: exampleRoot })).sort(), ["compensation", "domain_fit", "mobility", "scoring", "tool_match"]);
+  assert.deepEqual(Object.keys(candidateScoringValues({ root: exampleRoot })).sort(), [
+    "compensation",
+    "domain_fit",
+    "mobility",
+    "scoring",
+    "tool_match",
+  ]);
   const base = disposable(t, "job-search-no-layer-");
   assert.equal(candidatePriorities({ root: join(base, candidateDirectoryName) }), null);
 });
@@ -991,7 +1171,13 @@ test("the markets of a layer are read from its config alone, and a checkout with
   const markets = candidateMarkets({ root: exampleRoot });
   assert.equal(markets.home.name, "domestic");
   assert.equal(markets.outsideHome.name, "international");
-  assert.equal(markets.home.timezone, candidateConfigValue(loadCandidateConfig({ root: exampleRoot }).config, "markets.home.timezone"));
+  assert.equal(
+    markets.home.timezone,
+    candidateConfigValue(
+      loadCandidateConfig({ root: exampleRoot }).config,
+      "markets.home.timezone",
+    ),
+  );
   assert.equal(markets.outsideHome.timezone, markets.home.timezone);
   assert.equal(markets.home.workingHours, "09:00-19:00");
   assert.equal(Object.isFrozen(markets.home.countries), true);
@@ -1005,7 +1191,10 @@ test("the markets of a layer are read from its config alone, and a checkout with
   assert.equal(candidateMarkets({ root: join(base, candidateDirectoryName) }), null);
   // A present config that cannot be read is a refusal, never an answer of "no markets".
   const broken = layerWith(t, "{", "job-search-broken-markets-");
-  assert.equal(refusalCode(() => candidateMarkets({ root: broken })), "candidate_config_invalid_json");
+  assert.equal(
+    refusalCode(() => candidateMarkets({ root: broken })),
+    "candidate_config_invalid_json",
+  );
 });
 
 test("the orderings follow the key table they belong to", () => {
@@ -1021,11 +1210,13 @@ test("the orderings follow the key table they belong to", () => {
     [{ lower: "letter.tone", upper: "letter.max_words" }],
   ]) {
     assert.equal(
-      refusalCode(() => validateCandidateConfig(
-        { letter: { max_words: 120, tone: "warm" }, schema_version: 3 },
-        [...keys, { path: "letter.tone", type: "string" }],
-        relations,
-      )),
+      refusalCode(() =>
+        validateCandidateConfig(
+          { letter: { max_words: 120, tone: "warm" }, schema_version: 3 },
+          [...keys, { path: "letter.tone", type: "string" }],
+          relations,
+        ),
+      ),
       "candidate_schema_relation_invalid",
       JSON.stringify(relations),
     );
@@ -1033,21 +1224,27 @@ test("the orderings follow the key table they belong to", () => {
   // A pair that must differ, over a key the table does not declare as a string, is the schema's
   // fault as well.
   assert.equal(
-    refusalCode(() => validateCandidateConfig(
-      { letter: { max_words: 120, tone: "warm" }, schema_version: 3 },
-      [...keys, { path: "letter.tone", type: "string" }],
-      [],
-      [{ one: "letter.tone", other: "letter.max_words" }],
-    )),
+    refusalCode(() =>
+      validateCandidateConfig(
+        { letter: { max_words: 120, tone: "warm" }, schema_version: 3 },
+        [...keys, { path: "letter.tone", type: "string" }],
+        [],
+        [{ one: "letter.tone", other: "letter.max_words" }],
+      ),
+    ),
     "candidate_schema_relation_invalid",
   );
   // The default table's pairs each name two of its own string keys.
-  const strings = new Set(candidateConfigKeys.filter((key) => key.type === "string").map((key) => key.path));
+  const strings = new Set(
+    candidateConfigKeys.filter((key) => key.type === "string").map((key) => key.path),
+  );
   for (const { one, other } of candidateConfigDistinct) {
     assert.equal(strings.has(one) && strings.has(other), true, `${one} != ${other}`);
   }
   // The default table's orderings each name two of its own integer keys.
-  const integers = new Set(candidateConfigKeys.filter((key) => key.type === "integer").map((key) => key.path));
+  const integers = new Set(
+    candidateConfigKeys.filter((key) => key.type === "integer").map((key) => key.path),
+  );
   for (const { lower, upper } of candidateConfigRelations) {
     assert.equal(integers.has(lower) && integers.has(upper), true, `${lower} <= ${upper}`);
   }
@@ -1058,16 +1255,24 @@ test("the private layer is invisible to the public repository", () => {
   assert.match(ignore, /^\/candidate\/$/m);
   // Asked of Git rather than read off the pattern. The trailing slash makes the rule match a
   // directory, so the spelling that proves it is a path inside the layer, not the bare name.
-  const ignored = spawnSync("git", ["check-ignore", "--quiet", join(candidateDirectoryName, "config.json")], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
+  const ignored = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", join(candidateDirectoryName, "config.json")],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    },
+  );
   assert.equal(ignored.status, 0, ignored.stderr);
   // The example is tracked and must stay outside the rule, or the suite would lose its fixture.
-  const example = spawnSync("git", ["check-ignore", "--quiet", join(candidateExampleDirectoryName, "config.json")], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
+  const example = spawnSync(
+    "git",
+    ["check-ignore", "--quiet", join(candidateExampleDirectoryName, "config.json")],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    },
+  );
   assert.equal(example.status, 1, example.stderr);
 });
 
@@ -1174,7 +1379,10 @@ test("a present but unreadable constraints file is a refusal, never an empty lay
     refusalCode(() => loadCandidateConstraints({ root: constraintsLayer(t, "{ not json\n") })),
     "candidate_constraints_invalid_json",
   );
-  const directoryInstead = join(disposable(t, "job-search-constraints-dir-"), candidateDirectoryName);
+  const directoryInstead = join(
+    disposable(t, "job-search-constraints-dir-"),
+    candidateDirectoryName,
+  );
   mkdirSync(directoryInstead);
   mkdirSync(candidateConstraintsPathFor(directoryInstead));
   assert.equal(
@@ -1198,26 +1406,39 @@ test("every disagreement with the constraints schema has its own code", () => {
     [file([{ ...entry(), disable: "no-name" }]), "candidate_constraint_unknown_field"],
     [file([entry({ scope: { materials: [] } })]), "candidate_constraint_scope_invalid"],
     [file([entry({ scope: { materials: ["letter"] } })]), "candidate_constraint_scope_invalid"],
-    [file([entry({ scope: { materials: ["cv"], languages: ["English"] } })]), "candidate_constraint_scope_invalid"],
+    [
+      file([entry({ scope: { materials: ["cv"], languages: ["English"] } })]),
+      "candidate_constraint_scope_invalid",
+    ],
     [file([entry({ phrases: [] })]), "candidate_constraint_payload_invalid"],
     [file([entry({ phrases: [""] })]), "candidate_constraint_payload_invalid"],
     [file([entry({ why: "" })]), "candidate_constraint_why_invalid"],
     [file([entry({ why: "x".repeat(201) })]), "candidate_constraint_why_invalid"],
   ];
   for (const [value, code] of cases) {
-    assert.equal(refusalCode(() => parseCandidateConstraints(value)), code, JSON.stringify(value));
+    assert.equal(
+      refusalCode(() => parseCandidateConstraints(value)),
+      code,
+      JSON.stringify(value),
+    );
   }
 });
 
 test("a spelling is one word and a term may be a phrase", () => {
-  const spelling = (value) => file([entry({
-    id: "spelling",
-    type: "required_spellings",
-    spelling: value,
-    instead_of: ["Kestrelvail"],
-    phrases: undefined,
-  })]);
-  assert.equal(refusalCode(() => parseCandidateConstraints(spelling("Kestrelvale"))), null);
+  const spelling = (value) =>
+    file([
+      entry({
+        id: "spelling",
+        type: "required_spellings",
+        spelling: value,
+        instead_of: ["Kestrelvail"],
+        phrases: undefined,
+      }),
+    ]);
+  assert.equal(
+    refusalCode(() => parseCandidateConstraints(spelling("Kestrelvale"))),
+    null,
+  );
   // The shape rule is what keeps the two replacement types apart: a phrase cannot be a spelling,
   // so an entry that means "prefer this wording" cannot be filed as one by accident.
   assert.equal(
@@ -1225,48 +1446,63 @@ test("a spelling is one word and a term may be a phrase", () => {
     "candidate_constraint_payload_invalid",
   );
   assert.equal(
-    refusalCode(() => parseCandidateConstraints(file([entry({
-      id: "spelling",
-      type: "required_spellings",
-      spelling: "Kestrelvale",
-      instead_of: ["Kestrelvail Limited"],
-      phrases: undefined,
-    })]))),
+    refusalCode(() =>
+      parseCandidateConstraints(
+        file([
+          entry({
+            id: "spelling",
+            type: "required_spellings",
+            spelling: "Kestrelvale",
+            instead_of: ["Kestrelvail Limited"],
+            phrases: undefined,
+          }),
+        ]),
+      ),
+    ),
     "candidate_constraint_payload_invalid",
   );
   // `phrases` belongs to forbid_phrases alone: left on a prefer_terms entry it is an unknown
   // field, so a type changed without its payload is refused rather than half-read.
   assert.equal(
-    refusalCode(() => parseCandidateConstraints(file([entry({
-      id: "terms",
-      type: "prefer_terms",
-      prefer: "regression suite",
-      avoid: ["regression pack"],
-    })]))),
+    refusalCode(() =>
+      parseCandidateConstraints(
+        file([
+          entry({
+            id: "terms",
+            type: "prefer_terms",
+            prefer: "regression suite",
+            avoid: ["regression pack"],
+          }),
+        ]),
+      ),
+    ),
     "candidate_constraint_unknown_field",
   );
 });
 
 test("a spelling is matched with case distinguished and a term without", () => {
-  const constraints = parseCandidateConstraints(file([
-    entry({
-      id: "spelling",
-      type: "required_spellings",
-      spelling: "Kestrelvale",
-      instead_of: ["Kestrelvail"],
-      scope: { materials: ["cv"] },
-      phrases: undefined,
-    }),
-    entry({
-      id: "terms",
-      type: "prefer_terms",
-      prefer: "regression suite",
-      avoid: ["regression pack"],
-      scope: { materials: ["cv"] },
-      phrases: undefined,
-    }),
-  ]));
-  const findings = (text) => candidateConstraintFindings(constraints, text, { artifact: "cv.json" });
+  const constraints = parseCandidateConstraints(
+    file([
+      entry({
+        id: "spelling",
+        type: "required_spellings",
+        spelling: "Kestrelvale",
+        instead_of: ["Kestrelvail"],
+        scope: { materials: ["cv"] },
+        phrases: undefined,
+      }),
+      entry({
+        id: "terms",
+        type: "prefer_terms",
+        prefer: "regression suite",
+        avoid: ["regression pack"],
+        scope: { materials: ["cv"] },
+        phrases: undefined,
+      }),
+    ]),
+  );
+  const findings = (text) =>
+    candidateConstraintFindings(constraints, text, { artifact: "cv.json" });
   assert.equal(findings("I worked at Kestrelvail.").length, 1);
   // The same word in another case is a different spelling and not this one.
   assert.deepEqual(findings("I worked at kestrelvail."), []);
@@ -1287,11 +1523,17 @@ test("the matching predicate takes whole terms across line breaks only", () => {
 });
 
 test("a constraint applies only to the materials it names", () => {
-  const constraints = parseCandidateConstraints(file([
-    entry({ id: "letter-only", scope: { materials: ["cover_letter"] } }),
-    entry({ id: "cv-only", scope: { materials: ["cv"] }, phrases: ["Kestrelvail"] }),
-    entry({ id: "both", scope: { materials: ["cover_letter", "cv"] }, phrases: ["Tarn Holloway"] }),
-  ]));
+  const constraints = parseCandidateConstraints(
+    file([
+      entry({ id: "letter-only", scope: { materials: ["cover_letter"] } }),
+      entry({ id: "cv-only", scope: { materials: ["cv"] }, phrases: ["Kestrelvail"] }),
+      entry({
+        id: "both",
+        scope: { materials: ["cover_letter", "cv"] },
+        phrases: ["Tarn Holloway"],
+      }),
+    ]),
+  );
   assert.deepEqual(
     selectCandidateConstraints(constraints, { material: "cv" }).map((item) => item.id),
     ["cv-only", "both"],
@@ -1307,25 +1549,27 @@ test("a constraint applies only to the materials it names", () => {
 });
 
 test("a finding names the constraint and never the text it matched", () => {
-  const constraints = parseCandidateConstraints(file([
-    entry({ id: "no-name", phrases: ["Jordan Vale"], why: "A private contact." }),
-    entry({
-      id: "terms",
-      type: "prefer_terms",
-      prefer: "regression suite",
-      avoid: ["regression pack"],
-      why: "Reviewers call it a suite.",
-      phrases: undefined,
-    }),
-    entry({
-      id: "spelling",
-      type: "required_spellings",
-      spelling: "Kestrelvale",
-      instead_of: ["Kestrelvail"],
-      why: "The employer spells it this way.",
-      phrases: undefined,
-    }),
-  ]));
+  const constraints = parseCandidateConstraints(
+    file([
+      entry({ id: "no-name", phrases: ["Jordan Vale"], why: "A private contact." }),
+      entry({
+        id: "terms",
+        type: "prefer_terms",
+        prefer: "regression suite",
+        avoid: ["regression pack"],
+        why: "Reviewers call it a suite.",
+        phrases: undefined,
+      }),
+      entry({
+        id: "spelling",
+        type: "required_spellings",
+        spelling: "Kestrelvale",
+        instead_of: ["Kestrelvail"],
+        why: "The employer spells it this way.",
+        phrases: undefined,
+      }),
+    ]),
+  );
   const text = "Jordan Vale introduced me; we ran a regression pack at Kestrelvail.";
   const findings = candidateConstraintFindings(constraints, text, { artifact: "cover-letter.txt" });
   assert.equal(findings.length, 3);
@@ -1333,23 +1577,38 @@ test("a finding names the constraint and never the text it matched", () => {
   // The forbidden phrase, the avoided wording and every `why` stay out of the message: it travels
   // into the publication error and the session transcript, and a ban on a name is a ban on
   // repeating it.
-  for (const secret of ["Jordan Vale", "regression pack", "Kestrelvail", "private contact", "spells it"]) {
+  for (const secret of [
+    "Jordan Vale",
+    "regression pack",
+    "Kestrelvail",
+    "private contact",
+    "spells it",
+  ]) {
     assert.equal(joined.includes(secret), false, secret);
   }
   // What the author is expected to write is named, because it is going into the material anyway.
   assert.match(joined, /write "regression suite"/u);
   assert.match(joined, /spell it "Kestrelvale"/u);
-  for (const id of ["no-name", "terms", "spelling"]) assert.match(joined, new RegExp(`"${id}"`, "u"));
+  for (const id of ["no-name", "terms", "spelling"])
+    assert.match(joined, new RegExp(`"${id}"`, "u"));
 });
 
 test("a candidate entry cannot make required what the engine forbids", () => {
-  const compatible = (overrides) => refusalCode(() => assertCandidateConstraintsCompatible(
-    parseCandidateConstraints(file([entry(overrides)])),
-    { engineForbidden: coverLetterEngineForbidden },
-  ));
+  const compatible = (overrides) =>
+    refusalCode(() =>
+      assertCandidateConstraintsCompatible(parseCandidateConstraints(file([entry(overrides)])), {
+        engineForbidden: coverLetterEngineForbidden,
+      }),
+    );
   // A term the letter validator refuses, made the preferred wording.
   assert.equal(
-    compatible({ id: "terms", type: "prefer_terms", prefer: "excited", avoid: ["keen"], phrases: undefined }),
+    compatible({
+      id: "terms",
+      type: "prefer_terms",
+      prefer: "excited",
+      avoid: ["keen"],
+      phrases: undefined,
+    }),
     "candidate_constraint_conflicts_with_engine",
   );
   // A required spelling carrying forbidden typography. The engine matches typography as a plain
@@ -1388,18 +1647,20 @@ test("the vocabulary and the tool README name the same types and materials", () 
     assert.equal(readme.includes(`\`${material}\``), true, `README omits ${material}`);
   }
   // And the other direction, so a type dropped from the engine leaves the document too.
-  const documented = [...readme.matchAll(/`(forbid_[a-z_]+|prefer_[a-z_]+|required_[a-z_]+)`/gu)]
-    .map((match) => match[1]);
+  const documented = [
+    ...readme.matchAll(/`(forbid_[a-z_]+|prefer_[a-z_]+|required_[a-z_]+)`/gu),
+  ].map((match) => match[1]);
   assert.deepEqual([...new Set(documented)].sort(), [...candidateConstraintTypes].sort());
   assert.equal(readme.includes(`\`${candidateConstraintsBasename}\``), true);
 });
 
 test("the layer check reports how many constraints it read and fails on a broken file", (t) => {
-  const cli = (root) => spawnSync(
-    process.execPath,
-    [join(repoRoot, "tools/candidate/cli.mjs"), "--check", "--root", root],
-    { encoding: "utf8" },
-  );
+  const cli = (root) =>
+    spawnSync(
+      process.execPath,
+      [join(repoRoot, "tools/candidate/cli.mjs"), "--check", "--root", root],
+      { encoding: "utf8" },
+    );
   const good = cli(exampleRoot);
   assert.equal(good.status, 0, good.stderr);
   const report = JSON.parse(good.stdout);
@@ -1432,16 +1693,14 @@ test("the layer check reports how many constraints it read and fails on a broken
 });
 
 test("the layer check reads the letter-correction corpus in the layer and in the run", (t) => {
-  const cli = (argv, workspaceRoot) => spawnSync(
-    process.execPath,
-    [join(repoRoot, "tools/candidate/cli.mjs"), "--check", ...argv],
-    {
+  const cli = (argv, workspaceRoot) =>
+    spawnSync(process.execPath, [join(repoRoot, "tools/candidate/cli.mjs"), "--check", ...argv], {
       encoding: "utf8",
-      env: workspaceRoot === undefined
-        ? process.env
-        : { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot },
-    },
-  );
+      env:
+        workspaceRoot === undefined
+          ? process.env
+          : { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot },
+    });
   // Records written the way step 5 writes them; git is answered as "no repository here", which is
   // what a disposable root outside every checkout really is.
   const noRepository = () => ({
@@ -1453,24 +1712,28 @@ test("the layer check reads the letter-correction corpus in the layer and in the
   const corpusWith = (directory, ids) => {
     mkdirSync(join(directory, "records"), { recursive: true });
     for (const id of ids) {
-      writeRecord(directory, {
-        afterState: "published",
-        beforeIndex: 0,
-        channel: "chat_command",
-        classes: [],
-        companyRole: "example-role",
-        fragmentAfter: "after",
-        fragmentBefore: "before",
-        language: "Greek",
-        occurredOn: "2026-09-24",
-        origin: "revision",
-        processId: "proc_a",
-        publicationAfter: "pub_b",
-        publicationBefore: "pub_a",
-        sourceRef: null,
-        userReason: "reason",
-        userReasonAbsent: null,
-      }, { languages: ["English", "Greek"], randomId: () => id, spawnSync: noRepository });
+      writeRecord(
+        directory,
+        {
+          afterState: "published",
+          beforeIndex: 0,
+          channel: "chat_command",
+          classes: [],
+          companyRole: "example-role",
+          fragmentAfter: "after",
+          fragmentBefore: "before",
+          language: "Greek",
+          occurredOn: "2026-09-24",
+          origin: "revision",
+          processId: "proc_a",
+          publicationAfter: "pub_b",
+          publicationBefore: "pub_a",
+          sourceRef: null,
+          userReason: "reason",
+          userReasonAbsent: null,
+        },
+        { languages: ["English", "Greek"], randomId: () => id, spawnSync: noRepository },
+      );
     }
   };
 
@@ -1511,43 +1774,65 @@ test("the composition both production callers use narrows before it compares", (
   // compared only with the list of the material it binds. Comparing first would let a legitimate
   // CV entry — an employer's name spelled with a typographic apostrophe, which only the letter
   // forbids — refuse every letter publication in the checkout.
-  const root = constraintsLayer(t, file([
-    entry({
-      id: "employer-apostrophe",
-      type: "required_spellings",
-      scope: { materials: ["cv"] },
-      spelling: "O’Brien",
-      instead_of: ["OBrien"],
-      phrases: undefined,
-    }),
-    entry({ id: "letter-name", scope: { materials: ["cover_letter"] }, phrases: ["Jordan Vale"] }),
-  ]), "job-search-constraints-for-");
+  const root = constraintsLayer(
+    t,
+    file([
+      entry({
+        id: "employer-apostrophe",
+        type: "required_spellings",
+        scope: { materials: ["cv"] },
+        spelling: "O’Brien",
+        instead_of: ["OBrien"],
+        phrases: undefined,
+      }),
+      entry({
+        id: "letter-name",
+        scope: { materials: ["cover_letter"] },
+        phrases: ["Jordan Vale"],
+      }),
+    ]),
+    "job-search-constraints-for-",
+  );
 
   const forCv = candidateConstraintsFor({ engineForbidden: [], material: "cv", root });
-  assert.deepEqual(forCv.map((item) => item.id), ["employer-apostrophe", ...examplePrivateIds]);
+  assert.deepEqual(
+    forCv.map((item) => item.id),
+    ["employer-apostrophe", ...examplePrivateIds],
+  );
 
   const forLetter = candidateConstraintsFor({
     engineForbidden: coverLetterEngineForbidden,
     material: "cover_letter",
     root,
   });
-  assert.deepEqual(forLetter.map((item) => item.id), ["letter-name", ...examplePrivateIds]);
+  assert.deepEqual(
+    forLetter.map((item) => item.id),
+    ["letter-name", ...examplePrivateIds],
+  );
 
   // And the check still bites on the material it belongs to.
-  const conflicting = constraintsLayer(t, file([entry({
-    id: "letter-apostrophe",
-    type: "required_spellings",
-    scope: { materials: ["cover_letter"] },
-    spelling: "O’Brien",
-    instead_of: ["OBrien"],
-    phrases: undefined,
-  })]), "job-search-constraints-conflict-");
+  const conflicting = constraintsLayer(
+    t,
+    file([
+      entry({
+        id: "letter-apostrophe",
+        type: "required_spellings",
+        scope: { materials: ["cover_letter"] },
+        spelling: "O’Brien",
+        instead_of: ["OBrien"],
+        phrases: undefined,
+      }),
+    ]),
+    "job-search-constraints-conflict-",
+  );
   assert.equal(
-    refusalCode(() => candidateConstraintsFor({
-      engineForbidden: coverLetterEngineForbidden,
-      material: "cover_letter",
-      root: conflicting,
-    })),
+    refusalCode(() =>
+      candidateConstraintsFor({
+        engineForbidden: coverLetterEngineForbidden,
+        material: "cover_letter",
+        root: conflicting,
+      }),
+    ),
     "candidate_constraint_conflicts_with_engine",
   );
 });
@@ -1557,11 +1842,10 @@ test("the composition both production callers use narrows before it compares", (
 // `forbid_phrases` entry per private project, so the same text passes for a public project's name
 // and is refused for a private one's.
 test("a private project's name is refused in both materials and a public one's is not, by the visibility line alone", (t) => {
-  const findings = (root, material, text) => candidateConstraintFindings(
-    candidateConstraintsFor({ material, root }),
-    text,
-    { artifact: material === "cv" ? "cv.json" : "cover-letter.txt" },
-  );
+  const findings = (root, material, text) =>
+    candidateConstraintFindings(candidateConstraintsFor({ material, root }), text, {
+      artifact: material === "cv" ? "cv.json" : "cover-letter.txt",
+    });
   for (const material of ["cv", "cover_letter"]) {
     assert.deepEqual(findings(exampleRoot, material, "Built lindenbench and contract-kata."), []);
     for (const text of [
@@ -1576,7 +1860,10 @@ test("a private project's name is refused in both materials and a public one's i
   }
   // The finding names the derived entry and never repeats the name.
   const [message] = findings(exampleRoot, "cv", "Built shelfwise.");
-  assert.equal(message, 'cv.json breaks candidate constraint "private-project-10-4" (forbid_phrases)');
+  assert.equal(
+    message,
+    'cv.json breaks candidate constraint "private-project-10-4" (forbid_phrases)',
+  );
   assert.equal(message.includes("shelfwise"), false);
 
   // The key is the line, not the heading: candidate/profile.md#102-quiet-ledger-private keeps "(private)" in its heading and turns public.
@@ -1593,9 +1880,15 @@ test("a private project's name is refused in both materials and a public one's i
   assert.equal(findings(turnedPublic, "cv", "Built shelfwise.").length, 1);
 
   // A heading without a qualifier names the project whole.
-  const bare = validateCandidateProfile(profile.replace("### 10.4. shelfwise (private)", "### 10.4. shelfwise"));
+  const bare = validateCandidateProfile(
+    profile.replace("### 10.4. shelfwise (private)", "### 10.4. shelfwise"),
+  );
   assert.deepEqual(
-    candidatePrivateProjectConstraints(bare).map((item) => [item.id, [...item.terms], [...item.scope.materials]]),
+    candidatePrivateProjectConstraints(bare).map((item) => [
+      item.id,
+      [...item.terms],
+      [...item.scope.materials],
+    ]),
     [
       ["private-project-10-2", ["quiet-ledger"], ["cover_letter", "cv"]],
       ["private-project-10-4", ["shelfwise"], ["cover_letter", "cv"]],
@@ -1622,48 +1915,72 @@ test("an entry that refuses its own required wording is refused", () => {
   // The same unsatisfiable pair the engine check catches, with both halves inside one record.
   // Without this the author gets a finding telling them to write what they already wrote.
   assert.equal(
-    refusalCode(() => parseCandidateConstraints(file([entry({
-      id: "self",
-      type: "prefer_terms",
-      prefer: "regression suite",
-      avoid: ["regression"],
-      phrases: undefined,
-    })]))),
+    refusalCode(() =>
+      parseCandidateConstraints(
+        file([
+          entry({
+            id: "self",
+            type: "prefer_terms",
+            prefer: "regression suite",
+            avoid: ["regression"],
+            phrases: undefined,
+          }),
+        ]),
+      ),
+    ),
     "candidate_constraint_payload_invalid",
   );
   assert.equal(
-    refusalCode(() => parseCandidateConstraints(file([entry({
-      id: "self",
-      type: "required_spellings",
-      spelling: "Kestrelvale",
-      instead_of: ["Kestrelvale"],
-      phrases: undefined,
-    })]))),
+    refusalCode(() =>
+      parseCandidateConstraints(
+        file([
+          entry({
+            id: "self",
+            type: "required_spellings",
+            spelling: "Kestrelvale",
+            instead_of: ["Kestrelvale"],
+            phrases: undefined,
+          }),
+        ]),
+      ),
+    ),
     "candidate_constraint_payload_invalid",
   );
   // A term is a term however it is capitalized, so a preferred wording that differs from an
   // avoided one only in case is still self-refusing. Without this the case flag could be frozen
   // to `true` here and nothing would notice.
   assert.equal(
-    refusalCode(() => parseCandidateConstraints(file([entry({
-      id: "self-case",
-      type: "prefer_terms",
-      prefer: "Regression Suite",
-      avoid: ["regression suite"],
-      phrases: undefined,
-    })]))),
+    refusalCode(() =>
+      parseCandidateConstraints(
+        file([
+          entry({
+            id: "self-case",
+            type: "prefer_terms",
+            prefer: "Regression Suite",
+            avoid: ["regression suite"],
+            phrases: undefined,
+          }),
+        ]),
+      ),
+    ),
     "candidate_constraint_payload_invalid",
   );
   // A spelling differing only in case is not self-refusing: that is exactly the pair the type
   // exists to express.
   assert.equal(
-    refusalCode(() => parseCandidateConstraints(file([entry({
-      id: "case",
-      type: "required_spellings",
-      spelling: "Kestrelvale",
-      instead_of: ["kestrelvale"],
-      phrases: undefined,
-    })]))),
+    refusalCode(() =>
+      parseCandidateConstraints(
+        file([
+          entry({
+            id: "case",
+            type: "required_spellings",
+            spelling: "Kestrelvale",
+            instead_of: ["kestrelvale"],
+            phrases: undefined,
+          }),
+        ]),
+      ),
+    ),
     null,
   );
 });
@@ -1679,9 +1996,15 @@ test("the reader's bounds are refusals, not truncations", (t) => {
     "candidate_constraint_payload_invalid",
   );
   assert.equal(
-    refusalCode(() => parseCandidateConstraints(file([entry({
-      phrases: Array.from({ length: 51 }, (_, index) => `phrase ${index}`),
-    })]))),
+    refusalCode(() =>
+      parseCandidateConstraints(
+        file([
+          entry({
+            phrases: Array.from({ length: 51 }, (_, index) => `phrase ${index}`),
+          }),
+        ]),
+      ),
+    ),
     "candidate_constraint_payload_invalid",
   );
   // A control character in a term would travel into a message and into the ledger's bounded text.
@@ -1778,9 +2101,10 @@ test("the tracked example's documents pass their form, with its AI properties of
     ],
   );
   assert.equal(documents.profile.employers.length, 3);
-  const withProperty = (property) => documents.levers.levers
-    .filter((lever) => lever.properties.includes(property))
-    .map((lever) => lever.id);
+  const withProperty = (property) =>
+    documents.levers.levers
+      .filter((lever) => lever.properties.includes(property))
+      .map((lever) => lever.id);
   // A rule that still keys on the numbers 2 and 6 would find nothing here.
   assert.deepEqual(withProperty("ai-practice"), [3]);
   assert.deepEqual(withProperty("ai-infrastructure"), [5]);
@@ -1798,46 +2122,121 @@ test("every disagreement of a profile with the map is refused with its own code"
   const profile = exampleText("profile.md");
   const refused = (text) => documentRefusal(() => validateCandidateProfile(text));
 
-  assert.equal(refused(profile.replace("<!-- candidate-profile-schema: 2 -->\n", "")), "candidate_profile_schema_version_missing");
+  assert.equal(
+    refused(profile.replace("<!-- candidate-profile-schema: 2 -->\n", "")),
+    "candidate_profile_schema_version_missing",
+  );
   // A profile of the first map, whose fixed headings could carry a qualifier, is not read.
-  assert.equal(refused(profile.replace("candidate-profile-schema: 2", "candidate-profile-schema: 1")), "candidate_profile_schema_version_unsupported");
+  assert.equal(
+    refused(profile.replace("candidate-profile-schema: 2", "candidate-profile-schema: 1")),
+    "candidate_profile_schema_version_unsupported",
+  );
   // Two sections swapped, a title renamed, a number skipped inside a list, an employer entry
   // without its role, and a section the map does not have.
   const second = profile.slice(profile.indexOf("## 2. "), profile.indexOf("## 3. "));
   const third = profile.slice(profile.indexOf("## 3. "), profile.indexOf("## 4. "));
-  assert.equal(refused(profile.replace(second + third, third + second)), "candidate_profile_heading_invalid");
-  assert.equal(refused(profile.replace("## 4. Compensation", "## 4. Salary")), "candidate_profile_heading_invalid");
-  assert.equal(refused(profile.replace("### 9.3. ", "### 9.4. ")), "candidate_profile_heading_invalid");
+  assert.equal(
+    refused(profile.replace(second + third, third + second)),
+    "candidate_profile_heading_invalid",
+  );
+  assert.equal(
+    refused(profile.replace("## 4. Compensation", "## 4. Salary")),
+    "candidate_profile_heading_invalid",
+  );
+  assert.equal(
+    refused(profile.replace("### 9.3. ", "### 9.4. ")),
+    "candidate_profile_heading_invalid",
+  );
   // The heading is read from the profile: the example's names are markers, and a test that spelt
   // one would be the leak the publishability suite looks for.
   const lastEmployer = profile.split("\n").find((line) => line.startsWith("### 9.3. "));
-  assert.equal(refused(profile.replace(lastEmployer, lastEmployer.slice(0, lastEmployer.lastIndexOf(" - ")))), "candidate_profile_heading_invalid");
+  assert.equal(
+    refused(profile.replace(lastEmployer, lastEmployer.slice(0, lastEmployer.lastIndexOf(" - ")))),
+    "candidate_profile_heading_invalid",
+  );
   assert.equal(refused(`${profile}\n## 13. Hobbies\n`), "candidate_profile_heading_invalid");
-  assert.equal(refused(profile.replace("### Strengths", "### Superpowers")), "candidate_profile_heading_invalid");
+  assert.equal(
+    refused(profile.replace("### Strengths", "### Superpowers")),
+    "candidate_profile_heading_invalid",
+  );
   // A fixed heading is word for word: a qualifier changes the anchor a public rule links to.
-  assert.equal(refused(profile.replace("## 11. Education", "## 11. Education (formal)")), "candidate_profile_heading_invalid");
-  assert.equal(refused(profile.replace("### Risk areas", "### Risk areas (self-aware)")), "candidate_profile_heading_invalid");
+  assert.equal(
+    refused(profile.replace("## 11. Education", "## 11. Education (formal)")),
+    "candidate_profile_heading_invalid",
+  );
+  assert.equal(
+    refused(profile.replace("### Risk areas", "### Risk areas (self-aware)")),
+    "candidate_profile_heading_invalid",
+  );
 
   // The visibility line: missing, outside the closed set, or twice.
-  assert.equal(refused(profile.replace("**Visibility:** private\n\nA private agent", "A private agent")), "candidate_profile_visibility_invalid");
-  assert.equal(refused(profile.replace("**Visibility:** private\n\nA private agent", "**Visibility:** internal\n\nA private agent")), "candidate_profile_visibility_invalid");
-  assert.equal(refused(profile.replace("**Visibility:** private\n\nA private agent", "**Visibility:** private\n**Visibility:** public\n\nA private agent")), "candidate_profile_visibility_invalid");
+  assert.equal(
+    refused(profile.replace("**Visibility:** private\n\nA private agent", "A private agent")),
+    "candidate_profile_visibility_invalid",
+  );
+  assert.equal(
+    refused(
+      profile.replace(
+        "**Visibility:** private\n\nA private agent",
+        "**Visibility:** internal\n\nA private agent",
+      ),
+    ),
+    "candidate_profile_visibility_invalid",
+  );
+  assert.equal(
+    refused(
+      profile.replace(
+        "**Visibility:** private\n\nA private agent",
+        "**Visibility:** private\n**Visibility:** public\n\nA private agent",
+      ),
+    ),
+    "candidate_profile_visibility_invalid",
+  );
 
   // What the map allows: the last section absent, a qualifier after an entry's title, a heading
   // inside a fence, and headings of the candidate's own below an entry.
   const withoutTwelve = profile.slice(0, profile.indexOf("## 12. "));
   assert.equal(validateCandidateProfile(withoutTwelve).projects.length, 5);
   const lastProject = profile.split("\n").find((line) => line.startsWith("### 10.5. "));
-  assert.equal(validateCandidateProfile(profile.replace(lastProject, `${lastProject} (kept)`)).projects[4].visibility, "public");
-  const fenced = profile.replace("## 11. Education\n", "```text\n## 13. Not a heading\n```\n\n## 11. Education\n");
+  assert.equal(
+    validateCandidateProfile(profile.replace(lastProject, `${lastProject} (kept)`)).projects[4]
+      .visibility,
+    "public",
+  );
+  const fenced = profile.replace(
+    "## 11. Education\n",
+    "```text\n## 13. Not a heading\n```\n\n## 11. Education\n",
+  );
   assert.equal(validateCandidateProfile(fenced).schemaVersion, 2);
-  const deeper = profile.replace("**Visibility:** private\n\nA private agent", "**Visibility:** private\n\n#### Notes\n\nA private agent");
+  const deeper = profile.replace(
+    "**Visibility:** private\n\nA private agent",
+    "**Visibility:** private\n\n#### Notes\n\nA private agent",
+  );
   assert.equal(validateCandidateProfile(deeper).projects[1].visibility, "private");
   // The line counts anywhere in the entry, under its own subsections too, and never inside a fence.
-  const underSubsection = profile.replace("**Visibility:** private\n\nA private agent", "#### Notes\n\n**Visibility:** private\n\nA private agent");
+  const underSubsection = profile.replace(
+    "**Visibility:** private\n\nA private agent",
+    "#### Notes\n\n**Visibility:** private\n\nA private agent",
+  );
   assert.equal(validateCandidateProfile(underSubsection).projects[1].visibility, "private");
-  assert.equal(refused(profile.replace("**Visibility:** private\n\nA private agent", "**Visibility:** private\n\n#### Notes\n\n**Visibility:** public\n\nA private agent")), "candidate_profile_visibility_invalid");
-  assert.equal(refused(profile.replace("**Visibility:** private\n\nA private agent", "```text\n**Visibility:** private\n```\n\nA private agent")), "candidate_profile_visibility_invalid");
+  assert.equal(
+    refused(
+      profile.replace(
+        "**Visibility:** private\n\nA private agent",
+        "**Visibility:** private\n\n#### Notes\n\n**Visibility:** public\n\nA private agent",
+      ),
+    ),
+    "candidate_profile_visibility_invalid",
+  );
+  assert.equal(
+    refused(
+      profile.replace(
+        "**Visibility:** private\n\nA private agent",
+        "```text\n**Visibility:** private\n```\n\nA private agent",
+      ),
+    ),
+    "candidate_profile_visibility_invalid",
+  );
 });
 
 test("every disagreement of a lever bank with its format is refused", () => {
@@ -1845,21 +2244,51 @@ test("every disagreement of a lever bank with its format is refused", () => {
   const refused = (text) => documentRefusal(() => validateCandidateLevers(text));
   const invalid = "candidate_levers_invalid";
 
-  assert.equal(refused(levers.replace("## Lever 2", "## Lever 3").replace("## Lever 3\n\nStatement: AI", "## Lever 4\n\nStatement: AI")), invalid);
+  assert.equal(
+    refused(
+      levers
+        .replace("## Lever 2", "## Lever 3")
+        .replace("## Lever 3\n\nStatement: AI", "## Lever 4\n\nStatement: AI"),
+    ),
+    invalid,
+  );
   assert.equal(refused(levers.replace("Weight: 5", "Weight: 6")), invalid);
-  assert.equal(refused(levers.replace("Weight: 5\nCondition: broad", "Weight: 5\nCondition: sometimes")), invalid);
+  assert.equal(
+    refused(levers.replace("Weight: 5\nCondition: broad", "Weight: 5\nCondition: sometimes")),
+    invalid,
+  );
   assert.equal(refused(levers.replace("Properties: ai-practice", "Properties: ai-magic")), invalid);
-  assert.equal(refused(levers.replace("Properties: ai-practice", "Properties: ai-practice, ai-practice")), invalid);
+  assert.equal(
+    refused(levers.replace("Properties: ai-practice", "Properties: ai-practice, ai-practice")),
+    invalid,
+  );
   assert.equal(refused(levers.replace("## Positioning", "## Placement")), invalid);
   assert.equal(refused(`${levers}\n## Notes\n\nMore.\n`), invalid);
   // A bank that stops after its last lever has no positioning at all, which is a refusal too.
   assert.equal(refused(levers.slice(0, levers.indexOf("## Positioning"))), invalid);
-  assert.equal(refused(levers.replace("Weight: 5\nCondition: broad", "Condition: broad\nWeight: 5")), invalid);
-  assert.equal(refused(levers.replace("Statement: A test framework run as a maintained product.\n", "")), invalid);
-  assert.equal(refused(levers.replace("Condition: conditional — the role owns", "Condition: conditional —the role owns")), invalid);
+  assert.equal(
+    refused(levers.replace("Weight: 5\nCondition: broad", "Condition: broad\nWeight: 5")),
+    invalid,
+  );
+  assert.equal(
+    refused(levers.replace("Statement: A test framework run as a maintained product.\n", "")),
+    invalid,
+  );
+  assert.equal(
+    refused(
+      levers.replace(
+        "Condition: conditional — the role owns",
+        "Condition: conditional —the role owns",
+      ),
+    ),
+    invalid,
+  );
 
   // The stance is optional, and a lever's own subheadings are prose.
-  assert.equal(validateCandidateLevers(levers.slice(0, levers.indexOf("## Stance"))).levers.length, 5);
+  assert.equal(
+    validateCandidateLevers(levers.slice(0, levers.indexOf("## Stance"))).levers.length,
+    5,
+  );
   const parsed = validateCandidateLevers(levers.replace("Stories:\n", "### Stories\n"));
   assert.deepEqual(parsed.levers[3], {
     condition: "conditional",
@@ -1874,9 +2303,23 @@ test("every disagreement of a lever bank with its format is refused", () => {
 test("the letter samples name their languages once and hold one section per letter", () => {
   const samples = exampleText("letter-samples.md");
   const refused = (text) => documentRefusal(() => validateCandidateLetterSamples(text));
-  assert.equal(refused(samples.replace("Covered languages: English\n", "")), "candidate_letter_samples_invalid");
-  assert.equal(refused(samples.replace("Covered languages: English", "Covered languages: English, English")), "candidate_letter_samples_invalid");
-  assert.equal(refused(samples.replace("Covered languages: English", "Covered languages: English\nCovered languages: German")), "candidate_letter_samples_invalid");
+  assert.equal(
+    refused(samples.replace("Covered languages: English\n", "")),
+    "candidate_letter_samples_invalid",
+  );
+  assert.equal(
+    refused(samples.replace("Covered languages: English", "Covered languages: English, English")),
+    "candidate_letter_samples_invalid",
+  );
+  assert.equal(
+    refused(
+      samples.replace(
+        "Covered languages: English",
+        "Covered languages: English\nCovered languages: German",
+      ),
+    ),
+    "candidate_letter_samples_invalid",
+  );
   // A file with no letter yet says which languages it covers and holds nothing else.
   const empty = validateCandidateLetterSamples("# Letter Samples\n\nCovered languages: English\n");
   assert.deepEqual(empty, { languages: ["English"], samples: [] });
@@ -1885,46 +2328,71 @@ test("the letter samples name their languages once and hold one section per lett
 test("a present layer needs its profile, lever bank and rules, and names the config first", (t) => {
   const config = exampleConfigText;
   const bare = layerWith(t, config, undefined, { documents: false });
-  assert.equal(documentRefusal(() => inspectCandidateLayer({ root: bare })), "candidate_document_missing");
+  assert.equal(
+    documentRefusal(() => inspectCandidateLayer({ root: bare })),
+    "candidate_document_missing",
+  );
   // Each of the three required documents is required on its own.
   const leversOnly = layerWith(t, config, undefined, { documents: false });
   copyFileSync(join(exampleRoot, "levers.md"), join(leversOnly, "levers.md"));
-  assert.equal(documentRefusal(() => inspectCandidateLayer({ root: leversOnly })), "candidate_document_missing");
+  assert.equal(
+    documentRefusal(() => inspectCandidateLayer({ root: leversOnly })),
+    "candidate_document_missing",
+  );
   copyFileSync(join(exampleRoot, "profile.md"), join(bare, "profile.md"));
-  assert.equal(documentRefusal(() => inspectCandidateLayer({ root: bare })), "candidate_document_missing");
+  assert.equal(
+    documentRefusal(() => inspectCandidateLayer({ root: bare })),
+    "candidate_document_missing",
+  );
   copyFileSync(join(exampleRoot, "levers.md"), join(bare, "levers.md"));
   // A layer with a profile and a lever bank but no rules is refused, not read as a candidate
   // without rules: a lost file must not look like an empty one.
-  assert.throws(() => inspectCandidateLayer({ root: bare }), (error) => (
-    error.code === "candidate_document_missing" && /rules\.md/u.test(error.message)
-  ));
+  assert.throws(
+    () => inspectCandidateLayer({ root: bare }),
+    (error) => error.code === "candidate_document_missing" && /rules\.md/u.test(error.message),
+  );
   writeFileSync(join(bare, "rules.md"), "<!-- candidate-rules-schema: 1 -->\n\n# Rules\n", "utf8");
   // The letter samples are optional: a layer without them is ready and says it holds none.
-  assert.deepEqual(inspectCandidateLayer({ root: bare }).documents, { letterSamples: 0, levers: 5, projects: 5, rules: 0 });
+  assert.deepEqual(inspectCandidateLayer({ root: bare }).documents, {
+    letterSamples: 0,
+    levers: 5,
+    projects: 5,
+    rules: 0,
+  });
 
   writeFileSync(join(bare, "letter-samples.md"), Buffer.from([0x23, 0x20, 0xff, 0xfe, 0x0a]));
-  assert.equal(documentRefusal(() => inspectCandidateLayer({ root: bare })), "candidate_document_unreadable");
+  assert.equal(
+    documentRefusal(() => inspectCandidateLayer({ root: bare })),
+    "candidate_document_unreadable",
+  );
 
   // A layer broken in both places is refused for its config, the order every caller relies on.
   const both = layerWith(t, "{ not json\n", undefined, { documents: false });
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root: both })), "candidate_config_invalid_json");
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root: both })),
+    "candidate_config_invalid_json",
+  );
 });
 
 test("the rules name six read points, and the example has a rule for each", () => {
   // Frozen here as a literal: the skills name these points, and a point added to the list without
   // a skill reading it — or a skill renamed under it — is a visible edit of this line.
-  assert.deepEqual([...candidateRuleScopes], [
-    "generate-cv",
-    "get-vacancy",
-    "map-experience",
-    "research-company",
-    "score-jobs",
-    "write-cover-letter",
-  ]);
+  assert.deepEqual(
+    [...candidateRuleScopes],
+    [
+      "generate-cv",
+      "get-vacancy",
+      "map-experience",
+      "research-company",
+      "score-jobs",
+      "write-cover-letter",
+    ],
+  );
   const { rules, schemaVersion } = loadCandidateDocuments({ root: exampleRoot }).rules;
   assert.equal(schemaVersion, 1);
   const covered = new Set(rules.flatMap((rule) => rule.scope));
-  for (const point of candidateRuleScopes) assert.equal(covered.has(point), true, `no example rule for ${point}`);
+  for (const point of candidateRuleScopes)
+    assert.equal(covered.has(point), true, `no example rule for ${point}`);
   assert.equal(new Set(rules.map((rule) => rule.id)).size, rules.length);
 });
 
@@ -1932,41 +2400,100 @@ test("every disagreement of the rules with their format is refused with its own 
   const rules = exampleText("rules.md");
   const refused = (text) => documentRefusal(() => validateCandidateRules(text));
   const invalid = "candidate_rules_invalid";
-  const first = "## past-tense-tarnwick\n\nScope: map-experience, generate-cv, write-cover-letter\nWhy:";
+  const first =
+    "## past-tense-tarnwick\n\nScope: map-experience, generate-cv, write-cover-letter\nWhy:";
 
   assert.equal(rules.includes(first), true, "the cases below edit the example's first rule");
-  assert.equal(refused(rules.replace("<!-- candidate-rules-schema: 1 -->\n", "")), "candidate_rules_schema_version_missing");
-  assert.equal(refused(rules.replace("candidate-rules-schema: 1", "candidate-rules-schema: 2")), "candidate_rules_schema_version_unsupported");
+  assert.equal(
+    refused(rules.replace("<!-- candidate-rules-schema: 1 -->\n", "")),
+    "candidate_rules_schema_version_missing",
+  );
+  assert.equal(
+    refused(rules.replace("candidate-rules-schema: 1", "candidate-rules-schema: 2")),
+    "candidate_rules_schema_version_unsupported",
+  );
   assert.equal(refused(rules.replace("# Rules\n", "")), invalid);
   assert.equal(refused(`${rules}\n# Second title\n`), invalid);
   assert.equal(refused(rules.replace("## past-tense-tarnwick", "## Past tense")), invalid);
-  assert.equal(refused(rules.replace("## route-planning-not-maps", "## past-tense-tarnwick")), invalid);
-  assert.equal(refused(rules.replace("Scope: map-experience, generate-cv, write-cover-letter", "Scope: map-experience, cover-letter")), invalid);
-  assert.equal(refused(rules.replace("Scope: map-experience, generate-cv, write-cover-letter", "Scope: map-experience, map-experience")), invalid);
-  assert.equal(refused(rules.replace("Scope: map-experience, generate-cv, write-cover-letter", "Scope:")), invalid);
-  assert.equal(refused(rules.replace("Scope: map-experience, generate-cv, write-cover-letter\n", "")), invalid);
+  assert.equal(
+    refused(rules.replace("## route-planning-not-maps", "## past-tense-tarnwick")),
+    invalid,
+  );
+  assert.equal(
+    refused(
+      rules.replace(
+        "Scope: map-experience, generate-cv, write-cover-letter",
+        "Scope: map-experience, cover-letter",
+      ),
+    ),
+    invalid,
+  );
+  assert.equal(
+    refused(
+      rules.replace(
+        "Scope: map-experience, generate-cv, write-cover-letter",
+        "Scope: map-experience, map-experience",
+      ),
+    ),
+    invalid,
+  );
+  assert.equal(
+    refused(rules.replace("Scope: map-experience, generate-cv, write-cover-letter", "Scope:")),
+    invalid,
+  );
+  assert.equal(
+    refused(rules.replace("Scope: map-experience, generate-cv, write-cover-letter\n", "")),
+    invalid,
+  );
   assert.equal(refused(rules.replace(/Why: The Tarnwick Studio work[^\n]*/u, "Why:")), invalid);
   const [scopeLine, whyLine] = first.split("\n").slice(2);
-  assert.equal(refused(rules.replace(`${scopeLine}\n${whyLine}`, `${whyLine}\n${scopeLine}`)), invalid);
+  assert.equal(
+    refused(rules.replace(`${scopeLine}\n${whyLine}`, `${whyLine}\n${scopeLine}`)),
+    invalid,
+  );
   // The fields are read by name, not by place: swapped lines whose values would each pass as the
   // other field are refused too.
-  assert.equal(refused(rules.replace(`${scopeLine}\n${whyLine}`, "Why: generate-cv\nScope: score-jobs")), invalid);
+  assert.equal(
+    refused(rules.replace(`${scopeLine}\n${whyLine}`, "Why: generate-cv\nScope: score-jobs")),
+    invalid,
+  );
   // A second title is refused even when its text would pass as a rule id.
-  assert.equal(refused(`${rules}\n# late-title\n\nScope: score-jobs\nWhy: A reason.\n\nText.\n`), invalid);
+  assert.equal(
+    refused(`${rules}\n# late-title\n\nScope: score-jobs\nWhy: A reason.\n\nText.\n`),
+    invalid,
+  );
   // A rule with its two lines and nothing below them says nothing.
-  const bare = rules.slice(0, rules.indexOf("The Tarnwick Studio work is described")) + rules.slice(rules.indexOf("## route-planning-not-maps"));
+  const bare =
+    rules.slice(0, rules.indexOf("The Tarnwick Studio work is described")) +
+    rules.slice(rules.indexOf("## route-planning-not-maps"));
   assert.equal(refused(bare), invalid);
-  assert.equal(refused(rules.replace("# Rules\n", "# Rules\n\n### Loose section\n\nText.\n")), invalid);
+  assert.equal(
+    refused(rules.replace("# Rules\n", "# Rules\n\n### Loose section\n\nText.\n")),
+    invalid,
+  );
   // An unclosed fence would hide the rules below it, so a broken rule there must still be refused.
-  const hidden = rules.replace("\n## route-planning-not-maps", "\n```text\n\n## route-planning-not-maps").replace("Scope: generate-cv, write-cover-letter", "Scope: nope");
+  const hidden = rules
+    .replace("\n## route-planning-not-maps", "\n```text\n\n## route-planning-not-maps")
+    .replace("Scope: generate-cv, write-cover-letter", "Scope: nope");
   assert.equal(refused(hidden), invalid);
 
   // What the format allows: no rules at all, a subsection inside a rule, and a heading in a fence.
-  assert.deepEqual(validateCandidateRules("<!-- candidate-rules-schema: 1 -->\n\n# Rules\n").rules, []);
-  const withSubsection = validateCandidateRules(rules).rules.find((rule) => rule.id === "contract-tests-in-letters");
+  assert.deepEqual(
+    validateCandidateRules("<!-- candidate-rules-schema: 1 -->\n\n# Rules\n").rules,
+    [],
+  );
+  const withSubsection = validateCandidateRules(rules).rules.find(
+    (rule) => rule.id === "contract-tests-in-letters",
+  );
   assert.deepEqual([...withSubsection.scope], ["write-cover-letter"]);
-  const fenced = rules.replace("\n## route-planning-not-maps", "\n```text\n## not-a-rule\n```\n\n## route-planning-not-maps");
-  assert.equal(validateCandidateRules(fenced).rules.length, validateCandidateRules(rules).rules.length);
+  const fenced = rules.replace(
+    "\n## route-planning-not-maps",
+    "\n```text\n## not-a-rule\n```\n\n## route-planning-not-maps",
+  );
+  assert.equal(
+    validateCandidateRules(fenced).rules.length,
+    validateCandidateRules(rules).rules.length,
+  );
 });
 
 // ── Language packs ──────────────────────────────────────────────────────────────────────────────
@@ -1993,7 +2520,13 @@ test("the language keys are bounded: distinct capitalized names beside the defau
     config[head][tail] = value;
     return refusalCode(() => validateCandidateConfig(config));
   };
-  for (const value of [["Greek", "Greek"], ["greek"], ["English"], ["Brazilian Portuguese"], ["El"]]) {
+  for (const value of [
+    ["Greek", "Greek"],
+    ["greek"],
+    ["English"],
+    ["Brazilian Portuguese"],
+    ["El"],
+  ]) {
     const expected = value[0] === "El" ? null : "candidate_config_value_invalid";
     assert.equal(with_("languages.additional", value), expected, JSON.stringify(value));
   }
@@ -2003,7 +2536,11 @@ test("the language keys are bounded: distinct capitalized names beside the defau
   // The working language is the language of chat and private files; it needs no pack.
   assert.equal(with_("languages.working", "German"), null);
   for (const value of ["", " Name", "Name ", "Name\nSurname"]) {
-    assert.equal(with_("letter.signature", value), "candidate_config_value_invalid", JSON.stringify(value));
+    assert.equal(
+      with_("letter.signature", value),
+      "candidate_config_value_invalid",
+      JSON.stringify(value),
+    );
   }
 });
 
@@ -2017,8 +2554,14 @@ test("the language names come from the config alone; the languages of a letter c
   const root = exampleCopy(t);
   writeFileSync(greekPack(root, "pack.json"), "{ not json\n", "utf8");
   assert.deepEqual(candidateLanguageNames({ root }), ["English", "Greek"]);
-  assert.equal(refusalCode(() => candidateLanguages({ root })), "candidate_language_pack_invalid_json");
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root })), "candidate_language_pack_invalid_json");
+  assert.equal(
+    refusalCode(() => candidateLanguages({ root })),
+    "candidate_language_pack_invalid_json",
+  );
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root })),
+    "candidate_language_pack_invalid_json",
+  );
 
   const [english, greek] = candidateLanguages({ root: exampleRoot });
   assert.deepEqual(
@@ -2036,7 +2579,14 @@ test("the language names come from the config alone; the languages of a letter c
     },
   );
   assert.deepEqual(
-    [greek.name, greek.locale, greek.script, greek.admitsScripts, greek.subjectPrefix, greek.pins.length],
+    [
+      greek.name,
+      greek.locale,
+      greek.script,
+      greek.admitsScripts,
+      greek.subjectPrefix,
+      greek.pins.length,
+    ],
     ["Greek", "el", "Greek", ["Latin"], "Θέμα", 5],
   );
   assert.equal(greek.rulesPath, greekPack(exampleRoot, "language-rules.md"));
@@ -2045,15 +2595,24 @@ test("the language names come from the config alone; the languages of a letter c
 test("a configured language needs its pack, and a pack needs a configured language", (t) => {
   const missing = exampleCopy(t);
   rmSync(join(missing, "languages"), { recursive: true });
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root: missing })), "candidate_language_pack_missing");
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root: missing })),
+    "candidate_language_pack_missing",
+  );
 
   const noPackFile = exampleCopy(t);
   rmSync(greekPack(noPackFile, "pack.json"));
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root: noPackFile })), "candidate_language_pack_missing");
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root: noPackFile })),
+    "candidate_language_pack_missing",
+  );
 
   const stray = exampleCopy(t);
   mkdirSync(join(stray, "languages", "German"));
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root: stray })), "candidate_language_pack_unconfigured");
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root: stray })),
+    "candidate_language_pack_unconfigured",
+  );
 
   // A name the file system gives, not the candidate, is neither read nor refused.
   const hidden = exampleCopy(t);
@@ -2063,20 +2622,30 @@ test("a configured language needs its pack, and a pack needs a configured langua
 
   const foreignFile = exampleCopy(t);
   writeFileSync(greekPack(foreignFile, "notes.md"), "# Notes\n", "utf8");
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root: foreignFile })), "candidate_language_pack_invalid");
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root: foreignFile })),
+    "candidate_language_pack_invalid",
+  );
 
   const packDirectory = exampleCopy(t);
   rmSync(greekPack(packDirectory, "pack.json"));
   mkdirSync(greekPack(packDirectory, "pack.json"));
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root: packDirectory })), "candidate_language_pack_invalid");
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root: packDirectory })),
+    "candidate_language_pack_invalid",
+  );
 
   const orphanPins = exampleCopy(t);
   rmSync(greekPack(orphanPins, "pins.json"));
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root: orphanPins })), "candidate_pins_invalid");
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root: orphanPins })),
+    "candidate_pins_invalid",
+  );
 
   // Only the pack file is required.
   const bare = exampleCopy(t);
-  for (const name of ["constraints.json", "language-rules.md", "pins.json"]) rmSync(greekPack(bare, name));
+  for (const name of ["constraints.json", "language-rules.md", "pins.json"])
+    rmSync(greekPack(bare, name));
   rmSync(greekPack(bare, "pins"), { recursive: true });
   assert.equal(inspectCandidateLayer({ root: bare }).status, "ready");
   assert.equal(candidateLanguages({ root: bare })[1].rulesPath, null);
@@ -2088,29 +2657,95 @@ test("pack.json is read field by field, and every field is required", (t) => {
     rewriteJson(greekPack(root, "pack.json"), change);
     return refusalCode(() => candidateLanguages({ root }));
   };
-  assert.equal(refusal(() => {}), null);
-  assert.equal(refusal((pack) => { pack.schema_version = 2; }), "candidate_language_pack_invalid");
-  assert.equal(refusal((pack) => { pack.extra = true; }), "candidate_language_pack_invalid");
-  for (const field of ["locale", "script", "admits_scripts", "subject_prefix", "signature", "schema_version"]) {
-    assert.equal(refusal((pack) => { delete pack[field]; }), "candidate_language_pack_invalid", field);
+  assert.equal(
+    refusal(() => {}),
+    null,
+  );
+  assert.equal(
+    refusal((pack) => {
+      pack.schema_version = 2;
+    }),
+    "candidate_language_pack_invalid",
+  );
+  assert.equal(
+    refusal((pack) => {
+      pack.extra = true;
+    }),
+    "candidate_language_pack_invalid",
+  );
+  for (const field of [
+    "locale",
+    "script",
+    "admits_scripts",
+    "subject_prefix",
+    "signature",
+    "schema_version",
+  ]) {
+    assert.equal(
+      refusal((pack) => {
+        delete pack[field];
+      }),
+      "candidate_language_pack_invalid",
+      field,
+    );
   }
   // A locale the word counter does not support would count words by another language's rules.
   for (const locale of ["zz", "EL", "el_GR", ""]) {
-    assert.equal(refusal((pack) => { pack.locale = locale; }), "candidate_language_pack_invalid", locale);
+    assert.equal(
+      refusal((pack) => {
+        pack.locale = locale;
+      }),
+      "candidate_language_pack_invalid",
+      locale,
+    );
   }
   // The last one compiles as a pattern: only the form of a script name keeps it out.
   for (const script of ["Klingon", "greek", "Greek}|.", "", "Greek}|\\p{Script=Latin"]) {
-    assert.equal(refusal((pack) => { pack.script = script; }), "candidate_language_pack_invalid", script);
+    assert.equal(
+      refusal((pack) => {
+        pack.script = script;
+      }),
+      "candidate_language_pack_invalid",
+      script,
+    );
   }
-  assert.equal(refusal((pack) => { pack.admits_scripts = ["Greek"]; }), "candidate_language_pack_invalid");
-  assert.equal(refusal((pack) => { pack.admits_scripts = ["Latin", "Latin"]; }), "candidate_language_pack_invalid");
-  assert.equal(refusal((pack) => { pack.admits_scripts = "Latin"; }), "candidate_language_pack_invalid");
-  assert.equal(refusal((pack) => { pack.subject_prefix = "Θέμα:"; }), "candidate_language_pack_invalid");
-  assert.equal(refusal((pack) => { pack.signature = "Two\nLines"; }), "candidate_language_pack_invalid");
+  assert.equal(
+    refusal((pack) => {
+      pack.admits_scripts = ["Greek"];
+    }),
+    "candidate_language_pack_invalid",
+  );
+  assert.equal(
+    refusal((pack) => {
+      pack.admits_scripts = ["Latin", "Latin"];
+    }),
+    "candidate_language_pack_invalid",
+  );
+  assert.equal(
+    refusal((pack) => {
+      pack.admits_scripts = "Latin";
+    }),
+    "candidate_language_pack_invalid",
+  );
+  assert.equal(
+    refusal((pack) => {
+      pack.subject_prefix = "Θέμα:";
+    }),
+    "candidate_language_pack_invalid",
+  );
+  assert.equal(
+    refusal((pack) => {
+      pack.signature = "Two\nLines";
+    }),
+    "candidate_language_pack_invalid",
+  );
 
   const broken = exampleCopy(t);
   writeFileSync(greekPack(broken, "pack.json"), "{", "utf8");
-  assert.equal(refusalCode(() => candidateLanguages({ root: broken })), "candidate_language_pack_invalid_json");
+  assert.equal(
+    refusalCode(() => candidateLanguages({ root: broken })),
+    "candidate_language_pack_invalid_json",
+  );
 });
 
 test("pins.json declares every letter in pins/, and a pin names its verdict", (t) => {
@@ -2122,31 +2757,98 @@ test("pins.json declares every letter in pins/, and a pin names its verdict", (t
   };
   const first = (pins) => pins.pins[0];
   const reject = (pins) => pins.pins.find((pin) => pin.expect === "reject");
-  assert.equal(refusal(() => {}), null);
-  assert.equal(refusal((pins) => { first(pins).id = "../plain-letter"; }), "candidate_pins_invalid");
-  // An id of the wrong form is refused although its letter is there.
   assert.equal(
-    refusal((pins) => { first(pins).id = "Plain-Letter"; }, (root) => {
-      renameSync(greekPack(root, "pins", "plain-letter.txt"), greekPack(root, "pins", "Plain-Letter.txt"));
+    refusal(() => {}),
+    null,
+  );
+  assert.equal(
+    refusal((pins) => {
+      first(pins).id = "../plain-letter";
     }),
     "candidate_pins_invalid",
   );
-  assert.equal(refusal((pins) => { pins.pins.push({ ...first(pins) }); }), "candidate_pins_invalid");
-  assert.equal(refusal((pins) => { first(pins).expect = "maybe"; }), "candidate_pins_invalid");
-  assert.equal(refusal((pins) => { first(pins).finding = "anything"; }), "candidate_pins_invalid");
-  assert.equal(refusal((pins) => { delete reject(pins).finding; }), "candidate_pins_invalid");
-  assert.equal(refusal((pins) => { first(pins).keyword_terms = []; }), "candidate_pins_invalid");
-  assert.equal(refusal((pins) => { delete first(pins).why; }), "candidate_pins_invalid");
-  assert.equal(refusal((pins) => { first(pins).weight = 1; }), "candidate_pins_invalid");
-  assert.equal(refusal((pins) => { pins.pins = []; }), "candidate_pins_invalid");
-  assert.equal(refusal((pins) => { pins.schema_version = 2; }), "candidate_pins_invalid");
-  // A letter no pin declares, and a pin without its letter.
+  // An id of the wrong form is refused although its letter is there.
   assert.equal(
-    refusal(() => {}, (root) => writeFileSync(greekPack(root, "pins", "extra.txt"), "x\n", "utf8")),
+    refusal(
+      (pins) => {
+        first(pins).id = "Plain-Letter";
+      },
+      (root) => {
+        renameSync(
+          greekPack(root, "pins", "plain-letter.txt"),
+          greekPack(root, "pins", "Plain-Letter.txt"),
+        );
+      },
+    ),
     "candidate_pins_invalid",
   );
   assert.equal(
-    refusal(() => {}, (root) => rmSync(greekPack(root, "pins", "plain-letter.txt"))),
+    refusal((pins) => {
+      pins.pins.push({ ...first(pins) });
+    }),
+    "candidate_pins_invalid",
+  );
+  assert.equal(
+    refusal((pins) => {
+      first(pins).expect = "maybe";
+    }),
+    "candidate_pins_invalid",
+  );
+  assert.equal(
+    refusal((pins) => {
+      first(pins).finding = "anything";
+    }),
+    "candidate_pins_invalid",
+  );
+  assert.equal(
+    refusal((pins) => {
+      delete reject(pins).finding;
+    }),
+    "candidate_pins_invalid",
+  );
+  assert.equal(
+    refusal((pins) => {
+      first(pins).keyword_terms = [];
+    }),
+    "candidate_pins_invalid",
+  );
+  assert.equal(
+    refusal((pins) => {
+      delete first(pins).why;
+    }),
+    "candidate_pins_invalid",
+  );
+  assert.equal(
+    refusal((pins) => {
+      first(pins).weight = 1;
+    }),
+    "candidate_pins_invalid",
+  );
+  assert.equal(
+    refusal((pins) => {
+      pins.pins = [];
+    }),
+    "candidate_pins_invalid",
+  );
+  assert.equal(
+    refusal((pins) => {
+      pins.schema_version = 2;
+    }),
+    "candidate_pins_invalid",
+  );
+  // A letter no pin declares, and a pin without its letter.
+  assert.equal(
+    refusal(
+      () => {},
+      (root) => writeFileSync(greekPack(root, "pins", "extra.txt"), "x\n", "utf8"),
+    ),
+    "candidate_pins_invalid",
+  );
+  assert.equal(
+    refusal(
+      () => {},
+      (root) => rmSync(greekPack(root, "pins", "plain-letter.txt")),
+    ),
     "candidate_pins_invalid",
   );
 });
@@ -2177,16 +2879,25 @@ test("the pins of the example hold, and a pin that proves nothing fails", (t) =>
   );
   // A refused letter refused for another reason than the one its pin names.
   assert.match(
-    failure((root) => rewriteJson(greekPack(root, "pins.json"), (pins) => {
-      pins.pins.find((pin) => pin.id === "wrong-signature").finding = "cover-letter.txt title must use Greek script";
-    })),
+    failure((root) =>
+      rewriteJson(greekPack(root, "pins.json"), (pins) => {
+        pins.pins.find((pin) => pin.id === "wrong-signature").finding =
+          "cover-letter.txt title must use Greek script";
+      }),
+    ),
     /pin wrong-signature expects/u,
   );
   // A refused letter refused for its reason and one more: it no longer isolates the check.
   assert.match(
     failure((root) => {
       const path = greekPack(root, "pins", "latin-paragraph.txt");
-      writeFileSync(path, readFileSync(path, "utf8").replace("Αξιόπιστη", "Reliable").replace(/^[^\n]+/u, "Reliable title"), "utf8");
+      writeFileSync(
+        path,
+        readFileSync(path, "utf8")
+          .replace("Αξιόπιστη", "Reliable")
+          .replace(/^[^\n]+/u, "Reliable title"),
+        "utf8",
+      );
     }),
     /pin latin-paragraph expects/u,
   );
@@ -2198,52 +2909,91 @@ test("the pins of the example hold, and a pin that proves nothing fails", (t) =>
 });
 
 test("a pack's constraints bind letters in its language alone, together with the layer's", (t) => {
-  const forLetter = (language, root = exampleRoot) => candidateConstraintsFor({
-    engineForbidden: coverLetterEngineForbidden,
-    language,
-    material: "cover_letter",
-    root,
-  }).map((entry) => entry.id);
-  const layerIds = [...exampleConstraints.constraints.map((entry) => entry.id), ...examplePrivateIds];
+  const forLetter = (language, root = exampleRoot) =>
+    candidateConstraintsFor({
+      engineForbidden: coverLetterEngineForbidden,
+      language,
+      material: "cover_letter",
+      root,
+    }).map((entry) => entry.id);
+  const layerIds = [
+    ...exampleConstraints.constraints.map((entry) => entry.id),
+    ...examplePrivateIds,
+  ];
   assert.deepEqual(forLetter("Greek"), [...layerIds, "tonos-dokimes"]);
   assert.deepEqual(forLetter("English"), layerIds);
   assert.deepEqual(forLetter(null), layerIds);
   assert.deepEqual(
-    candidateConstraintsFor({ language: "Greek", material: "cv", root: exampleRoot }).map((entry) => entry.id),
+    candidateConstraintsFor({ language: "Greek", material: "cv", root: exampleRoot }).map(
+      (entry) => entry.id,
+    ),
     layerIds,
   );
-  assert.deepEqual(loadAllCandidateConstraints({ root: exampleRoot }), { count: layerIds.length + 1, status: "ready" });
+  assert.deepEqual(loadAllCandidateConstraints({ root: exampleRoot }), {
+    count: layerIds.length + 1,
+    status: "ready",
+  });
 
   const cvScoped = exampleCopy(t);
   rewriteJson(greekPack(cvScoped, "constraints.json"), (file) => {
     file.constraints[0].scope.materials = ["cover_letter", "cv"];
   });
-  assert.equal(refusalCode(() => forLetter("Greek", cvScoped)), "candidate_constraint_scope_invalid");
-  assert.equal(refusalCode(() => loadAllCandidateConstraints({ root: cvScoped })), "candidate_constraint_scope_invalid");
+  assert.equal(
+    refusalCode(() => forLetter("Greek", cvScoped)),
+    "candidate_constraint_scope_invalid",
+  );
+  assert.equal(
+    refusalCode(() => loadAllCandidateConstraints({ root: cvScoped })),
+    "candidate_constraint_scope_invalid",
+  );
 
   const repeated = exampleCopy(t);
   rewriteJson(greekPack(repeated, "constraints.json"), (file) => {
     file.constraints[0].id = layerIds[0];
   });
-  assert.equal(refusalCode(() => forLetter("Greek", repeated)), "candidate_constraint_id_duplicate");
+  assert.equal(
+    refusalCode(() => forLetter("Greek", repeated)),
+    "candidate_constraint_id_duplicate",
+  );
 
   // A pack entry that makes required what the engine forbids is refused with the layer's.
   const conflicting = exampleCopy(t);
   rewriteJson(greekPack(conflicting, "constraints.json"), (file) => {
     file.constraints[0] = {
-      id: "dash", type: "required_spellings", scope: { materials: ["cover_letter"] },
-      spelling: "a—b", instead_of: ["ab"], why: "A test.",
+      id: "dash",
+      type: "required_spellings",
+      scope: { materials: ["cover_letter"] },
+      spelling: "a—b",
+      instead_of: ["ab"],
+      why: "A test.",
     };
   });
-  assert.equal(refusalCode(() => forLetter("Greek", conflicting)), "candidate_constraint_conflicts_with_engine");
+  assert.equal(
+    refusalCode(() => forLetter("Greek", conflicting)),
+    "candidate_constraint_conflicts_with_engine",
+  );
 });
 
 test("the letter samples cover only the default language and configured ones", (t) => {
   const root = exampleCopy(t);
   const path = join(root, "letter-samples.md");
-  writeFileSync(path, readFileSync(path, "utf8").replace("Covered languages: English", "Covered languages: English, German"), "utf8");
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root })), "candidate_letter_samples_invalid");
-  writeFileSync(path, readFileSync(path, "utf8").replace("English, German", "English, Greek"), "utf8");
+  writeFileSync(
+    path,
+    readFileSync(path, "utf8").replace(
+      "Covered languages: English",
+      "Covered languages: English, German",
+    ),
+    "utf8",
+  );
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root })),
+    "candidate_letter_samples_invalid",
+  );
+  writeFileSync(
+    path,
+    readFileSync(path, "utf8").replace("English, German", "English, Greek"),
+    "utf8",
+  );
   assert.equal(inspectCandidateLayer({ root }).status, "ready");
 });
 
@@ -2251,8 +3001,8 @@ test("the letter samples cover only the default language and configured ones", (
 // against it, and every reference a document a run reads makes into the layer opens on the example.
 
 const exampleManifest = loadCandidateManifest();
-const exampleLanguages = () => candidateLanguageNames({ root: exampleRoot })
-  .filter((name) => name !== DEFAULT_LANGUAGE.name);
+const exampleLanguages = () =>
+  candidateLanguageNames({ root: exampleRoot }).filter((name) => name !== DEFAULT_LANGUAGE.name);
 
 function manifestWith(extra) {
   const raw = JSON.parse(readFileSync(join(exampleRoot, "manifest.json"), "utf8"));
@@ -2264,27 +3014,50 @@ test("the manifest declares the profile's section map: every fixed heading, noth
   const profile = exampleManifest.files.find((file) => file.role === "profile");
   const fromMap = candidateProfileSections
     .filter((entry) => !entry.optional)
-    .map((entry) => `${"#".repeat(entry.level)} ${entry.number === null ? entry.title : `${entry.number}. ${entry.title}`}`);
-  assert.deepEqual(profile.headings.map((heading) => heading.text), fromMap);
+    .map(
+      (entry) =>
+        `${"#".repeat(entry.level)} ${entry.number === null ? entry.title : `${entry.number}. ${entry.title}`}`,
+    );
+  assert.deepEqual(
+    profile.headings.map((heading) => heading.text),
+    fromMap,
+  );
   assert.equal(profile.path, "profile.md");
   assert.equal(profile.required, true);
 });
 
 test("the manifest's required files are frozen to the ones the loaders require", () => {
   const required = exampleManifest.files.filter((file) => file.required).map((file) => file.path);
-  assert.deepEqual(required, ["config.json", "profile.md", "levers.md", "rules.md", "languages/<language>/pack.json"]);
+  assert.deepEqual(required, [
+    "config.json",
+    "profile.md",
+    "levers.md",
+    "rules.md",
+    "languages/<language>/pack.json",
+  ]);
   const memory = exampleManifest.files.find((file) => file.role === "memory");
-  assert.deepEqual([memory.required, memory.headings.map((heading) => heading.text)], [false, ["## Open questions"]]);
+  assert.deepEqual(
+    [memory.required, memory.headings.map((heading) => heading.text)],
+    [false, ["## Open questions"]],
+  );
   // The reader's examples sit under the four lists of its answer, and a layer may go without them.
   const examples = exampleManifest.files.find((file) => file.role === "letter_reader_examples");
   assert.deepEqual(
     [examples.path, examples.required, examples.headings.map((heading) => heading.text)],
-    ["letter-reader-examples.md", false, ["## reread", "## unclear_reference", "## missing_link", "## translated"]],
+    [
+      "letter-reader-examples.md",
+      false,
+      ["## reread", "## unclear_reference", "## missing_link", "## translated"],
+    ],
   );
 });
 
 test("the tracked example meets its own manifest", () => {
-  checkCandidateLayerParity({ languages: exampleLanguages(), manifest: exampleManifest, root: exampleRoot });
+  checkCandidateLayerParity({
+    languages: exampleLanguages(),
+    manifest: exampleManifest,
+    root: exampleRoot,
+  });
   assert.equal(inspectCandidateLayer({ root: exampleRoot }).status, "ready");
 });
 
@@ -2306,20 +3079,59 @@ test("a layer names a section only by a link that opens, in its profile, levers,
     }
   };
   const link = "`profile.md#651-ai-assisted-qa-workflow`";
-  const line = readFileSync(join(root, "levers.md"), "utf8").split("\n").findIndex((text) => text.includes(link)) + 1;
+  const line =
+    readFileSync(join(root, "levers.md"), "utf8")
+      .split("\n")
+      .findIndex((text) => text.includes(link)) + 1;
   const tail = "; a section is named by a link to its heading";
-  assert.equal(refusal("levers.md", (text) => text.replace(link, "profile §6.5.1")), `levers.md line ${line}: names a section by number${tail}`);
-  assert.equal(refusal("levers.md", (text) => text.replace(link, "`profile.md#651-nowhere`")), `levers.md line ${line}: #651-nowhere names no heading of profile.md${tail}`);
+  assert.equal(
+    refusal("levers.md", (text) => text.replace(link, "profile §6.5.1")),
+    `levers.md line ${line}: names a section by number${tail}`,
+  );
+  assert.equal(
+    refusal("levers.md", (text) => text.replace(link, "`profile.md#651-nowhere`")),
+    `levers.md line ${line}: #651-nowhere names no heading of profile.md${tail}`,
+  );
   // Inside the layer a link is relative to its file or written from the layer's root; into the
   // engine it is written from the root of the checkout the code lies in.
-  assert.equal(refusal("levers.md", (text) => text.replace(link, "`candidate/profile.md#651-ai-assisted-qa-workflow`")), null);
-  assert.equal(refusal("levers.md", (text) => text.replace(link, "`knowledge/impact-levers.md#1-impact-levers`")), null);
-  assert.equal(refusal("levers.md", (text) => text.replace(link, "`knowledge/impact-levers.md#nowhere`")), `levers.md line ${line}: #nowhere names no heading of knowledge/impact-levers.md${tail}`);
-  assert.equal(refusal("rules.md", (text) => `${text}\nAs in section 3.\n`)?.startsWith("rules.md line "), true);
-  assert.equal(refusal("profile.md", (text) => `${text}\nSee [the gaps](#7-explicit-gaps-do-not-oversell).\n`)?.includes("#7-explicit-gaps-do-not-oversell names no heading of this document"), true);
-  assert.equal(refusal("languages/Greek/language-rules.md", (text) => `${text}\nΚαι §2.\n`)?.startsWith("languages/Greek/language-rules.md line "), true);
+  assert.equal(
+    refusal("levers.md", (text) =>
+      text.replace(link, "`candidate/profile.md#651-ai-assisted-qa-workflow`"),
+    ),
+    null,
+  );
+  assert.equal(
+    refusal("levers.md", (text) =>
+      text.replace(link, "`knowledge/impact-levers.md#1-impact-levers`"),
+    ),
+    null,
+  );
+  assert.equal(
+    refusal("levers.md", (text) => text.replace(link, "`knowledge/impact-levers.md#nowhere`")),
+    `levers.md line ${line}: #nowhere names no heading of knowledge/impact-levers.md${tail}`,
+  );
+  assert.equal(
+    refusal("rules.md", (text) => `${text}\nAs in section 3.\n`)?.startsWith("rules.md line "),
+    true,
+  );
+  assert.equal(
+    refusal(
+      "profile.md",
+      (text) => `${text}\nSee [the gaps](#7-explicit-gaps-do-not-oversell).\n`,
+    )?.includes("#7-explicit-gaps-do-not-oversell names no heading of this document"),
+    true,
+  );
+  assert.equal(
+    refusal("languages/Greek/language-rules.md", (text) => `${text}\nΚαι §2.\n`)?.startsWith(
+      "languages/Greek/language-rules.md line ",
+    ),
+    true,
+  );
   // The memory and the letter samples are not read for a section.
-  assert.equal(refusal("memory.md", (text) => `${text}\nprofile §7\n`), null);
+  assert.equal(
+    refusal("memory.md", (text) => `${text}\nprofile §7\n`),
+    null,
+  );
 });
 
 test("a present layer without a declared heading or required file is refused, naming both", (t) => {
@@ -2329,19 +3141,39 @@ test("a present layer without a declared heading or required file is refused, na
   assert.equal(text.includes("\n## Open questions\n"), true);
 
   writeFileSync(memory, text.replace("\n## Open questions\n", "\n## Questions\n"), "utf8");
-  assert.throws(() => inspectCandidateLayer({ root }), (error) => (
-    error.code === "candidate_layer_heading_missing"
-    && error.message === "memory.md lacks the heading ## Open questions, which the layer manifest declares"
-  ));
+  assert.throws(
+    () => inspectCandidateLayer({ root }),
+    (error) =>
+      error.code === "candidate_layer_heading_missing" &&
+      error.message ===
+        "memory.md lacks the heading ## Open questions, which the layer manifest declares",
+  );
   // A heading inside a code fence is not one.
-  writeFileSync(memory, text.replace("\n## Open questions\n", "\n```\n## Open questions\n```\n"), "utf8");
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root })), "candidate_layer_heading_missing");
+  writeFileSync(
+    memory,
+    text.replace("\n## Open questions\n", "\n```\n## Open questions\n```\n"),
+    "utf8",
+  );
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root })),
+    "candidate_layer_heading_missing",
+  );
   // The wrong level is not the heading either.
   writeFileSync(memory, text.replace("\n## Open questions\n", "\n### Open questions\n"), "utf8");
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root })), "candidate_layer_heading_missing");
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root })),
+    "candidate_layer_heading_missing",
+  );
   // A qualifier in parentheses is part of the heading: the anchor a rule links to is built from it.
-  writeFileSync(memory, text.replace("\n## Open questions\n", "\n## Open questions (flags)\n"), "utf8");
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root })), "candidate_layer_heading_missing");
+  writeFileSync(
+    memory,
+    text.replace("\n## Open questions\n", "\n## Open questions (flags)\n"),
+    "utf8",
+  );
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root })),
+    "candidate_layer_heading_missing",
+  );
   // The memory is optional: a layer without it has nothing to carry the heading in.
   rmSync(memory);
   assert.equal(inspectCandidateLayer({ root }).status, "ready");
@@ -2349,37 +3181,68 @@ test("a present layer without a declared heading or required file is refused, na
   // A required file the manifest declares and no earlier check reads is refused by name, and a
   // language entry stands for each configured language.
   const withNotes = manifestWith([{ path: "notes.md", required: true, role: "notes" }]);
-  assert.throws(() => inspectCandidateLayer({ manifest: withNotes, root }), (error) => (
-    error.code === "candidate_layer_file_missing"
-    && error.message === "the candidate layer is missing notes.md, which the layer manifest declares"
-  ));
+  assert.throws(
+    () => inspectCandidateLayer({ manifest: withNotes, root }),
+    (error) =>
+      error.code === "candidate_layer_file_missing" &&
+      error.message ===
+        "the candidate layer is missing notes.md, which the layer manifest declares",
+  );
   const withPackRules = parseCandidateManifest({
-    files: [{ headings: ["## Typography"], path: "languages/<language>/language-rules.md", required: true, role: "rules_of_a_pack" }],
+    files: [
+      {
+        headings: ["## Typography"],
+        path: "languages/<language>/language-rules.md",
+        required: true,
+        role: "rules_of_a_pack",
+      },
+    ],
     manifest_version: 1,
   });
   assert.equal(inspectCandidateLayer({ manifest: withPackRules, root }).status, "ready");
   const packRules = join(root, "languages", "Greek", "language-rules.md");
-  writeFileSync(packRules, readFileSync(packRules, "utf8").replace("## Typography", "## Punctuation"), "utf8");
-  assert.throws(() => inspectCandidateLayer({ manifest: withPackRules, root }), (error) => (
-    error.code === "candidate_layer_heading_missing" && error.message.startsWith("languages/Greek/language-rules.md lacks the heading ## Typography")
-  ));
+  writeFileSync(
+    packRules,
+    readFileSync(packRules, "utf8").replace("## Typography", "## Punctuation"),
+    "utf8",
+  );
+  assert.throws(
+    () => inspectCandidateLayer({ manifest: withPackRules, root }),
+    (error) =>
+      error.code === "candidate_layer_heading_missing" &&
+      error.message.startsWith("languages/Greek/language-rules.md lacks the heading ## Typography"),
+  );
   rmSync(packRules);
-  assert.throws(() => inspectCandidateLayer({ manifest: withPackRules, root }), (error) => (
-    error.code === "candidate_layer_file_missing" && error.message.includes("languages/Greek/language-rules.md")
-  ));
+  assert.throws(
+    () => inspectCandidateLayer({ manifest: withPackRules, root }),
+    (error) =>
+      error.code === "candidate_layer_file_missing" &&
+      error.message.includes("languages/Greek/language-rules.md"),
+  );
 });
 
 test("the manifest comes last: a gap an earlier check reads keeps that check's code", (t) => {
   const root = exampleCopy(t, "job-search-candidate-manifest-");
   rmSync(join(root, "rules.md"));
-  assert.equal(refusalCode(() => inspectCandidateLayer({ root })), "candidate_document_missing");
+  assert.equal(
+    refusalCode(() => inspectCandidateLayer({ root })),
+    "candidate_document_missing",
+  );
 });
 
 test("the layer check refuses a layer the manifest finds a gap in", (t) => {
   const root = exampleCopy(t, "job-search-candidate-manifest-");
   const memory = join(root, "memory.md");
-  writeFileSync(memory, readFileSync(memory, "utf8").replace("\n## Open questions\n", "\n## Questions\n"), "utf8");
-  const run = spawnSync(process.execPath, [join(repoRoot, "tools/candidate/cli.mjs"), "--check", "--root", root], { encoding: "utf8" });
+  writeFileSync(
+    memory,
+    readFileSync(memory, "utf8").replace("\n## Open questions\n", "\n## Questions\n"),
+    "utf8",
+  );
+  const run = spawnSync(
+    process.execPath,
+    [join(repoRoot, "tools/candidate/cli.mjs"), "--check", "--root", root],
+    { encoding: "utf8" },
+  );
   assert.equal(run.status, 1);
   assert.equal(run.stdout, "");
   const error = JSON.parse(run.stderr).error;
@@ -2395,47 +3258,141 @@ test("a manifest this engine cannot read refuses with its own code", (t) => {
     return refusalCode(() => parseCandidateManifest(raw));
   };
   const invalid = "candidate_manifest_invalid";
-  assert.equal(refused(() => {}), null);
-  assert.equal(refused((raw) => { raw.manifest_version = 2; }), invalid);
-  assert.equal(refused((raw) => { raw.extra = true; }), invalid);
-  assert.equal(refused((raw) => { raw.files = []; }), invalid);
-  assert.equal(refused((raw) => { raw.files.push({ ...raw.files[0], path: "other.json" }); }), invalid);
-  assert.equal(refused((raw) => { raw.files.push({ path: "config.json", required: true, role: "second" }); }), invalid);
-  assert.equal(refused((raw) => { raw.files[0].path = "../config.json"; }), invalid);
-  assert.equal(refused((raw) => { raw.files[0].path = "/config.json"; }), invalid);
-  assert.equal(refused((raw) => { raw.files[0].path = "languages/<lang>/pack.json"; }), invalid);
-  assert.equal(refused((raw) => { raw.files[0].required = "yes"; }), invalid);
-  assert.equal(refused((raw) => { raw.files[0].headings = ["## Values"]; }), invalid);
-  assert.equal(refused((raw) => { raw.files[0].why = "unknown field"; }), invalid);
-  assert.equal(refused((raw) => { raw.files[2].headings.push("Explicit Gaps"); }), invalid);
-  assert.equal(refused((raw) => { raw.files[2].headings.push("## 7. Explicit Gaps"); }), invalid);
+  assert.equal(
+    refused(() => {}),
+    null,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.manifest_version = 2;
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.extra = true;
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files = [];
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files.push({ ...raw.files[0], path: "other.json" });
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files.push({ path: "config.json", required: true, role: "second" });
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files[0].path = "../config.json";
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files[0].path = "/config.json";
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files[0].path = "languages/<lang>/pack.json";
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files[0].required = "yes";
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files[0].headings = ["## Values"];
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files[0].why = "unknown field";
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files[2].headings.push("Explicit Gaps");
+    }),
+    invalid,
+  );
+  assert.equal(
+    refused((raw) => {
+      raw.files[2].headings.push("## 7. Explicit Gaps");
+    }),
+    invalid,
+  );
 
   const base = disposable(t, "job-search-candidate-manifest-file-");
-  assert.equal(refusalCode(() => loadCandidateManifest({ path: join(base, "manifest.json") })), "candidate_manifest_missing");
+  assert.equal(
+    refusalCode(() => loadCandidateManifest({ path: join(base, "manifest.json") })),
+    "candidate_manifest_missing",
+  );
   writeFileSync(join(base, "manifest.json"), "{ not json\n", "utf8");
-  assert.equal(refusalCode(() => loadCandidateManifest({ path: join(base, "manifest.json") })), invalid);
-  assert.deepEqual([...candidateManifestErrorCodes].every((code) => candidateErrorCodes.includes(code)), true);
+  assert.equal(
+    refusalCode(() => loadCandidateManifest({ path: join(base, "manifest.json") })),
+    invalid,
+  );
+  assert.deepEqual(
+    [...candidateManifestErrorCodes].every((code) => candidateErrorCodes.includes(code)),
+    true,
+  );
 });
 
 test("a heading's anchor is GitHub's: the whole title lower-cased, punctuation dropped, spaces hyphenated", () => {
   assert.equal(candidateHeadingSlug("7. Explicit Gaps"), "7-explicit-gaps");
-  assert.equal(candidateHeadingSlug("8. Work Approach & Team Style"), "8-work-approach--team-style");
+  assert.equal(
+    candidateHeadingSlug("8. Work Approach & Team Style"),
+    "8-work-approach--team-style",
+  );
   assert.equal(candidateHeadingSlug("6.3. CI/CD & Infrastructure"), "63-cicd--infrastructure");
-  assert.equal(candidateHeadingSlug("6.5.1. AI-assisted QA workflow"), "651-ai-assisted-qa-workflow");
+  assert.equal(
+    candidateHeadingSlug("6.5.1. AI-assisted QA workflow"),
+    "651-ai-assisted-qa-workflow",
+  );
   assert.equal(candidateHeadingSlug("Open questions"), "open-questions");
   // The qualifier stays, code marks go, a link keeps its text, and a letter of any script is kept.
   assert.equal(candidateHeadingSlug("2. Data sources (priority)"), "2-data-sources-priority");
   assert.equal(candidateHeadingSlug("3.1. Example — Range (0..42)"), "31-example--range-042");
-  assert.equal(candidateHeadingSlug("Example (0..8) — taxonomy `example-v4`"), "example-08--taxonomy-example-v4");
+  assert.equal(
+    candidateHeadingSlug("Example (0..8) — taxonomy `example-v4`"),
+    "example-08--taxonomy-example-v4",
+  );
   assert.equal(candidateHeadingSlug("See [the map](x.md) first"), "see-the-map-first");
   assert.equal(candidateHeadingSlug("9. Gate перед integration"), "9-gate-перед-integration");
   assert.equal(candidateHeadingSlug("`MANUAL_REVIEW` codes"), "manual_review-codes");
   assert.deepEqual(
-    candidateHeadings("# T\n## 7. Explicit Gaps (Do Not Oversell)\n```\n## Not one\n```\n").map((heading) => [heading.level, heading.title]),
-    [[1, "T"], [2, "7. Explicit Gaps (Do Not Oversell)"]],
+    candidateHeadings("# T\n## 7. Explicit Gaps (Do Not Oversell)\n```\n## Not one\n```\n").map(
+      (heading) => [heading.level, heading.title],
+    ),
+    [
+      [1, "T"],
+      [2, "7. Explicit Gaps (Do Not Oversell)"],
+    ],
   );
   // A repeated heading is numbered as GitHub numbers it, skipping an anchor already taken.
-  assert.deepEqual([...candidateHeadingAnchors("# A\n## A\n## A-1\n## A\n")], ["a", "a-1", "a-1-1", "a-2"]);
+  assert.deepEqual(
+    [...candidateHeadingAnchors("# A\n## A\n## A-1\n## A\n")],
+    ["a", "a-1", "a-1-1", "a-2"],
+  );
 });
 
 test("every reference a document a run reads makes into the layer opens on the example, none names it, and no section is named by number", () => {
@@ -2447,7 +3404,8 @@ test("every reference a document a run reads makes into the layer opens on the e
   });
   assert.deepEqual(checked.findings, []);
   // The rule's own example and the memory's flag heading are live links, so the check is not vacuous.
-  const anchored = checked.references.filter((reference) => reference.anchor !== null)
+  const anchored = checked.references
+    .filter((reference) => reference.anchor !== null)
     .map((reference) => `${reference.document} ${reference.path}#${reference.anchor}`);
   for (const live of [
     "instructions/operating-contract.md memory.md#open-questions",
@@ -2464,9 +3422,14 @@ test("every reference a document a run reads makes into the layer opens on the e
   // by nobody. None of these documents holds a layer link inside a code fence; the form
   // `candidate/<file>#<anchor>` describes a link and is not one.
   for (const document of candidateRunDocuments(repoRoot)) {
-    const written = (readFileSync(join(repoRoot, document), "utf8").match(/(?<=^|[\s`'"(\[])(?:\.\.\/)*candidate\/[^\s`'")\]]*#/gmu) ?? [])
-      .filter((link) => !link.endsWith(">#"));
-    const read = checked.references.filter((reference) => reference.document === document && reference.anchor !== null);
+    const written = (
+      readFileSync(join(repoRoot, document), "utf8").match(
+        /(?<=^|[\s`'"(\[])(?:\.\.\/)*candidate\/[^\s`'")\]]*#/gmu,
+      ) ?? []
+    ).filter((link) => !link.endsWith(">#"));
+    const read = checked.references.filter(
+      (reference) => reference.document === document && reference.anchor !== null,
+    );
     assert.equal(read.length, written.length, document);
   }
   assert.equal(checked.references.length > 40, true);
@@ -2475,14 +3438,20 @@ test("every reference a document a run reads makes into the layer opens on the e
   for (const document of [...candidateRunDocuments(repoRoot), ...candidateRunReadmes(repoRoot)]) {
     const text = readFileSync(join(repoRoot, document), "utf8");
     const unfenced = text.replace(/^\s*(```|~~~)[^\n]*\n[\s\S]*?^\s*\1[^\n]*$/gmu, "");
-    const written = (unfenced.match(/\.md#[\p{L}\p{N}_-]|\]\(#[\p{L}\p{N}_-]|`#[\p{L}\p{N}_-]/gu) ?? []).length;
+    const written = (
+      unfenced.match(/\.md#[\p{L}\p{N}_-]|\]\(#[\p{L}\p{N}_-]|`#[\p{L}\p{N}_-]/gu) ?? []
+    ).length;
     assert.equal(candidateLayerReferencesIn(text).sectionLinks.length, written, document);
   }
   // The runbooks a run reads are scanned with the canon, and so are the tool READMEs a run is sent
   // to, a runbook's included.
   assert.equal(candidateRunDocuments(repoRoot).includes("docs/runbooks/triage-review.md"), true);
   const readmes = candidateRunReadmes(repoRoot);
-  for (const readme of ["tools/candidate/README.md", "tools/application-brief/README.md", "tools/ops-tree/README.md"]) {
+  for (const readme of [
+    "tools/candidate/README.md",
+    "tools/application-brief/README.md",
+    "tools/ops-tree/README.md",
+  ]) {
     assert.equal(readmes.includes(readme), true, readme);
   }
 });
@@ -2493,60 +3462,79 @@ test("a reference that does not open, and a mention of the example, are findings
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), text, "utf8");
   };
-  write("instructions/a.md", [
-    "Read `candidate/profile.md#7-explicit-gaps` and [the bank](../candidate/levers.md#positioning).",
-    "Flags go to `candidate/memory.md#open-questions`; the root is `candidate/`.",
-    "Packs: `candidate/languages/<language>/` and `candidate/languages/<язык>/language-rules.md`.",
-    "The eighth is `candidate/profile.md#8-work-approach--team-style`, and the form is `candidate/<file>#<anchor>`.",
-    "Not a reference: `tools/candidate/README.md` and ../tools/candidate/load.mjs.",
-    "```sh",
-    "cat candidate/nowhere.md candidate.example/profile.md",
-    "```",
-    "Broken: `candidate/profile.md#7-explicit-gaps-do-not-oversell`, `candidate/lever.md`.",
-    "Undeclared: `candidate/levers.md#stance` and `candidate/profile.md#91-tarnwick-studio`.",
-    "Absent from the example: `candidate/telegram-sources.json`.",
-    "The fixture is candidate.example/profile.md.",
-    "See [triage](../docs/runbooks/named.md).",
-  ].join("\n"));
+  write(
+    "instructions/a.md",
+    [
+      "Read `candidate/profile.md#7-explicit-gaps` and [the bank](../candidate/levers.md#positioning).",
+      "Flags go to `candidate/memory.md#open-questions`; the root is `candidate/`.",
+      "Packs: `candidate/languages/<language>/` and `candidate/languages/<язык>/language-rules.md`.",
+      "The eighth is `candidate/profile.md#8-work-approach--team-style`, and the form is `candidate/<file>#<anchor>`.",
+      "Not a reference: `tools/candidate/README.md` and ../tools/candidate/load.mjs.",
+      "```sh",
+      "cat candidate/nowhere.md candidate.example/profile.md",
+      "```",
+      "Broken: `candidate/profile.md#7-explicit-gaps-do-not-oversell`, `candidate/lever.md`.",
+      "Undeclared: `candidate/levers.md#stance` and `candidate/profile.md#91-tarnwick-studio`.",
+      "Absent from the example: `candidate/telegram-sources.json`.",
+      "The fixture is candidate.example/profile.md.",
+      "See [triage](../docs/runbooks/named.md).",
+    ].join("\n"),
+  );
   write("instructions/d.md", "Read `tools/foo/README.md`.\n");
-  write("knowledge/b.md", "Anchored directory: `candidate/languages/<language>/#x`.\n\n## Anchored\n\n## Anchored\n");
-  write("knowledge/c.md", [
-    "Gaps: profile §7.",
-    "The stack: §7 of `candidate/profile.md`.",
-    "Classes — Профиль (§3) and профиля, §3.",
-    "The rubric's Section 2.2 decides.",
-    "Sections 3.1 to 3.4 score it.",
-    "The flags subsection 2 lists them.",
-    "See Sec. 7 for the trace.",
-    "Классы — в разделе 3.",
-    "Read the stack of section",
-    "9 before scoring.",
-    "> A quote that reads section",
-    "> 7 on its next line.",
-    "Not findings: step 3, rule 16, a cross-section 3, an intersection 3, a heading below.",
-    "## 6. A heading of its own",
-    "```",
-    "§7 and section 7 in a fence",
-    "```",
-    "Links: [own](#6-a-heading-of-its-own), [other](b.md#anchored), `knowledge/b.md#anchored`, `b.md#anchored`.",
-    "Broken: [own](#nowhere), [other](b.md#nowhere), [rooted](knowledge/b.md#anchored), `missing.md#x`.",
-    "Not links: `groups.mjs#collectionGroup`, https://example.com/x.md#y, [site](https://example.com/a.md#b), `<path>#<anchor>`.",
-    "Repeat: [second](b.md#anchored-1); own in code: `#6-a-heading-of-its-own`.",
-    "Broken in code and in plain parentheses: `#nowhere-code` (missing2.md#x).",
-  ].join("\n"));
+  write(
+    "knowledge/b.md",
+    "Anchored directory: `candidate/languages/<language>/#x`.\n\n## Anchored\n\n## Anchored\n",
+  );
+  write(
+    "knowledge/c.md",
+    [
+      "Gaps: profile §7.",
+      "The stack: §7 of `candidate/profile.md`.",
+      "Classes — Профиль (§3) and профиля, §3.",
+      "The rubric's Section 2.2 decides.",
+      "Sections 3.1 to 3.4 score it.",
+      "The flags subsection 2 lists them.",
+      "See Sec. 7 for the trace.",
+      "Классы — в разделе 3.",
+      "Read the stack of section",
+      "9 before scoring.",
+      "> A quote that reads section",
+      "> 7 on its next line.",
+      "Not findings: step 3, rule 16, a cross-section 3, an intersection 3, a heading below.",
+      "## 6. A heading of its own",
+      "```",
+      "§7 and section 7 in a fence",
+      "```",
+      "Links: [own](#6-a-heading-of-its-own), [other](b.md#anchored), `knowledge/b.md#anchored`, `b.md#anchored`.",
+      "Broken: [own](#nowhere), [other](b.md#nowhere), [rooted](knowledge/b.md#anchored), `missing.md#x`.",
+      "Not links: `groups.mjs#collectionGroup`, https://example.com/x.md#y, [site](https://example.com/a.md#b), `<path>#<anchor>`.",
+      "Repeat: [second](b.md#anchored-1); own in code: `#6-a-heading-of-its-own`.",
+      "Broken in code and in plain parentheses: `#nowhere-code` (missing2.md#x).",
+    ].join("\n"),
+  );
   write("docs/runbooks/named.md", "It reads `candidate/profiles.md`.\n");
   write("docs/runbooks/unnamed.md", "It reads `candidate/nothing.md` and candidate.example/.\n");
   // A tool README a run is sent to is read for section numbers and links only: it may describe the
   // example and the layer's form, and a link that climbs to a sibling tool is a file of the tree.
-  write("tools/foo/README.md", [
-    "It describes candidate.example and `candidate/research/`.",
-    "The layer is checked by [the check](../candidate/README.md#checking).",
-    "Section 4 of it.",
-    "Broken: `candidate/profile.md#nowhere`.",
-  ].join("\n"));
+  write(
+    "tools/foo/README.md",
+    [
+      "It describes candidate.example and `candidate/research/`.",
+      "The layer is checked by [the check](../candidate/README.md#checking).",
+      "Section 4 of it.",
+      "Broken: `candidate/profile.md#nowhere`.",
+    ].join("\n"),
+  );
   write("tools/candidate/README.md", "## Checking\n");
-  const manifest = manifestWith([{ path: "telegram-sources.json", required: false, role: "telegram_sources" }]);
-  const checked = checkCandidateLinks({ exampleRoot, languages: exampleLanguages(), manifest, root });
+  const manifest = manifestWith([
+    { path: "telegram-sources.json", required: false, role: "telegram_sources" },
+  ]);
+  const checked = checkCandidateLinks({
+    exampleRoot,
+    languages: exampleLanguages(),
+    manifest,
+    root,
+  });
   const number = "a document a run reads names a section by number";
   assert.deepEqual(
     checked.findings.map((finding) => `${finding.document}:${finding.line} ${finding.reason}`),
@@ -2573,8 +3561,12 @@ test("a reference that does not open, and a mention of the example, are findings
   // What was read as a reference: through `../`, the root and a directory included; nothing from
   // the fence, `tools/candidate/` or the form `candidate/<file>`.
   assert.deepEqual(
-    checked.references.filter((reference) => reference.document === "instructions/a.md" && reference.line <= 4)
-      .map((reference) => `${reference.line} ${reference.path}${reference.anchor === null ? "" : `#${reference.anchor}`}`),
+    checked.references
+      .filter((reference) => reference.document === "instructions/a.md" && reference.line <= 4)
+      .map(
+        (reference) =>
+          `${reference.line} ${reference.path}${reference.anchor === null ? "" : `#${reference.anchor}`}`,
+      ),
     [
       "1 profile.md#7-explicit-gaps",
       "1 levers.md#positioning",
@@ -2585,9 +3577,14 @@ test("a reference that does not open, and a mention of the example, are findings
       "4 profile.md#8-work-approach--team-style",
     ],
   );
-  assert.equal(checked.references.some((reference) => reference.line >= 5 && reference.line <= 8), false);
+  assert.equal(
+    checked.references.some((reference) => reference.line >= 5 && reference.line <= 8),
+    false,
+  );
   assert.deepEqual(
-    candidateLayerReferencesIn("`tools/candidate/x.md` (candidate/rules.md). candidate/profile.md.\n").references.map((reference) => reference.path),
+    candidateLayerReferencesIn(
+      "`tools/candidate/x.md` (candidate/rules.md). candidate/profile.md.\n",
+    ).references.map((reference) => reference.path),
     ["rules.md", "profile.md"],
   );
 });
@@ -2608,7 +3605,10 @@ test("every layer file a step pins is a manifest role, by its path and whether i
   }
   // What no step pins is live, and the layer README names it so.
   assert.deepEqual(
-    exampleManifest.files.map((file) => file.role).filter((role) => !pinned.has(role)).sort(),
+    exampleManifest.files
+      .map((file) => file.role)
+      .filter((role) => !pinned.has(role))
+      .sort(),
     ["language_pins", "letter_reader_examples", "memory"],
   );
 });

@@ -79,18 +79,22 @@ export function isLanguageName(value) {
 
 /** The config bound of `languages.additional`: distinct names, none of them the default. */
 export function acceptsAdditionalLanguages(value) {
-  return value.length <= MAX_ADDITIONAL_LANGUAGES
-    && value.every(isLanguageName)
-    && new Set(value).size === value.length
-    && !value.includes(DEFAULT_LANGUAGE.name);
+  return (
+    value.length <= MAX_ADDITIONAL_LANGUAGES &&
+    value.every(isLanguageName) &&
+    new Set(value).size === value.length &&
+    !value.includes(DEFAULT_LANGUAGE.name)
+  );
 }
 
 /** The config bound of a one-line text value: not empty, no surrounding space, no line break. */
 export function acceptsSingleLine(value) {
-  return value.length > 0
-    && value.length <= MAX_LINE
-    && value === value.trim()
-    && !CONTROL_CHARACTER.test(value);
+  return (
+    value.length > 0 &&
+    value.length <= MAX_LINE &&
+    value === value.trim() &&
+    !CONTROL_CHARACTER.test(value)
+  );
 }
 
 /**
@@ -150,9 +154,14 @@ function entryKind(path) {
 // above all — and is neither read nor refused.
 function visibleEntries(path) {
   try {
-    return readdirSync(path).filter((entry) => !entry.startsWith(".")).sort();
+    return readdirSync(path)
+      .filter((entry) => !entry.startsWith("."))
+      .sort();
   } catch (error) {
-    fail("candidate_language_pack_unreadable", `${path} is not readable (${error?.code ?? "unknown"})`);
+    fail(
+      "candidate_language_pack_unreadable",
+      `${path} is not readable (${error?.code ?? "unknown"})`,
+    );
   }
 }
 
@@ -187,25 +196,32 @@ function parsePack(name, text) {
     fail("candidate_language_pack_invalid_json", `${label} is not valid JSON`);
   }
   const invalid = (message) => fail("candidate_language_pack_invalid", `${label}: ${message}`);
-  if (value === null || typeof value !== "object" || Array.isArray(value)) invalid("must be a JSON object");
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    invalid("must be a JSON object");
   const unknown = Object.keys(value).find((key) => !PACK_FIELDS.includes(key));
   if (unknown !== undefined) invalid(`declares a field this reader does not know: ${unknown}`);
   const missing = PACK_FIELDS.find((key) => !Object.hasOwn(value, key));
   if (missing !== undefined) invalid(`omits ${missing}`);
   if (value.schema_version !== candidateLanguagePackSchemaVersion) {
-    invalid(`declares a schema this engine does not read; it reads ${candidateLanguagePackSchemaVersion}`);
+    invalid(
+      `declares a schema this engine does not read; it reads ${candidateLanguagePackSchemaVersion}`,
+    );
   }
-  if (!isSupportedLocale(value.locale)) invalid("locale must be a canonical locale the word counter supports");
+  if (!isSupportedLocale(value.locale))
+    invalid("locale must be a canonical locale the word counter supports");
   if (scriptPattern(value.script) === null) invalid("script must name a Unicode script");
   if (!Array.isArray(value.admits_scripts)) invalid("admits_scripts must be an array");
   for (const script of value.admits_scripts) {
     if (scriptPattern(script) === null) invalid("admits_scripts must name Unicode scripts");
   }
-  if (new Set(value.admits_scripts).size !== value.admits_scripts.length) invalid("admits_scripts repeats a script");
-  if (value.admits_scripts.includes(value.script)) invalid("admits_scripts must not name the pack's own script");
+  if (new Set(value.admits_scripts).size !== value.admits_scripts.length)
+    invalid("admits_scripts repeats a script");
+  if (value.admits_scripts.includes(value.script))
+    invalid("admits_scripts must not name the pack's own script");
   requireLine(value.signature, `${label}: signature`, "candidate_language_pack_invalid");
   requireLine(value.subject_prefix, `${label}: subject_prefix`, "candidate_language_pack_invalid");
-  if (value.subject_prefix.includes(":")) invalid("subject_prefix is the word alone, without a colon");
+  if (value.subject_prefix.includes(":"))
+    invalid("subject_prefix is the word alone, without a colon");
   return Object.freeze({
     admitsScripts: Object.freeze([...value.admits_scripts]),
     locale: value.locale,
@@ -225,7 +241,8 @@ function parsePins(name, packPath, text) {
   } catch {
     invalid("is not valid JSON");
   }
-  if (value === null || typeof value !== "object" || Array.isArray(value)) invalid("must be a JSON object");
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    invalid("must be a JSON object");
   const unknown = Object.keys(value).find((key) => key !== "pins" && key !== "schema_version");
   if (unknown !== undefined) invalid(`declares a field this reader does not know: ${unknown}`);
   if (value.schema_version !== candidatePinsSchemaVersion) {
@@ -236,28 +253,38 @@ function parsePins(name, packPath, text) {
   }
   const seen = new Set();
   const pins = value.pins.map((pin, index) => {
-    if (pin === null || typeof pin !== "object" || Array.isArray(pin)) invalid(`pin at index ${index} must be an object`);
+    if (pin === null || typeof pin !== "object" || Array.isArray(pin))
+      invalid(`pin at index ${index} must be an object`);
     // The id is also the name of the letter's file, so its form is what keeps a pin inside `pins/`.
     if (typeof pin.id !== "string" || !PIN_ID.test(pin.id)) {
-      invalid(`pin at index ${index}: id must be lowercase letters, digits and hyphens, starting with a letter`);
+      invalid(
+        `pin at index ${index}: id must be lowercase letters, digits and hyphens, starting with a letter`,
+      );
     }
     if (seen.has(pin.id)) invalid(`declares pin ${pin.id} twice`);
     seen.add(pin.id);
     const field = Object.keys(pin).find((key) => !PIN_FIELDS.includes(key));
     if (field !== undefined) invalid(`pin ${pin.id}: field ${field} is not part of a pin`);
-    if (!PIN_EXPECTATIONS.includes(pin.expect)) invalid(`pin ${pin.id}: expect must be accept or reject`);
+    if (!PIN_EXPECTATIONS.includes(pin.expect))
+      invalid(`pin ${pin.id}: expect must be accept or reject`);
     const rejecting = pin.expect === "reject";
     if (rejecting !== Object.hasOwn(pin, "finding")) {
       invalid(`pin ${pin.id}: a reject pin names its finding, and an accept pin names none`);
     }
-    if (rejecting) requireLine(pin.finding, `${label}: pin ${pin.id}: finding`, "candidate_pins_invalid");
+    if (rejecting)
+      requireLine(pin.finding, `${label}: pin ${pin.id}: finding`, "candidate_pins_invalid");
     requireLine(pin.why, `${label}: pin ${pin.id}: why`, "candidate_pins_invalid");
     const terms = pin.keyword_terms;
-    if (!Array.isArray(terms) || terms.length === 0 || terms.some((term) => typeof term !== "string" || term.trim() === "")) {
+    if (
+      !Array.isArray(terms) ||
+      terms.length === 0 ||
+      terms.some((term) => typeof term !== "string" || term.trim() === "")
+    ) {
       invalid(`pin ${pin.id}: keyword_terms must be a non-empty array of non-empty strings`);
     }
     const path = join(packPath, candidatePinsDirectoryName, `${pin.id}.txt`);
-    if (entryKind(path) !== "file") invalid(`pin ${pin.id}: ${candidatePinsDirectoryName}/${pin.id}.txt is not a file`);
+    if (entryKind(path) !== "file")
+      invalid(`pin ${pin.id}: ${candidatePinsDirectoryName}/${pin.id}.txt is not a file`);
     return Object.freeze({
       expect: pin.expect,
       finding: rejecting ? pin.finding : null,
@@ -268,14 +295,19 @@ function parsePins(name, packPath, text) {
     });
   });
   const declared = new Set(pins.map((pin) => `${pin.id}.txt`));
-  const stray = visibleEntries(join(packPath, candidatePinsDirectoryName)).find((entry) => !declared.has(entry));
+  const stray = visibleEntries(join(packPath, candidatePinsDirectoryName)).find(
+    (entry) => !declared.has(entry),
+  );
   if (stray !== undefined) invalid(`${candidatePinsDirectoryName}/${stray} is not a declared pin`);
   return Object.freeze(pins);
 }
 
 /** The letter of one pin, as bytes. */
 export function readCandidatePinLetter(pin) {
-  const text = readText(pin.path, `pin ${pin.id}`, { code: "candidate_pins_invalid", maximum: MAX_PIN_BYTES });
+  const text = readText(pin.path, `pin ${pin.id}`, {
+    code: "candidate_pins_invalid",
+    maximum: MAX_PIN_BYTES,
+  });
   return new TextEncoder().encode(text);
 }
 
@@ -283,7 +315,10 @@ function readPack(root, name) {
   const packPath = candidateLanguagePackPathFor(root, name);
   const kind = entryKind(packPath);
   if (kind === null) {
-    fail("candidate_language_pack_missing", `the config names ${name}, and languages/${name}/ is not there`);
+    fail(
+      "candidate_language_pack_missing",
+      `the config names ${name}, and languages/${name}/ is not there`,
+    );
   }
   if (kind !== "directory") {
     fail("candidate_language_pack_unreadable", `languages/${name} must be a directory`);
@@ -297,7 +332,10 @@ function readPack(root, name) {
   ]);
   for (const entry of visibleEntries(packPath)) {
     if (!allowed.has(entry)) {
-      fail("candidate_language_pack_invalid", `languages/${name}/${entry} is not a file a pack holds`);
+      fail(
+        "candidate_language_pack_invalid",
+        `languages/${name}/${entry} is not a file a pack holds`,
+      );
     }
     const expected = entry === candidatePinsDirectoryName ? "directory" : "file";
     if (entryKind(join(packPath, entry)) !== expected) {
@@ -306,12 +344,18 @@ function readPack(root, name) {
   }
   const packFile = join(packPath, candidateLanguagePackBasename);
   if (entryKind(packFile) === null) {
-    fail("candidate_language_pack_missing", `languages/${name}/${candidateLanguagePackBasename} is not there`);
+    fail(
+      "candidate_language_pack_missing",
+      `languages/${name}/${candidateLanguagePackBasename} is not there`,
+    );
   }
-  const pack = parsePack(name, readText(packFile, `languages/${name}/${candidateLanguagePackBasename}`, {
-    code: "candidate_language_pack_unreadable",
-    maximum: MAX_PACK_BYTES,
-  }));
+  const pack = parsePack(
+    name,
+    readText(packFile, `languages/${name}/${candidateLanguagePackBasename}`, {
+      code: "candidate_language_pack_unreadable",
+      maximum: MAX_PACK_BYTES,
+    }),
+  );
   const rulesPath = join(packPath, candidateLanguageRulesBasename);
   const hasRules = entryKind(rulesPath) !== null;
   if (hasRules) {
@@ -324,13 +368,20 @@ function readPack(root, name) {
   const hasPins = entryKind(pinsPath) !== null;
   const hasPinsDirectory = entryKind(join(packPath, candidatePinsDirectoryName)) !== null;
   if (hasPinsDirectory && !hasPins) {
-    fail("candidate_pins_invalid", `languages/${name}/${candidatePinsDirectoryName}/ is there without ${candidatePinsBasename}`);
+    fail(
+      "candidate_pins_invalid",
+      `languages/${name}/${candidatePinsDirectoryName}/ is there without ${candidatePinsBasename}`,
+    );
   }
   const pins = hasPins
-    ? parsePins(name, packPath, readText(pinsPath, `languages/${name}/${candidatePinsBasename}`, {
-      code: "candidate_pins_invalid",
-      maximum: MAX_PACK_BYTES,
-    }))
+    ? parsePins(
+        name,
+        packPath,
+        readText(pinsPath, `languages/${name}/${candidatePinsBasename}`, {
+          code: "candidate_pins_invalid",
+          maximum: MAX_PACK_BYTES,
+        }),
+      )
     : Object.freeze([]);
   return Object.freeze({
     ...pack,
@@ -352,12 +403,18 @@ export function readCandidateLanguages({ root, config }) {
   const directory = join(root, candidateLanguagesDirectoryName);
   const kind = entryKind(directory);
   if (kind !== null && kind !== "directory") {
-    fail("candidate_language_pack_unreadable", `${candidateLanguagesDirectoryName} must be a directory`);
+    fail(
+      "candidate_language_pack_unreadable",
+      `${candidateLanguagesDirectoryName} must be a directory`,
+    );
   }
   if (kind === "directory") {
     const stray = visibleEntries(directory).find((entry) => !names.slice(1).includes(entry));
     if (stray !== undefined) {
-      fail("candidate_language_pack_unconfigured", `languages/${stray} is a pack the config does not name`);
+      fail(
+        "candidate_language_pack_unconfigured",
+        `languages/${stray} is a pack the config does not name`,
+      );
     }
   }
   const packs = names.slice(1).map((name) => readPack(root, name));

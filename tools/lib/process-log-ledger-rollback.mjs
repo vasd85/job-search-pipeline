@@ -8,11 +8,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import {
-  normalizeSourceRefForVersion,
-  validateLogV3,
-  withLogV3Lock,
-} from "./process-log-core.mjs";
+import { normalizeSourceRefForVersion, validateLogV3, withLogV3Lock } from "./process-log-core.mjs";
 import { ProcessLogLifecycleError } from "./process-log-v3-lifecycle.mjs";
 
 // Rollback of the source-key cutover, as ADR 0013 defines it: not a release revert. The affected
@@ -35,11 +31,7 @@ function sha256Hex(bytes) {
 // more place a rollback could write, and the operational root is the only place this belongs.
 function resolveBackupPath(logPath, backupFile) {
   const name = String(backupFile ?? "").trim();
-  if (
-    !name
-    || name !== basename(name)
-    || !ledgerBackupBasenamePattern.test(name)
-  ) {
+  if (!name || name !== basename(name) || !ledgerBackupBasenamePattern.test(name)) {
     throw new ProcessLogLifecycleError(
       "invalid_ledger_backup_name",
       "backup file must be a basename matching process-log.backup-<label>.json",
@@ -50,9 +42,7 @@ function resolveBackupPath(logPath, backupFile) {
 
 function boundedFileErrorCode(error) {
   const code = error?.code;
-  return typeof code === "string" && /^[A-Z][A-Z0-9_]{0,31}$/.test(code)
-    ? code
-    : "UNKNOWN";
+  return typeof code === "string" && /^[A-Z][A-Z0-9_]{0,31}$/.test(code) ? code : "UNKNOWN";
 }
 
 // Reported by `backup-ledger` as well as by the restore review, and that is the point rather than a
@@ -73,42 +63,44 @@ function versionOneReadability(log) {
 
 export function backupProcessLogV3(logPath, { backupFile }, { lockOptions } = {}) {
   const backupPath = resolveBackupPath(logPath, backupFile);
-  return withLogV3Lock(logPath, ({ log }) => {
-    // The lock has already read and validated the ledger, so a file that does not load never
-    // becomes a rollback target: that is a second problem, not a backup. Re-reading the bytes under
-    // the same lock is safe because the lock serialises every writer.
-    const bytes = readFileSync(logPath);
-    try {
-      writeFileSync(backupPath, bytes, { flag: "wx", mode: 0o600 });
-    } catch (error) {
-      const causeCode = boundedFileErrorCode(error);
-      if (causeCode !== "EEXIST") {
-        // A half-written backup that stays on disk makes the retry fail with "already exists" and
-        // leaves the operator holding an unusable rollback target under a reassuring name.
-        try {
-          unlinkSync(backupPath);
-        } catch {
-          // Nothing to clean up, or nothing that can be cleaned up; the throw below is the report.
+  return withLogV3Lock(
+    logPath,
+    ({ log }) => {
+      // The lock has already read and validated the ledger, so a file that does not load never
+      // becomes a rollback target: that is a second problem, not a backup. Re-reading the bytes under
+      // the same lock is safe because the lock serialises every writer.
+      const bytes = readFileSync(logPath);
+      try {
+        writeFileSync(backupPath, bytes, { flag: "wx", mode: 0o600 });
+      } catch (error) {
+        const causeCode = boundedFileErrorCode(error);
+        if (causeCode !== "EEXIST") {
+          // A half-written backup that stays on disk makes the retry fail with "already exists" and
+          // leaves the operator holding an unusable rollback target under a reassuring name.
+          try {
+            unlinkSync(backupPath);
+          } catch {
+            // Nothing to clean up, or nothing that can be cleaned up; the throw below is the report.
+          }
         }
+        throw new ProcessLogLifecycleError(
+          causeCode === "EEXIST" ? "ledger_backup_exists" : "ledger_backup_write_failed",
+          causeCode === "EEXIST"
+            ? "a backup with this name already exists and is never overwritten"
+            : `the ledger backup could not be written (${causeCode})`,
+        );
       }
-      throw new ProcessLogLifecycleError(
-        causeCode === "EEXIST"
-          ? "ledger_backup_exists"
-          : "ledger_backup_write_failed",
-        causeCode === "EEXIST"
-          ? "a backup with this name already exists and is never overwritten"
-          : `the ledger backup could not be written (${causeCode})`,
-      );
-    }
-    return {
-      status: "backed_up",
-      backup_file: basename(backupPath),
-      backup_bytes: bytes.byteLength,
-      backup_sha256: sha256Hex(bytes),
-      record_count: log.processes.length,
-      ...versionOneReadability(log),
-    };
-  }, lockOptions);
+      return {
+        status: "backed_up",
+        backup_file: basename(backupPath),
+        backup_bytes: bytes.byteLength,
+        backup_sha256: sha256Hex(bytes),
+        record_count: log.processes.length,
+        ...versionOneReadability(log),
+      };
+    },
+    lockOptions,
+  );
 }
 
 function readBackupLog(backupPath) {
@@ -220,8 +212,11 @@ function compareById(current, backup) {
   return {
     dropped: [...currentById.keys()].filter((id) => !backupById.has(id)).sort(),
     modified: [...currentById.keys()]
-      .filter((id) => backupById.has(id)
-        && JSON.stringify(currentById.get(id)) !== JSON.stringify(backupById.get(id)))
+      .filter(
+        (id) =>
+          backupById.has(id) &&
+          JSON.stringify(currentById.get(id)) !== JSON.stringify(backupById.get(id)),
+      )
       .sort(),
     reappearing: [...backupById.keys()].filter((id) => !currentById.has(id)).sort(),
   };
@@ -274,19 +269,23 @@ function buildRestorePlan(log, backup) {
 }
 
 function restoreConfirmationTokenFor(plan, ledgerSha256) {
-  return createHash("sha256").update(JSON.stringify({
-    backup_sha256: plan.backup_sha256,
-    dropped_companies: plan.dropped_companies,
-    dropped_processes: plan.dropped_processes,
-    ledger_sha256: ledgerSha256,
-    modified_companies: plan.modified_companies,
-    modified_processes: plan.modified_processes,
-    changed_root_fields: plan.changed_root_fields,
-    reappearing_companies: plan.reappearing_companies,
-    reappearing_processes: plan.reappearing_processes,
-    rollback: plan.rollback,
-    version_1_problems: plan.backup_version_1_problems,
-  })).digest("hex");
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        backup_sha256: plan.backup_sha256,
+        dropped_companies: plan.dropped_companies,
+        dropped_processes: plan.dropped_processes,
+        ledger_sha256: ledgerSha256,
+        modified_companies: plan.modified_companies,
+        modified_processes: plan.modified_processes,
+        changed_root_fields: plan.changed_root_fields,
+        reappearing_companies: plan.reappearing_companies,
+        reappearing_processes: plan.reappearing_processes,
+        rollback: plan.rollback,
+        version_1_problems: plan.backup_version_1_problems,
+      }),
+    )
+    .digest("hex");
 }
 
 export function restoreProcessLogV3(
@@ -296,11 +295,8 @@ export function restoreProcessLogV3(
 ) {
   const backupPath = resolveBackupPath(logPath, backupFile);
   if (
-    confirmationToken !== null
-    && (
-      typeof confirmationToken !== "string"
-      || !restoreConfirmationPattern.test(confirmationToken)
-    )
+    confirmationToken !== null &&
+    (typeof confirmationToken !== "string" || !restoreConfirmationPattern.test(confirmationToken))
   ) {
     throw new ProcessLogLifecycleError(
       "invalid_ledger_restore_input",
@@ -308,40 +304,44 @@ export function restoreProcessLogV3(
     );
   }
 
-  return withLogV3Lock(logPath, ({ log, write }) => {
-    const backup = readBackupLog(backupPath);
-    const ledgerSha256 = sha256Hex(readFileSync(logPath));
-    const plan = buildRestorePlan(log, backup);
-    const token = restoreConfirmationTokenFor(plan, ledgerSha256);
-    const result = {
-      backup_file: basename(backupPath),
-      ledger_sha256: ledgerSha256,
-      ...plan,
-      confirmation_token: token,
-    };
-    if (confirmationToken === null) {
-      return { status: "review_required", ...result };
-    }
-    if (confirmationToken !== token) {
-      // Fail closed on the exact pair of files the review saw. A token that survived a change to
-      // either side would confirm a plan nobody read.
-      throw new ProcessLogLifecycleError(
-        "ledger_restore_confirmation_mismatch",
-        "the confirmation no longer matches this ledger and backup",
-      );
-    }
-    write(backup.log);
-    // The writer validates what it writes and re-serializes it, so the content is the backup's by
-    // construction and only the formatting can differ — a backup in any other JSON layout restores
-    // to equal content in different bytes. Report which of the two happened instead of printing a
-    // digest nobody compares. There is deliberately no post-write content check: it could only fire
-    // after the ledger was already replaced, so it would report a failure it could not prevent.
-    const restoredSha256 = sha256Hex(readFileSync(logPath));
-    return {
-      status: "restored",
-      ...result,
-      restored_sha256: restoredSha256,
-      restored_bytes_match_backup: restoredSha256 === plan.backup_sha256,
-    };
-  }, lockOptions);
+  return withLogV3Lock(
+    logPath,
+    ({ log, write }) => {
+      const backup = readBackupLog(backupPath);
+      const ledgerSha256 = sha256Hex(readFileSync(logPath));
+      const plan = buildRestorePlan(log, backup);
+      const token = restoreConfirmationTokenFor(plan, ledgerSha256);
+      const result = {
+        backup_file: basename(backupPath),
+        ledger_sha256: ledgerSha256,
+        ...plan,
+        confirmation_token: token,
+      };
+      if (confirmationToken === null) {
+        return { status: "review_required", ...result };
+      }
+      if (confirmationToken !== token) {
+        // Fail closed on the exact pair of files the review saw. A token that survived a change to
+        // either side would confirm a plan nobody read.
+        throw new ProcessLogLifecycleError(
+          "ledger_restore_confirmation_mismatch",
+          "the confirmation no longer matches this ledger and backup",
+        );
+      }
+      write(backup.log);
+      // The writer validates what it writes and re-serializes it, so the content is the backup's by
+      // construction and only the formatting can differ — a backup in any other JSON layout restores
+      // to equal content in different bytes. Report which of the two happened instead of printing a
+      // digest nobody compares. There is deliberately no post-write content check: it could only fire
+      // after the ledger was already replaced, so it would report a failure it could not prevent.
+      const restoredSha256 = sha256Hex(readFileSync(logPath));
+      return {
+        status: "restored",
+        ...result,
+        restored_sha256: restoredSha256,
+        restored_bytes_match_backup: restoredSha256 === plan.backup_sha256,
+      };
+    },
+    lockOptions,
+  );
 }

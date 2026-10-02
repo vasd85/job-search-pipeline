@@ -117,12 +117,19 @@ function readPost(element, requestedHandle, counters) {
     if (node.tag === "a") {
       const href = attributeOf(node, "href");
       if (href !== null && hasClass(node, CLASS_BUTTON)) {
-        anchors.push({ container: "button", href, lineIndex: null, text: collapse(plainText(node)) });
+        anchors.push({
+          container: "button",
+          href,
+          lineIndex: null,
+          text: collapse(plainText(node)),
+        });
       } else if (href !== null && hasClass(node, CLASS_PREVIEW)) {
         anchors.push({ container: "preview", href, lineIndex: null, text: "" });
       }
       if (hasClass(node, CLASS_DATE) && datetime === null) {
-        const time = node.children.find((child) => child.type === "element" && child.tag === "time");
+        const time = node.children.find(
+          (child) => child.type === "element" && child.tag === "time",
+        );
         datetime = time === undefined ? null : attributeOf(time, "datetime");
       }
     }

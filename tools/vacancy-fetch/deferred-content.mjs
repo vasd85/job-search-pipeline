@@ -46,9 +46,10 @@ const JSON_SCRIPT_TYPE_MARKERS = Object.freeze(["application/json", "application
  * untouched by design: the signal is advisory, and the caller's policy owns its cost.
  */
 export function deferredContentSuspected({ jsonProseChars, jsonWalkBudgetHit }, extractedChars) {
-  return jsonWalkBudgetHit === true
-    || (jsonProseChars > 0
-      && jsonProseChars >= deferredContentThresholdRatio * extractedChars);
+  return (
+    jsonWalkBudgetHit === true ||
+    (jsonProseChars > 0 && jsonProseChars >= deferredContentThresholdRatio * extractedChars)
+  );
 }
 
 // Each `<…>` span collapses to one space; a `<` that never closes is literal content, exactly
@@ -124,10 +125,10 @@ function findScriptClose(lower, from) {
     if (at === -1) return -1;
     const following = lower[at + 8];
     if (
-      following === undefined
-      || following === ">"
-      || following === "/"
-      || /\s/u.test(following)
+      following === undefined ||
+      following === ">" ||
+      following === "/" ||
+      /\s/u.test(following)
     ) {
       return at;
     }

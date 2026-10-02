@@ -17,9 +17,7 @@ export const processLogStableDiagnosticCodePattern = immutablePatternTester(
   /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/,
 );
 
-export const processLogUppercaseCauseCodePattern = immutablePatternTester(
-  /^[A-Z][A-Z0-9_]*$/,
-);
+export const processLogUppercaseCauseCodePattern = immutablePatternTester(/^[A-Z][A-Z0-9_]*$/);
 
 const forbiddenDiagnosticShapes = Object.freeze([
   Object.freeze({
@@ -28,7 +26,8 @@ const forbiddenDiagnosticShapes = Object.freeze([
   }),
   Object.freeze({
     id: "credential_assignment",
-    pattern: /\b(?:api[_-]?key|access[_-]?token|password|passwd|secret)\s*[:=]\s*["']?[^\s,"']{4,}/iu,
+    pattern:
+      /\b(?:api[_-]?key|access[_-]?token|password|passwd|secret)\s*[:=]\s*["']?[^\s,"']{4,}/iu,
   }),
   Object.freeze({
     id: "posix_absolute_path",
@@ -117,10 +116,7 @@ export function processLogDiagnosticProblems(value, path) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return errors;
   const { codeMaxBytes, detailMaxBytes, detailsMaxItems, messageMaxBytes } =
     processLogDiagnosticLimits;
-  if (
-    typeof value.code === "string"
-    && Buffer.byteLength(value.code, "utf8") > codeMaxBytes
-  ) {
+  if (typeof value.code === "string" && Buffer.byteLength(value.code, "utf8") > codeMaxBytes) {
     errors.push(`${path}.code must be at most ${codeMaxBytes} UTF-8 bytes`);
   }
   validateBoundedText(value.message, `${path}.message`, messageMaxBytes, errors);

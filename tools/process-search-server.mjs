@@ -53,7 +53,8 @@ function safeStaticPath(staticRoot, pathname) {
   const relativePath = decoded === "/" ? "index.html" : decoded.replace(/^\/+/, "");
   const target = resolve(staticRoot, relativePath);
   const distance = relative(staticRoot, target);
-  if (!distance || distance === ".." || distance.startsWith(`..${sep}`) || isAbsolute(distance)) return null;
+  if (!distance || distance === ".." || distance.startsWith(`..${sep}`) || isAbsolute(distance))
+    return null;
   return target;
 }
 
@@ -64,12 +65,7 @@ function decodeApiSegment(value) {
   } catch {
     return null;
   }
-  if (
-    !decoded
-    || decoded.includes("/")
-    || decoded.includes("\\")
-    || decoded.includes("\0")
-  ) {
+  if (!decoded || decoded.includes("/") || decoded.includes("\\") || decoded.includes("\0")) {
     return null;
   }
   return decoded;
@@ -84,9 +80,7 @@ function publicErrorResponse(response, error, headOnly) {
 }
 
 function isLoopbackHost(host) {
-  return ["127.0.0.1", "::1", "localhost"].includes(
-    String(host).trim().toLowerCase(),
-  );
+  return ["127.0.0.1", "::1", "localhost"].includes(String(host).trim().toLowerCase());
 }
 
 export function createProcessSearchServer({
@@ -102,7 +96,10 @@ export function createProcessSearchServer({
     response.setHeader("x-content-type-options", "nosniff");
     response.setHeader("referrer-policy", "no-referrer");
     response.setHeader("cross-origin-resource-policy", "same-origin");
-    response.setHeader("content-security-policy", "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+    response.setHeader(
+      "content-security-policy",
+      "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    );
     const method = request.method ?? "GET";
     const headOnly = method === "HEAD";
     if (method !== "GET" && !headOnly) {
@@ -142,9 +139,7 @@ export function createProcessSearchServer({
       return;
     }
 
-    const artifactMatch = url.pathname.match(
-      /^\/api\/processes\/([^/]+)\/artifacts\/([^/]+)$/,
-    );
+    const artifactMatch = url.pathname.match(/^\/api\/processes\/([^/]+)\/artifacts\/([^/]+)$/);
     if (artifactMatch) {
       if (!artifactAccessEnabled) {
         sendJson(response, 404, { error: "not_found" }, headOnly);
@@ -165,13 +160,7 @@ export function createProcessSearchServer({
           processId,
           workspaceRoot,
         });
-        sendBytes(
-          response,
-          200,
-          artifact.bytes,
-          artifact.contentType,
-          headOnly,
-        );
+        sendBytes(response, 200, artifact.bytes, artifact.contentType, headOnly);
       } catch (error) {
         publicErrorResponse(response, error, headOnly);
       }
@@ -212,9 +201,7 @@ export function createProcessSearchServer({
     }
 
     const shellMatch = url.pathname.match(/^\/processes\/([^/]+)\/?$/);
-    const shellProcessId = shellMatch
-      ? decodeApiSegment(shellMatch[1])
-      : null;
+    const shellProcessId = shellMatch ? decodeApiSegment(shellMatch[1]) : null;
     const staticPathname = shellProcessId === null ? url.pathname : "/";
     const filePath = safeStaticPath(staticRoot, staticPathname);
     if (!filePath || !mimeTypes.has(extname(filePath))) {
@@ -244,8 +231,7 @@ function startServer() {
     throw new Error("JOB_PIPELINE_SEARCH_PORT must be an integer from 0 to 65535");
   }
   const artifactAccessEnabled =
-    isLoopbackHost(host)
-    || process.env.JOB_PIPELINE_ENABLE_ARTIFACT_API === "1";
+    isLoopbackHost(host) || process.env.JOB_PIPELINE_ENABLE_ARTIFACT_API === "1";
   const server = createProcessSearchServer({ artifactAccessEnabled });
   server.listen(port, host, () => {
     const address = server.address();

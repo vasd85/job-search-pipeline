@@ -11,7 +11,10 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { containsWholeTerm, readAndValidateApplicationBrief } from "../application-brief/validate.mjs";
+import {
+  containsWholeTerm,
+  readAndValidateApplicationBrief,
+} from "../application-brief/validate.mjs";
 import { candidateConstraintFindings, candidateConstraintsFor } from "../candidate/constraints.mjs";
 import { candidateLanguageNames, candidateMarkets } from "../candidate/load.mjs";
 import { processLogDiagnosticProblems } from "../lib/process-log-diagnostics.mjs";
@@ -43,7 +46,9 @@ function placementText(cv, placement) {
   const [kind, detail] = placement.split(":", 2);
   if (normalize(kind) === "experience" && detail) {
     const experience = (cv.sections || []).find((section) => section.type === "experience");
-    const role = (experience?.roles || []).find((entry) => normalize(entry.company) === normalize(detail));
+    const role = (experience?.roles || []).find(
+      (entry) => normalize(entry.company) === normalize(detail),
+    );
     return role ? flattenText(role) : "";
   }
   if (normalize(kind) === "experience") {
@@ -60,7 +65,10 @@ function placementsPass(cv, placements, mode, predicate) {
     passes: predicate(placementText(cv, placement)),
   }));
   return {
-    passes: mode === "all" ? results.every((result) => result.passes) : results.some((result) => result.passes),
+    passes:
+      mode === "all"
+        ? results.every((result) => result.passes)
+        : results.some((result) => result.passes),
     results,
   };
 }
@@ -78,10 +86,10 @@ function conflictSubjectKey(code, unit) {
   const text = String(unit).trim();
   const candidate = `${code}:${text}`;
   if (
-    text.length > 0
-    && Buffer.byteLength(text, "utf8") <= 200
-    && !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(text)
-    && processLogDiagnosticProblems({ code: "waiver", details: [candidate] }, "conflict").length === 0
+    text.length > 0 &&
+    Buffer.byteLength(text, "utf8") <= 200 &&
+    !/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(text) &&
+    processLogDiagnosticProblems({ code: "waiver", details: [candidate] }, "conflict").length === 0
   ) {
     return candidate;
   }
@@ -89,10 +97,14 @@ function conflictSubjectKey(code, unit) {
 }
 
 function matchWaiver(waivers, subject) {
-  return waivers.find((waiver) =>
-    waiver?.status === "active"
-    && waiver?.subject?.kind === subject.kind
-    && waiver?.subject?.key === subject.key) ?? null;
+  return (
+    waivers.find(
+      (waiver) =>
+        waiver?.status === "active" &&
+        waiver?.subject?.kind === subject.kind &&
+        waiver?.subject?.key === subject.key,
+    ) ?? null
+  );
 }
 
 /**
@@ -139,94 +151,149 @@ export function runCvPreflight(cv, brief, { constraints = [], waivers = [] } = {
   // vacancy/company context is available. Enforce them here so CV generation never re-derives them.
   const selectedImpact = findSection(cv, "Selected Impact");
   if (brief.cvPlan.structure === "hybrid" && !selectedImpact) {
-    findConflict("cv_structure", null, "cvPlan.structure hybrid requires a Selected Impact section.");
+    findConflict(
+      "cv_structure",
+      null,
+      "cvPlan.structure hybrid requires a Selected Impact section.",
+    );
   }
   if (brief.cvPlan.structure === "chronological" && selectedImpact) {
-    findConflict("cv_structure", null, "cvPlan.structure chronological must not contain a Selected Impact section.");
+    findConflict(
+      "cv_structure",
+      null,
+      "cvPlan.structure chronological must not contain a Selected Impact section.",
+    );
   }
 
   const authoredPositioning = cv.header?.positioning;
   const headerPlan = brief.cvPlan.headerPositioning;
   if (headerPlan.mode === "omit" && normalize(authoredPositioning)) {
-    findConflict("cv_header_positioning", null, "cvPlan.headerPositioning mode omit requires the CV header positioning line to be absent.");
+    findConflict(
+      "cv_header_positioning",
+      null,
+      "cvPlan.headerPositioning mode omit requires the CV header positioning line to be absent.",
+    );
   }
   if (headerPlan.mode === "explicit" && authoredPositioning !== headerPlan.text) {
-    findConflict("cv_header_positioning", null, `CV header positioning must exactly match cvPlan.headerPositioning.text: "${headerPlan.text}"`);
+    findConflict(
+      "cv_header_positioning",
+      null,
+      `CV header positioning must exactly match cvPlan.headerPositioning.text: "${headerPlan.text}"`,
+    );
   }
 
   const projects = findSection(cv, "Projects");
   const projectPlan = brief.cvPlan.projectDecision;
   if (projectPlan.decision === "exclude" && projects) {
-    findConflict("cv_project_decision", null, "cvPlan.projectDecision exclude requires the Projects section to be absent.");
+    findConflict(
+      "cv_project_decision",
+      null,
+      "cvPlan.projectDecision exclude requires the Projects section to be absent.",
+    );
   }
   if (projectPlan.decision === "include") {
     if (!projects) {
-      findConflict("cv_project_decision", null, `cvPlan.projectDecision include requires a Projects section containing "${projectPlan.projectId}".`);
+      findConflict(
+        "cv_project_decision",
+        null,
+        `cvPlan.projectDecision include requires a Projects section containing "${projectPlan.projectId}".`,
+      );
     } else if (!includesTerm(projects, projectPlan.projectId)) {
-      findConflict("cv_project_decision", null, `Projects section must contain the selected project "${projectPlan.projectId}".`);
+      findConflict(
+        "cv_project_decision",
+        null,
+        `Projects section must contain the selected project "${projectPlan.projectId}".`,
+      );
     }
   }
 
   // Required ATS terms are checked only where Step 3 decided they should appear. This avoids both
   // keyword stuffing and accidental loss of a high-value exact match during later compression.
   for (const keyword of brief.ats.keywords.filter((entry) => entry.required)) {
-    const outcome = placementsPass(
-      cv,
-      keyword.placements,
-      keyword.placementMode,
-      (text) => includesTerm(text, keyword.term),
+    const outcome = placementsPass(cv, keyword.placements, keyword.placementMode, (text) =>
+      includesTerm(text, keyword.term),
     );
     if (!outcome.passes) {
-      const missing = outcome.results.filter((result) => !result.passes).map((result) => result.placement);
-      findConflict("cv_ats_term", keyword.term, `Required ATS term "${keyword.term}" missing for placement mode ${keyword.placementMode}: ${missing.join(", ")}`);
+      const missing = outcome.results
+        .filter((result) => !result.passes)
+        .map((result) => result.placement);
+      findConflict(
+        "cv_ats_term",
+        keyword.term,
+        `Required ATS term "${keyword.term}" missing for placement mode ${keyword.placementMode}: ${missing.join(", ")}`,
+      );
     }
   }
 
   // Evidence checks connect selected levers and supporting signals to concrete CV wording. They are
   // stronger than a global substring check because the intended recruiter-facing placement matters.
   for (const check of checks.requiredEvidence) {
-    const outcome = placementsPass(
-      cv,
-      check.placements,
-      check.placementMode,
-      (text) => check.anyOf.some((term) => includesTerm(text, term)),
+    const outcome = placementsPass(cv, check.placements, check.placementMode, (text) =>
+      check.anyOf.some((term) => includesTerm(text, term)),
     );
     if (!outcome.passes) {
-      const missing = outcome.results.filter((result) => !result.passes).map((result) => result.placement);
-      findConflict("cv_required_evidence", check.id, `Required evidence "${check.id}" missing (${check.anyOf.join(" OR ")}) in: ${missing.join(", ")}`);
+      const missing = outcome.results
+        .filter((result) => !result.passes)
+        .map((result) => result.placement);
+      findConflict(
+        "cv_required_evidence",
+        check.id,
+        `Required evidence "${check.id}" missing (${check.anyOf.join(" OR ")}) in: ${missing.join(", ")}`,
+      );
     }
   }
 
   // Exclusions are role-specific honesty and relevance gates assembled by map-experience.
   for (const forbidden of checks.forbiddenTerms) {
     if (includesTerm(cv, forbidden.term)) {
-      findConflict("cv_forbidden_term", forbidden.term, `Forbidden term "${forbidden.term}" found: ${forbidden.reason}`);
+      findConflict(
+        "cv_forbidden_term",
+        forbidden.term,
+        `Forbidden term "${forbidden.term}" found: ${forbidden.reason}`,
+      );
     }
   }
 
   // Skills taxonomy is data-driven: the brief defines stable capability groups and, when useful,
   // labels whose content must be consolidated rather than emitted as ad hoc overflow categories.
   for (const group of checks.skillGroups) {
-    const entry = skillEntries.find((candidate) => normalize(candidate.label) === normalize(group.label));
+    const entry = skillEntries.find(
+      (candidate) => normalize(candidate.label) === normalize(group.label),
+    );
     if (!entry) {
-      findConflict("cv_skill_group", group.label, `Required Skills group "${group.label}" is missing.`);
+      findConflict(
+        "cv_skill_group",
+        group.label,
+        `Required Skills group "${group.label}" is missing.`,
+      );
       continue;
     }
     for (const term of group.mustContain) {
       if (!includesTerm(entry.body, term)) {
-        findConflict("cv_skill_group", group.label, `Skills group "${group.label}" must contain "${term}".`);
+        findConflict(
+          "cv_skill_group",
+          group.label,
+          `Skills group "${group.label}" must contain "${term}".`,
+        );
       }
     }
     for (const label of group.forbiddenLabels) {
       if (skillEntries.some((candidate) => normalize(candidate.label) === normalize(label))) {
-        findConflict("cv_skill_group", group.label, `Forbidden Skills group "${label}" found; merge its content into "${group.label}".`);
+        findConflict(
+          "cv_skill_group",
+          group.label,
+          `Forbidden Skills group "${label}" found; merge its content into "${group.label}".`,
+        );
       }
     }
   }
 
   const optionalKeywords = brief.ats.keywords.filter((entry) => !entry.required);
-  const absentOptional = optionalKeywords.filter((keyword) => !includesTerm(cv, keyword.term)).map((keyword) => keyword.term);
-  if (absentOptional.length) warnings.push(`Optional ATS terms not used: ${absentOptional.join(", ")}`);
+  const absentOptional = optionalKeywords
+    .filter((keyword) => !includesTerm(cv, keyword.term))
+    .map((keyword) => keyword.term);
+  if (absentOptional.length)
+    warnings.push(`Optional ATS terms not used: ${absentOptional.join(", ")}`);
 
   return { candidateErrors, errors, warnings, conflicts, notices };
 }
@@ -246,8 +313,8 @@ export function readAndRunCvPreflight(cvPath, briefPath, { languages, markets, .
 function main() {
   const [cvPath, briefPath, ...extra] = process.argv.slice(2);
   const usage =
-    "Usage: node tools/cv-builder/preflight.mjs <cv.json> <application-brief.json> [--revision] [--waivers <waivers.json>] [--candidate-root <absolute path>]\n"
-    + "Without --candidate-root the brief is checked against the default language alone.";
+    "Usage: node tools/cv-builder/preflight.mjs <cv.json> <application-brief.json> [--revision] [--waivers <waivers.json>] [--candidate-root <absolute path>]\n" +
+    "Without --candidate-root the brief is checked against the default language alone.";
   if (!cvPath || !briefPath) throw new Error(usage);
   let revision = false;
   let waiversPath = null;
@@ -269,15 +336,13 @@ function main() {
     }
   }
   if (waiversPath !== null && !revision) throw new Error(usage);
-  const waivers = waiversPath === null
-    ? []
-    : JSON.parse(readFileSync(waiversPath, "utf8"));
+  const waivers = waiversPath === null ? [] : JSON.parse(readFileSync(waiversPath, "utf8"));
   // Reading the layer is the author's own dry run of what the publication gate will do. Without
   // it the CV renders green and the publication refuses, which is the worst order to learn in.
-  const constraints = candidateRoot === null
-    ? []
-    : candidateConstraintsFor({ material: "cv", root: candidateRoot });
-  const languages = candidateRoot === null ? undefined : candidateLanguageNames({ root: candidateRoot });
+  const constraints =
+    candidateRoot === null ? [] : candidateConstraintsFor({ material: "cv", root: candidateRoot });
+  const languages =
+    candidateRoot === null ? undefined : candidateLanguageNames({ root: candidateRoot });
   const markets = candidateRoot === null ? undefined : candidateMarkets({ root: candidateRoot });
   const result = readAndRunCvPreflight(
     cvPath,
@@ -287,23 +352,27 @@ function main() {
   // A candidate constraint refuses in both modes, unlike a brief-coupled finding: it is not a
   // brief decision, so a revision does not get to classify it and publish anyway.
   if (result.candidateErrors.length) {
-    throw new Error(`CV content breaks the candidate layer:\n- ${result.candidateErrors.join("\n- ")}`);
+    throw new Error(
+      `CV content breaks the candidate layer:\n- ${result.candidateErrors.join("\n- ")}`,
+    );
   }
   if (!revision && result.errors.length) {
     throw new Error(`CV content preflight failed:\n- ${result.errors.join("\n- ")}`);
   }
-  console.log(JSON.stringify(
-    revision
-      ? {
-          status: "revision-checked",
-          conflicts: result.conflicts,
-          notices: result.notices,
-          warnings: result.warnings,
-        }
-      : { status: "valid", warnings: result.warnings },
-    null,
-    2,
-  ));
+  console.log(
+    JSON.stringify(
+      revision
+        ? {
+            status: "revision-checked",
+            conflicts: result.conflicts,
+            notices: result.notices,
+            warnings: result.warnings,
+          }
+        : { status: "valid", warnings: result.warnings },
+      null,
+      2,
+    ),
+  );
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

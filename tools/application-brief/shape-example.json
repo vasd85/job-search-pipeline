@@ -43,9 +43,7 @@
         "normalized": "<remote, hybrid, onsite, or unspecified>",
         "sourceText": "<verbatim current vacancy wording or null>"
       },
-      "locations": [
-        "<verbatim current vacancy location>"
-      ],
+      "locations": ["<verbatim current vacancy location>"],
       "employmentType": "<verbatim current vacancy wording or null>",
       "timezoneOverlap": "<verbatim current vacancy wording or null>",
       "workAuthorizationResidency": "<verbatim current vacancy wording or null>",
@@ -58,22 +56,14 @@
     "challengeEvidence": {
       "hookId": "<current research hook id>",
       "fact": "<exact current research hook fact>",
-      "claimIds": [
-        "<current research claim id>"
-      ],
-      "sourceIds": [
-        "<current research source id>"
-      ]
+      "claimIds": ["<current research claim id>"],
+      "sourceIds": ["<current research source id>"]
     },
     "values": [
       {
         "text": "<exact selected current research claim>",
-        "claimIds": [
-          "<current research claim id>"
-        ],
-        "sourceIds": [
-          "<current research source id>"
-        ]
+        "claimIds": ["<current research claim id>"],
+        "sourceIds": ["<current research source id>"]
       }
     ],
     "tailoringHooks": [
@@ -81,12 +71,8 @@
         "hookId": "<current research hook id>",
         "topic": "<exact current research hook challengeType>",
         "evidence": "<exact current research hook fact>",
-        "claimIds": [
-          "<current research claim id>"
-        ],
-        "sourceIds": [
-          "<current research source id>"
-        ]
+        "claimIds": ["<current research claim id>"],
+        "sourceIds": ["<current research source id>"]
       }
     ]
   },
@@ -96,12 +82,8 @@
         "id": 1,
         "wording": "<new role-specific wording>",
         "rationale": "<why this lever fits the current role and evidence>",
-        "evidenceAnchors": [
-          "<current priority-evidence id>"
-        ],
-        "cvEvidenceCheckIds": [
-          "<current CV check id>"
-        ]
+        "evidenceAnchors": ["<current priority-evidence id>"],
+        "cvEvidenceCheckIds": ["<current CV check id>"]
       }
     ],
     "angleHint": "<current lever-to-company-challenge connection>",
@@ -112,15 +94,9 @@
         "topic": "<current role-specific AI decision>",
         "decision": "<include or exclude>",
         "evidence": "<current-run evidence or exclusion reason>",
-        "claimIds": [
-          "<current research claim id when included>"
-        ],
-        "sourceIds": [
-          "<current research source id when included>"
-        ],
-        "constraints": [
-          "<current factual boundary>"
-        ],
+        "claimIds": ["<current research claim id when included>"],
+        "sourceIds": ["<current research source id when included>"],
+        "constraints": ["<current factual boundary>"],
         "cvEvidenceCheckId": "<current CV check id only when included>"
       }
     ]
@@ -136,12 +112,8 @@
           "path": "candidate/profile.md",
           "section": "<exact current canonical profile section heading>"
         },
-        "proof": [
-          "<current verified metric, scope, mechanism, or outcome>"
-        ],
-        "cvPlacements": [
-          "<truthful current CV placement>"
-        ]
+        "proof": ["<current verified metric, scope, mechanism, or outcome>"],
+        "cvPlacements": ["<truthful current CV placement>"]
       }
     ],
     "traits": [
@@ -162,9 +134,7 @@
         "classification": "<hard, soft, or adjacent>",
         "transferableSupport": {
           "status": "<evidence or none>",
-          "evidenceIds": [
-            "<current priority-evidence id when status is evidence>"
-          ]
+          "evidenceIds": ["<current priority-evidence id when status is evidence>"]
         },
         "framing": "<current honest gap treatment>"
       }
@@ -177,13 +147,9 @@
         "expanded": "<expanded form or null>",
         "support": {
           "status": "evidence",
-          "evidenceIds": [
-            "<current priority-evidence id>"
-          ]
+          "evidenceIds": ["<current priority-evidence id>"]
         },
-        "placements": [
-          "<truthful current placement>"
-        ],
+        "placements": ["<truthful current placement>"],
         "required": true,
         "placementMode": "<any or all>"
       },
@@ -221,15 +187,9 @@
         {
           "id": "<new local CV check id>",
           "description": "<current evidence requirement>",
-          "evidenceIds": [
-            "<current priority-evidence id>"
-          ],
-          "anyOf": [
-            "<acceptable current CV wording>"
-          ],
-          "placements": [
-            "<current required placement>"
-          ],
+          "evidenceIds": ["<current priority-evidence id>"],
+          "anyOf": ["<acceptable current CV wording>"],
+          "placements": ["<current required placement>"],
           "placementMode": "<any or all>"
         }
       ],
@@ -242,20 +202,14 @@
       "skillGroups": [
         {
           "label": "<current capability group>",
-          "mustContain": [
-            "<current supported skill>"
-          ],
+          "mustContain": ["<current supported skill>"],
           "forbiddenLabels": []
         }
       ]
     }
   },
   "coverLetterPlan": {
-    "evidenceIds": [
-      "<one or two current priority-evidence ids>"
-    ],
-    "keywordTerms": [
-      "<three to five exact current ats.keywords terms>"
-    ]
+    "evidenceIds": ["<one or two current priority-evidence ids>"],
+    "keywordTerms": ["<three to five exact current ats.keywords terms>"]
   }
 }

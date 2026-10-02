@@ -61,8 +61,8 @@ export const defaultRequestHeaders = Object.freeze({
   accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "accept-language": "en-US,en;q=0.9",
   "user-agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    + "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
 });
 
 export function requestHeaders(userAgent) {
@@ -78,8 +78,7 @@ export function meetsMinimumContent(text) {
   if (typeof text !== "string") return false;
   const trimmed = text.trim();
   if (trimmed.length < minimumContent.characters) return false;
-  return trimmed.split(/\s+/u).filter((word) => word.length > 0).length
-    >= minimumContent.words;
+  return trimmed.split(/\s+/u).filter((word) => word.length > 0).length >= minimumContent.words;
 }
 
 /** Case-insensitive containment against a bounded marker list; markers are repository-owned. */
@@ -97,7 +96,10 @@ export function mediaType(contentType) {
 }
 
 export const htmlMediaTypes = Object.freeze([
-  "text/html", "application/xhtml+xml", "application/xml", "text/xml",
+  "text/html",
+  "application/xhtml+xml",
+  "application/xml",
+  "text/xml",
 ]);
 
 /**
@@ -124,5 +126,14 @@ export function adapterReading({
       throw new Error(`unknown adapter reason code: ${reason}`);
     }
   }
-  return { antiBot, authWall, statusWord, unlisted, reasons: unique, structural, structuralOk, text };
+  return {
+    antiBot,
+    authWall,
+    statusWord,
+    unlisted,
+    reasons: unique,
+    structural,
+    structuralOk,
+    text,
+  };
 }

@@ -24,7 +24,18 @@
  */
 
 export const LINK_TLDS = Object.freeze([
-  "com", "org", "net", "io", "dev", "ai", "app", "me", "co", "ru", "ge", "eu",
+  "com",
+  "org",
+  "net",
+  "io",
+  "dev",
+  "ai",
+  "app",
+  "me",
+  "co",
+  "ru",
+  "ge",
+  "eu",
 ]);
 
 const LABEL = "[a-z0-9](?:[a-z0-9-]*[a-z0-9])?";
@@ -35,12 +46,12 @@ const host = (tld) => `${LABEL}(?:\\.${LABEL})*\\.(?<${tld}>[a-z]{2,})(?![A-Za-z
  * address, so the `gmail.com` of an e-mail and the `www.` of `https://www.` never open one.
  */
 const CANDIDATE = new RegExp(
-  "(?<![\\p{L}\\p{N}_.\\/@:+%-])(?:"
-    + "(?<scheme>[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[A-Za-z0-9]\\S*)"
-    + "|(?<www>[Ww][Ww][Ww]\\.[A-Za-z0-9]\\S*)"
-    + `|(?<email>[A-Za-z0-9._%+-]+@${host("emailTld")})`
-    + `|(?<bare>${host("bareTld")}\\/\\S*)`
-    + ")",
+  "(?<![\\p{L}\\p{N}_.\\/@:+%-])(?:" +
+    "(?<scheme>[Hh][Tt][Tt][Pp][Ss]?:\\/\\/[A-Za-z0-9]\\S*)" +
+    "|(?<www>[Ww][Ww][Ww]\\.[A-Za-z0-9]\\S*)" +
+    `|(?<email>[A-Za-z0-9._%+-]+@${host("emailTld")})` +
+    `|(?<bare>${host("bareTld")}\\/\\S*)` +
+    ")",
   "gu",
 );
 
@@ -127,7 +138,8 @@ export function runLinks(runTexts, { upper = false } = {}) {
   for (const runText of runTexts) {
     for (const segment of linkSegments(runText)) {
       const length = (upper ? segment.text.toUpperCase() : segment.text).length;
-      if (segment.href !== null) links.push({ start: offset, end: offset + length, href: segment.href });
+      if (segment.href !== null)
+        links.push({ start: offset, end: offset + length, href: segment.href });
       offset += length;
     }
   }

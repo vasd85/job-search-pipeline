@@ -16,10 +16,7 @@ import { syncBuiltinESMExports } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import {
-  fileBackedStepNames,
-  readLogV3,
-} from "../tools/lib/process-log-core.mjs";
+import { fileBackedStepNames, readLogV3 } from "../tools/lib/process-log-core.mjs";
 import {
   beginFileBackedStepV3,
   cleanupFileBackedStagingV3,
@@ -239,13 +236,13 @@ const artifactSources = Object.freeze({
   ),
 });
 
-const protectedContracts = Object.freeze(
-  [...new Map(
+const protectedContracts = Object.freeze([
+  ...new Map(
     Object.values(fileBackedProtectedInputs)
       .flat()
       .map((contract) => [contract.kind, contract]),
-  ).values()],
-);
+  ).values(),
+]);
 
 function artifactMetadata(kind, path, schemaVersion, absolutePath) {
   const bytes = readFileSync(absolutePath);
@@ -258,13 +255,7 @@ function artifactMetadata(kind, path, schemaVersion, absolutePath) {
   };
 }
 
-function completedStep({
-  artifacts,
-  finishedAt,
-  inputs,
-  publicationId,
-  startedAt,
-}) {
+function completedStep({ artifacts, finishedAt, inputs, publicationId, startedAt }) {
   return {
     state: "completed",
     attempt: 1,
@@ -345,12 +336,8 @@ function createCompletedEnvironment(t, { includeHistorical = true } = {}) {
     Object.entries(fileBackedProtectedInputs).map(([stepName, contracts]) => [
       stepName,
       contracts.map((contract) =>
-        artifactMetadata(
-          contract.kind,
-          contract.path,
-          null,
-          resolve(workspaceRoot, contract.path),
-        )),
+        artifactMetadata(contract.kind, contract.path, null, resolve(workspaceRoot, contract.path)),
+      ),
     ]),
   );
   const step1Artifacts = [jobDescription, vacancy];
@@ -374,11 +361,7 @@ function createCompletedEnvironment(t, { includeHistorical = true } = {}) {
     map_experience: completedStep({
       artifacts: step3Artifacts,
       finishedAt: timestamps.map,
-      inputs: [
-        ...step1Artifacts,
-        ...step2Artifacts,
-        ...protectedByStep.map_experience,
-      ],
+      inputs: [...step1Artifacts, ...step2Artifacts, ...protectedByStep.map_experience],
       publicationId: "publication_deep_map",
       startedAt: "2026-07-23T11:00:00.000Z",
     }),
@@ -420,9 +403,7 @@ function createCompletedEnvironment(t, { includeHistorical = true } = {}) {
     duplicate_policy: "prompt",
     updated_at: timestamps.map,
     companies: [],
-    processes: includeHistorical
-      ? [historicalProcess, fileBackedProcess]
-      : [fileBackedProcess],
+    processes: includeHistorical ? [historicalProcess, fileBackedProcess] : [fileBackedProcess],
   };
   writeFileSync(ledgerPath, `${JSON.stringify(log, null, 2)}\n`, "utf8");
   readLogV3(ledgerPath);
@@ -437,13 +418,10 @@ function createCompletedEnvironment(t, { includeHistorical = true } = {}) {
 }
 
 function deepValidate(environment) {
-  return validateProcessLogV3Deep(
-    environment.ledgerPath,
-    {
-      outputRoot: environment.outputRoot,
-      workspaceRoot: environment.workspaceRoot,
-    },
-  );
+  return validateProcessLogV3Deep(environment.ledgerPath, {
+    outputRoot: environment.outputRoot,
+    workspaceRoot: environment.workspaceRoot,
+  });
 }
 
 const SAFE_STAGING_ENTRY_KEYS = Object.freeze([
@@ -554,9 +532,7 @@ function makeValidCv(fileName) {
       {
         type: "skills",
         heading: "Skills",
-        skills: [
-          { label: "Test Automation", body: "TypeScript Playwright" },
-        ],
+        skills: [{ label: "Test Automation", body: "TypeScript Playwright" }],
       },
       {
         type: "experience",
@@ -579,17 +555,9 @@ function addCompletedGenerationSteps(environment) {
   const docxName = "Candidate_Deep_Fixture.docx";
   const docxPath = join(environment.selectedOutputPath, docxName);
   const letterPath = join(environment.selectedOutputPath, "cover-letter.txt");
-  writeFileSync(
-    cvPath,
-    `${JSON.stringify(makeValidCv(docxName), null, 2)}\n`,
-    "utf8",
-  );
+  writeFileSync(cvPath, `${JSON.stringify(makeValidCv(docxName), null, 2)}\n`, "utf8");
   writeFileSync(docxPath, "synthetic deep-validation DOCX\n", "utf8");
-  writeFileSync(
-    letterPath,
-    "Senior Quality Engineer\n\nSynthetic cover letter.\n",
-    "utf8",
-  );
+  writeFileSync(letterPath, "Senior Quality Engineer\n\nSynthetic cover letter.\n", "utf8");
 
   const log = readLogV3(environment.ledgerPath);
   const process = log.processes.find((record) => record.id === processId);
@@ -600,22 +568,14 @@ function addCompletedGenerationSteps(environment) {
       artifactMetadata("cv_docx", docxName, null, docxPath),
     ],
     finishedAt: timestamps.cv,
-    inputs: [
-      ...briefArtifacts,
-      ...environment.protectedByStep.generate_cv,
-    ],
+    inputs: [...briefArtifacts, ...environment.protectedByStep.generate_cv],
     publicationId: "publication_deep_cv",
     startedAt: "2026-07-23T11:30:00.000Z",
   });
   process.steps.write_cover_letter = completedStep({
-    artifacts: [
-      artifactMetadata("cover_letter", "cover-letter.txt", null, letterPath),
-    ],
+    artifacts: [artifactMetadata("cover_letter", "cover-letter.txt", null, letterPath)],
     finishedAt: timestamps.letter,
-    inputs: [
-      ...briefArtifacts,
-      ...environment.protectedByStep.write_cover_letter,
-    ],
+    inputs: [...briefArtifacts, ...environment.protectedByStep.write_cover_letter],
     publicationId: "publication_deep_letter",
     startedAt: "2026-07-23T11:35:00.000Z",
   });
@@ -680,19 +640,16 @@ test("deep validation reports current file-backed data and never inspects histor
   });
   executedStagingScenarios.add("no_parent_clear");
   mkdirSync(join(environment.selectedOutputPath, ".pipeline-tmp"));
-  const emptyParent = deepValidate(environment).processes
-    .find((entry) => entry.process_id === processId);
+  const emptyParent = deepValidate(environment).processes.find(
+    (entry) => entry.process_id === processId,
+  );
   assert.deepEqual(emptyParent.staging, {
     health: "clear",
     issues: [],
     entries: [],
   });
   executedStagingScenarios.add("empty_parent_clear");
-  for (const stepName of [
-    "get_vacancy",
-    "research_company",
-    "map_experience",
-  ]) {
+  for (const stepName of ["get_vacancy", "research_company", "map_experience"]) {
     assert.equal(deepStep(report, stepName).artifact_health, "current");
     assert.equal(deepStep(report, stepName).input_health, "current");
     assert.deepEqual(deepStep(report, stepName).issues, []);
@@ -737,21 +694,20 @@ test("deep validation reports an unowned staging directory read-only", (t) => {
   assert.equal(process.health, "attention");
   assert.deepEqual(Object.keys(process.staging).sort(), ["entries", "health", "issues"]);
   assert.deepEqual(process.staging.issues, ["staging_orphan"]);
-  assert.deepEqual(process.staging.entries, [{
-    publication_id: "publication_orphan_fixture_001",
-    classification: "orphan",
-    action: "review_cleanup_staging",
-    inventory_health: "safe",
-    age_ms: 60_000,
-    entry_count: 1,
-    max_depth: 0,
-    modified_at: modifiedAt,
-    total_bytes: Buffer.byteLength("synthetic orphan bytes\n"),
-  }]);
-  assert.doesNotMatch(
-    JSON.stringify(process.staging),
-    new RegExp(environment.workspaceRoot),
-  );
+  assert.deepEqual(process.staging.entries, [
+    {
+      publication_id: "publication_orphan_fixture_001",
+      classification: "orphan",
+      action: "review_cleanup_staging",
+      inventory_health: "safe",
+      age_ms: 60_000,
+      entry_count: 1,
+      max_depth: 0,
+      modified_at: modifiedAt,
+      total_bytes: Buffer.byteLength("synthetic orphan bytes\n"),
+    },
+  ]);
+  assert.doesNotMatch(JSON.stringify(process.staging), new RegExp(environment.workspaceRoot));
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), ledgerBefore);
   assert.equal(existsSync(orphanPath), true);
   executedStagingScenarios.add("orphan_deep");
@@ -801,10 +757,7 @@ test("staging ownership containment distinguishes active, prepared, and committe
 
     unlinkSync(stagingPath(environment, publicationId));
     mkdirSync(stagingPath(environment, publicationId));
-    symlinkSync(
-      "candidate.bin",
-      join(stagingPath(environment, publicationId), "nested-link"),
-    );
+    symlinkSync("candidate.bin", join(stagingPath(environment, publicationId), "nested-link"));
     const nestedUnsafe = deepValidate(environment).processes[0].staging;
     assert.equal(nestedUnsafe.health, "attention");
     assert.deepEqual(nestedUnsafe.issues, ["staging_invalid_entry"]);
@@ -833,10 +786,7 @@ test("staging ownership containment distinguishes active, prepared, and committe
     const process = deepValidate(environment).processes[0];
     assertSafeStagingDto(process.staging, environment);
     assert.equal(process.staging.entries[0].classification, "history_owned");
-    assert.equal(
-      process.staging.entries[0].action,
-      "inspect_committed_history_residue",
-    );
+    assert.equal(process.staging.entries[0].action, "inspect_committed_history_residue");
     assert.equal(process.staging.health, "attention");
     assert.deepEqual(process.staging.issues, ["staging_history_residue"]);
     assert.throws(
@@ -871,10 +821,7 @@ test("staging ownership containment distinguishes active, prepared, and committe
       (error) => error.code === "staging_cleanup_prepared_owned",
     );
     assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
-    assert.equal(
-      existsSync(stagingPath(environment, running.publication_transaction.id)),
-      true,
-    );
+    assert.equal(existsSync(stagingPath(environment, running.publication_transaction.id)), true);
     executedStagingScenarios.add("prepared_owned");
   });
 
@@ -909,8 +856,9 @@ test("staging ownership containment distinguishes active, prepared, and committe
     createStagingDirectory(environment, publicationId);
     const before = readFileSync(environment.ledgerPath, "utf8");
 
-    const selected = deepValidate(environment).processes
-      .find((entry) => entry.process_id === processId);
+    const selected = deepValidate(environment).processes.find(
+      (entry) => entry.process_id === processId,
+    );
     assertSafeStagingDto(selected.staging, environment);
     assert.equal(selected.staging.entries[0].classification, "foreign_owned");
     assert.equal(selected.staging.entries[0].action, "inspect_foreign_publication_owner");
@@ -939,10 +887,13 @@ test("known publication ownership never masks an unsafe staging filesystem shape
   let staging = deepValidate(environment).processes[0].staging;
   assert.equal(staging.health, "attention");
   assert.deepEqual(staging.issues, ["staging_invalid_entry"]);
-  assert.deepEqual(staging.entries.map(({ classification, inventory_health }) => ({
-    classification,
-    inventory_health,
-  })), [{ classification: "invalid_entry", inventory_health: "unsafe" }]);
+  assert.deepEqual(
+    staging.entries.map(({ classification, inventory_health }) => ({
+      classification,
+      inventory_health,
+    })),
+    [{ classification: "invalid_entry", inventory_health: "unsafe" }],
+  );
   executedStagingScenarios.add("owner_direct_unsafe");
 
   unlinkSync(target);
@@ -1012,17 +963,16 @@ test("foreign and prepared ownership never mask either unsafe staging route", as
       }
       const ledgerBefore = readFileSync(environment.ledgerPath, "utf8");
 
-      const staging = deepValidate(environment).processes
-        .find((entry) => entry.process_id === processId).staging;
+      const staging = deepValidate(environment).processes.find(
+        (entry) => entry.process_id === processId,
+      ).staging;
       assert.equal(staging.health, "attention");
       assert.deepEqual(staging.issues, ["staging_invalid_entry"]);
       assert.equal(staging.entries[0].classification, "invalid_entry");
       assert.equal(staging.entries[0].inventory_health, "unsafe");
       assert.equal(readFileSync(environment.ledgerPath, "utf8"), ledgerBefore);
       assert.equal(existsSync(target), true);
-      executedStagingScenarios.add(
-        `owner_${fixture.ownerKind}_${fixture.route}_unsafe`,
-      );
+      executedStagingScenarios.add(`owner_${fixture.ownerKind}_${fixture.route}_unsafe`);
     });
   }
 });
@@ -1166,10 +1116,7 @@ test("unsafe and unbounded staging inventories stay visible but never become del
         () => cleanupStaging(environment, publicationId),
         (error) => {
           assert.equal(error.code, fixture.expectedCode);
-          assert.equal(
-            error.message,
-            `${fixture.expectedCode}: ${fixture.expectedMessage}`,
-          );
+          assert.equal(error.message, `${fixture.expectedCode}: ${fixture.expectedMessage}`);
           return true;
         },
       );
@@ -1193,7 +1140,8 @@ test("staging parent realpath must remain inside the selected output", (t) => {
   const mockedRealpathSync = t.mock.method(fileSystem, "realpathSync", (path, ...args) =>
     path === parent
       ? join(environment.workspaceRoot, "synthetic-outside-staging")
-      : originalRealpathSync(path, ...args));
+      : originalRealpathSync(path, ...args),
+  );
   syncBuiltinESMExports();
   try {
     const staging = deepValidate(environment).processes[0].staging;
@@ -1235,7 +1183,8 @@ test("staging target realpath is contained before tree inspection", (t) => {
   const mockedRealpathSync = t.mock.method(fileSystem, "realpathSync", (path, ...args) =>
     path === target
       ? join(environment.workspaceRoot, "synthetic-outside-target")
-      : originalRealpathSync(path, ...args));
+      : originalRealpathSync(path, ...args),
+  );
   syncBuiltinESMExports();
   try {
     const staging = deepValidate(environment).processes[0].staging;
@@ -1273,15 +1222,20 @@ test("invalid transaction names stay visible without becoming cleanup selectors"
   const staging = deepValidate(environment).processes[0].staging;
   assert.equal(staging.health, "attention");
   assert.deepEqual(staging.issues, ["staging_invalid_entry"]);
-  assert.deepEqual(staging.entries.map((entry) => ({
-    action: entry.action,
-    classification: entry.classification,
-    publication_id: entry.publication_id,
-  })), [{
-    action: "inspect_staging_inventory",
-    classification: "invalid_entry",
-    publication_id: null,
-  }]);
+  assert.deepEqual(
+    staging.entries.map((entry) => ({
+      action: entry.action,
+      classification: entry.classification,
+      publication_id: entry.publication_id,
+    })),
+    [
+      {
+        action: "inspect_staging_inventory",
+        classification: "invalid_entry",
+        publication_id: null,
+      },
+    ],
+  );
   assert.throws(
     () => cleanupStaging(environment, publicationId),
     (error) => error.code === "invalid_cleanup_staging_input",
@@ -1336,8 +1290,9 @@ test("cleanup-staging requires a fresh identity-bound token and removes only one
   const sibling = createStagingDirectory(environment, siblingId, "sibling bytes\n");
   const ledgerBefore = readFileSync(environment.ledgerPath, "utf8");
   const canonicalBefore = Object.fromEntries(
-    ["job-description.txt", "vacancy.json", "company-research.json", "application-brief.json"]
-      .map((name) => [name, readFileSync(join(environment.selectedOutputPath, name))]),
+    ["job-description.txt", "vacancy.json", "company-research.json", "application-brief.json"].map(
+      (name) => [name, readFileSync(join(environment.selectedOutputPath, name))],
+    ),
   );
 
   const dryRun = cleanupStaging(environment, publicationId);
@@ -1478,16 +1433,17 @@ test("cleanup-staging rejects unknown input keys and an empty process id byte-st
   };
 
   assert.throws(
-    () => cleanupFileBackedStagingV3(
-      environment.ledgerPath,
-      {
-        processId,
-        publicationId,
-        confirmationToken: null,
-        unexpected: true,
-      },
-      dependencies,
-    ),
+    () =>
+      cleanupFileBackedStagingV3(
+        environment.ledgerPath,
+        {
+          processId,
+          publicationId,
+          confirmationToken: null,
+          unexpected: true,
+        },
+        dependencies,
+      ),
     (error) => {
       assert.equal(error.code, "invalid_cleanup_staging_input");
       assert.equal(
@@ -1500,17 +1456,15 @@ test("cleanup-staging rejects unknown input keys and an empty process id byte-st
   executedStagingScenarios.add("cleanup_exact_keys");
 
   assert.throws(
-    () => cleanupFileBackedStagingV3(
-      environment.ledgerPath,
-      { processId: "", publicationId, confirmationToken: null },
-      dependencies,
-    ),
+    () =>
+      cleanupFileBackedStagingV3(
+        environment.ledgerPath,
+        { processId: "", publicationId, confirmationToken: null },
+        dependencies,
+      ),
     (error) => {
       assert.equal(error.code, "invalid_cleanup_staging_input");
-      assert.equal(
-        error.message,
-        "invalid_cleanup_staging_input: processId must not be empty",
-      );
+      assert.equal(error.message, "invalid_cleanup_staging_input: processId must not be empty");
       return true;
     },
   );
@@ -1524,18 +1478,19 @@ test("cleanup-staging reports its exact operation when rejecting a historical pr
   const ledgerBefore = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => cleanupFileBackedStagingV3(
-      environment.ledgerPath,
-      {
-        processId: "proc_historical_deep",
-        publicationId: "publication_historical_cleanup_001",
-        confirmationToken: null,
-      },
-      {
-        outputRoot: environment.outputRoot,
-        workspaceRoot: environment.workspaceRoot,
-      },
-    ),
+    () =>
+      cleanupFileBackedStagingV3(
+        environment.ledgerPath,
+        {
+          processId: "proc_historical_deep",
+          publicationId: "publication_historical_cleanup_001",
+          confirmationToken: null,
+        },
+        {
+          outputRoot: environment.outputRoot,
+          workspaceRoot: environment.workspaceRoot,
+        },
+      ),
     (error) => {
       assert.equal(error.code, "historical_process_read_only");
       assert.equal(
@@ -1584,11 +1539,7 @@ test("staging age evidence is exact, clamped, and not itself token authority", (
   assert.equal(review.modified_at, modifiedAt);
   assert.equal(review.age_ms, 600_000);
   nowMs += 120_000;
-  const cleaned = cleanupStaging(
-    environment,
-    publicationId,
-    review.confirmation_token,
-  );
+  const cleaned = cleanupStaging(environment, publicationId, review.confirmation_token);
   assert.equal(cleaned.status, "cleaned");
   assert.equal(cleaned.age_ms, 720_000);
   assert.equal(cleaned.modified_at, modifiedAt);
@@ -1597,11 +1548,7 @@ test("staging age evidence is exact, clamped, and not itself token authority", (
   const futureId = "publication_future_age_evidence_001";
   const futureTarget = createStagingDirectory(environment, futureId);
   const futureModifiedAt = new Date(nowMs + 60_000).toISOString();
-  fileSystem.utimesSync(
-    futureTarget,
-    new Date(futureModifiedAt),
-    new Date(futureModifiedAt),
-  );
+  fileSystem.utimesSync(futureTarget, new Date(futureModifiedAt), new Date(futureModifiedAt));
   const futureReview = cleanupStaging(environment, futureId);
   assert.equal(futureReview.modified_at, futureModifiedAt);
   assert.equal(futureReview.age_ms, 0);
@@ -1621,12 +1568,10 @@ test("cleanup token binds the selected process id independently of its timestamp
   const reboundBytes = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => cleanupStaging(
-      environment,
-      publicationId,
-      review.confirmation_token,
-      { processId: reboundId },
-    ),
+    () =>
+      cleanupStaging(environment, publicationId, review.confirmation_token, {
+        processId: reboundId,
+      }),
     (error) => error.code === "staging_cleanup_confirmation_mismatch",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), reboundBytes);
@@ -1657,11 +1602,7 @@ test("cleanup token binds publication id even for identical mocked snapshots", (
     assert.equal(secondReview.tree_digest, firstReview.tree_digest);
     assert.notEqual(secondReview.confirmation_token, firstReview.confirmation_token);
     assert.throws(
-      () => cleanupStaging(
-        environment,
-        secondId,
-        firstReview.confirmation_token,
-      ),
+      () => cleanupStaging(environment, secondId, firstReview.confirmation_token),
       (error) => error.code === "staging_cleanup_confirmation_mismatch",
     );
   } finally {
@@ -1800,10 +1741,7 @@ test("staging inventory failures stay typed, bounded, and byte-stable", async (t
           () => cleanupStaging(environment, publicationId),
           (error) => {
             assert.equal(error.code, "staging_inventory_unreadable");
-            assert.equal(
-              error.message,
-              `staging_inventory_unreadable: ${fixture.message}`,
-            );
+            assert.equal(error.message, `staging_inventory_unreadable: ${fixture.message}`);
             return true;
           },
         );
@@ -1888,17 +1826,13 @@ test("staging inventory detects a root identity change during one snapshot", (t)
   const ledgerBefore = readFileSync(environment.ledgerPath, "utf8");
   const originalLstatSync = fileSystem.lstatSync;
   let targetLstatCalls = 0;
-  const mockedLstatSync = t.mock.method(
-    fileSystem,
-    "lstatSync",
-    (path, options) => {
-      if (path === target) {
-        targetLstatCalls += 1;
-        if (targetLstatCalls === 2) fileSystem.chmodSync(target, 0o700);
-      }
-      return originalLstatSync(path, options);
-    },
-  );
+  const mockedLstatSync = t.mock.method(fileSystem, "lstatSync", (path, options) => {
+    if (path === target) {
+      targetLstatCalls += 1;
+      if (targetLstatCalls === 2) fileSystem.chmodSync(target, 0o700);
+    }
+    return originalLstatSync(path, options);
+  });
   syncBuiltinESMExports();
   try {
     assert.throws(
@@ -1931,24 +1865,20 @@ test("staging inventory rechecks every root predicate after the tree walk", asyn
       const originalRealpathSync = fileSystem.realpathSync.bind(fileSystem);
       let targetLstatCalls = 0;
       let targetRealpathCalls = 0;
-      const mockedLstatSync = subtest.mock.method(
-        fileSystem,
-        "lstatSync",
-        (path, ...args) => {
-          const stats = originalLstatSync(path, ...args);
-          if (path !== target) return stats;
-          targetLstatCalls += 1;
-          if (targetLstatCalls !== 2 || fixture.finalProperty === "realpath") return stats;
-          return new Proxy(stats, {
-            get(value, property, receiver) {
-              if (property === fixture.finalProperty) {
-                return () => fixture.finalProperty === "isSymbolicLink";
-              }
-              return Reflect.get(value, property, receiver);
-            },
-          });
-        },
-      );
+      const mockedLstatSync = subtest.mock.method(fileSystem, "lstatSync", (path, ...args) => {
+        const stats = originalLstatSync(path, ...args);
+        if (path !== target) return stats;
+        targetLstatCalls += 1;
+        if (targetLstatCalls !== 2 || fixture.finalProperty === "realpath") return stats;
+        return new Proxy(stats, {
+          get(value, property, receiver) {
+            if (property === fixture.finalProperty) {
+              return () => fixture.finalProperty === "isSymbolicLink";
+            }
+            return Reflect.get(value, property, receiver);
+          },
+        });
+      });
       const mockedRealpathSync = subtest.mock.method(
         fileSystem,
         "realpathSync",
@@ -1998,20 +1928,16 @@ test("cleanup-staging repeats the complete inventory immediately before removal"
   const originalRmSync = fileSystem.rmSync.bind(fileSystem);
   let targetLstatCalls = 0;
   let removeCalls = 0;
-  const mockedLstatSync = t.mock.method(
-    fileSystem,
-    "lstatSync",
-    (path, options) => {
-      const stats = originalLstatSync(path, options);
-      if (path === target) {
-        targetLstatCalls += 1;
-        if (targetLstatCalls === 2) {
-          writeFileSync(join(target, "raced-candidate.bin"), "raced bytes\n", "utf8");
-        }
+  const mockedLstatSync = t.mock.method(fileSystem, "lstatSync", (path, options) => {
+    const stats = originalLstatSync(path, options);
+    if (path === target) {
+      targetLstatCalls += 1;
+      if (targetLstatCalls === 2) {
+        writeFileSync(join(target, "raced-candidate.bin"), "raced bytes\n", "utf8");
       }
-      return stats;
-    },
-  );
+    }
+    return stats;
+  });
   const mockedRmSync = t.mock.method(fileSystem, "rmSync", (...args) => {
     removeCalls += 1;
     return originalRmSync(...args);
@@ -2052,25 +1978,21 @@ test("cleanup-staging binds digest and root identity independently across snapsh
       const originalRmSync = fileSystem.rmSync.bind(fileSystem);
       let targetLstatCalls = 0;
       let removeCalls = 0;
-      const mockedLstatSync = subtest.mock.method(
-        fileSystem,
-        "lstatSync",
-        (path, ...args) => {
-          const stats = originalLstatSync(path, ...args);
-          if (path === target) {
-            targetLstatCalls += 1;
-            if (targetLstatCalls === 2) {
-              if (fixture.mutation === "root_identity") {
-                chmodSync(target, 0o700);
-              } else {
-                const size = originalLstatSync(candidatePath).size;
-                writeFileSync(candidatePath, "x".repeat(size), "utf8");
-              }
+      const mockedLstatSync = subtest.mock.method(fileSystem, "lstatSync", (path, ...args) => {
+        const stats = originalLstatSync(path, ...args);
+        if (path === target) {
+          targetLstatCalls += 1;
+          if (targetLstatCalls === 2) {
+            if (fixture.mutation === "root_identity") {
+              chmodSync(target, 0o700);
+            } else {
+              const size = originalLstatSync(candidatePath).size;
+              writeFileSync(candidatePath, "x".repeat(size), "utf8");
             }
           }
-          return stats;
-        },
-      );
+        }
+        return stats;
+      });
       const mockedRmSync = subtest.mock.method(fileSystem, "rmSync", (...args) => {
         removeCalls += 1;
         return originalRmSync(...args);
@@ -2106,7 +2028,8 @@ test("cleanup-staging reports removal errors and a surviving postcondition", asy
   const cases = [
     {
       id: "remove_error",
-      message: "staging_cleanup_remove_failed: staging cleanup could not remove the reviewed target (EACCES)",
+      message:
+        "staging_cleanup_remove_failed: staging cleanup could not remove the reviewed target (EACCES)",
       remove(targetPath) {
         throw Object.assign(new Error(`synthetic remove failure for ${targetPath}`), {
           code: "EACCES",
@@ -2198,30 +2121,26 @@ test("deep staging reports parent open and read failures without inventing overf
       const ledgerBefore = readFileSync(environment.ledgerPath, "utf8");
       const originalOpendirSync = fileSystem.opendirSync.bind(fileSystem);
       let closeCount = 0;
-      const mockedOpendirSync = subtest.mock.method(
-        fileSystem,
-        "opendirSync",
-        (path, ...args) => {
-          if (path !== parent) return originalOpendirSync(path, ...args);
-          if (fixture.mode === "open") {
-            throw Object.assign(new Error("synthetic parent open failure"), {
-              code: fixture.causeCode,
-            });
-          }
-          const directory = originalOpendirSync(path, ...args);
-          const originalCloseSync = directory.closeSync.bind(directory);
-          directory.readSync = () => {
-            throw Object.assign(new Error("synthetic parent read failure"), {
-              code: fixture.causeCode,
-            });
-          };
-          directory.closeSync = () => {
-            closeCount += 1;
-            return originalCloseSync();
-          };
-          return directory;
-        },
-      );
+      const mockedOpendirSync = subtest.mock.method(fileSystem, "opendirSync", (path, ...args) => {
+        if (path !== parent) return originalOpendirSync(path, ...args);
+        if (fixture.mode === "open") {
+          throw Object.assign(new Error("synthetic parent open failure"), {
+            code: fixture.causeCode,
+          });
+        }
+        const directory = originalOpendirSync(path, ...args);
+        const originalCloseSync = directory.closeSync.bind(directory);
+        directory.readSync = () => {
+          throw Object.assign(new Error("synthetic parent read failure"), {
+            code: fixture.causeCode,
+          });
+        };
+        directory.closeSync = () => {
+          closeCount += 1;
+          return originalCloseSync();
+        };
+        return directory;
+      });
       syncBuiltinESMExports();
       try {
         const staging = deepValidate(environment).processes[0].staging;
@@ -2253,29 +2172,27 @@ test("deep staging preserves typed parent metadata failures", async (t) => {
       const parent = join(environment.selectedOutputPath, ".pipeline-tmp");
       const ledgerBefore = readFileSync(environment.ledgerPath, "utf8");
       const originalMethod = fileSystem[fixture.method].bind(fileSystem);
-      const mocked = subtest.mock.method(
-        fileSystem,
-        fixture.method,
-        (path, ...args) => {
-          if (path === parent) {
-            throw Object.assign(new Error("synthetic parent metadata failure"), {
-              code: fixture.causeCode,
-            });
-          }
-          return originalMethod(path, ...args);
-        },
-      );
+      const mocked = subtest.mock.method(fileSystem, fixture.method, (path, ...args) => {
+        if (path === parent) {
+          throw Object.assign(new Error("synthetic parent metadata failure"), {
+            code: fixture.causeCode,
+          });
+        }
+        return originalMethod(path, ...args);
+      });
       syncBuiltinESMExports();
       try {
         const staging = deepValidate(environment).processes[0].staging;
         assert.equal(staging.health, "attention");
         assert.deepEqual(staging.issues, ["staging_inventory_unreadable"]);
-        assert.deepEqual(staging.entries, [{
-          publication_id: null,
-          classification: "invalid_entry",
-          action: "inspect_staging_inventory",
-          inventory_health: "unsafe",
-        }]);
+        assert.deepEqual(staging.entries, [
+          {
+            publication_id: null,
+            classification: "invalid_entry",
+            action: "inspect_staging_inventory",
+            inventory_health: "unsafe",
+          },
+        ]);
       } finally {
         mocked.mock.restore();
         syncBuiltinESMExports();
@@ -2294,7 +2211,8 @@ test("staging tree digest is byte-ordered and independent of enumeration order",
   writeFileSync(join(target, "z.bin"), "z\n", "utf8");
   writeFileSync(join(target, "ä.bin"), "umlaut\n", "utf8");
   const names = ["candidate.bin", "z.bin", "ä.bin"].sort((left, right) =>
-    Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")));
+    Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")),
+  );
   const expectedEntries = names.map((name) => {
     const stats = fileSystem.lstatSync(join(target, name), { bigint: true });
     return {
@@ -2336,11 +2254,7 @@ test("staging tree digest is byte-ordered and independent of enumeration order",
   try {
     const review = cleanupStaging(environment, publicationId);
     assert.equal(review.tree_digest, expectedDigest);
-    const cleaned = cleanupStaging(
-      environment,
-      publicationId,
-      review.confirmation_token,
-    );
+    const cleaned = cleanupStaging(environment, publicationId, review.confirmation_token);
     assert.equal(cleaned.status, "cleaned");
     assert.equal(cleaned.tree_digest, expectedDigest);
   } finally {
@@ -2381,9 +2295,9 @@ test("staging digest preserves nested routes, directory types, and maximum depth
   assert.equal(review.max_depth, 2);
   assert.equal(
     review.total_bytes,
-    Number(fileSystem.lstatSync(deepLeaf).size)
-      + Number(fileSystem.lstatSync(shallowLeaf).size)
-      + Number(fileSystem.lstatSync(join(target, "candidate.bin")).size),
+    Number(fileSystem.lstatSync(deepLeaf).size) +
+      Number(fileSystem.lstatSync(shallowLeaf).size) +
+      Number(fileSystem.lstatSync(join(target, "candidate.bin")).size),
   );
   assert.equal(review.tree_digest, sha256Hex(JSON.stringify(expectedEntries)));
   assert.equal(existsSync(target), true);
@@ -2435,12 +2349,14 @@ test("deep staging rejects a symlink-marked parent entry before target inspectio
   assert.equal(targetOpenCalls, 0);
   assert.equal(staging.health, "attention");
   assert.deepEqual(staging.issues, ["staging_invalid_entry"]);
-  assert.deepEqual(staging.entries, [{
-    publication_id: publicationId,
-    classification: "invalid_entry",
-    action: "inspect_staging_inventory",
-    inventory_health: "unsafe",
-  }]);
+  assert.deepEqual(staging.entries, [
+    {
+      publication_id: publicationId,
+      classification: "invalid_entry",
+      action: "inspect_staging_inventory",
+      inventory_health: "unsafe",
+    },
+  ]);
   assert.equal(existsSync(target), true);
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), ledgerBefore);
   executedStagingScenarios.add("parent_dirent_symlink");
@@ -2457,7 +2373,10 @@ test("deep staging inspection bounds the direct publication inventory", (t) => {
   }
   const boundary = deepValidate(environment).processes[0].staging;
   assert.equal(boundary.entries.length, 64);
-  assert.equal(boundary.entries.every(({ classification }) => classification === "orphan"), true);
+  assert.equal(
+    boundary.entries.every(({ classification }) => classification === "orphan"),
+    true,
+  );
   assert.deepEqual(boundary.issues, ["staging_orphan"]);
   executedStagingScenarios.add("parent_entry_boundary");
 
@@ -2692,17 +2611,11 @@ test("staging scenario inventory matches expected, declared, and executed legs",
     DECLARED_STAGING_SCENARIOS.filter((id) => !EXPECTED_STAGING_SCENARIOS.includes(id)),
     [],
   );
-  assert.deepEqual(
-    [...executedStagingScenarios].sort(),
-    [...declaredSet].sort(),
-  );
+  assert.deepEqual([...executedStagingScenarios].sort(), [...declaredSet].sort());
 });
 
 test("every staging filesystem diagnostic routes through the bounded cause owner", () => {
-  const source = readFileSync(
-    resolve(repoRoot, "tools/lib/process-log-v3-lifecycle.mjs"),
-    "utf8",
-  );
+  const source = readFileSync(resolve(repoRoot, "tools/lib/process-log-v3-lifecycle.mjs"), "utf8");
   const boundedRoutes = source.match(/boundedStagingCauseCode\(error\)/g) ?? [];
   assert.equal(boundedRoutes.length, 7);
   assert.doesNotMatch(
@@ -2714,28 +2627,19 @@ test("every staging filesystem diagnostic routes through the bounded cause owner
     /readBoundedStagingDirectory\(\s*directoryPath,\s*STAGING_MAX_ENTRIES - entries\.length,/,
   );
   assert.match(source, /if \(entries\.length >= STAGING_MAX_ENTRIES\) \{/);
-  assert.equal(
-    source.match(/const stats = stagingLstat\(absolutePath\);/g)?.length,
-    1,
-  );
-  assert.equal(
-    source.match(/const finalRootStats = stagingLstat\(targetPath\);/g)?.length,
-    1,
-  );
+  assert.equal(source.match(/const stats = stagingLstat\(absolutePath\);/g)?.length, 1);
+  assert.equal(source.match(/const finalRootStats = stagingLstat\(targetPath\);/g)?.length, 1);
 });
 
 test("staging ownership and active-attempt guards route through all five steps", () => {
   assert.deepEqual(fileBackedStepNames, EXPECTED_FILE_BACKED_STEP_NAMES);
-  const source = readFileSync(
-    resolve(repoRoot, "tools/lib/process-log-v3-lifecycle.mjs"),
-    "utf8",
-  );
-  const ownershipOwner = source.match(
-    /function publicationOwnershipIndex\(log\) \{[\s\S]*?\n\}\n\nfunction processHasActiveAttempt/,
-  )?.[0] ?? "";
-  const activeOwner = source.match(
-    /function processHasActiveAttempt\(record\) \{[\s\S]*?\n\}/,
-  )?.[0] ?? "";
+  const source = readFileSync(resolve(repoRoot, "tools/lib/process-log-v3-lifecycle.mjs"), "utf8");
+  const ownershipOwner =
+    source.match(
+      /function publicationOwnershipIndex\(log\) \{[\s\S]*?\n\}\n\nfunction processHasActiveAttempt/,
+    )?.[0] ?? "";
+  const activeOwner =
+    source.match(/function processHasActiveAttempt\(record\) \{[\s\S]*?\n\}/)?.[0] ?? "";
   assert.match(ownershipOwner, /for \(const stepName of fileBackedStepNames\)/);
   assert.match(
     activeOwner,
@@ -2782,10 +2686,7 @@ test("deep validation distinguishes missing and corrupt committed artifact bytes
 
   assert.equal(deepStep(missingReport, "get_vacancy").artifact_health, "missing");
   assert.ok(deepStep(missingReport, "get_vacancy").issues.includes("artifact_missing"));
-  assert.equal(
-    deepStep(missingReport, "research_company").input_health,
-    "unavailable",
-  );
+  assert.equal(deepStep(missingReport, "research_company").input_health, "unavailable");
   assert.equal(readFileSync(missing.ledgerPath, "utf8"), missingBefore);
 
   const corrupt = createCompletedEnvironment(t);
@@ -2855,16 +2756,12 @@ test("deep validation reports ledger-to-vacancy identity drift without mutating 
   const before = readFileSync(environment.ledgerPath, "utf8");
 
   const report = deepValidate(environment);
-  const processReport = report.processes.find(
-    (entry) => entry.process_id === processId,
-  );
+  const processReport = report.processes.find((entry) => entry.process_id === processId);
 
   assert.equal(report.health, "attention");
   assert.equal(processReport.health, "attention");
   assert.equal(deepStep(report, "get_vacancy").artifact_health, "corrupt");
-  assert.ok(
-    deepStep(report, "get_vacancy").issues.includes("artifact_corrupt"),
-  );
+  assert.ok(deepStep(report, "get_vacancy").issues.includes("artifact_corrupt"));
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
 });
 
@@ -2874,10 +2771,7 @@ test("protected-input drift is reported and reconcile stales both completed gene
   const currentReport = deepValidate(environment);
   assert.equal(deepStep(currentReport, "generate_cv").artifact_health, "current");
   assert.equal(deepStep(currentReport, "generate_cv").input_health, "current");
-  assert.equal(
-    deepStep(currentReport, "write_cover_letter").artifact_health,
-    "current",
-  );
+  assert.equal(deepStep(currentReport, "write_cover_letter").artifact_health, "current");
   appendFileSync(
     resolve(environment.workspaceRoot, "knowledge/impact-levers.md"),
     "\nSynthetic protected drift.\n",
@@ -2888,13 +2782,9 @@ test("protected-input drift is reported and reconcile stales both completed gene
   const report = deepValidate(environment);
 
   assert.equal(deepStep(report, "map_experience").input_health, "stale");
-  assert.ok(
-    deepStep(report, "map_experience").issues.includes("protected_input_drift"),
-  );
+  assert.ok(deepStep(report, "map_experience").issues.includes("protected_input_drift"));
   assert.equal(deepStep(report, "generate_cv").input_health, "stale");
-  assert.ok(
-    deepStep(report, "generate_cv").issues.includes("prerequisite_stale"),
-  );
+  assert.ok(deepStep(report, "generate_cv").issues.includes("prerequisite_stale"));
   assert.equal(deepStep(report, "write_cover_letter").input_health, "stale");
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), beforeDeep);
 
@@ -2904,10 +2794,7 @@ test("protected-input drift is reported and reconcile stales both completed gene
   );
 
   assert.equal(result.status, "stale");
-  assert.deepEqual(result.invalidated_steps, [
-    "generate_cv",
-    "write_cover_letter",
-  ]);
+  assert.deepEqual(result.invalidated_steps, ["generate_cv", "write_cover_letter"]);
   assert.equal(process.steps.map_experience.state, "stale");
   assert.equal(process.steps.generate_cv.state, "stale");
   assert.equal(process.steps.write_cover_letter.state, "stale");
@@ -2956,28 +2843,18 @@ test("deep validation reports a prepared publication without changing its journa
 
   const report = deepValidate(environment);
 
-  assert.equal(
-    deepStep(report, "generate_cv").artifact_health,
-    "recovery_required",
-  );
-  assert.ok(
-    deepStep(report, "generate_cv").issues.includes(
-      "publication_recovery_required",
-    ),
-  );
+  assert.equal(deepStep(report, "generate_cv").artifact_health, "recovery_required");
+  assert.ok(deepStep(report, "generate_cv").issues.includes("publication_recovery_required"));
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
 });
 
 test("reconcile safely recreates only a missing reservation-before-mkdir directory", (t) => {
   const environment = createMissingReservationEnvironment(t);
   const before = readFileSync(environment.ledgerPath, "utf8");
-  const report = validateProcessLogV3Deep(
-    environment.ledgerPath,
-    {
-      outputRoot: environment.outputRoot,
-      workspaceRoot: environment.workspaceRoot,
-    },
-  );
+  const report = validateProcessLogV3Deep(environment.ledgerPath, {
+    outputRoot: environment.outputRoot,
+    workspaceRoot: environment.workspaceRoot,
+  });
 
   assert.deepEqual(report.processes[0].output, {
     health: "missing",
@@ -3002,10 +2879,7 @@ test("reconcile safely recreates only a missing reservation-before-mkdir directo
 
   assert.equal(result.status, "output_recovered");
   assert.ok(
-    existsSync(join(
-      environment.outputRoot,
-      environment.outputDir.slice("output/".length),
-    )),
+    existsSync(join(environment.outputRoot, environment.outputDir.slice("output/".length))),
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
 });
@@ -3014,38 +2888,33 @@ test("deep validation reports symlink output as invalid and reconcile never adop
   const environment = createMissingReservationEnvironment(t);
   const outside = join(environment.workspaceRoot, "outside-output");
   mkdirSync(outside);
-  symlinkSync(
-    outside,
-    join(environment.outputRoot, environment.outputDir.slice("output/".length)),
-  );
+  symlinkSync(outside, join(environment.outputRoot, environment.outputDir.slice("output/".length)));
   const before = readFileSync(environment.ledgerPath, "utf8");
 
-  const report = validateProcessLogV3Deep(
-    environment.ledgerPath,
-    {
-      outputRoot: environment.outputRoot,
-      workspaceRoot: environment.workspaceRoot,
-    },
-  );
+  const report = validateProcessLogV3Deep(environment.ledgerPath, {
+    outputRoot: environment.outputRoot,
+    workspaceRoot: environment.workspaceRoot,
+  });
 
   assert.deepEqual(report.processes[0].output, {
     health: "invalid",
     code: "output_path_invalid",
   });
   assert.throws(
-    () => reconcileFileBackedStepV3(
-      environment.ledgerPath,
-      {
-        selector: { id: environment.processId },
-        stepName: "get_vacancy",
-        attemptId: null,
-        publicationId: null,
-      },
-      {
-        outputRoot: environment.outputRoot,
-        workspaceRoot: environment.workspaceRoot,
-      },
-    ),
+    () =>
+      reconcileFileBackedStepV3(
+        environment.ledgerPath,
+        {
+          selector: { id: environment.processId },
+          stepName: "get_vacancy",
+          attemptId: null,
+          publicationId: null,
+        },
+        {
+          outputRoot: environment.outputRoot,
+          workspaceRoot: environment.workspaceRoot,
+        },
+      ),
     (error) => error.code === "output_path_invalid",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);

@@ -8,12 +8,7 @@ import {
   readdirSync,
   realpathSync,
 } from "node:fs";
-import {
-  isAbsolute,
-  relative,
-  resolve,
-  sep,
-} from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   classifyProcessRecord,
   fileBackedStepNames,
@@ -36,11 +31,7 @@ export const webReadableArtifactKinds = Object.freeze([
 ]);
 
 const webReadableArtifactKindSet = new Set(webReadableArtifactKinds);
-const jsonArtifactKinds = new Set([
-  "vacancy",
-  "company_research",
-  "application_brief",
-]);
+const jsonArtifactKinds = new Set(["vacancy", "company_research", "application_brief"]);
 const corruptArtifactHealth = new Set(["corrupt", "recovery_required"]);
 const missingInputHealth = new Set(["missing"]);
 const unavailableInputHealth = new Set(["unavailable"]);
@@ -78,19 +69,16 @@ function selectedStepHealth(stepName, step, byStep) {
 
 function stepIsCurrentCompleted(step, health) {
   return (
-    step.state === "completed"
-    && health.artifact_health === "current"
-    && health.input_health === "current"
+    step.state === "completed" &&
+    health.artifact_health === "current" &&
+    health.input_health === "current"
   );
 }
 
 function stepEffectiveState(step, health) {
   if (
-    step.state === "stale"
-    || (
-      step.revision > 0
-      && ["stale", "unavailable"].includes(health.input_health)
-    )
+    step.state === "stale" ||
+    (step.revision > 0 && ["stale", "unavailable"].includes(health.input_health))
   ) {
     return "stale";
   }
@@ -99,20 +87,16 @@ function stepEffectiveState(step, health) {
 
 function stepNeedsAttention(step, health) {
   return (
-    ["blocked", "failed", "stale"].includes(step.state)
-    || ["missing", "corrupt", "recovery_required"].includes(health.artifact_health)
-    || ["missing", "stale", "unavailable"].includes(health.input_health)
+    ["blocked", "failed", "stale"].includes(step.state) ||
+    ["missing", "corrupt", "recovery_required"].includes(health.artifact_health) ||
+    ["missing", "stale", "unavailable"].includes(health.input_health)
   );
 }
 
 function dependenciesAreCurrent(process, byStep, stepName) {
   return fileBackedStepDependencies[stepName].every((dependencyName) => {
     const dependency = process.steps[dependencyName];
-    const dependencyHealth = selectedStepHealth(
-      dependencyName,
-      dependency,
-      byStep,
-    );
+    const dependencyHealth = selectedStepHealth(dependencyName, dependency, byStep);
     return stepIsCurrentCompleted(dependency, dependencyHealth);
   });
 }
@@ -121,9 +105,9 @@ function stepIsActionable(process, byStep, stepName) {
   const step = process.steps[stepName];
   const health = selectedStepHealth(stepName, step, byStep);
   if (
-    ["missing", "corrupt", "recovery_required"].includes(health.artifact_health)
-    || missingInputHealth.has(health.input_health)
-    || unavailableInputHealth.has(health.input_health)
+    ["missing", "corrupt", "recovery_required"].includes(health.artifact_health) ||
+    missingInputHealth.has(health.input_health) ||
+    unavailableInputHealth.has(health.input_health)
   ) {
     return false;
   }
@@ -157,8 +141,8 @@ function latestCompletedStep(process) {
     .filter(({ finishedAt }) => finishedAt !== null)
     .sort(
       (left, right) =>
-        right.finishedAt.localeCompare(left.finishedAt)
-        || fileBackedStepNames.indexOf(right.name) - fileBackedStepNames.indexOf(left.name),
+        right.finishedAt.localeCompare(left.finishedAt) ||
+        fileBackedStepNames.indexOf(right.name) - fileBackedStepNames.indexOf(left.name),
     );
   return completed[0]?.name ?? null;
 }
@@ -170,7 +154,8 @@ function countReadableArtifacts(process, byStep) {
     const health = selectedStepHealth(stepName, step, byStep);
     if (step.revision === 0 || health.artifact_health !== "current") continue;
     count += step.artifacts.filter((artifact) =>
-      webReadableArtifactKindSet.has(artifact.kind)).length;
+      webReadableArtifactKindSet.has(artifact.kind),
+    ).length;
   }
   return count;
 }
@@ -203,60 +188,44 @@ export function derivePublicLifecycle(process, processHealth) {
 
   const byStep = healthByStep(processHealth);
   const hasCorrupt =
-    processHealth.output.health === "invalid"
-    || fileBackedStepNames.some((stepName) => {
+    processHealth.output.health === "invalid" ||
+    fileBackedStepNames.some((stepName) => {
       const step = process.steps[stepName];
-      return corruptArtifactHealth.has(
-        selectedStepHealth(stepName, step, byStep).artifact_health,
-      );
+      return corruptArtifactHealth.has(selectedStepHealth(stepName, step, byStep).artifact_health);
     });
   const hasMissing =
-    processHealth.output.health === "missing"
-    || fileBackedStepNames.some((stepName) => {
+    processHealth.output.health === "missing" ||
+    fileBackedStepNames.some((stepName) => {
       const step = process.steps[stepName];
       const health = selectedStepHealth(stepName, step, byStep);
-      return (
-        health.artifact_health === "missing"
-        || health.input_health === "missing"
-      );
+      return health.artifact_health === "missing" || health.input_health === "missing";
     });
   const hasStale = fileBackedStepNames.some((stepName) => {
     const step = process.steps[stepName];
     const health = selectedStepHealth(stepName, step, byStep);
     return (
-      step.state === "stale"
-      || (
-        step.revision > 0
-        && ["stale", "unavailable"].includes(health.input_health)
-      )
+      step.state === "stale" ||
+      (step.revision > 0 && ["stale", "unavailable"].includes(health.input_health))
     );
   });
 
   const completedSteps = fileBackedStepNames.filter((stepName) => {
     const step = process.steps[stepName];
-    return stepIsCurrentCompleted(
-      step,
-      selectedStepHealth(stepName, step, byStep),
-    );
+    return stepIsCurrentCompleted(step, selectedStepHealth(stepName, step, byStep));
   });
   const runningSteps = fileBackedStepNames.filter(
     (stepName) => process.steps[stepName].state === "running",
   );
   const attentionSteps = fileBackedStepNames.filter((stepName) => {
     const step = process.steps[stepName];
-    return stepNeedsAttention(
-      step,
-      selectedStepHealth(stepName, step, byStep),
-    );
+    return stepNeedsAttention(step, selectedStepHealth(stepName, step, byStep));
   });
-  if (
-    ["missing", "invalid"].includes(processHealth.output.health)
-    && attentionSteps.length === 0
-  ) {
+  if (["missing", "invalid"].includes(processHealth.output.health) && attentionSteps.length === 0) {
     attentionSteps.push("get_vacancy");
   }
   const actionableSteps = fileBackedStepNames.filter((stepName) =>
-    stepIsActionable(process, byStep, stepName));
+    stepIsActionable(process, byStep, stepName),
+  );
 
   let state;
   if (hasCorrupt) {
@@ -265,16 +234,9 @@ export function derivePublicLifecycle(process, processHealth) {
     state = "missing";
   } else {
     state = null;
-    for (const stepName of [
-      "get_vacancy",
-      "research_company",
-      "map_experience",
-    ]) {
+    for (const stepName of ["get_vacancy", "research_company", "map_experience"]) {
       const step = process.steps[stepName];
-      const effectiveState = stepEffectiveState(
-        step,
-        selectedStepHealth(stepName, step, byStep),
-      );
+      const effectiveState = stepEffectiveState(step, selectedStepHealth(stepName, step, byStep));
       if (effectiveState === "completed") continue;
       state = effectiveState === "pending" ? "ready" : effectiveState;
       break;
@@ -286,11 +248,7 @@ export function derivePublicLifecycle(process, processHealth) {
       );
       const letterState = stepEffectiveState(
         process.steps.write_cover_letter,
-        selectedStepHealth(
-          "write_cover_letter",
-          process.steps.write_cover_letter,
-          byStep,
-        ),
+        selectedStepHealth("write_cover_letter", process.steps.write_cover_letter, byStep),
       );
       state = siblingAggregate(cvState, letterState);
     }
@@ -348,8 +306,7 @@ function publicListProcess(process, lifecycle) {
 }
 
 function findProcessHealth(report, processId) {
-  const health = report.processes.find((candidate) =>
-    candidate.process_id === processId);
+  const health = report.processes.find((candidate) => candidate.process_id === processId);
   if (!health) throw publicError("process_health_unavailable", 500);
   return health;
 }
@@ -380,16 +337,16 @@ function publicStepTimeline(process, processHealth) {
     const health = selectedStepHealth(stepName, step, byStep);
     const diagnostic = step.blocker
       ? {
-        type: "blocker",
-        code: step.blocker.code,
-        retryable: step.blocker.retryable,
-      }
+          type: "blocker",
+          code: step.blocker.code,
+          retryable: step.blocker.retryable,
+        }
       : step.error
         ? {
-          type: "error",
-          code: step.error.code,
-          retryable: step.error.retryable,
-        }
+            type: "error",
+            code: step.error.code,
+            retryable: step.error.retryable,
+          }
         : null;
     return {
       name: stepName,
@@ -434,15 +391,9 @@ function publicCv(process, lifecycle, processHealth) {
       docx_path: null,
     };
   }
-  const cvHealth = processHealth.steps.find((step) =>
-    step.name === "generate_cv");
-  const docx = process.steps.generate_cv.artifacts.find((artifact) =>
-    artifact.kind === "cv_docx");
-  if (
-    cvHealth?.artifact_health !== "current"
-    || !docx
-    || process.output_dir === null
-  ) {
+  const cvHealth = processHealth.steps.find((step) => step.name === "generate_cv");
+  const docx = process.steps.generate_cv.artifacts.find((artifact) => artifact.kind === "cv_docx");
+  if (cvHealth?.artifact_health !== "current" || !docx || process.output_dir === null) {
     throw publicError("cv_metadata_unavailable", 500);
   }
   return {
@@ -456,7 +407,7 @@ export function buildPublicProcessDetail({ log, report, processId }) {
   const process = log.processes.find((candidate) => candidate.id === processId);
   if (!process) throw publicError("process_not_found", 404);
   const company = process.company_id
-    ? log.companies.find((candidate) => candidate.id === process.company_id) ?? null
+    ? (log.companies.find((candidate) => candidate.id === process.company_id) ?? null)
     : null;
   const processHealth = findProcessHealth(report, process.id);
   const lifecycle = derivePublicLifecycle(process, processHealth);
@@ -483,9 +434,9 @@ export function buildPublicProcessDetail({ log, report, processId }) {
     cv: historical ? null : publicCv(process, lifecycle, processHealth),
     historical: historical
       ? {
-        artifacts_available: false,
-        code: "historical_artifacts_unavailable",
-      }
+          artifacts_available: false,
+          code: "historical_artifacts_unavailable",
+        }
       : null,
   };
 }
@@ -507,14 +458,8 @@ function requireAbsoluteDirectory(directory, code) {
 }
 
 function resolveArtifactEnvironment(workspaceRoot, outputRoot) {
-  const workspacePath = requireAbsoluteDirectory(
-    workspaceRoot,
-    "artifact_environment_invalid",
-  );
-  const outputPath = requireAbsoluteDirectory(
-    outputRoot,
-    "artifact_environment_invalid",
-  );
+  const workspacePath = requireAbsoluteDirectory(workspaceRoot, "artifact_environment_invalid");
+  const outputPath = requireAbsoluteDirectory(outputRoot, "artifact_environment_invalid");
   if (outputPath !== resolve(workspacePath, "output")) {
     throw publicError("artifact_environment_invalid", 500);
   }
@@ -538,12 +483,8 @@ function resolveArtifactEnvironment(workspaceRoot, outputRoot) {
 function pathIsWithin(parentPath, childPath) {
   const distance = relative(parentPath, childPath);
   return (
-    distance === ""
-    || (
-      distance !== ".."
-      && !distance.startsWith(`..${sep}`)
-      && !isAbsolute(distance)
-    )
+    distance === "" ||
+    (distance !== ".." && !distance.startsWith(`..${sep}`) && !isAbsolute(distance))
   );
 }
 
@@ -556,13 +497,10 @@ function resolveOwnedOutputDirectory(environment, outputDir) {
   } catch {
     throw publicError("output_unavailable", 409);
   }
-  const equivalent = entries.filter((entry) =>
-    outputDirEquivalenceKey(`output/${entry}`)
-    === outputDirEquivalenceKey(outputDir));
-  if (
-    !equivalent.includes(segment)
-    || equivalent.some((entry) => entry !== segment)
-  ) {
+  const equivalent = entries.filter(
+    (entry) => outputDirEquivalenceKey(`output/${entry}`) === outputDirEquivalenceKey(outputDir),
+  );
+  if (!equivalent.includes(segment) || equivalent.some((entry) => entry !== segment)) {
     throw publicError("output_missing_or_conflicting", 409);
   }
   const outputDirectory = resolve(environment.outputPath, segment);
@@ -575,9 +513,9 @@ function resolveOwnedOutputDirectory(environment, outputDir) {
     throw publicError("output_missing", 409);
   }
   if (
-    stats.isSymbolicLink()
-    || !stats.isDirectory()
-    || relative(environment.outputRealPath, realPath) !== segment
+    stats.isSymbolicLink() ||
+    !stats.isDirectory() ||
+    relative(environment.outputRealPath, realPath) !== segment
   ) {
     throw publicError("output_path_invalid", 409);
   }
@@ -603,32 +541,29 @@ function readVerifiedArtifactFile(outputDirectory, metadata, maxBytes) {
     throw publicError("artifact_missing", 404);
   }
   if (
-    pathStats.isSymbolicLink()
-    || !pathStats.isFile()
-    || !pathIsWithin(outputDirectory.realPath, artifactRealPath)
+    pathStats.isSymbolicLink() ||
+    !pathStats.isFile() ||
+    !pathIsWithin(outputDirectory.realPath, artifactRealPath)
   ) {
     throw publicError("artifact_path_invalid", 409);
   }
 
   let descriptor;
   try {
-    descriptor = openSync(
-      artifactPath,
-      constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
-    );
+    descriptor = openSync(artifactPath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     const openedStats = fstatSync(descriptor);
     if (
-      !openedStats.isFile()
-      || openedStats.dev !== pathStats.dev
-      || openedStats.ino !== pathStats.ino
+      !openedStats.isFile() ||
+      openedStats.dev !== pathStats.dev ||
+      openedStats.ino !== pathStats.ino
     ) {
       throw publicError("artifact_changed_during_read", 409);
     }
     const bytes = readFileSync(descriptor);
     if (
-      bytes.byteLength !== metadata.bytes
-      || bytes.byteLength !== openedStats.size
-      || sha256Hex(bytes) !== metadata.sha256
+      bytes.byteLength !== metadata.bytes ||
+      bytes.byteLength !== openedStats.size ||
+      sha256Hex(bytes) !== metadata.sha256
     ) {
       throw publicError("artifact_corrupt", 409);
     }
@@ -649,14 +584,7 @@ function readVerifiedArtifactFile(outputDirectory, metadata, maxBytes) {
 }
 
 export function readPublicProcessArtifact(
-  {
-    artifactKind,
-    logPath,
-    maxBytes = 1024 * 1024,
-    outputRoot,
-    processId,
-    workspaceRoot,
-  },
+  { artifactKind, logPath, maxBytes = 1024 * 1024, outputRoot, processId, workspaceRoot },
   { lockOptions } = {},
 ) {
   if (!webReadableArtifactKindSet.has(artifactKind)) {
@@ -666,55 +594,53 @@ export function readPublicProcessArtifact(
     throw publicError("artifact_preview_limit_invalid", 500);
   }
   const environment = resolveArtifactEnvironment(workspaceRoot, outputRoot);
-  return withLogV3Lock(logPath, ({ log }) => {
-    const process = log.processes.find((candidate) => candidate.id === processId);
-    if (!process) throw publicError("process_not_found", 404);
-    if (classifyProcessRecord(process) === "historical") {
-      throw publicError("historical_artifacts_unavailable", 409);
-    }
+  return withLogV3Lock(
+    logPath,
+    ({ log }) => {
+      const process = log.processes.find((candidate) => candidate.id === processId);
+      if (!process) throw publicError("process_not_found", 404);
+      if (classifyProcessRecord(process) === "historical") {
+        throw publicError("historical_artifacts_unavailable", 409);
+      }
 
-    const owner = fileBackedStepNames
-      .map((stepName) => ({
-        stepName,
-        step: process.steps[stepName],
-        artifact: process.steps[stepName].artifacts.find((candidate) =>
-          candidate.kind === artifactKind),
-      }))
-      .find((candidate) => candidate.artifact !== undefined);
-    if (!owner || owner.step.revision === 0) {
-      throw publicError("artifact_not_found", 404);
-    }
+      const owner = fileBackedStepNames
+        .map((stepName) => ({
+          stepName,
+          step: process.steps[stepName],
+          artifact: process.steps[stepName].artifacts.find(
+            (candidate) => candidate.kind === artifactKind,
+          ),
+        }))
+        .find((candidate) => candidate.artifact !== undefined);
+      if (!owner || owner.step.revision === 0) {
+        throw publicError("artifact_not_found", 404);
+      }
 
-    const report = inspectProcessLogV3Deep(log, {
-      outputRoot,
-      workspaceRoot,
-    });
-    const processHealth = findProcessHealth(report, process.id);
-    const stepHealth = processHealth.steps.find((step) =>
-      step.name === owner.stepName);
-    if (!stepHealth || stepHealth.artifact_health !== "current") {
-      const code = {
-        missing: "artifact_missing",
-        corrupt: "artifact_corrupt",
-        recovery_required: "publication_recovery_required",
-      }[stepHealth?.artifact_health] ?? "artifact_unavailable";
-      throw publicError(code, 409);
-    }
+      const report = inspectProcessLogV3Deep(log, {
+        outputRoot,
+        workspaceRoot,
+      });
+      const processHealth = findProcessHealth(report, process.id);
+      const stepHealth = processHealth.steps.find((step) => step.name === owner.stepName);
+      if (!stepHealth || stepHealth.artifact_health !== "current") {
+        const code =
+          {
+            missing: "artifact_missing",
+            corrupt: "artifact_corrupt",
+            recovery_required: "publication_recovery_required",
+          }[stepHealth?.artifact_health] ?? "artifact_unavailable";
+        throw publicError(code, 409);
+      }
 
-    const outputDirectory = resolveOwnedOutputDirectory(
-      environment,
-      process.output_dir,
-    );
-    const bytes = readVerifiedArtifactFile(
-      outputDirectory,
-      owner.artifact,
-      maxBytes,
-    );
-    return {
-      bytes,
-      contentType: jsonArtifactKinds.has(artifactKind)
-        ? "application/json; charset=utf-8"
-        : "text/plain; charset=utf-8",
-    };
-  }, lockOptions);
+      const outputDirectory = resolveOwnedOutputDirectory(environment, process.output_dir);
+      const bytes = readVerifiedArtifactFile(outputDirectory, owner.artifact, maxBytes);
+      return {
+        bytes,
+        contentType: jsonArtifactKinds.has(artifactKind)
+          ? "application/json; charset=utf-8"
+          : "text/plain; charset=utf-8",
+      };
+    },
+    lockOptions,
+  );
 }

@@ -39,9 +39,7 @@ const frontendFiles = Object.freeze([
   "styles.css",
   "view-model.js",
 ]);
-const frontendModules = Object.freeze(
-  frontendFiles.filter((name) => name.endsWith(".js")),
-);
+const frontendModules = Object.freeze(frontendFiles.filter((name) => name.endsWith(".js")));
 // Reads the application-brief card renderers must never perform, written as receiver/key pairs
 // because the names are not globally forbidden: `term` is a real contract key on `ats.keywords[]`
 // and `description` on `cvPlan.checks.requiredEvidence[]`, both of which `app.js` reads legitimately
@@ -99,15 +97,17 @@ function completedStep({ artifacts, finishedAt, publicationId, startedAt }) {
     artifacts: structuredClone(artifacts),
     active_attempt: null,
     publication_transaction: null,
-    attempt_history: [{
-      attempt: 1,
-      outcome: "completed",
-      started_at: startedAt,
-      finished_at: finishedAt,
-      input_snapshot: [],
-      error_code: null,
-      publication_id: publicationId,
-    }],
+    attempt_history: [
+      {
+        attempt: 1,
+        outcome: "completed",
+        started_at: startedAt,
+        finished_at: finishedAt,
+        input_snapshot: [],
+        error_code: null,
+        publication_id: publicationId,
+      },
+    ],
     error: null,
     blocker: null,
   };
@@ -133,15 +133,17 @@ function failedPrivateProcess() {
     artifacts: [],
     active_attempt: null,
     publication_transaction: null,
-    attempt_history: [{
-      attempt: 1,
-      outcome: "failed",
-      started_at: timestamps.process,
-      finished_at: timestamps.failed,
-      input_snapshot: [],
-      error_code: "synthetic_private_failure",
-      publication_id: null,
-    }],
+    attempt_history: [
+      {
+        attempt: 1,
+        outcome: "failed",
+        started_at: timestamps.process,
+        finished_at: timestamps.failed,
+        input_snapshot: [],
+        error_code: "synthetic_private_failure",
+        publication_id: null,
+      },
+    ],
     error: {
       code: "synthetic_private_failure",
       message: "Synthetic internal error for the DTO check.",
@@ -176,12 +178,14 @@ function baseLog(processes = [historicalProcess()]) {
     schema_version: 4,
     duplicate_policy: "prompt",
     updated_at: timestamps.ledger,
-    companies: [{
-      id: "company_example",
-      display_name: "Example Labs",
-      search_terms: ["Example Labs", "Пример"],
-      domains: ["example.test"],
-    }],
+    companies: [
+      {
+        id: "company_example",
+        display_name: "Example Labs",
+        search_terms: ["Example Labs", "Пример"],
+        domains: ["example.test"],
+      },
+    ],
     processes,
   };
 }
@@ -203,24 +207,14 @@ function createArtifactEnvironment(t) {
     prefix: "job-search-server-artifact-",
   });
   const { ledgerPath, outputRoot, workspaceRoot } = disposable;
-  const selectedOutputPath = join(
-    outputRoot,
-    outputDir.slice("output/".length),
-  );
+  const selectedOutputPath = join(outputRoot, outputDir.slice("output/".length));
   mkdirSync(selectedOutputPath, { recursive: true });
   // The vacancy names one of the example's markets, which the health check reads from the layer.
   seedCandidateConfig(repoRoot, workspaceRoot);
   for (const fileName of ["job-description.txt", "vacancy.json"]) {
-    copyFileSync(
-      join(vacancyFixtureRoot, fileName),
-      join(selectedOutputPath, fileName),
-    );
+    copyFileSync(join(vacancyFixtureRoot, fileName), join(selectedOutputPath, fileName));
   }
-  writeFileSync(
-    join(selectedOutputPath, "unregistered.txt"),
-    `${secretMarker}\n`,
-    "utf8",
-  );
+  writeFileSync(join(selectedOutputPath, "unregistered.txt"), `${secretMarker}\n`, "utf8");
   writeFileSync(
     join(selectedOutputPath, "cv.json"),
     `${JSON.stringify({ secret: secretMarker })}\n`,
@@ -266,11 +260,7 @@ function createArtifactEnvironment(t) {
     },
     duplicate_of: null,
   };
-  const log = baseLog([
-    historicalProcess(),
-    process,
-    failedPrivateProcess(),
-  ]);
+  const log = baseLog([historicalProcess(), process, failedPrivateProcess()]);
   const logPath = ledgerPath;
   writeFileSync(logPath, `${JSON.stringify(log, null, 2)}\n`, "utf8");
   return {
@@ -291,15 +281,13 @@ async function startFixtureServer(t, environment, options = {}) {
   });
   const server = createProcessSearchServer({
     artifactAccessEnabled: options.artifactAccessEnabled ?? true,
-    artifactPreviewMaxBytes:
-      options.artifactPreviewMaxBytes ?? 1024 * 1024,
+    artifactPreviewMaxBytes: options.artifactPreviewMaxBytes ?? 1024 * 1024,
     logPath: environment.logPath,
     outputRoot: environment.outputRoot,
     staticRoot,
     workspaceRoot: environment.workspaceRoot,
   });
-  await new Promise((resolveListen) =>
-    server.listen(0, "127.0.0.1", resolveListen));
+  await new Promise((resolveListen) => server.listen(0, "127.0.0.1", resolveListen));
   t.after(() => server.close());
   const { port } = server.address();
   return { baseUrl: `http://127.0.0.1:${port}`, port };
@@ -307,22 +295,20 @@ async function startFixtureServer(t, environment, options = {}) {
 
 function rawRequest(port, path, method = "GET") {
   return new Promise((resolveRequest, reject) => {
-    const req = request(
-      { hostname: "127.0.0.1", port, path, method },
-      (response) => {
-        let body = "";
-        response.setEncoding("utf8");
-        response.on("data", (chunk) => {
-          body += chunk;
-        });
-        response.on("end", () =>
-          resolveRequest({
-            status: response.statusCode,
-            headers: response.headers,
-            body,
-          }));
-      },
-    );
+    const req = request({ hostname: "127.0.0.1", port, path, method }, (response) => {
+      let body = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () =>
+        resolveRequest({
+          status: response.statusCode,
+          headers: response.headers,
+          body,
+        }),
+      );
+    });
     req.on("error", reject);
     req.end();
   });
@@ -335,18 +321,13 @@ test("serves the UI and allowlisted v3 list API without caching", async (t) => {
   assert.equal(page.status, 200);
   assert.match(page.headers.get("content-type"), /text\/html/);
   assert.equal(page.headers.get("referrer-policy"), "no-referrer");
-  assert.equal(
-    page.headers.get("cross-origin-resource-policy"),
-    "same-origin",
-  );
+  assert.equal(page.headers.get("cross-origin-resource-policy"), "same-origin");
   assert.match(page.headers.get("content-security-policy"), /frame-ancestors 'none'/);
   const pageText = await page.text();
   assert.match(pageText, /Processes/);
   assert.match(pageText, /Local only/);
 
-  const response = await fetch(
-    `${baseUrl}/api/processes?q=${encodeURIComponent("Пример")}`,
-  );
+  const response = await fetch(`${baseUrl}/api/processes?q=${encodeURIComponent("Пример")}`);
   assert.equal(response.status, 200);
   assert.match(response.headers.get("cache-control"), /no-store/);
   const payload = await response.json();
@@ -365,20 +346,14 @@ test("reads the v3 ledger again for every API request", async (t) => {
   assert.equal((await (await fetch(`${baseUrl}/api/processes`)).json()).count, 1);
   const changed = baseLog([]);
   changed.updated_at = "2026-07-23T13:00:00.000Z";
-  writeFileSync(
-    environment.logPath,
-    `${JSON.stringify(changed, null, 2)}\n`,
-    "utf8",
-  );
+  writeFileSync(environment.logPath, `${JSON.stringify(changed, null, 2)}\n`, "utf8");
   assert.equal((await (await fetch(`${baseUrl}/api/processes`)).json()).count, 0);
 });
 
 test("returns historical detail without inspecting or exposing artifacts", async (t) => {
   const environment = createHistoricalEnvironment(t);
   const { baseUrl } = await startFixtureServer(t, environment);
-  const response = await fetch(
-    `${baseUrl}/api/processes/${historicalProcessId}`,
-  );
+  const response = await fetch(`${baseUrl}/api/processes/${historicalProcessId}`);
   assert.equal(response.status, 200);
   const detail = await response.json();
   assert.equal(detail.process.mode, "historical");
@@ -403,9 +378,7 @@ test("list/detail DTOs do not disclose raw ledger internals", async (t) => {
   assert.doesNotMatch(listText, new RegExp(environment.jobDescription.sha256));
   assert.doesNotMatch(listText, /active_attempt|attempt_history|published_inputs/);
 
-  const detailResponse = await fetch(
-    `${baseUrl}/api/processes/${failedProcessId}`,
-  );
+  const detailResponse = await fetch(`${baseUrl}/api/processes/${failedProcessId}`);
   assert.equal(detailResponse.status, 200);
   const detailText = await detailResponse.text();
   assert.doesNotMatch(detailText, new RegExp(secretMarker));
@@ -419,17 +392,13 @@ test("list/detail DTOs do not disclose raw ledger internals", async (t) => {
     retryable: true,
   });
 
-  const artifactDetail = await (
-    await fetch(`${baseUrl}/api/processes/${processId}`)
-  ).json();
+  const artifactDetail = await (await fetch(`${baseUrl}/api/processes/${processId}`)).json();
   assert.deepEqual(
     artifactDetail.artifacts.map((artifact) => artifact.kind),
     ["job_description", "vacancy"],
   );
   assert.equal(artifactDetail.lifecycle.state, "ready");
-  assert.deepEqual(artifactDetail.lifecycle.actionable_steps, [
-    "research_company",
-  ]);
+  assert.deepEqual(artifactDetail.lifecycle.actionable_steps, ["research_company"]);
   assert.equal(JSON.stringify(artifactDetail).includes("sha256"), false);
   assert.equal(JSON.stringify(artifactDetail).includes("job-description.txt"), false);
 });
@@ -437,22 +406,15 @@ test("list/detail DTOs do not disclose raw ledger internals", async (t) => {
 test("serves only registered web-readable artifact kinds with fixed content types", async (t) => {
   const environment = createArtifactEnvironment(t);
   const { baseUrl, port } = await startFixtureServer(t, environment);
-  const jdResponse = await fetch(
-    `${baseUrl}/api/processes/${processId}/artifacts/job_description`,
-  );
+  const jdResponse = await fetch(`${baseUrl}/api/processes/${processId}/artifacts/job_description`);
   assert.equal(jdResponse.status, 200);
   assert.match(jdResponse.headers.get("content-type"), /^text\/plain/);
   assert.equal(
     await jdResponse.text(),
-    readFileSync(
-      join(environment.selectedOutputPath, "job-description.txt"),
-      "utf8",
-    ),
+    readFileSync(join(environment.selectedOutputPath, "job-description.txt"), "utf8"),
   );
 
-  const vacancyResponse = await fetch(
-    `${baseUrl}/api/processes/${processId}/artifacts/vacancy`,
-  );
+  const vacancyResponse = await fetch(`${baseUrl}/api/processes/${processId}/artifacts/vacancy`);
   assert.equal(vacancyResponse.status, 200);
   assert.match(vacancyResponse.headers.get("content-type"), /^application\/json/);
   assert.equal((await vacancyResponse.json()).process.id, processId);
@@ -464,38 +426,21 @@ test("serves only registered web-readable artifact kinds with fixed content type
   );
   assert.equal(head.status, 200);
   assert.equal(head.body, "");
-  assert.equal(
-    Number(head.headers["content-length"]),
-    environment.jobDescription.bytes,
-  );
+  assert.equal(Number(head.headers["content-length"]), environment.jobDescription.bytes);
 
   assert.equal(
-    (
-      await fetch(
-        `${baseUrl}/api/processes/${processId}/artifacts/cv_source`,
-      )
-    ).status,
+    (await fetch(`${baseUrl}/api/processes/${processId}/artifacts/cv_source`)).status,
     404,
   );
-  const directCv = await fetch(
-    `${baseUrl}/output/${outputDir.slice("output/".length)}/cv.json`,
-  );
+  const directCv = await fetch(`${baseUrl}/output/${outputDir.slice("output/".length)}/cv.json`);
   assert.equal(directCv.status, 404);
   assert.doesNotMatch(await directCv.text(), new RegExp(secretMarker));
   assert.equal(
-    (
-      await fetch(
-        `${baseUrl}/api/processes/${processId}/artifacts/unregistered`,
-      )
-    ).status,
+    (await fetch(`${baseUrl}/api/processes/${processId}/artifacts/unregistered`)).status,
     404,
   );
   assert.equal(
-    (
-      await fetch(
-        `${baseUrl}/api/processes/${historicalProcessId}/artifacts/vacancy`,
-      )
-    ).status,
+    (await fetch(`${baseUrl}/api/processes/${historicalProcessId}/artifacts/vacancy`)).status,
     409,
   );
 });
@@ -515,11 +460,7 @@ test("artifact reader enforces preview limits, digest integrity, and missing-fil
 
   const corrupt = createArtifactEnvironment(t);
   const corruptServer = await startFixtureServer(t, corrupt);
-  appendFileSync(
-    join(corrupt.selectedOutputPath, "job-description.txt"),
-    "\ncorrupt\n",
-    "utf8",
-  );
+  appendFileSync(join(corrupt.selectedOutputPath, "job-description.txt"), "\ncorrupt\n", "utf8");
   const corruptResponse = await fetch(
     `${corruptServer.baseUrl}/api/processes/${processId}/artifacts/job_description`,
   );
@@ -530,10 +471,7 @@ test("artifact reader enforces preview limits, digest integrity, and missing-fil
 
   const missing = createArtifactEnvironment(t);
   const missingServer = await startFixtureServer(t, missing);
-  assert.equal(
-    (await (await fetch(`${missingServer.baseUrl}/api/processes`)).json()).count,
-    3,
-  );
+  assert.equal((await (await fetch(`${missingServer.baseUrl}/api/processes`)).json()).count, 3);
   unlinkSync(join(missing.selectedOutputPath, "job-description.txt"));
   const missingResponse = await fetch(
     `${missingServer.baseUrl}/api/processes/${processId}/artifacts/job_description`,
@@ -549,14 +487,9 @@ test("artifact reader rejects symlink escapes and never returns outside bytes", 
   const outsidePath = join(environment.workspaceRoot, "outside-secret.txt");
   writeFileSync(outsidePath, `${secretMarker}\n`, "utf8");
   unlinkSync(join(environment.selectedOutputPath, "job-description.txt"));
-  symlinkSync(
-    outsidePath,
-    join(environment.selectedOutputPath, "job-description.txt"),
-  );
+  symlinkSync(outsidePath, join(environment.selectedOutputPath, "job-description.txt"));
   const { baseUrl } = await startFixtureServer(t, environment);
-  const response = await fetch(
-    `${baseUrl}/api/processes/${processId}/artifacts/job_description`,
-  );
+  const response = await fetch(`${baseUrl}/api/processes/${processId}/artifacts/job_description`);
   assert.equal(response.status, 409);
   assert.doesNotMatch(await response.text(), new RegExp(secretMarker));
 });
@@ -564,16 +497,14 @@ test("artifact reader rejects symlink escapes and never returns outside bytes", 
 test("artifact reader rejects invalid UTF-8 even when ledger digests match", async (t) => {
   const environment = createArtifactEnvironment(t);
   const invalidBytes = Buffer.from([0xff, 0xfe, 0xfd]);
-  const jobDescriptionPath = join(
-    environment.selectedOutputPath,
-    "job-description.txt",
-  );
+  const jobDescriptionPath = join(environment.selectedOutputPath, "job-description.txt");
   writeFileSync(jobDescriptionPath, invalidBytes);
 
   const log = JSON.parse(readFileSync(environment.logPath, "utf8"));
   const process = log.processes.find((record) => record.id === processId);
-  const jobDescription = process.steps.get_vacancy.artifacts.find((artifact) =>
-    artifact.kind === "job_description");
+  const jobDescription = process.steps.get_vacancy.artifacts.find(
+    (artifact) => artifact.kind === "job_description",
+  );
   jobDescription.sha256 = sha256Hex(invalidBytes);
   jobDescription.bytes = invalidBytes.byteLength;
 
@@ -582,21 +513,16 @@ test("artifact reader rejects invalid UTF-8 even when ledger digests match", asy
   vacancy.jobDescription.sha256 = jobDescription.sha256;
   vacancy.jobDescription.bytes = jobDescription.bytes;
   writeFileSync(vacancyPath, `${JSON.stringify(vacancy, null, 2)}\n`, "utf8");
-  const vacancyMetadata = process.steps.get_vacancy.artifacts.find((artifact) =>
-    artifact.kind === "vacancy");
+  const vacancyMetadata = process.steps.get_vacancy.artifacts.find(
+    (artifact) => artifact.kind === "vacancy",
+  );
   const vacancyBytes = readFileSync(vacancyPath);
   vacancyMetadata.sha256 = sha256Hex(vacancyBytes);
   vacancyMetadata.bytes = vacancyBytes.byteLength;
-  writeFileSync(
-    environment.logPath,
-    `${JSON.stringify(log, null, 2)}\n`,
-    "utf8",
-  );
+  writeFileSync(environment.logPath, `${JSON.stringify(log, null, 2)}\n`, "utf8");
 
   const { baseUrl } = await startFixtureServer(t, environment);
-  const response = await fetch(
-    `${baseUrl}/api/processes/${processId}/artifacts/job_description`,
-  );
+  const response = await fetch(`${baseUrl}/api/processes/${processId}/artifacts/job_description`);
   assert.equal(response.status, 409);
   assert.deepEqual(await response.json(), {
     error: "artifact_corrupt",
@@ -608,9 +534,7 @@ test("can disable artifact APIs for a non-loopback deployment policy", async (t)
   const { baseUrl } = await startFixtureServer(t, environment, {
     artifactAccessEnabled: false,
   });
-  const response = await fetch(
-    `${baseUrl}/api/processes/${processId}/artifacts/job_description`,
-  );
+  const response = await fetch(`${baseUrl}/api/processes/${processId}/artifacts/job_description`);
   assert.equal(response.status, 404);
 });
 
@@ -627,28 +551,16 @@ test("rejects write methods, API misses, output access, and traversal", async (t
   assert.equal(hidden.status, 404);
   assert.doesNotMatch(hidden.body, new RegExp(secretMarker));
   assert.equal(
-    (
-      await rawRequest(
-        port,
-        `/api/processes/${processId}/artifacts/%2e%2e%2fvacancy`,
-      )
-    ).status,
+    (await rawRequest(port, `/api/processes/${processId}/artifacts/%2e%2e%2fvacancy`)).status,
     404,
   );
-  assert.equal(
-    (await rawRequest(port, "/%2e%2e/%2e%2e/process-log.json")).status,
-    404,
-  );
+  assert.equal((await rawRequest(port, "/%2e%2e/%2e%2e/process-log.json")).status, 404);
 });
 
 test("supports HEAD for static, list, and detail responses without a body", async (t) => {
   const environment = createArtifactEnvironment(t);
   const { port } = await startFixtureServer(t, environment);
-  for (const path of [
-    "/",
-    "/api/processes",
-    `/api/processes/${processId}`,
-  ]) {
+  for (const path of ["/", "/api/processes", `/api/processes/${processId}`]) {
     const response = await rawRequest(port, path, "HEAD");
     assert.equal(response.status, 200);
     assert.equal(response.body, "");
@@ -658,29 +570,17 @@ test("supports HEAD for static, list, and detail responses without a body", asyn
 test("serves the same safe app shell for one-segment process detail routes", async (t) => {
   const environment = createArtifactEnvironment(t);
   const { baseUrl, port } = await startFixtureServer(t, environment);
-  const detailPage = await fetch(
-    `${baseUrl}/processes/${encodeURIComponent(processId)}`,
-  );
+  const detailPage = await fetch(`${baseUrl}/processes/${encodeURIComponent(processId)}`);
   assert.equal(detailPage.status, 200);
   assert.match(detailPage.headers.get("content-type"), /text\/html/);
   assert.match(await detailPage.text(), /id="main-content"/);
 
-  const head = await rawRequest(
-    port,
-    `/processes/${processId}`,
-    "HEAD",
-  );
+  const head = await rawRequest(port, `/processes/${processId}`, "HEAD");
   assert.equal(head.status, 200);
   assert.equal(head.body, "");
 
-  assert.equal(
-    (await fetch(`${baseUrl}/processes/${processId}/extra`)).status,
-    404,
-  );
-  assert.equal(
-    (await fetch(`${baseUrl}/processes/%2fetc`)).status,
-    404,
-  );
+  assert.equal((await fetch(`${baseUrl}/processes/${processId}/extra`)).status, 404);
+  assert.equal((await fetch(`${baseUrl}/processes/%2fetc`)).status, 404);
 });
 
 test("frontend assets keep untrusted artifact rendering DOM-only", async (t) => {
@@ -718,11 +618,7 @@ test("frontend assets keep untrusted artifact rendering DOM-only", async (t) => 
     assert.equal(response.status, 200, name);
     const source = await response.text();
     sources.set(name, source);
-    assert.doesNotMatch(
-      source,
-      /innerHTML|outerHTML|insertAdjacentHTML|document\.write/,
-      name,
-    );
+    assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/, name);
     // A renderer that reads one of these degrades silently instead of failing, which is exactly how
     // the gap card broke.
     for (const [receiver, key] of briefCardAbsentReads) {
@@ -766,33 +662,21 @@ test("complete temporary UI fixture integrates all readers and CV metadata", asy
 
   const list = await (await fetch(`${baseUrl}/api/processes`)).json();
   assert.equal(list.count, 2);
-  const complete = list.results.find((result) =>
-    result.process.id === environment.processId);
+  const complete = list.results.find((result) => result.process.id === environment.processId);
   assert.equal(complete.process.lifecycle_state, "complete");
   assert.equal(complete.process.readable_artifact_count, 5);
   assert.equal(complete.process.has_cv, true);
   assert.equal(complete.process.manual_review_required, true);
 
-  const detail = await (
-    await fetch(`${baseUrl}/api/processes/${environment.processId}`)
-  ).json();
+  const detail = await (await fetch(`${baseUrl}/api/processes/${environment.processId}`)).json();
   assert.deepEqual(
     detail.artifacts.map((artifact) => artifact.kind),
-    [
-      "job_description",
-      "vacancy",
-      "company_research",
-      "application_brief",
-      "cover_letter",
-    ],
+    ["job_description", "vacancy", "company_research", "application_brief", "cover_letter"],
   );
-  assert.deepEqual(detail.steps.map((step) => step.state), [
-    "completed",
-    "completed",
-    "completed",
-    "completed",
-    "completed",
-  ]);
+  assert.deepEqual(
+    detail.steps.map((step) => step.state),
+    ["completed", "completed", "completed", "completed", "completed"],
+  );
   assert.equal(detail.lifecycle.manual_review_required, true);
   assert.equal(detail.cv.status, "published");
   assert.equal(detail.cv.preview_available, false);

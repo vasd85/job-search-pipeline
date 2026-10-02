@@ -50,7 +50,8 @@ function parse(argv) {
   const options = {};
   for (let index = 0; index < rest.length;) {
     const flag = rest[index];
-    if (!flag?.startsWith("--")) fail("ops_tree_invalid_arguments", `unexpected argument near ${flag}`);
+    if (!flag?.startsWith("--"))
+      fail("ops_tree_invalid_arguments", `unexpected argument near ${flag}`);
     const key = flag.slice(2);
     if (Object.hasOwn(options, key)) fail("ops_tree_invalid_arguments", `duplicate --${key}`);
     if (BOOLEAN_FLAGS.has(key)) {
@@ -59,7 +60,8 @@ function parse(argv) {
       continue;
     }
     const value = rest[index + 1];
-    if (value === undefined || value.startsWith("--")) fail("ops_tree_invalid_arguments", `--${key} takes a value`);
+    if (value === undefined || value.startsWith("--"))
+      fail("ops_tree_invalid_arguments", `--${key} takes a value`);
     options[key] = value;
     index += 2;
   }
@@ -72,7 +74,8 @@ function fail(code, message) {
 
 function allow(command, options) {
   for (const key of Object.keys(options)) {
-    if (!COMMAND_FLAGS[command].includes(key)) fail("ops_tree_invalid_arguments", `${command} does not take --${key}`);
+    if (!COMMAND_FLAGS[command].includes(key))
+      fail("ops_tree_invalid_arguments", `${command} does not take --${key}`);
   }
 }
 
@@ -100,7 +103,12 @@ function verify() {
 function verifyFolderSafely() {
   try {
     const { status, manifest } = verifyFolder(codeRoot);
-    return { status, release: manifest.engine.tag, candidate: manifest.candidate.tag, kind: manifest.kind };
+    return {
+      status,
+      release: manifest.engine.tag,
+      candidate: manifest.candidate.tag,
+      kind: manifest.kind,
+    };
   } catch (error) {
     if (!(error instanceof OpsTreeError)) throw error;
     return { status: "refused", code: error.code, message: error.message };
@@ -114,7 +122,8 @@ export function main(argv = process.argv.slice(2)) {
       usage();
       return;
     }
-    if (!Object.hasOwn(COMMAND_FLAGS, command)) fail("ops_tree_invalid_arguments", `unknown command: ${command}`);
+    if (!Object.hasOwn(COMMAND_FLAGS, command))
+      fail("ops_tree_invalid_arguments", `unknown command: ${command}`);
     allow(command, options);
     let result;
     if (command === "export") {
@@ -143,19 +152,31 @@ export function main(argv = process.argv.slice(2)) {
       });
     } else {
       const { expectedStamp, root } = actingRoot(command);
-      result = rollbackFolder({ expectedStamp, inputFile: options["input-file"], root, to: options.to });
+      result = rollbackFolder({
+        expectedStamp,
+        inputFile: options["input-file"],
+        root,
+        to: options.to,
+      });
     }
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } catch (error) {
     const known = error instanceof OpsTreeError || typeof error?.code === "string";
-    process.stderr.write(`${JSON.stringify({
-      status: "error",
-      error: {
-        code: known && /^[a-z][a-z0-9_]{0,63}$/.test(error.code) ? error.code : "ops_tree_failed",
-        message: known ? error.message : "ops-tree failed unexpectedly",
-        ...(error?.details ? { details: error.details } : {}),
-      },
-    }, null, 2)}\n`);
+    process.stderr.write(
+      `${JSON.stringify(
+        {
+          status: "error",
+          error: {
+            code:
+              known && /^[a-z][a-z0-9_]{0,63}$/.test(error.code) ? error.code : "ops_tree_failed",
+            message: known ? error.message : "ops-tree failed unexpectedly",
+            ...(error?.details ? { details: error.details } : {}),
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
     process.exitCode = 1;
   }
 }

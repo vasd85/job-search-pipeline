@@ -13,7 +13,9 @@
 These rules MUST be followed by any agent generating resumes, cover letters, or other application materials based on the profile:
 
 2. Do not mention "Cursor" by name. Use "AI tools", "LLM-based tools", or "AI-assisted workflows" instead.
+
 <!-- A removed rule's number is never reused, and the rules after it are not renumbered. -->
+
 6. **A number reaches a deliverable only when it changes what the reader understands about a
    result; a number that only quantifies how much activity happened does not.** Apply this metric
    selection test to every number in a CV, cover letter, or application answer, including a number
@@ -31,25 +33,25 @@ These rules MUST be followed by any agent generating resumes, cover letters, or 
      reader only that effort happened. Recasting such a tally as a before-and-after state does not
      convert it into an outcome: if the number counts work or what the work produced, the
      activity-volume verdict stands regardless of phrasing.
-   Facts that structure and positioning rules already require - employment dates and historical
-   titles, the seniority statement, the timezone and work-authorization line - are identity data,
-   not metrics, and are outside the test; a number inside an evidence claim is never identity data.
-   The profile legitimately records activity volume in its `Scale` facts so a planner can judge
-   scope: those facts remain planning context, and appearing in an application brief's evidence
-   proof does not license materializing them as claims. **Attribute each metric to its real
-   cause** - several are team or composite outcomes, not solo runtime gains. The profile entry of
-   the employer (`candidate/profile.md#9-experience`) records which a metric is: a regression time
-   cut against a mostly-manual baseline by stabilizing a framework and automating the remaining
-   scenarios is a team outcome, not a speedup of an automated suite delivered by a rebuild alone,
-   and a manual baseline is never an automated suite's run time. Never word a metric so it implies
-   a cause it did not have.
-   A second kind of metric fails the test for a different reason: a before-and-after whose
-   direction needs the original problem explained before it reads as a gain. Going from several
-   ad-hoc releases a week to one planned weekly release reads as an improvement only to a reader
-   who already knows the old releases were unplanned, and a CV bullet cannot carry that setup -
-   stated bare, it invites the opposite reading, that the team now ships less often. State the
-   resulting state qualitatively instead and do not name the new cadence: keep the outcome, drop
-   the pair.
+     Facts that structure and positioning rules already require - employment dates and historical
+     titles, the seniority statement, the timezone and work-authorization line - are identity data,
+     not metrics, and are outside the test; a number inside an evidence claim is never identity data.
+     The profile legitimately records activity volume in its `Scale` facts so a planner can judge
+     scope: those facts remain planning context, and appearing in an application brief's evidence
+     proof does not license materializing them as claims. **Attribute each metric to its real
+     cause** - several are team or composite outcomes, not solo runtime gains. The profile entry of
+     the employer (`candidate/profile.md#9-experience`) records which a metric is: a regression time
+     cut against a mostly-manual baseline by stabilizing a framework and automating the remaining
+     scenarios is a team outcome, not a speedup of an automated suite delivered by a rebuild alone,
+     and a manual baseline is never an automated suite's run time. Never word a metric so it implies
+     a cause it did not have.
+     A second kind of metric fails the test for a different reason: a before-and-after whose
+     direction needs the original problem explained before it reads as a gain. Going from several
+     ad-hoc releases a week to one planned weekly release reads as an improvement only to a reader
+     who already knows the old releases were unplanned, and a CV bullet cannot carry that setup -
+     stated bare, it invites the opposite reading, that the team now ships less often. State the
+     resulting state qualitatively instead and do not name the new cadence: keep the outcome, drop
+     the pair.
 7. When listing experience at a company, the first bullet must establish the generalized role scope and purpose. Structure-specific composition of that bullet is owned by [lever placement by structure](targeted-cv-playbook.md#31-lever-placement-by-structure).
 8. Clearly distinguish personal contributions from team achievements. Use "I" for personal work, acknowledge team context where applicable.
 9. When the target role is remote and does not require work authorization: do NOT mention visa sponsorship (adds friction without benefit). State the location and the timezone the materials name outside the home market, "<location> (<timezone>).", with the location `candidate.config.markets.outside_home.location` and the timezone `candidate.config.markets.outside_home.timezone`, followed by the engagement line the candidate's own rules give. Never add "No work authorization or sponsorship required." or any restatement of it -- the header makes no claim about authorization status.
@@ -57,7 +59,9 @@ These rules MUST be followed by any agent generating resumes, cover letters, or 
 11. For "Where are you located?" questions, and for the location any material states, the answer is market-specific. **Outside the home market:** the location `candidate.config.markets.outside_home.location` with the timezone `candidate.config.markets.outside_home.timezone`, for every role on that market, with the engagement framing the candidate's own rules give. **On the home market:** the timezone `candidate.config.markets.home.timezone`; the outside-home framing does not apply. Never pair a location with an offset it does not have.
 12. Do not include age, marital status, photo, or nationality in CVs.
 13. Do not use empty emotional words: "excited", "thrilled", "passionate", "perfect fit". Every claim must be backed by evidence.
+
 <!-- A removed rule's number is never reused, and the rules after it are not renumbered. -->
+
 15. **Commercial LLM experience is mandatory in every targeted CV; further AI material is conditional but additive.** State the AI-assisted QA practice of `candidate/profile.md#651-ai-assisted-qa-workflow` in Experience even when the vacancy says nothing about AI: that baseline is unconditional. A second commercial track, the LLM/RAG product testing recorded in the employer entry of `candidate/profile.md#9-experience` where it took place, is stated as well when its trigger fires; [the AI register and factual boundary](impact-levers.md#13-ai-register-and-the-factual-boundary) owns that trigger and states it once. The second track is its own separate Experience claim - it neither replaces the baseline nor is implied by it. Personal-project evidence is a third, independent track. The three may appear together; each keeps its own wording and none is worded so it implies another. One place is exempt from attribution, in every register: a skills list - the Skills section of a CV, the skills field of an application form - may list commercial and personal AI experience together as skills, without stating where or when each was gained. Wherever a claim is tied to an employer, a project or a period - Experience bullets, a Projects entry, a cover letter, an answer about a job - the tracks keep their attribution and [the factual boundary](impact-levers.md#13-ai-register-and-the-factual-boundary) holds unchanged. Which tracks apply, and how deep the AI positioning goes, is decided once by `map-experience` and persisted as [the AI register](impact-levers.md#13-ai-register-and-the-factual-boundary); generation never promotes any of it from contextual clues or session history.
 16. **Personal-project disclosure discipline.** A personal project (`candidate/profile.md#10-personal-projects`) is never the headline of a CV, cover letter, or interview narrative, whatever its visibility: it is solo work without external review, and presenting it as production engineering is a credibility risk. No project is the default: when projects are mentioned at all, `map-experience` picks the one whose evidence the role demonstrably values - its stack, its language, or [the AI register](impact-levers.md#13-ai-register-and-the-factual-boundary) (`relevance-link` or `deep`) - and records the choice in the brief. What a material says about a project by name is keyed to its visibility: the `**Visibility:**` line of its profile entry, and nothing else - not a word in its heading, not its repository line. **A project whose visibility is `public`** keeps its name and its repository link wherever it was chosen: a reader can open the code, and the link is the point. **A project whose visibility is `private`** appears only under the conditions in rule 15 above and always **without its name and without any link** - state what was built and offer to walk through it on a call; in the CV its Projects entry carries a neutral personal-project label. Its name is the heading of its profile entry without the number and without the qualifier in parentheses, and the publication of a CV or cover letter that contains it is refused.
 17. **Naming policy for AI tooling and agent platforms.** Material drawn from a personal project claims only the agent platforms the profile records for that project - in its entry under `candidate/profile.md#10-personal-projects` or in the section that entry points to. A project the profile records as running on several agent platforms at once may state that fact - "agentic tooling that runs on two AI coding-agent platforms at once" - and that decision is itself a story worth telling. A project built on one agent platform is framed generically, without a vendor name: "on an AI coding agent platform", "agentic AI tooling", "LLM-based developer tooling"; never claim several platforms for it. A platform may be named (Claude Code, Codex) only when the target audience is AI-savvy (AI infra companies, Anthropic-adjacent products, agentic-AI startups) or when the platform-independence claim needs its evidence. Rule 2 stands unchanged: Cursor is not named, in a platform list included.
@@ -69,5 +73,7 @@ These rules MUST be followed by any agent generating resumes, cover letters, or 
     - **Do not say a bug means lost money** to characterize a project or role. Every bug is a loss of money on every project, directly or indirectly (a broken business model, churned users, wasted time, or drained funds are economically the same), so the claim is true everywhere and carries zero information for the reader - cut it.
     - **High cost of error is not a motivation.** Never present "a high-stakes product" or "a product where mistakes are expensive" as why the candidate wants the role. A high cost of error is added stress, not a motivator. Motivation comes from real drivers - visible impact on the outcome, an interesting product or domain, autonomy, the specific engineering challenge ([company link and motivation](cover-letter-playbook.md#54-company-link-and-motivation)).
     - **Reject the low-stakes / high-stakes dichotomy.** Do not write or imply "on most products a missed bug is a minor annoyance, but here it is catastrophic." Bug severity varies inside every project: any codebase has trivial bugs that can sit unfixed and serious bugs that break the business model, and the serious ones are domain-independent (a bridge smart contract and a wellbeing app alike). Differentiate the role only by a specific, non-truistic property of their engineering challenge ([company link and motivation](cover-letter-playbook.md#54-company-link-and-motivation)), never by "bugs are expensive here."
+
 <!-- A removed rule's number is never reused, and the rules after it are not renumbered. -->
+
 25. **A configured language follows its pack.** A material in a configured language also follows the language's own writing rules in its pack, `candidate/languages/<language>/language-rules.md` — spelling, forms of address, typography — and the pack's `constraints.json` refuses the publication that breaks the ones a machine can check. Today such a material is a cover letter: the CV is always in the default language (rule 20). Verbatim quotes from the vacancy, ATS keywords matched by exact spelling, and proper names keep the spelling of their source. Like rule 21, this is output formatting and does not govern repository files.

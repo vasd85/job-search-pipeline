@@ -19,9 +19,7 @@ const STEP_TIMEOUT_MS = 20 * 60 * 1000;
 const REPORTED_OUTPUT_LIMIT = 64 * 1024;
 
 export const ENVIRONMENT_PREFIX = "JOB_PIPELINE_";
-export const PRESERVED_ENVIRONMENT_VARIABLES = Object.freeze([
-  "JOB_PIPELINE_BROWSER_BIN",
-]);
+export const PRESERVED_ENVIRONMENT_VARIABLES = Object.freeze(["JOB_PIPELINE_BROWSER_BIN"]);
 
 // No child of this runner may be reconfigured, redirected or quietened from the
 // ambient environment.
@@ -247,17 +245,11 @@ function runStep(context, step) {
     );
   }
   if (result.signal) {
-    throw new CiError(
-      "ci_step_signalled",
-      `${label} terminated on signal ${result.signal}`,
-    );
+    throw new CiError("ci_step_signalled", `${label} terminated on signal ${result.signal}`);
   }
   if (result.status !== 0) {
     context.report(result);
-    throw new CiError(
-      "ci_step_failed",
-      `${label} exited with code ${result.status}`,
-    );
+    throw new CiError("ci_step_failed", `${label} exited with code ${result.status}`);
   }
   return result;
 }
@@ -280,9 +272,9 @@ function enumerateTestFiles(workspaceRoot) {
   if (missing.length > 0 || unexpected.length > 0) {
     throw new CiError(
       "ci_test_inventory_drift",
-      "test inventory drifted:"
-      + ` missing ${JSON.stringify(missing)},`
-      + ` unexpected ${JSON.stringify(unexpected)}`,
+      "test inventory drifted:" +
+        ` missing ${JSON.stringify(missing)},` +
+        ` unexpected ${JSON.stringify(unexpected)}`,
     );
   }
   return files;
@@ -312,28 +304,22 @@ function verifyProxyInventory(context, root) {
   try {
     report = JSON.parse(result.stdout ?? "");
   } catch {
-    throw new CiError(
-      "ci_proxy_report_unreadable",
-      "proxy checker did not print a JSON report",
-    );
+    throw new CiError("ci_proxy_report_unreadable", "proxy checker did not print a JSON report");
   }
   if (
-    report.status !== "current"
-    || !Array.isArray(report.changed) || report.changed.length !== 0
-    || !Array.isArray(report.unexpected) || report.unexpected.length !== 0
-    || report.files !== EXPECTED_PROXY_FILES.length
+    report.status !== "current" ||
+    !Array.isArray(report.changed) ||
+    report.changed.length !== 0 ||
+    !Array.isArray(report.unexpected) ||
+    report.unexpected.length !== 0 ||
+    report.files !== EXPECTED_PROXY_FILES.length
   ) {
-    throw new CiError(
-      "ci_proxy_inventory_not_current",
-      "proxy inventory is not current",
-    );
+    throw new CiError("ci_proxy_inventory_not_current", "proxy inventory is not current");
   }
   // The report is the checker's own arithmetic over its own expectation, so the
   // count above proves only that the expectation has the pinned size. The names
   // are checked against the tree here instead.
-  const missing = EXPECTED_PROXY_FILES.filter(
-    (path) => !existsSync(join(root, path)),
-  );
+  const missing = EXPECTED_PROXY_FILES.filter((path) => !existsSync(join(root, path)));
   if (missing.length > 0) {
     throw new CiError(
       "ci_proxy_inventory_incomplete",
@@ -352,18 +338,18 @@ function verifyProxyInventory(context, root) {
       );
     }
   };
-  const drifted = EXPECTED_PROXY_FILES
-    .filter((path) => path.endsWith("openai.yaml"))
-    .filter((path) => readPolicy(path) !== EXPECTED_CODEX_POLICY);
+  const drifted = EXPECTED_PROXY_FILES.filter((path) => path.endsWith("openai.yaml")).filter(
+    (path) => readPolicy(path) !== EXPECTED_CODEX_POLICY,
+  );
   if (drifted.length > 0) {
     throw new CiError(
       "ci_proxy_policy_drift",
       `generated invocation policy is not explicit-only: ${JSON.stringify(drifted)}`,
     );
   }
-  const armed = EXPECTED_PROXY_FILES
-    .filter((path) => path.startsWith(".claude/agents/"))
-    .filter((path) => !frontmatterLines(readPolicy(path)).includes(EXPECTED_AGENT_TOOLS_LINE));
+  const armed = EXPECTED_PROXY_FILES.filter((path) => path.startsWith(".claude/agents/")).filter(
+    (path) => !frontmatterLines(readPolicy(path)).includes(EXPECTED_AGENT_TOOLS_LINE),
+  );
   if (armed.length > 0) {
     throw new CiError(
       "ci_proxy_policy_drift",
@@ -398,11 +384,7 @@ function fullStage(context) {
 
 function serialStage(context) {
   runStep(context, {
-    args: [
-      "--test",
-      "--test-concurrency=1",
-      ...enumerateTestFiles(context.workspaceRoot),
-    ],
+    args: ["--test", "--test-concurrency=1", ...enumerateTestFiles(context.workspaceRoot)],
     command: process.execPath,
   });
 }
@@ -438,10 +420,7 @@ function freshArchiveStage(context) {
       join("tools", "cv-builder", "package-lock.json"),
     ]) {
       if (!existsSync(join(treeRoot, required))) {
-        throw new CiError(
-          "ci_archive_incomplete",
-          `committed tree is missing ${required}`,
-        );
+        throw new CiError("ci_archive_incomplete", `committed tree is missing ${required}`);
       }
     }
     // `candidate` is on this list for a different reason than the two installed
@@ -551,7 +530,12 @@ function formatStage(context) {
  */
 function publishabilityStage(context) {
   const result = runStep(context, {
-    args: [join("tools", "publishability", "cli.mjs"), "--blocking", "--data-root", join(context.workspaceRoot, "candidate.example")],
+    args: [
+      join("tools", "publishability", "cli.mjs"),
+      "--blocking",
+      "--data-root",
+      join(context.workspaceRoot, "candidate.example"),
+    ],
     command: process.execPath,
   });
   let report;
@@ -569,7 +553,11 @@ function publishabilityStage(context) {
       "the publishability report has no class counts",
     );
   }
-  if (report.absent > 0 || report.places_exported > 0) throw new CiError("ci_publishability_findings", "Publication findings or absent tracked files remain.");
+  if (report.absent > 0 || report.places_exported > 0)
+    throw new CiError(
+      "ci_publishability_findings",
+      "Publication findings or absent tracked files remain.",
+    );
   return {
     // `absent`, `scanned` and `skipped` travel with the counts on purpose: a report of no findings
     // over no files read is not the same statement as a clean tree, and only these three tell them
@@ -586,13 +574,13 @@ function publishabilityStage(context) {
 }
 
 const STAGE_IMPLEMENTATIONS = Object.freeze({
-  "format": formatStage,
+  format: formatStage,
   "fresh-archive": freshArchiveStage,
-  "full": fullStage,
-  "instruction": instructionStage,
-  "proxy": proxyStage,
-  "publishability": publishabilityStage,
-  "serial": serialStage,
+  full: fullStage,
+  instruction: instructionStage,
+  proxy: proxyStage,
+  publishability: publishabilityStage,
+  serial: serialStage,
 });
 
 export function runStages(options = {}) {
@@ -635,9 +623,10 @@ export function runStages(options = {}) {
     // has to reach the operator, and only the logged record is printed. The
     // field is absent, never undefined, for every stage that returns nothing,
     // because the shape of the record is pinned exactly.
-    const entry = detail === undefined
-      ? { stage: id, status: "passed" }
-      : { detail, stage: id, status: "passed" };
+    const entry =
+      detail === undefined
+        ? { stage: id, status: "passed" }
+        : { detail, stage: id, status: "passed" };
     results.push(entry);
     log(entry);
   }
@@ -686,22 +675,26 @@ export function main(argv = process.argv.slice(2)) {
       },
       stageIds: parsed.stageIds,
     });
-    process.stdout.write(`${JSON.stringify({
-      stages: results.map((entry) => entry.stage),
-      status: "passed",
-    })}\n`);
+    process.stdout.write(
+      `${JSON.stringify({
+        stages: results.map((entry) => entry.stage),
+        status: "passed",
+      })}\n`,
+    );
   } catch (error) {
     // `runStages` labels every failure with its stage, including one it did not
     // raise itself, so the label is printed regardless of the error type.
     stage = error?.stage ?? null;
-    process.stderr.write(`${JSON.stringify({
-      error: {
-        code: error instanceof CiError ? error.code : "ci_failed",
-        message: error instanceof CiError ? error.message : "ci failed unexpectedly",
-      },
-      ...(stage ? { stage } : {}),
-      status: "error",
-    })}\n`);
+    process.stderr.write(
+      `${JSON.stringify({
+        error: {
+          code: error instanceof CiError ? error.code : "ci_failed",
+          message: error instanceof CiError ? error.message : "ci failed unexpectedly",
+        },
+        ...(stage ? { stage } : {}),
+        status: "error",
+      })}\n`,
+    );
     process.exitCode = 1;
   }
 }

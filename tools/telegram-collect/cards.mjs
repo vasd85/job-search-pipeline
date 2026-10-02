@@ -39,7 +39,10 @@ export function embedUrl(handle, postId) {
 
 /** One untrusted line flattened and bounded to `max` characters; a batch line is bounded wider than a title. */
 export function flatLine(value, max) {
-  const flat = String(value ?? "").replace(UNSAFE, " ").replace(/\s+/gu, " ").trim();
+  const flat = String(value ?? "")
+    .replace(UNSAFE, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
   return flat.length > max ? `${flat.slice(0, max)}…` : flat;
 }
 
@@ -85,12 +88,17 @@ export function cardOf(post, { handle, entries, knownUrls }) {
   }
 
   const of = (fate) => decided.filter((entry) => entry.fate === fate);
-  const tg = uniqueBy(of("contact").filter((entry) => entry.type === "tg"), (entry) => entry.name.toLowerCase())
-    .map((entry) => entry.name);
-  const email = uniqueBy(of("contact").filter((entry) => entry.type === "email"), (entry) => entry.address)
-    .map((entry) => entry.address);
+  const tg = uniqueBy(
+    of("contact").filter((entry) => entry.type === "tg"),
+    (entry) => entry.name.toLowerCase(),
+  ).map((entry) => entry.name);
+  const email = uniqueBy(
+    of("contact").filter((entry) => entry.type === "email"),
+    (entry) => entry.address,
+  ).map((entry) => entry.address);
   const authorTg = post.author?.username ?? null;
-  if (authorTg !== null && !tg.some((name) => name.toLowerCase() === authorTg.toLowerCase())) tg.push(authorTg);
+  if (authorTg !== null && !tg.some((name) => name.toLowerCase() === authorTg.toLowerCase()))
+    tg.push(authorTg);
   const newUrls = of("emit").map((entry) => ({ url: entry.url, key: entry.key }));
   const hasContact = tg.length > 0 || email.length > 0;
   const postAddress = newUrls.length === 0 || hasContact ? embedUrl(handle, post.id) : null;
@@ -120,12 +128,17 @@ export function cardOf(post, { handle, entries, knownUrls }) {
 
 function contactsOf(decided, post) {
   const of = (fate) => decided.filter((entry) => entry.fate === fate);
-  const tg = uniqueBy(of("contact").filter((entry) => entry.type === "tg"), (entry) => entry.name.toLowerCase())
-    .map((entry) => entry.name);
-  const email = uniqueBy(of("contact").filter((entry) => entry.type === "email"), (entry) => entry.address)
-    .map((entry) => entry.address);
+  const tg = uniqueBy(
+    of("contact").filter((entry) => entry.type === "tg"),
+    (entry) => entry.name.toLowerCase(),
+  ).map((entry) => entry.name);
+  const email = uniqueBy(
+    of("contact").filter((entry) => entry.type === "email"),
+    (entry) => entry.address,
+  ).map((entry) => entry.address);
   const authorTg = post.author?.username ?? null;
-  if (authorTg !== null && !tg.some((name) => name.toLowerCase() === authorTg.toLowerCase())) tg.push(authorTg);
+  if (authorTg !== null && !tg.some((name) => name.toLowerCase() === authorTg.toLowerCase()))
+    tg.push(authorTg);
   return { contacts: { tg, email }, authorTg };
 }
 
@@ -174,11 +187,19 @@ export function citedEntriesOf(vacancy, descriptor) {
  * card offers the links it names that are new and unmarked, plus the post address when it names
  * none or applies through a person; a named marked link is not offered and is listed.
  */
-export function readerCardOf(post, { handle, decided, knownUrls, vacancy, cited, vacancyNo, first }) {
+export function readerCardOf(
+  post,
+  { handle, decided, knownUrls, vacancy, cited, vacancyNo, first },
+) {
   const lines = numberedLines(post);
-  const named = [...decided.keys()].filter((index) => cited.has(index)).map((index) => decided[index]);
+  const named = [...decided.keys()]
+    .filter((index) => cited.has(index))
+    .map((index) => decided[index]);
   const of = (fate) => named.filter((entry) => entry.fate === fate);
-  const newUrls = uniqueBy(of("emit"), (entry) => entry.key).map((entry) => ({ url: entry.url, key: entry.key }));
+  const newUrls = uniqueBy(of("emit"), (entry) => entry.key).map((entry) => ({
+    url: entry.url,
+    key: entry.key,
+  }));
   const applyVia = [...new Set(vacancy.apply.map((apply) => apply.via))];
   const byPerson = applyVia.some((via) => contactVias.includes(via));
   const postAddress = newUrls.length === 0 || byPerson ? embedUrl(handle, post.id) : null;
@@ -200,8 +221,15 @@ export function readerCardOf(post, { handle, decided, knownUrls, vacancy, cited,
       key: entry.key,
       first: knownUrls.get(entry.key),
     })),
-    marked: uniqueBy(of("marked"), (entry) => entry.key).map((entry) => ({ url: entry.url, marks: entry.marks })),
-    unusable: first ? decided.filter((entry) => entry.fate === "unusable").map((entry) => ({ host: entry.host, reason: entry.reason })) : [],
+    marked: uniqueBy(of("marked"), (entry) => entry.key).map((entry) => ({
+      url: entry.url,
+      marks: entry.marks,
+    })),
+    unusable: first
+      ? decided
+          .filter((entry) => entry.fate === "unusable")
+          .map((entry) => ({ host: entry.host, reason: entry.reason }))
+      : [],
   };
 }
 
@@ -236,15 +264,31 @@ export function cardRecord(card, { held }) {
 
 const isString = (value) => typeof value === "string";
 const isStringList = (value) => Array.isArray(value) && value.every(isString);
-const isRef = (value) => typeof value === "object" && value !== null
-  && isString(value.handle) && Number.isSafeInteger(value.post_id);
+const isRef = (value) =>
+  typeof value === "object" &&
+  value !== null &&
+  isString(value.handle) &&
+  Number.isSafeInteger(value.post_id);
 
 /** The card schema, as a predicate with a reason: the end-to-end test reads every line through it. */
 export function cardProblem(record) {
-  if (typeof record !== "object" || record === null || Array.isArray(record)) return "not an object";
+  if (typeof record !== "object" || record === null || Array.isArray(record))
+    return "not an object";
   const keys = [
-    "apply_via", "author_tg", "contacts", "handle", "held_by", "instant", "known_urls", "marked_urls",
-    "post_id", "schema_version", "score_urls", "title", "unusable_links", "vacancy_no",
+    "apply_via",
+    "author_tg",
+    "contacts",
+    "handle",
+    "held_by",
+    "instant",
+    "known_urls",
+    "marked_urls",
+    "post_id",
+    "schema_version",
+    "score_urls",
+    "title",
+    "unusable_links",
+    "vacancy_no",
   ];
   if (Object.keys(record).sort().join() !== keys.join()) return "unexpected key set";
   if (record.schema_version !== cardSchemaVersion) return "schema_version";
@@ -253,26 +297,40 @@ export function cardProblem(record) {
   if (!isString(record.title) || record.title.length > MAX_TITLE + 1) return "title";
   if (!isStringList(record.score_urls) || record.score_urls.length === 0) return "score_urls";
   if (
-    typeof record.contacts !== "object" || record.contacts === null
-    || !isStringList(record.contacts.tg) || !isStringList(record.contacts.email)
-  ) return "contacts";
+    typeof record.contacts !== "object" ||
+    record.contacts === null ||
+    !isStringList(record.contacts.tg) ||
+    !isStringList(record.contacts.email)
+  )
+    return "contacts";
   if (record.author_tg !== null && !isString(record.author_tg)) return "author_tg";
   if (!Number.isSafeInteger(record.vacancy_no) || record.vacancy_no < 1) return "vacancy_no";
-  if (!isStringList(record.apply_via) || !record.apply_via.every((via) => applyVias.includes(via))) return "apply_via";
-  if (!Array.isArray(record.known_urls)
-    || !record.known_urls.every((entry) => isString(entry?.url) && isRef(entry.first) && isString(entry.first.at))) {
+  if (!isStringList(record.apply_via) || !record.apply_via.every((via) => applyVias.includes(via)))
+    return "apply_via";
+  if (
+    !Array.isArray(record.known_urls) ||
+    !record.known_urls.every(
+      (entry) => isString(entry?.url) && isRef(entry.first) && isString(entry.first.at),
+    )
+  ) {
     return "known_urls";
   }
-  if (!Array.isArray(record.marked_urls)
-    || !record.marked_urls.every((entry) => isString(entry?.url) && isStringList(entry.marks))) {
+  if (
+    !Array.isArray(record.marked_urls) ||
+    !record.marked_urls.every((entry) => isString(entry?.url) && isStringList(entry.marks))
+  ) {
     return "marked_urls";
   }
-  if (!Array.isArray(record.unusable_links)
-    || !record.unusable_links.every((entry) => isString(entry?.reason))) {
+  if (
+    !Array.isArray(record.unusable_links) ||
+    !record.unusable_links.every((entry) => isString(entry?.reason))
+  ) {
     return "unusable_links";
   }
-  if (!Array.isArray(record.held_by)
-    || !record.held_by.every((entry) => isString(entry?.url) && isRef(entry))) {
+  if (
+    !Array.isArray(record.held_by) ||
+    !record.held_by.every((entry) => isString(entry?.url) && isRef(entry))
+  ) {
     return "held_by";
   }
   return null;

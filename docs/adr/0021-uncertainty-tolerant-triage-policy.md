@@ -47,13 +47,13 @@ The verified `/score-jobs` run of 2026-08-18 (links 1-10) returned 0 EVALUATED, 
 3 SKIP. Six of the seven review outcomes were decided by the policy rather than by the listings —
 five `relocation_floor_missing` on non-WEST relocation roles and one engagement path the policy
 refused to default, the count the implementing task 26 tracks as «the five predetermined
-`relocation_floor_missing` MRs» plus that sixth: a non-WEST relocation role was unresolvable by *any* answer the user could give — without
+`relocation_floor_missing` MRs» plus that sixth: a non-WEST relocation role was unresolvable by _any_ answer the user could give — without
 a numeric override the scorer demanded a relocation floor, with one it found no reference curve
 outside US/UK/Canada — and a remote WEST posting silent on its hiring model landed in
 `engagement_path_unknown` whether or not it published a salary. Only one of the ten was a genuine
 absence of data.
 
-That is the shape of the defect: the triage did not fail to *know* things, it failed to *decide*
+That is the shape of the defect: the triage did not fail to _know_ things, it failed to _decide_
 under partial knowledge, and it spent the user's attention on questions no answer could close.
 Underneath sat a second class of the same error — a below-floor salary ended the vacancy outright,
 and an unlisted relocation country ended it too, although the profile is open to relocating
@@ -183,7 +183,7 @@ point on 2026-08-21.
 - (−) **Uncertainty caps the bucket under the historical settings.** The unknown M value
   sits in a capped band of §4, so a vacancy
   whose mobility could not be established cannot reach `priority`. This is the conservative reading
-  of a cap written for a *proven* blocker and is kept deliberately.
+  of a cap written for a _proven_ blocker and is kept deliberately.
 - (−) **A wholly uninformative vacancy lands in `pass` under the historical settings**, where the superseded policy
   would have raised it for review. It is not lost — it is ranked, its `data_gaps` list is full, and
   the ledger review is the mechanism that reaches it. The bucket is not asked to be that mechanism.

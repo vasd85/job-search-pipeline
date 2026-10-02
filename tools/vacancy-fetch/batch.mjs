@@ -17,11 +17,7 @@ import { selectAdapter, sourceIdFor, vacancyFetchAdapters } from "./adapters/ind
 import { normalizeExtractedText } from "./normalize.mjs";
 import { classifyDirectRoute } from "./outcome.mjs";
 import { sha256Bytes, sha256Utf8 } from "./digest.mjs";
-import {
-  captureBasename,
-  manifestBasename,
-  renderCaptureFile,
-} from "./persist.mjs";
+import { captureBasename, manifestBasename, renderCaptureFile } from "./persist.mjs";
 import { fetchDocument, transportDefaults } from "./transport.mjs";
 import { parseHttpUrl, requestedUrl, serverSuppliedUrl } from "./url-rule.mjs";
 
@@ -48,8 +44,12 @@ function fail(code, message) {
  * loses the run it was comparing against.
  */
 export function prepareOutDir(outDir, { uid = process.getuid?.() ?? null } = {}) {
-  if (typeof outDir !== "string" || outDir.length === 0 || !isAbsolute(outDir)
-    || resolve(outDir) !== outDir) {
+  if (
+    typeof outDir !== "string" ||
+    outDir.length === 0 ||
+    !isAbsolute(outDir) ||
+    resolve(outDir) !== outDir
+  ) {
     fail("out_dir_unsafe", "Output directory must be an absolute, resolved path.");
   }
   let stats;
@@ -141,9 +141,11 @@ function skippedRecord(index, url, reason) {
  * implication are pinned in tests/vacancy-fetch.test.mjs rather than left to this comment.
  */
 export function browserCompletenessCheckOwed(record) {
-  return record.usable === true
-    && Array.isArray(record.reasons)
-    && record.reasons.includes(deferredContentReason);
+  return (
+    record.usable === true &&
+    Array.isArray(record.reasons) &&
+    record.reasons.includes(deferredContentReason)
+  );
 }
 
 function summarize(records) {
@@ -159,14 +161,8 @@ function summarize(records) {
     needsBrowserFallback: records.filter((record) => record.fallback === "browser").length,
     needsBrowserCompletenessCheck: records.filter(browserCompletenessCheckOwed).length,
     skipped: records.filter((record) => record.skipped).length,
-    responseBytes: records.reduce(
-      (total, record) => total + (record.response?.bytes ?? 0),
-      0,
-    ),
-    persistedBytes: records.reduce(
-      (total, record) => total + (record.persisted?.bytes ?? 0),
-      0,
-    ),
+    responseBytes: records.reduce((total, record) => total + (record.response?.bytes ?? 0), 0),
+    persistedBytes: records.reduce((total, record) => total + (record.persisted?.bytes ?? 0), 0),
   };
 }
 
@@ -285,9 +281,10 @@ export async function runVacancyFetchBatch({
       let extracted = null;
       let normalization = null;
       let persisted = null;
-      const persistable = ["active", "closed", "private"].includes(verdict.outcome)
-        && typeof reading.text === "string"
-        && reading.structural.minimumContentMet === true;
+      const persistable =
+        ["active", "closed", "private"].includes(verdict.outcome) &&
+        typeof reading.text === "string" &&
+        reading.structural.minimumContentMet === true;
 
       if (typeof reading.text === "string" && reading.text.length > 0) {
         extracted = { sha256: sha256Utf8(reading.text), chars: reading.text.length };
@@ -310,20 +307,21 @@ export async function runVacancyFetchBatch({
             "extracted-sha256": extracted.sha256,
             "normalized-sha256": pass.log.afterSha256,
             "body-bytes": Buffer.byteLength(pass.text, "utf8"),
-            normalization: pass.log.rules
-              .filter((rule) => rule.replacements > 0)
-              .map((rule) => `${rule.id}=${rule.replacements}`)
-              .join(",") || "none",
+            normalization:
+              pass.log.rules
+                .filter((rule) => rule.replacements > 0)
+                .map((rule) => `${rule.id}=${rule.replacements}`)
+                .join(",") || "none",
           };
           // Exclusive create: a batch never overwrites a file another batch wrote. A collision is
           // reported as a bounded code rather than a raw filesystem error, because the only way to
           // reach it is a concurrent batch sharing this directory.
           try {
-            writeFileSync(
-              join(outDir, basename),
-              renderCaptureFile({ header, body: pass.text }),
-              { encoding: "utf8", flag: "wx", mode: 0o600 },
-            );
+            writeFileSync(join(outDir, basename), renderCaptureFile({ header, body: pass.text }), {
+              encoding: "utf8",
+              flag: "wx",
+              mode: 0o600,
+            });
           } catch {
             fail("capture_write_failed", "A capture file could not be created exclusively.");
           }
@@ -403,8 +401,9 @@ export async function runVacancyFetchBatch({
     batch: {
       label: batch,
       isDefaultTransport: true,
-      note: "Default triage transport. Promoted out of marked-experiment state by backlog task 50"
-        + " on the written transport comparison of the 2026-08 rollout.",
+      note:
+        "Default triage transport. Promoted out of marked-experiment state by backlog task 50" +
+        " on the written transport comparison of the 2026-08 rollout.",
     },
     startedAt,
     finishedAt: now().toISOString(),
@@ -427,11 +426,11 @@ export async function runVacancyFetchBatch({
   };
 
   try {
-    writeFileSync(
-      join(outDir, manifestBasename),
-      `${JSON.stringify(manifest, null, 2)}\n`,
-      { encoding: "utf8", flag: "wx", mode: 0o600 },
-    );
+    writeFileSync(join(outDir, manifestBasename), `${JSON.stringify(manifest, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 0o600,
+    });
   } catch {
     // A write failure here must not replace a record failure that is already pending: the record
     // error is why the batch ended, and the write error is a consequence of the same bad state.

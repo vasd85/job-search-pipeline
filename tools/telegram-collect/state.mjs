@@ -43,18 +43,22 @@ const isUint32 = (value) => Number.isInteger(value) && value >= 0 && value <= 0x
 function isFingerprint(entry) {
   if (typeof entry !== "object" || entry === null) return false;
   const shortText = entry.text !== null;
-  return isValidHandle(entry.handle)
-    && isPostId(entry.post_id)
-    && isInstant(entry.instant)
-    && isInstant(entry.last_seen)
-    && DIGEST.test(entry.head ?? "")
-    && DIGEST.test(entry.urls ?? "")
-    && (shortText
+  return (
+    isValidHandle(entry.handle) &&
+    isPostId(entry.post_id) &&
+    isInstant(entry.instant) &&
+    isInstant(entry.last_seen) &&
+    DIGEST.test(entry.head ?? "") &&
+    DIGEST.test(entry.urls ?? "") &&
+    (shortText
       ? DIGEST.test(entry.text ?? "") && entry.minhash === null
-      : Array.isArray(entry.minhash) && entry.minhash.length === MINHASH_SIZE && entry.minhash.every(isUint32))
-    && Array.isArray(entry.lines)
-    && entry.lines.length <= MAX_LINE_DIGESTS
-    && entry.lines.every((line) => LINE_DIGEST.test(line));
+      : Array.isArray(entry.minhash) &&
+        entry.minhash.length === MINHASH_SIZE &&
+        entry.minhash.every(isUint32)) &&
+    Array.isArray(entry.lines) &&
+    entry.lines.length <= MAX_LINE_DIGESTS &&
+    entry.lines.every((line) => LINE_DIGEST.test(line))
+  );
 }
 
 function isEmittedUrl(key, entry) {
@@ -65,11 +69,13 @@ function isEmittedUrl(key, entry) {
   } catch {
     return false;
   }
-  return (parsed.protocol === "http:" || parsed.protocol === "https:")
-    && isValidHandle(entry.handle)
-    && isPostId(entry.post_id)
-    && isInstant(entry.first_at)
-    && isInstant(entry.last_seen);
+  return (
+    (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+    isValidHandle(entry.handle) &&
+    isPostId(entry.post_id) &&
+    isInstant(entry.first_at) &&
+    isInstant(entry.last_seen)
+  );
 }
 
 export function writeFileAtomic(path, contents) {
@@ -79,22 +85,27 @@ export function writeFileAtomic(path, contents) {
 }
 
 function isChannelEntry(entry) {
-  return Object.keys(entry).sort().join() === "last_message_id,last_sweep_at"
-    && isPostId(entry.last_message_id)
-    && isInstant(entry.last_sweep_at);
+  return (
+    Object.keys(entry).sort().join() === "last_message_id,last_sweep_at" &&
+    isPostId(entry.last_message_id) &&
+    isInstant(entry.last_sweep_at)
+  );
 }
 
 function isGroupEntry(entry) {
-  return Object.keys(entry).sort().join()
-      === "kind,last_live_at,last_live_id,last_stop,last_stop_after,last_sweep_at,longest_gap"
-    && entry.kind === "group"
-    && (entry.last_live_id === null || (isPostId(entry.last_live_id) && entry.last_live_id >= 1))
-    && (entry.last_live_at === null || isInstant(entry.last_live_at))
-    && (entry.last_live_id === null) === (entry.last_live_at === null)
-    && isInstant(entry.last_sweep_at)
-    && groupStopReasons.includes(entry.last_stop)
-    && Number.isSafeInteger(entry.last_stop_after) && entry.last_stop_after >= 1
-    && isPostId(entry.longest_gap);
+  return (
+    Object.keys(entry).sort().join() ===
+      "kind,last_live_at,last_live_id,last_stop,last_stop_after,last_sweep_at,longest_gap" &&
+    entry.kind === "group" &&
+    (entry.last_live_id === null || (isPostId(entry.last_live_id) && entry.last_live_id >= 1)) &&
+    (entry.last_live_at === null || isInstant(entry.last_live_at)) &&
+    (entry.last_live_id === null) === (entry.last_live_at === null) &&
+    isInstant(entry.last_sweep_at) &&
+    groupStopReasons.includes(entry.last_stop) &&
+    Number.isSafeInteger(entry.last_stop_after) &&
+    entry.last_stop_after >= 1 &&
+    isPostId(entry.longest_gap)
+  );
 }
 
 /** The kind an entry stands for; the caller checks it against the config's kind for the handle. */
@@ -104,14 +115,19 @@ export function entryKind(entry) {
 
 function validateState(state) {
   if (
-    typeof state !== "object" || state === null || Array.isArray(state)
-    || !readableStateSchemaVersions.includes(state.schema_version)
-    || typeof state.channels !== "object" || state.channels === null
-    || Array.isArray(state.channels)
-    || !Array.isArray(state.fingerprints) || state.fingerprints.length > MAX_FINGERPRINTS
-    || typeof state.emitted_urls !== "object" || state.emitted_urls === null
-    || Array.isArray(state.emitted_urls)
-    || Object.keys(state.emitted_urls).length > MAX_EMITTED_URLS
+    typeof state !== "object" ||
+    state === null ||
+    Array.isArray(state) ||
+    !readableStateSchemaVersions.includes(state.schema_version) ||
+    typeof state.channels !== "object" ||
+    state.channels === null ||
+    Array.isArray(state.channels) ||
+    !Array.isArray(state.fingerprints) ||
+    state.fingerprints.length > MAX_FINGERPRINTS ||
+    typeof state.emitted_urls !== "object" ||
+    state.emitted_urls === null ||
+    Array.isArray(state.emitted_urls) ||
+    Object.keys(state.emitted_urls).length > MAX_EMITTED_URLS
   ) {
     fail("state_invalid", "The sweep state does not match its schema.");
   }
@@ -120,14 +136,20 @@ function validateState(state) {
   }
   for (const [key, entry] of Object.entries(state.emitted_urls)) {
     if (!isEmittedUrl(key, entry)) {
-      fail("state_invalid", "An emitted-address entry of the sweep state does not match its schema.");
+      fail(
+        "state_invalid",
+        "An emitted-address entry of the sweep state does not match its schema.",
+      );
     }
   }
   for (const [key, entry] of Object.entries(state.channels)) {
     if (
-      !isValidHandle(key) || key !== key.toLowerCase()
-      || typeof entry !== "object" || entry === null || Array.isArray(entry)
-      || !(isChannelEntry(entry) || isGroupEntry(entry))
+      !isValidHandle(key) ||
+      key !== key.toLowerCase() ||
+      typeof entry !== "object" ||
+      entry === null ||
+      Array.isArray(entry) ||
+      !(isChannelEntry(entry) || isGroupEntry(entry))
     ) {
       fail("state_invalid", "A sweep state entry does not match its schema.");
     }
@@ -143,14 +165,22 @@ export function assertSourceKinds(state, config) {
   for (const source of config.channels) {
     const entry = state.channels[source.handle.toLowerCase()];
     if (entry !== undefined && entryKind(entry) !== source.kind) {
-      fail("state_kind_mismatch", "A source changed its kind under a handle the state remembers; run reset-cursor first.");
+      fail(
+        "state_kind_mismatch",
+        "A source changed its kind under a handle the state remembers; run reset-cursor first.",
+      );
     }
   }
 }
 
 export function initState(path) {
   if (existsSync(path)) fail("state_exists", "The sweep state already exists.");
-  const state = { schema_version: stateSchemaVersion, channels: {}, fingerprints: [], emitted_urls: {} };
+  const state = {
+    schema_version: stateSchemaVersion,
+    channels: {},
+    fingerprints: [],
+    emitted_urls: {},
+  };
   writeFileAtomic(path, `${JSON.stringify(state, null, 2)}\n`);
   return state;
 }
@@ -185,7 +215,8 @@ export function writeState(path, state) {
  * fingerprint. Returns whether a cursor entry existed.
  */
 export function resetCursor(path, handle) {
-  if (!isValidHandle(handle)) fail("handle_invalid", "The handle does not match the handle pattern.");
+  if (!isValidHandle(handle))
+    fail("handle_invalid", "The handle does not match the handle pattern.");
   const state = readState(path);
   const key = handle.toLowerCase();
   const existed = Object.hasOwn(state.channels, key);
@@ -196,7 +227,9 @@ export function resetCursor(path, handle) {
     ...state,
     channels,
     fingerprints: state.fingerprints.filter(foreign),
-    emitted_urls: Object.fromEntries(Object.entries(state.emitted_urls).filter(([, entry]) => foreign(entry))),
+    emitted_urls: Object.fromEntries(
+      Object.entries(state.emitted_urls).filter(([, entry]) => foreign(entry)),
+    ),
   });
   return existed;
 }

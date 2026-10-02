@@ -54,26 +54,38 @@ export function sweepFromManifest(manifest) {
   // block naming the batch and flipped the transport's promotion state, neither of which this
   // module reads. Refusing version 1 would strand every batch captured before the promotion.
   if (
-    !KNOWN_MANIFEST_VERSIONS.has(manifest.schemaVersion)
-    || manifest.tool !== "vacancy-fetch"
-    || !Array.isArray(manifest.records)
+    !KNOWN_MANIFEST_VERSIONS.has(manifest.schemaVersion) ||
+    manifest.tool !== "vacancy-fetch" ||
+    !Array.isArray(manifest.records)
   ) {
-    fail("pretriage_manifest_unrecognized", "The fetch manifest is not a vacancy-fetch manifest of a known version.");
+    fail(
+      "pretriage_manifest_unrecognized",
+      "The fetch manifest is not a vacancy-fetch manifest of a known version.",
+    );
   }
   const seen = new Set();
   return manifest.records.map((record, position) => {
     if (record === null || typeof record !== "object") {
-      fail("pretriage_manifest_record_invalid", `Manifest record at position ${position + 1} is not an object.`);
+      fail(
+        "pretriage_manifest_record_invalid",
+        `Manifest record at position ${position + 1} is not an object.`,
+      );
     }
     if (!Number.isSafeInteger(record.index) || record.index < 1) {
-      fail("pretriage_manifest_record_invalid", `Manifest record at position ${position + 1} has no index.`);
+      fail(
+        "pretriage_manifest_record_invalid",
+        `Manifest record at position ${position + 1} has no index.`,
+      );
     }
     if (seen.has(record.index)) {
       fail("pretriage_manifest_record_invalid", `Manifest index ${record.index} appears twice.`);
     }
     seen.add(record.index);
     if (!MANIFEST_OUTCOMES.has(record.outcome)) {
-      fail("pretriage_manifest_record_invalid", `Manifest record ${record.index} carries an unknown outcome.`);
+      fail(
+        "pretriage_manifest_record_invalid",
+        `Manifest record ${record.index} carries an unknown outcome.`,
+      );
     }
     return {
       index: record.index,

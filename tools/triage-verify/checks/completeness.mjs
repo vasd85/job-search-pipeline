@@ -11,7 +11,10 @@
 // carrying a superseded `policyId` is a finding rather than something to re-score silently.
 
 import { buildDecisionTrace } from "../../job-scorer/trace.mjs";
-import { TRIAGE_POLICY_ID, NORMALIZED_INPUT_SCHEMA_VERSION } from "../../job-scorer/normalized-input.mjs";
+import {
+  TRIAGE_POLICY_ID,
+  NORMALIZED_INPUT_SCHEMA_VERSION,
+} from "../../job-scorer/normalized-input.mjs";
 import { TOOLMATCH_TAXONOMY_ID } from "../../job-scorer/tool-taxonomy.mjs";
 import { normalizeVacancyUrl } from "../../lib/triage-ledger-core.mjs";
 import {
@@ -74,15 +77,19 @@ function planAccountedLinks(context, findings, claimedByUrl) {
 
   const rangeUrls = new Set(context.links.map((link) => link.normalizedUrl));
   const planned = new Set(plan.rows.map((row) => row.url));
-  const sameSet = planned.size === rangeUrls.size && [...planned].every((url) => rangeUrls.has(url));
+  const sameSet =
+    planned.size === rangeUrls.size && [...planned].every((url) => rangeUrls.has(url));
   if (!sameSet) findings.push({ code: "plan_range_mismatch" });
 
   const accounted = new Set();
   // A skip the batch did not take is not a drop: a known link the user asked to re-check keeps its
   // `skip_known` row and has a record, and that record answers for the link on its own. The
   // terminal action is never read that way.
-  const skips = plan.rows.filter((row) => SKIP_PLAN_ACTIONS.has(row.action)
-    && (TERMINAL_PLAN_ACTIONS.has(row.action) || !claimedByUrl.has(row.url)));
+  const skips = plan.rows.filter(
+    (row) =>
+      SKIP_PLAN_ACTIONS.has(row.action) &&
+      (TERMINAL_PLAN_ACTIONS.has(row.action) || !claimedByUrl.has(row.url)),
+  );
   for (const row of plan.rows) {
     if (row.repeatsSpelling) accounted.add(row.url);
   }
@@ -158,10 +165,15 @@ export function run(context) {
       if (existing === undefined) claimedByUrl.set(record.sourceRef, [record.index]);
       else existing.push(record.index);
     }
-    if (record.input.policyId !== TRIAGE_POLICY_ID || record.input.schemaVersion !== NORMALIZED_INPUT_SCHEMA_VERSION
-      || (record.trace !== null && (record.trace.policy_id !== TRIAGE_POLICY_ID
-        || (record.trace.decision === "EVALUATED" && typeof record.trace.toolmatch_taxonomy_id === "string"
-          && record.trace.toolmatch_taxonomy_id !== TOOLMATCH_TAXONOMY_ID)))) {
+    if (
+      record.input.policyId !== TRIAGE_POLICY_ID ||
+      record.input.schemaVersion !== NORMALIZED_INPUT_SCHEMA_VERSION ||
+      (record.trace !== null &&
+        (record.trace.policy_id !== TRIAGE_POLICY_ID ||
+          (record.trace.decision === "EVALUATED" &&
+            typeof record.trace.toolmatch_taxonomy_id === "string" &&
+            record.trace.toolmatch_taxonomy_id !== TOOLMATCH_TAXONOMY_ID)))
+    ) {
       findings.push({ code: "policy_drift", index: record.index });
       continue;
     }
@@ -171,7 +183,9 @@ export function run(context) {
     }
     let recomputed;
     try {
-      recomputed = JSON.parse(JSON.stringify(buildDecisionTrace(record.input, { languages: context.languages })));
+      recomputed = JSON.parse(
+        JSON.stringify(buildDecisionTrace(record.input, { languages: context.languages })),
+      );
     } catch (error) {
       findings.push({
         code: "input_not_scoreable",
@@ -188,7 +202,10 @@ export function run(context) {
 
   for (const [url, indices] of claimedByUrl) {
     if (indices.length > 1) {
-      findings.push({ code: "duplicate_record_for_link", indices: [...indices].sort((a, b) => a - b) });
+      findings.push({
+        code: "duplicate_record_for_link",
+        indices: [...indices].sort((a, b) => a - b),
+      });
     }
     if (!context.links.some((link) => link.normalizedUrl === url)) {
       findings.push({ code: "record_outside_range", indices: [...indices].sort((a, b) => a - b) });

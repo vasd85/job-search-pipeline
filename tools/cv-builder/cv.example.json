@@ -64,18 +64,14 @@
           "dates": "[Mon YYYY - Mon YYYY]",
           "pageBreakBefore": false,
           "stack": "[Relevant stack or omit this field]",
-          "bullets": [
-            "[Keep only the older evidence that materially supports this role.]"
-          ]
+          "bullets": ["[Keep only the older evidence that materially supports this role.]"]
         }
       ]
     },
     {
       "type": "lines",
       "heading": "Education",
-      "lines": [
-        "[Institution - degree, field, dates]"
-      ]
+      "lines": ["[Institution - degree, field, dates]"]
     }
   ]
 }

@@ -106,7 +106,10 @@ function buildFolder(root, kind) {
   const manifest = manifestFor(kind);
   // The fixture is only realistic if the folder tool itself would read it.
   assert.notEqual(folderTool.parseManifest(JSON.stringify(manifest)), null);
-  writeFileSync(join(root, folderTool.MANIFEST_FILE_NAME), `${JSON.stringify(manifest, null, 2)}\n`);
+  writeFileSync(
+    join(root, folderTool.MANIFEST_FILE_NAME),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
 }
 
 /**
@@ -143,8 +146,17 @@ function layout(t) {
   const outside = join(base, "outside");
   mkdirSync(outside, { recursive: true });
   return {
-    base, candidate, emptyPath: emptyPathDirectory(base), engine, home, memory, ops, outside,
-    rehearsal, task, temporary,
+    base,
+    candidate,
+    emptyPath: emptyPathDirectory(base),
+    engine,
+    home,
+    memory,
+    ops,
+    outside,
+    rehearsal,
+    task,
+    temporary,
   };
 }
 
@@ -242,74 +254,86 @@ test(`run -> its own artifacts: allowed; not closed: nothing, this is the permit
   assertAllowed(runHook(env, { cwd: env.ops, target: "output/relative.md" }));
 });
 
-test(`run -> engine sources: refused; not closed: ${SHELL_AND_CODEX}, hard links, `
-  + `file-writing tools outside the matcher, until the first drift check`, (t) => {
-  const env = layout(t);
-  const own = {
-    "tools/process-log.mjs": "read_only_zone",
-    ".claude/settings.json": "read_only_zone",
-    "ops-manifest.json": "read_only_zone",
-    ".ops-tree/lock": "read_only_zone",
-    "tools/cv-builder/node_modules/pkg/index.js": "read_only_zone",
-    "stray-file-at-root.md": "read_only_zone",
-    "candidate/research/new.json": "read_only_zone",
-    ".DS_Store": "read_only_zone",
-    ".claude/settings.local.json": "settings_local",
-  };
-  for (const [path, code] of Object.entries(own)) {
-    assertRuleDenied(runHook(env, { cwd: env.ops, target: join(env.ops, path) }), code);
-  }
-  // The development clone and a task tree lie outside the folder: rule 2.
-  assertInProcess(env, env.ops, join(env.engine, "tools", "build.mjs"), "outbound");
-  assertInProcess(env, env.ops, join(env.task, "tools", "new.mjs"), "outbound");
-});
-
-test(`run -> the board: refused; not closed: ${SHELL_AND_CODEX}, which reach the live board on `
-  + `the same disk`, (t) => {
-  const env = layout(t);
-  assertInProcess(env, env.ops, join(env.candidate, "board", "README.md"), "outbound");
-  assertInProcess(env, env.ops, join(env.candidate, "board", "200-feat-new.md"), "outbound");
-});
-
-test(`run -> candidate data: refused; not closed: ${SHELL_AND_CODEX}, into the snapshot before `
-  + `the first step and into the live clone at any time`, (t) => {
-  const env = layout(t);
-  assertRuleDenied(
-    runHook(env, { cwd: env.ops, target: join(env.ops, "candidate", "profile.md") }),
-    "read_only_zone",
-  );
-  assertInProcess(env, env.ops, join(env.candidate, "profile.md"), "outbound");
-});
-
-test(`development -> the run's artifacts: refused, the outbox included; not closed: `
-  + `${SHELL_AND_CODEX}, the board tool's two outbox actions, sessions whose checkout does not `
-  + `register this guard, hard links`, (t) => {
-  const env = layout(t);
-  const targets = [
-    "process-log.json",
-    "output/acme/cv.docx",
-    "records/letter-corrections/r1.json",
-    "candidate/research/r.json",
-    ".temp-docs/page.txt",
-    "outbox/tasks/draft.md",
-    "outbox/tasks/new-draft.md",
-    join(OUTBOX_DIRECTORY, IMPORTED_FILE),
-    "outbox/other.txt",
-  ];
-  for (const session of [env.engine, env.task, env.outside, env.candidate]) {
-    for (const path of targets) {
-      assertRuleDenied(runHook(env, { cwd: session, target: join(env.ops, path) }), "inbound");
+test(
+  `run -> engine sources: refused; not closed: ${SHELL_AND_CODEX}, hard links, ` +
+    `file-writing tools outside the matcher, until the first drift check`,
+  (t) => {
+    const env = layout(t);
+    const own = {
+      "tools/process-log.mjs": "read_only_zone",
+      ".claude/settings.json": "read_only_zone",
+      "ops-manifest.json": "read_only_zone",
+      ".ops-tree/lock": "read_only_zone",
+      "tools/cv-builder/node_modules/pkg/index.js": "read_only_zone",
+      "stray-file-at-root.md": "read_only_zone",
+      "candidate/research/new.json": "read_only_zone",
+      ".DS_Store": "read_only_zone",
+      ".claude/settings.local.json": "settings_local",
+    };
+    for (const [path, code] of Object.entries(own)) {
+      assertRuleDenied(runHook(env, { cwd: env.ops, target: join(env.ops, path) }), code);
     }
-  }
-  assertRuleDenied(
-    runHook(env, { cwd: env.outside, target: join(env.ops, ".claude", "settings.local.json") }),
-    "settings_local",
-  );
-  assertRuleDenied(
-    runHook(env, { cwd: env.engine, target: "../job-search-pipeline/output/relative.md" }),
-    "inbound",
-  );
-});
+    // The development clone and a task tree lie outside the folder: rule 2.
+    assertInProcess(env, env.ops, join(env.engine, "tools", "build.mjs"), "outbound");
+    assertInProcess(env, env.ops, join(env.task, "tools", "new.mjs"), "outbound");
+  },
+);
+
+test(
+  `run -> the board: refused; not closed: ${SHELL_AND_CODEX}, which reach the live board on ` +
+    `the same disk`,
+  (t) => {
+    const env = layout(t);
+    assertInProcess(env, env.ops, join(env.candidate, "board", "README.md"), "outbound");
+    assertInProcess(env, env.ops, join(env.candidate, "board", "200-feat-new.md"), "outbound");
+  },
+);
+
+test(
+  `run -> candidate data: refused; not closed: ${SHELL_AND_CODEX}, into the snapshot before ` +
+    `the first step and into the live clone at any time`,
+  (t) => {
+    const env = layout(t);
+    assertRuleDenied(
+      runHook(env, { cwd: env.ops, target: join(env.ops, "candidate", "profile.md") }),
+      "read_only_zone",
+    );
+    assertInProcess(env, env.ops, join(env.candidate, "profile.md"), "outbound");
+  },
+);
+
+test(
+  `development -> the run's artifacts: refused, the outbox included; not closed: ` +
+    `${SHELL_AND_CODEX}, the board tool's two outbox actions, sessions whose checkout does not ` +
+    `register this guard, hard links`,
+  (t) => {
+    const env = layout(t);
+    const targets = [
+      "process-log.json",
+      "output/acme/cv.docx",
+      "records/letter-corrections/r1.json",
+      "candidate/research/r.json",
+      ".temp-docs/page.txt",
+      "outbox/tasks/draft.md",
+      "outbox/tasks/new-draft.md",
+      join(OUTBOX_DIRECTORY, IMPORTED_FILE),
+      "outbox/other.txt",
+    ];
+    for (const session of [env.engine, env.task, env.outside, env.candidate]) {
+      for (const path of targets) {
+        assertRuleDenied(runHook(env, { cwd: session, target: join(env.ops, path) }), "inbound");
+      }
+    }
+    assertRuleDenied(
+      runHook(env, { cwd: env.outside, target: join(env.ops, ".claude", "settings.local.json") }),
+      "settings_local",
+    );
+    assertRuleDenied(
+      runHook(env, { cwd: env.engine, target: "../job-search-pipeline/output/relative.md" }),
+      "inbound",
+    );
+  },
+);
 
 test("development -> engine sources, the board, candidate data: allowed; not closed: nothing", (t) => {
   const env = layout(t);
@@ -346,10 +370,16 @@ test("mirror rule: the run writes neither the development clone's candidate nor 
 test("mirror rule: a session outside writes no state zone of the folder", (t) => {
   const env = layout(t);
   for (const zone of folderTool.ZONE_TABLE.stateNames) {
-    assertRuleDenied(runHook(env, { cwd: env.engine, target: join(env.ops, zone, "x") }), "inbound");
+    assertRuleDenied(
+      runHook(env, { cwd: env.engine, target: join(env.ops, zone, "x") }),
+      "inbound",
+    );
   }
   for (const prefix of folderTool.ZONE_TABLE.statePrefixes) {
-    assertRuleDenied(runHook(env, { cwd: env.engine, target: join(env.ops, `${prefix}.tmp`) }), "inbound");
+    assertRuleDenied(
+      runHook(env, { cwd: env.engine, target: join(env.ops, `${prefix}.tmp`) }),
+      "inbound",
+    );
   }
 });
 
@@ -364,7 +394,9 @@ test("mirror rule: an operational and a rehearsal folder do not write into each 
     "outbound",
   );
   // `.rehearsal/` is state only where the folder is a rehearsal one.
-  assertAllowed(runHook(env, { cwd: env.rehearsal, target: join(env.rehearsal, ".rehearsal", "b.json") }));
+  assertAllowed(
+    runHook(env, { cwd: env.rehearsal, target: join(env.rehearsal, ".rehearsal", "b.json") }),
+  );
   assertRuleDenied(
     runHook(env, { cwd: env.ops, target: join(env.ops, ".rehearsal", "b.json") }),
     "read_only_zone",
@@ -382,7 +414,12 @@ test("the operational exception: memory of its own project, plans and temporary 
   assertInProcess(env, env.ops, join(env.home, ".claude", "hooks", "x.mjs"), "outbound");
   // The development project's memory is loaded into development sessions: closed.
   const developmentMemory = join(
-    env.home, ".claude", "projects", guard.projectDirectoryName(env.engine), "memory", "x.md",
+    env.home,
+    ".claude",
+    "projects",
+    guard.projectDirectoryName(env.engine),
+    "memory",
+    "x.md",
   );
   assertInProcess(env, env.ops, developmentMemory, "outbound");
   // A link inside the memory folder is judged where it lands.
@@ -393,7 +430,11 @@ test("the operational exception: memory of its own project, plans and temporary 
   assertInProcess(env, env.ops, join(env.temporary, "other-folder", "output", "x"), "outbound");
   // A rehearsal session has no exception.
   const rehearsalMemory = join(
-    env.home, ".claude", "projects", guard.projectDirectoryName(env.rehearsal), "memory",
+    env.home,
+    ".claude",
+    "projects",
+    guard.projectDirectoryName(env.rehearsal),
+    "memory",
   );
   mkdirSync(rehearsalMemory, { recursive: true });
   assertInProcess(env, env.rehearsal, join(rehearsalMemory, "note.md"), "outbound");
@@ -445,10 +486,17 @@ test("the guard runs no git: no process module in its source and no git on its P
   const env = layout(t);
   // A folder that is also a git repository is judged by its marker alone.
   initRepository(join(env.ops, "output", "nested-repository"));
-  assertAllowed(runHook(env, { cwd: env.ops, target: join(env.ops, "output", "nested-repository", "x") }));
+  assertAllowed(
+    runHook(env, { cwd: env.ops, target: join(env.ops, "output", "nested-repository", "x") }),
+  );
   // Outside its folder an operational session is judged in process: the layout sits in the
   // temporary directory, which the child's default exception would open.
-  assertInProcess(env, join(env.ops, "output", "nested-repository"), join(env.engine, "x"), "outbound");
+  assertInProcess(
+    env,
+    join(env.ops, "output", "nested-repository"),
+    join(env.engine, "x"),
+    "outbound",
+  );
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -470,17 +518,32 @@ test("links are judged where they land, and a link into nothing is refused on an
   );
   // A live link from the development clone into the folder's state.
   symlinkSync(join(env.ops, "output"), join(env.engine, "to-output"));
-  assertRuleDenied(runHook(env, { cwd: env.engine, target: join(env.engine, "to-output", "a.md") }), "inbound");
+  assertRuleDenied(
+    runHook(env, { cwd: env.engine, target: join(env.engine, "to-output", "a.md") }),
+    "inbound",
+  );
   // A live link as the last component: as written it is a file of the clone, where it lands is state.
   symlinkSync(join(env.ops, "output", "real.md"), join(env.engine, "to-real.md"));
-  assertRuleDenied(runHook(env, { cwd: env.engine, target: join(env.engine, "to-real.md") }), "inbound");
+  assertRuleDenied(
+    runHook(env, { cwd: env.engine, target: join(env.engine, "to-real.md") }),
+    "inbound",
+  );
   // A link into nothing, both directions; a chain; a missing directory; `..` behind a live link.
   symlinkSync(join(env.ops, "records", "new.json"), join(env.engine, "dangling"));
-  assertFailedClosed(runHook(env, { cwd: env.engine, target: join(env.engine, "dangling") }), "dangling_symlink");
+  assertFailedClosed(
+    runHook(env, { cwd: env.engine, target: join(env.engine, "dangling") }),
+    "dangling_symlink",
+  );
   symlinkSync(join(env.engine, "escaped.json"), join(env.ops, "records", "out"));
-  assertFailedClosed(runHook(env, { cwd: env.ops, target: join(env.ops, "records", "out") }), "dangling_symlink");
+  assertFailedClosed(
+    runHook(env, { cwd: env.ops, target: join(env.ops, "records", "out") }),
+    "dangling_symlink",
+  );
   symlinkSync(join(env.engine, "dangling"), join(env.engine, "chain"));
-  assertFailedClosed(runHook(env, { cwd: env.engine, target: join(env.engine, "chain") }), "dangling_symlink");
+  assertFailedClosed(
+    runHook(env, { cwd: env.engine, target: join(env.engine, "chain") }),
+    "dangling_symlink",
+  );
   symlinkSync(join(env.ops, "records", "missing-dir"), join(env.engine, "dangling-dir"));
   assertFailedClosed(
     runHook(env, { cwd: env.engine, target: join(env.engine, "dangling-dir", "x.json") }),
@@ -502,7 +565,10 @@ test("links are judged where they land, and a link into nothing is refused on an
   // A loop cannot be resolved at all.
   symlinkSync(join(env.engine, "loop-b"), join(env.engine, "loop-a"));
   symlinkSync(join(env.engine, "loop-a"), join(env.engine, "loop-b"));
-  assertFailedClosed(runHook(env, { cwd: env.engine, target: join(env.engine, "loop-a") }), "path_unresolvable");
+  assertFailedClosed(
+    runHook(env, { cwd: env.engine, target: join(env.engine, "loop-a") }),
+    "path_unresolvable",
+  );
   // A live link on a tree without a marker is simply followed.
   symlinkSync(join(env.engine, "tools"), join(env.engine, "live"));
   assertAllowed(runHook(env, { cwd: env.engine, target: join(env.engine, "live", "new.mjs") }));
@@ -524,7 +590,10 @@ test("markers inside markers: the folder tool's own images decide nothing, any o
     runHook(env, { cwd: env.ops, target: join(retained, "output", "x.md") }),
     "read_only_zone",
   );
-  assertRuleDenied(runHook(env, { cwd: env.engine, target: join(retained, "output", "x.md") }), "inbound");
+  assertRuleDenied(
+    runHook(env, { cwd: env.engine, target: join(retained, "output", "x.md") }),
+    "inbound",
+  );
   // The folder's own writes elsewhere are unaffected by the images.
   assertAllowed(runHook(env, { cwd: env.ops, target: join(env.ops, "output", "y.md") }));
   const nested = join(env.ops, ".temp-docs", "rehearsal");
@@ -568,16 +637,22 @@ test("every failure to decide refuses and names itself", (t) => {
   };
   const cases = {
     "only-service-directory": [(root) => rmSync(manifestPath(root)), "ops_manifest_missing"],
-    "manifest-is-a-directory": [(root) => {
-      rmSync(manifestPath(root));
-      mkdirSync(manifestPath(root));
-    }, "ops_manifest_invalid"],
-    "manifest-is-a-link": [(root) => {
-      const elsewhere = join(root, "output", "valid-manifest.json");
-      writeFileSync(elsewhere, JSON.stringify(manifestFor("operational")));
-      rmSync(manifestPath(root));
-      symlinkSync(elsewhere, manifestPath(root));
-    }, "ops_manifest_invalid"],
+    "manifest-is-a-directory": [
+      (root) => {
+        rmSync(manifestPath(root));
+        mkdirSync(manifestPath(root));
+      },
+      "ops_manifest_invalid",
+    ],
+    "manifest-is-a-link": [
+      (root) => {
+        const elsewhere = join(root, "output", "valid-manifest.json");
+        writeFileSync(elsewhere, JSON.stringify(manifestFor("operational")));
+        rmSync(manifestPath(root));
+        symlinkSync(elsewhere, manifestPath(root));
+      },
+      "ops_manifest_invalid",
+    ],
     "manifest-not-json": [(root) => writeFileSync(manifestPath(root), "{"), "ops_manifest_invalid"],
     "foreign-schema": [rewrite({ schema: "someone/else" }), "ops_manifest_invalid"],
     "version-two": [rewrite({ schema_version: 2 }), "ops_manifest_invalid"],
@@ -595,22 +670,35 @@ test("every failure to decide refuses and names itself", (t) => {
   const manifestOnly = join(env.base, "manifest-only");
   buildFolder(manifestOnly, "operational");
   rmSync(join(manifestOnly, ".ops-tree"), { recursive: true });
-  assertRuleDenied(runHook(env, { cwd: env.engine, target: join(manifestOnly, "output", "x") }), "inbound");
+  assertRuleDenied(
+    runHook(env, { cwd: env.engine, target: join(manifestOnly, "output", "x") }),
+    "inbound",
+  );
   // A building folder is already a marked one.
   const building = broken("building", rewrite({ state: "building" }));
-  assertRuleDenied(runHook(env, { cwd: env.engine, target: join(building, "output", "x") }), "inbound");
+  assertRuleDenied(
+    runHook(env, { cwd: env.engine, target: join(building, "output", "x") }),
+    "inbound",
+  );
 
   // A directory on the way up that cannot be searched.
   const locked = join(env.base, "locked");
   mkdirSync(locked);
   chmodSync(locked, 0o000);
-  assertFailedClosed(runHook(env, { cwd: locked, target: join(env.outside, "x") }), "marker_unreadable");
+  assertFailedClosed(
+    runHook(env, { cwd: locked, target: join(env.outside, "x") }),
+    "marker_unreadable",
+  );
 });
 
 test("a notebook target and a second target are judged like the first", (t) => {
   const env = layout(t);
   assertRuleDenied(
-    runHook(env, { cwd: env.engine, target: join(env.ops, "output", "n.ipynb"), toolName: "NotebookEdit" }),
+    runHook(env, {
+      cwd: env.engine,
+      target: join(env.ops, "output", "n.ipynb"),
+      toolName: "NotebookEdit",
+    }),
     "inbound",
   );
   const both = payloadFor(env.engine, join(env.engine, "fine.md"));
@@ -630,15 +718,38 @@ test("the guard's zone function and marker constants equal the folder tool's", (
   // The folder tool states its two states only inside its parser; frozen here instead.
   assert.deepEqual([...guard.FOLDER_STATES], ["ready", "building"]);
   const paths = [
-    "", "tools/process-log.mjs", "candidate", "candidate/profile.md", "candidate/research",
-    "candidate/research/x/y.json", "candidate-other/x", "output", "output/a/b.docx",
-    "process-log.json", "process-log.json.lock", "process-log.backup-20260101.json",
-    "triage-ledger.json.tmp", "telegram-sweep-state.json", "outbox", "outbox/tasks/.imported.json",
-    "ops-manifest.json", "ops-manifest.json.123.abc.tmp", ".ops-tree", ".ops-tree/lock",
-    ".claude/settings.json", ".claude/settings.local.json", ".claude/.cc-writes/x",
-    "tools/cv-builder/node_modules/pkg/index.js", "tools/cv-builder/package.json",
-    ".DS_Store", "output/.DS_Store", ".rehearsal/b.json", "records", "pkcs11.txt",
-    ".temp-docs/x", "recordsx/y",
+    "",
+    "tools/process-log.mjs",
+    "candidate",
+    "candidate/profile.md",
+    "candidate/research",
+    "candidate/research/x/y.json",
+    "candidate-other/x",
+    "output",
+    "output/a/b.docx",
+    "process-log.json",
+    "process-log.json.lock",
+    "process-log.backup-20260101.json",
+    "triage-ledger.json.tmp",
+    "telegram-sweep-state.json",
+    "outbox",
+    "outbox/tasks/.imported.json",
+    "ops-manifest.json",
+    "ops-manifest.json.123.abc.tmp",
+    ".ops-tree",
+    ".ops-tree/lock",
+    ".claude/settings.json",
+    ".claude/settings.local.json",
+    ".claude/.cc-writes/x",
+    "tools/cv-builder/node_modules/pkg/index.js",
+    "tools/cv-builder/package.json",
+    ".DS_Store",
+    "output/.DS_Store",
+    ".rehearsal/b.json",
+    "records",
+    "pkcs11.txt",
+    ".temp-docs/x",
+    "recordsx/y",
   ];
   for (const kind of folderTool.FOLDER_KINDS) {
     const zones = folderTool.zoneTableFor(kind);
@@ -656,10 +767,11 @@ test("the local settings path the guard refuses is a state path of the zone tabl
 
 test("the tracked settings register only the current guard", () => {
   const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
-  const commands = settings.hooks.PreToolUse.flatMap((entry) => entry.hooks.map((hook) => hook.command));
+  const commands = settings.hooks.PreToolUse.flatMap((entry) =>
+    entry.hooks.map((hook) => hook.command),
+  );
   assert.deepEqual(commands, [EXPECTED_V2_COMMAND]);
 });
-
 
 test("runtime sandbox and test invocations retain the current boundary", () => {
   const raw = readFileSync(settingsPath, "utf8");
@@ -685,5 +797,7 @@ test("historical manifest retains its research write zone", (t) => {
   const marker = JSON.parse(readFileSync(join(env.ops, "ops-manifest.json"), "utf8"));
   marker.zones.stateNested.push("candidate/research");
   writeFileSync(join(env.ops, "ops-manifest.json"), JSON.stringify(marker));
-  assertAllowed(runHook(env, { cwd: env.ops, target: join(env.ops, "candidate/research/note.json") }));
+  assertAllowed(
+    runHook(env, { cwd: env.ops, target: join(env.ops, "candidate/research/note.json") }),
+  );
 });

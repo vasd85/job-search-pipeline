@@ -19,16 +19,10 @@ import {
   textLength,
   walkElements,
 } from "../html-text.mjs";
-import {
-  deferredContentSuspected,
-  measureJsonIslandProse,
-} from "../deferred-content.mjs";
+import { deferredContentSuspected, measureJsonIslandProse } from "../deferred-content.mjs";
 import { detectJobSource } from "../../job-sources/registry.mjs";
 import { parseHttpUrl } from "../url-rule.mjs";
-import {
-  linkedinAntiBotPathPrefixes,
-  linkedinAuthWallPathPrefixes,
-} from "./linkedin-guest.mjs";
+import { linkedinAntiBotPathPrefixes, linkedinAuthWallPathPrefixes } from "./linkedin-guest.mjs";
 import {
   adapterReading,
   htmlMediaTypes,
@@ -173,8 +167,8 @@ export const genericHtmlAdapter = Object.freeze({
     const wallAt = linkedinWallAt(finalUrl);
     const antiBot = wallAt === "anti_bot" || matchedMarker(text, antiBotMarkers) !== null;
     if (antiBot) reasons.push("anti_bot_page");
-    const authWall = !antiBot
-      && (wallAt === "auth_wall" || matchedMarker(text, authWallMarkers) !== null);
+    const authWall =
+      !antiBot && (wallAt === "auth_wall" || matchedMarker(text, authWallMarkers) !== null);
     if (authWall) reasons.push("auth_wall");
 
     const minimumContentMet = meetsMinimumContent(text);

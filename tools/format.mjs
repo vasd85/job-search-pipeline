@@ -55,7 +55,9 @@ export async function main(argv = process.argv.slice(2)) {
     process.stdout.write(`${JSON.stringify(report)}\n`);
     return argv[0] === "--check" && report.changed.length > 0 ? 1 : 0;
   } catch {
-    process.stderr.write("Unable to format tracked files; check the configuration and source files.\n");
+    process.stderr.write(
+      "Unable to format tracked files; check the configuration and source files.\n",
+    );
     return 1;
   }
 }

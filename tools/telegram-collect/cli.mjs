@@ -17,7 +17,13 @@ import { fileURLToPath } from "node:url";
 import { OpsTreeError, verifyFolder } from "../ops-tree/manifest.mjs";
 import { isValidHandle } from "./config.mjs";
 import { TelegramCollectError, fail } from "./errors.mjs";
-import { executeFinalize, executeSweep, exitCodeOf, renderLabelBatches, summarize } from "./persist.mjs";
+import {
+  executeFinalize,
+  executeSweep,
+  exitCodeOf,
+  renderLabelBatches,
+  summarize,
+} from "./persist.mjs";
 import { probeChannel, probeMessage } from "./probe.mjs";
 import { initState, resetCursor, stateBasename } from "./state.mjs";
 
@@ -55,7 +61,8 @@ function parseArgs(rest, { positional, valued = ["out-dir", "config"], flags = [
     const token = rest[index];
     if (token.startsWith("--")) {
       const key = token.slice(2);
-      if (Object.hasOwn(options, key)) fail("argv_invalid", "Unknown, repeated or valueless option.");
+      if (Object.hasOwn(options, key))
+        fail("argv_invalid", "Unknown, repeated or valueless option.");
       if (flags.includes(key)) {
         options[key] = true;
         continue;
@@ -82,7 +89,8 @@ function configPathOf(options) {
 }
 
 function handleOf(value) {
-  if (!isValidHandle(value)) fail("handle_invalid", "The handle does not match the handle pattern.");
+  if (!isValidHandle(value))
+    fail("handle_invalid", "The handle does not match the handle pattern.");
   return value;
 }
 
@@ -146,7 +154,11 @@ async function main(argv) {
   }
   if (command === "finalize") {
     verifyOperationalFolder();
-    const { options } = parseArgs(rest, { positional: 0, valued: ["out-dir"], flags: ["accept-invalid"] });
+    const { options } = parseArgs(rest, {
+      positional: 0,
+      valued: ["out-dir"],
+      flags: ["accept-invalid"],
+    });
     if (options["out-dir"] === undefined) fail("argv_invalid", "finalize requires --out-dir.");
     const run = executeFinalize({
       outDir: options["out-dir"],
@@ -157,7 +169,11 @@ async function main(argv) {
     return report(summarize(run, "finalize"));
   }
   if (command === "render-batches") {
-    const { options } = parseArgs(rest, { positional: 0, valued: ["out-dir"], flags: ["full-text"] });
+    const { options } = parseArgs(rest, {
+      positional: 0,
+      valued: ["out-dir"],
+      flags: ["full-text"],
+    });
     if (options["out-dir"] === undefined || options["full-text"] !== true) {
       fail("argv_invalid", "render-batches requires --out-dir and --full-text.");
     }
@@ -167,11 +183,17 @@ async function main(argv) {
   }
   if (command === "probe") {
     const { values, options } = parseArgs(rest, { positional: [1, 2] });
-    if (Object.keys(options).length > 0) fail("argv_invalid", "probe takes a handle, an optional message id and no option.");
+    if (Object.keys(options).length > 0)
+      fail("argv_invalid", "probe takes a handle, an optional message id and no option.");
     const handle = handleOf(values[0]);
     if (values.length === 2) {
-      if (!MESSAGE_ID.test(values[1])) fail("argv_invalid", "The message id must be a positive integer.");
-      const card = await probeMessage({ handle, messageId: Number(values[1]), fetchImpl: globalThis.fetch });
+      if (!MESSAGE_ID.test(values[1]))
+        fail("argv_invalid", "The message id must be a positive integer.");
+      const card = await probeMessage({
+        handle,
+        messageId: Number(values[1]),
+        fetchImpl: globalThis.fetch,
+      });
       console.log(JSON.stringify({ command, ...card }));
       return 0;
     }

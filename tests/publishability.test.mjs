@@ -138,8 +138,20 @@ test("each finding class is caught, with its code, path and line", (t) => {
   const report = scan(built);
 
   assert.deepEqual(report.findings, [
-    { class: "cyrillic_prose", exported: true, line: 2, marker: "text.cyrillic", path: "a/script.md" },
-    { class: "shared_template", exported: true, line: 1, marker: "template.email", path: "a/mail.md" },
+    {
+      class: "cyrillic_prose",
+      exported: true,
+      line: 2,
+      marker: "text.cyrillic",
+      path: "a/script.md",
+    },
+    {
+      class: "shared_template",
+      exported: true,
+      line: 1,
+      marker: "template.email",
+      path: "a/mail.md",
+    },
     { class: "private_path", exported: true, line: 1, marker: "path.backlog", path: "a/path.md" },
   ]);
   assert.equal(report.places, 3);
@@ -174,14 +186,22 @@ test("a personal marker is caught only when the layer supplies it", (t) => {
 
   assert.deepEqual(scan(built).findings, []);
 
-  const personal = [{
-    class: "personal_marker",
-    id: "identity.surname",
-    pattern: /Ashcombe/u,
-  }];
+  const personal = [
+    {
+      class: "personal_marker",
+      id: "identity.surname",
+      pattern: /Ashcombe/u,
+    },
+  ];
   const report = scan(built, { markers: [...PUBLIC_MARKERS, ...personal] });
   assert.deepEqual(report.findings, [
-    { class: "personal_marker", exported: true, line: 1, marker: "identity.surname", path: "a/story.md" },
+    {
+      class: "personal_marker",
+      exported: true,
+      line: 1,
+      marker: "identity.surname",
+      path: "a/story.md",
+    },
   ]);
 });
 
@@ -212,7 +232,13 @@ test("a marker source is read by the personal markers and by no public one", (t)
       marker: "identity.surname",
       path: `candidate.example/${CANDIDATE_MARKERS_FILE}`,
     },
-    { class: "personal_marker", exported: true, line: 1, marker: "identity.surname", path: CANDIDATE_MARKERS_FILE },
+    {
+      class: "personal_marker",
+      exported: true,
+      line: 1,
+      marker: "identity.surname",
+      path: CANDIDATE_MARKERS_FILE,
+    },
     {
       class: "personal_marker",
       exported: true,
@@ -230,10 +256,10 @@ test("a marker source is read by the personal markers and by no public one", (t)
     allow: [{ marker: "identity.surname", path: "tools/publishability/" }],
     markers: [...PUBLIC_MARKERS, personal],
   });
-  assert.deepEqual(waived.findings.map((finding) => finding.path), [
-    `candidate.example/${CANDIDATE_MARKERS_FILE}`,
-    CANDIDATE_MARKERS_FILE,
-  ]);
+  assert.deepEqual(
+    waived.findings.map((finding) => finding.path),
+    [`candidate.example/${CANDIDATE_MARKERS_FILE}`, CANDIDATE_MARKERS_FILE],
+  );
   assert.equal(waived.skipped, 1);
   assert.equal(waived.scanned, 2);
 });
@@ -261,8 +287,20 @@ test("an allowance is keyed by marker and path, and silences only that pair", (t
   // The waived marker is gone from the waived path; the second marker on the same line is not,
   // and the same marker elsewhere is not either.
   assert.deepEqual(report.findings, [
-    { class: "private_path", exported: true, line: 1, marker: "path.archive", path: "fixtures/page.html" },
-    { class: "shared_template", exported: true, line: 1, marker: "template.email", path: "other/page.html" },
+    {
+      class: "private_path",
+      exported: true,
+      line: 1,
+      marker: "path.archive",
+      path: "fixtures/page.html",
+    },
+    {
+      class: "shared_template",
+      exported: true,
+      line: 1,
+      marker: "template.email",
+      path: "other/page.html",
+    },
   ]);
 });
 
@@ -276,8 +314,20 @@ test("a data path silences the script class alone", (t) => {
   });
 
   assert.deepEqual(report.findings, [
-    { class: "shared_template", exported: true, line: 1, marker: "template.email", path: "data/vocabulary.json" },
-    { class: "cyrillic_prose", exported: true, line: 1, marker: "text.cyrillic", path: "prose/guide.md" },
+    {
+      class: "shared_template",
+      exported: true,
+      line: 1,
+      marker: "template.email",
+      path: "data/vocabulary.json",
+    },
+    {
+      class: "cyrillic_prose",
+      exported: true,
+      line: 1,
+      marker: "text.cyrillic",
+      path: "prose/guide.md",
+    },
   ]);
 });
 
@@ -293,10 +343,13 @@ test("the excluded area is counted apart from the exported one", (t) => {
   // The sum over the two areas is the total; without that the report cannot be checked at all.
   const tally = report.byClass.cyrillic_prose;
   assert.equal(tally.exported + tally.excluded, tally.total);
-  assert.deepEqual(report.files.map((entry) => [entry.path, entry.exported]), [
-    ["kept/guide.md", true],
-    ["left/guide.md", false],
-  ]);
+  assert.deepEqual(
+    report.files.map((entry) => [entry.path, entry.exported]),
+    [
+      ["kept/guide.md", true],
+      ["left/guide.md", false],
+    ],
+  );
 });
 
 test("one line matching two markers is one place and two marker counts", (t) => {
@@ -307,12 +360,14 @@ test("one line matching two markers is one place and two marker counts", (t) => 
   assert.deepEqual(markerIds(report), ["path.research", "text.cyrillic"]);
   assert.equal(report.byMarker["path.research"].total, 1);
   assert.equal(report.byMarker["text.cyrillic"].total, 1);
-  assert.deepEqual(report.files, [{
-    exported: true,
-    markers: { "path.research": 1, "text.cyrillic": 1 },
-    path: "a/both.md",
-    total: 2,
-  }]);
+  assert.deepEqual(report.files, [
+    {
+      exported: true,
+      markers: { "path.research": 1, "text.cyrillic": 1 },
+      path: "a/both.md",
+      total: 2,
+    },
+  ]);
 });
 
 test("the bare layer name is not a path into the layer", (t) => {
@@ -323,7 +378,13 @@ test("the bare layer name is not a path into the layer", (t) => {
     "a/tool.md": "the reader is tools/candidate/load.mjs\n",
   });
   assert.deepEqual(scan(built).findings, [
-    { class: "private_path", exported: true, line: 1, marker: "path.candidate", path: "a/pointer.md" },
+    {
+      class: "private_path",
+      exported: true,
+      line: 1,
+      marker: "path.candidate",
+      path: "a/pointer.md",
+    },
   ]);
 });
 
@@ -357,11 +418,14 @@ test("a marker source is never its own finding", (t) => {
 
 test("the scanner refuses a file it cannot read as text", (t) => {
   const built = tree(t, { "a/blob.bin": `head${String.fromCharCode(0)}tail\n` });
-  assert.throws(() => scan(built), (error) => {
-    assert.equal(error instanceof PublishabilityError, true);
-    assert.equal(error.code, "publishability_file_not_text");
-    return true;
-  });
+  assert.throws(
+    () => scan(built),
+    (error) => {
+      assert.equal(error instanceof PublishabilityError, true);
+      assert.equal(error.code, "publishability_file_not_text");
+      return true;
+    },
+  );
 });
 
 test("a tracked path with no file is skipped and counted, not refused", (t) => {
@@ -382,7 +446,13 @@ test("a tracked path with no file is skipped and counted, not refused", (t) => {
     },
   );
   assert.deepEqual(report.findings, [
-    { class: "private_path", exported: true, line: 1, marker: "path.archive", path: "a/present.md" },
+    {
+      class: "private_path",
+      exported: true,
+      line: 1,
+      marker: "path.archive",
+      path: "a/present.md",
+    },
   ]);
 });
 
@@ -439,18 +509,27 @@ test("the layer's markers file is validated in both directions", () => {
   const refuses = (mutate, code) => {
     const copy = JSON.parse(JSON.stringify(valid));
     mutate(copy);
-    assert.throws(() => validateCandidateMarkers(copy), (error) => {
-      assert.equal(error instanceof PublishabilityError, true);
-      assert.equal(error.code, code, JSON.stringify(copy));
-      return true;
-    });
+    assert.throws(
+      () => validateCandidateMarkers(copy),
+      (error) => {
+        assert.equal(error instanceof PublishabilityError, true);
+        assert.equal(error.code, code, JSON.stringify(copy));
+        return true;
+      },
+    );
   };
 
-  refuses((copy) => { copy.schema_version = 2; }, "publishability_markers_schema_version_unsupported");
-  refuses((copy) => { delete copy.schema_version; }, "publishability_markers_schema_version_unsupported");
+  refuses((copy) => {
+    copy.schema_version = 2;
+  }, "publishability_markers_schema_version_unsupported");
+  refuses((copy) => {
+    delete copy.schema_version;
+  }, "publishability_markers_schema_version_unsupported");
   // A misspelled key is the reason this direction exists: `markerz` would leave the personal set
   // empty and report a clean tree nobody earned.
-  refuses((copy) => { copy.markerz = copy.markers; }, "publishability_markers_invalid");
+  refuses((copy) => {
+    copy.markerz = copy.markers;
+  }, "publishability_markers_invalid");
   // Without `allow`, the emptiness of `markers` is the only thing left that can refuse: with an
   // allow entry present, the undeclared-marker check answers with the same code and the case would
   // pass whether the emptiness check exists or not.
@@ -462,25 +541,51 @@ test("the layer's markers file is validated in both directions", () => {
       return true;
     },
   );
-  refuses((copy) => { copy.markers[0].id = "template.email"; }, "publishability_markers_invalid");
-  refuses((copy) => { copy.markers.push({ id: "identity.surname", pattern: "X", why: "y" }); }, "publishability_markers_invalid");
-  refuses((copy) => { delete copy.markers[0].why; }, "publishability_markers_invalid");
-  refuses((copy) => { copy.markers[0].pattern = "("; }, "publishability_markers_invalid");
-  refuses((copy) => { copy.markers[0].pattern = ""; }, "publishability_markers_invalid");
-  refuses((copy) => { copy.allow[0].marker = "nobody.declared"; }, "publishability_markers_invalid");
-  refuses((copy) => { delete copy.allow[0].why; }, "publishability_markers_invalid");
-  refuses((copy) => { copy.allow[0].path = "/absolute"; }, "publishability_markers_invalid");
-  refuses((copy) => { copy.cyrillic_data[0].path = "../escape"; }, "publishability_markers_invalid");
-  refuses((copy) => { delete copy.cyrillic_data[0].why; }, "publishability_markers_invalid");
+  refuses((copy) => {
+    copy.markers[0].id = "template.email";
+  }, "publishability_markers_invalid");
+  refuses((copy) => {
+    copy.markers.push({ id: "identity.surname", pattern: "X", why: "y" });
+  }, "publishability_markers_invalid");
+  refuses((copy) => {
+    delete copy.markers[0].why;
+  }, "publishability_markers_invalid");
+  refuses((copy) => {
+    copy.markers[0].pattern = "(";
+  }, "publishability_markers_invalid");
+  refuses((copy) => {
+    copy.markers[0].pattern = "";
+  }, "publishability_markers_invalid");
+  refuses((copy) => {
+    copy.allow[0].marker = "nobody.declared";
+  }, "publishability_markers_invalid");
+  refuses((copy) => {
+    delete copy.allow[0].why;
+  }, "publishability_markers_invalid");
+  refuses((copy) => {
+    copy.allow[0].path = "/absolute";
+  }, "publishability_markers_invalid");
+  refuses((copy) => {
+    copy.cyrillic_data[0].path = "../escape";
+  }, "publishability_markers_invalid");
+  refuses((copy) => {
+    delete copy.cyrillic_data[0].why;
+  }, "publishability_markers_invalid");
 
-  assert.throws(() => loadCandidateMarkers({ root: "" }), (error) => {
-    assert.equal(error.code, "publishability_markers_root_invalid");
-    return true;
-  });
-  assert.throws(() => loadCandidateMarkers({ root: join(repoRoot, "no-such-layer") }), (error) => {
-    assert.equal(error.code, "publishability_markers_unreadable");
-    return true;
-  });
+  assert.throws(
+    () => loadCandidateMarkers({ root: "" }),
+    (error) => {
+      assert.equal(error.code, "publishability_markers_root_invalid");
+      return true;
+    },
+  );
+  assert.throws(
+    () => loadCandidateMarkers({ root: join(repoRoot, "no-such-layer") }),
+    (error) => {
+      assert.equal(error.code, "publishability_markers_unreadable");
+      return true;
+    },
+  );
 });
 
 test("the markers file has a size budget, and it is counted in bytes", (t) => {
@@ -488,15 +593,21 @@ test("the markers file has a size budget, and it is counted in bytes", (t) => {
   // Every character here is two bytes in UTF-8, so a file under the limit by character count and
   // over it by byte count is the one case that tells the two readings apart.
   const why = "\u0431".repeat(200 * 1024);
-  writeFileSync(join(root, CANDIDATE_MARKERS_FILE), JSON.stringify({
-    markers: [{ id: "identity.surname", pattern: "Ashcombe", why }],
-    schema_version: 1,
-  }));
-  assert.throws(() => loadCandidateMarkers({ root }), (error) => {
-    assert.equal(error.code, "publishability_markers_unreadable");
-    assert.match(error.message, /larger than this reader accepts/);
-    return true;
-  });
+  writeFileSync(
+    join(root, CANDIDATE_MARKERS_FILE),
+    JSON.stringify({
+      markers: [{ id: "identity.surname", pattern: "Ashcombe", why }],
+      schema_version: 1,
+    }),
+  );
+  assert.throws(
+    () => loadCandidateMarkers({ root }),
+    (error) => {
+      assert.equal(error.code, "publishability_markers_unreadable");
+      assert.match(error.message, /larger than this reader accepts/);
+      return true;
+    },
+  );
 });
 
 test("the tracked example is a fictional candidate the real tree never matches", () => {
@@ -522,15 +633,21 @@ test("the tracked example is a fictional candidate the real tree never matches",
   const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: repoRoot, encoding: "utf8" })
     .split("\0")
     .filter(Boolean);
-  const personal = scanTree({ allow: layer.allow, markers: layer.markers, paths: tracked, root: repoRoot })
-    .findings
-    .filter((finding) => finding.class === "personal_marker");
+  const personal = scanTree({
+    allow: layer.allow,
+    markers: layer.markers,
+    paths: tracked,
+    root: repoRoot,
+  }).findings.filter((finding) => finding.class === "personal_marker");
   const inExample = (finding) => finding.path.startsWith("candidate.example/");
-  assert.deepEqual(personal.filter((finding) => !inExample(finding)), []);
+  assert.deepEqual(
+    personal.filter((finding) => !inExample(finding)),
+    [],
+  );
   // The markers file always finds its own patterns, so it is left out here: what this proves is
   // that the profile, the lever bank and the letter samples carry them.
-  const inExampleDocument = (finding) => inExample(finding)
-    && finding.path !== `candidate.example/${CANDIDATE_MARKERS_FILE}`;
+  const inExampleDocument = (finding) =>
+    inExample(finding) && finding.path !== `candidate.example/${CANDIDATE_MARKERS_FILE}`;
   assert.ok(personal.some(inExampleDocument), "the example's own documents carry its markers");
 });
 
@@ -550,10 +667,12 @@ test("the report rolls up by file and bounds what it prints", (t) => {
   assert.equal(REPORTED_FILE_LIMIT, 20);
   const count = REPORTED_FILE_LIMIT + 3;
   const root = repository(t, {
-    ...Object.fromEntries(Array.from({ length: count }, (unused, index) => [
-      `a/file-${String(index).padStart(3, "0")}.md`,
-      "docs/archive/x.md\n".repeat(index + 1),
-    ])),
+    ...Object.fromEntries(
+      Array.from({ length: count }, (unused, index) => [
+        `a/file-${String(index).padStart(3, "0")}.md`,
+        "docs/archive/x.md\n".repeat(index + 1),
+      ]),
+    ),
     // Every tracked path participates, including predecessor-looking directory names.
     "docs/archive/loudest.md": "docs/archive/x.md\n".repeat(count + 50),
     // A marker source, to prove `scanned` counts files read rather than paths git listed.
@@ -573,7 +692,10 @@ test("the report rolls up by file and bounds what it prints", (t) => {
   // Descending, so the file worth opening first is the first one printed, and the roll-up is cut
   // after sorting rather than before.
   const totals = report.files.map((entry) => entry.total);
-  assert.deepEqual([...totals].sort((left, right) => right - left), totals);
+  assert.deepEqual(
+    [...totals].sort((left, right) => right - left),
+    totals,
+  );
   assert.equal(totals[0], count + 50);
   assert.equal(report.findings, undefined);
 
@@ -622,32 +744,41 @@ test("the blocking flag is the only difference between reporting and refusing", 
   };
   assert.equal(exits([]).status, "reported");
   assert.equal(exits([]).places_exported, 2);
-  assert.throws(() => exits(["--blocking"]), (error) => {
-    assert.equal(error.status, 1);
-    assert.equal(JSON.parse(error.stdout).status, "findings");
-    return true;
-  });
+  assert.throws(
+    () => exits(["--blocking"]),
+    (error) => {
+      assert.equal(error.status, 1);
+      assert.equal(JSON.parse(error.stdout).status, "findings");
+      return true;
+    },
+  );
 
   // A predecessor-looking path is still public when tracked; the shipped CLI refuses it.
   rmSync(join(root, "leak.md"));
   git("add", "-A");
-  assert.throws(() => exits(["--blocking"]), (error) => {
-    assert.equal(error.status, 1);
-    const report = JSON.parse(error.stdout);
-    assert.equal(report.status, "findings");
-    assert.equal(report.places_exported, 1);
-    return true;
-  });
+  assert.throws(
+    () => exits(["--blocking"]),
+    (error) => {
+      assert.equal(error.status, 1);
+      const report = JSON.parse(error.stdout);
+      assert.equal(report.status, "findings");
+      assert.equal(report.places_exported, 1);
+      return true;
+    },
+  );
 });
 
 test("a real markers file copied over the example refuses the blocking gate", (t) => {
   // The export gate runs with the layer, so this is the run that has to see the copy. The markers
   // file of the tracked example and a file of the scanner itself both carry the real pattern.
   const layer = disposableRoot(t);
-  writeFileSync(join(layer, CANDIDATE_MARKERS_FILE), JSON.stringify({
-    markers: [{ id: "identity.surname", pattern: "Ashcombe", why: "the surname" }],
-    schema_version: 1,
-  }));
+  writeFileSync(
+    join(layer, CANDIDATE_MARKERS_FILE),
+    JSON.stringify({
+      markers: [{ id: "identity.surname", pattern: "Ashcombe", why: "the surname" }],
+      schema_version: 1,
+    }),
+  );
   const fictional = JSON.stringify({
     markers: [{ id: "identity.surname", pattern: "Fernhollow", why: "the surname" }],
     schema_version: 1,
@@ -679,9 +810,14 @@ test("a real markers file copied over the example refuses the blocking gate", (t
 
   assert.equal(exits(blocking).status, "reported");
 
-  writeFileSync(join(root, "candidate.example", CANDIDATE_MARKERS_FILE), readFileSync(join(layer, CANDIDATE_MARKERS_FILE)));
+  writeFileSync(
+    join(root, "candidate.example", CANDIDATE_MARKERS_FILE),
+    readFileSync(join(layer, CANDIDATE_MARKERS_FILE)),
+  );
   execFileSync("git", ["add", "-A"], { cwd: root });
-  assert.deepEqual(refused(), [[`candidate.example/${CANDIDATE_MARKERS_FILE}`, "identity.surname"]]);
+  assert.deepEqual(refused(), [
+    [`candidate.example/${CANDIDATE_MARKERS_FILE}`, "identity.surname"],
+  ]);
 
   writeFileSync(join(root, "candidate.example", CANDIDATE_MARKERS_FILE), fictional);
   writeFileSync(join(root, "tools", "publishability", "x.mjs"), "// Ashcombe\n");
@@ -712,10 +848,14 @@ test("the command line refuses what it cannot act on", () => {
     ["--candidate-root", "/x/../y"],
     ["--commit-msg"],
   ]) {
-    assert.throws(() => parseArguments(argv), (error) => {
-      assert.equal(error.code, "invalid_publishability_arguments", JSON.stringify(argv));
-      return true;
-    }, JSON.stringify(argv));
+    assert.throws(
+      () => parseArguments(argv),
+      (error) => {
+        assert.equal(error.code, "invalid_publishability_arguments", JSON.stringify(argv));
+        return true;
+      },
+      JSON.stringify(argv),
+    );
   }
   assert.match(USAGE, /--blocking/);
 });
@@ -736,10 +876,13 @@ test("the message mode reads a file and refuses one it cannot", (t) => {
   assert.equal(two.places, 1);
   assert.equal(two.places_exported, 1);
 
-  assert.throws(() => run({ argv: ["--commit-msg", "absent.txt"], root }), (error) => {
-    assert.equal(error.code, "publishability_message_unreadable");
-    return true;
-  });
+  assert.throws(
+    () => run({ argv: ["--commit-msg", "absent.txt"], root }),
+    (error) => {
+      assert.equal(error.code, "publishability_message_unreadable");
+      return true;
+    },
+  );
 });
 
 // Three anchors: the literals above, the contract the module freezes, and the prose of the
@@ -751,13 +894,10 @@ test("classes, markers and refusal codes agree across test, module and README", 
     PINNED_MARKERS,
   );
   assert.deepEqual([...MARKER_SOURCE_PATHS], PINNED_MARKER_SOURCES);
-  assert.deepEqual([...CANDIDATE_MARKERS_KEYS], [
-    "allow",
-    "cyrillic_data",
-    "markers",
-    "purpose",
-    "schema_version",
-  ]);
+  assert.deepEqual(
+    [...CANDIDATE_MARKERS_KEYS],
+    ["allow", "cyrillic_data", "markers", "purpose", "schema_version"],
+  );
   assert.equal(CANDIDATE_MARKERS_FILE, "publishability-markers.json");
   assert.deepEqual(
     PUBLIC_TEXT_ALLOWANCES.map((entry) => [entry.marker, entry.text]),
@@ -790,21 +930,44 @@ test("every public allowance names a declared marker and a path that could match
 });
 
 test("data-only mode never loads fictional personal markers or personal waivers", (t) => {
-  const root = repository(t, {"literal.txt": `${CYRILLIC_WORD}\nprivate_person\n`, "outside.txt": CYRILLIC_WORD});
+  const root = repository(t, {
+    "literal.txt": `${CYRILLIC_WORD}\nprivate_person\n`,
+    "outside.txt": CYRILLIC_WORD,
+  });
   const layer = disposableRoot(t);
-  writeFileSync(join(layer, "publishability-markers.json"), JSON.stringify({schema_version:1, markers:[{id:"identity.synthetic", pattern:"private_person", why:"Synthetic marker."}], allow:[{marker:"text.cyrillic",path:"outside.txt",why:"This personal waiver must not enter CI."}], cyrillic_data:[{path:"literal.txt",why:"Synthetic configured-language data."}]}));
-  const {report} = run({argv:["--blocking","--list","--data-root",layer],root});
+  writeFileSync(
+    join(layer, "publishability-markers.json"),
+    JSON.stringify({
+      schema_version: 1,
+      markers: [{ id: "identity.synthetic", pattern: "private_person", why: "Synthetic marker." }],
+      allow: [
+        {
+          marker: "text.cyrillic",
+          path: "outside.txt",
+          why: "This personal waiver must not enter CI.",
+        },
+      ],
+      cyrillic_data: [{ path: "literal.txt", why: "Synthetic configured-language data." }],
+    }),
+  );
+  const { report } = run({ argv: ["--blocking", "--list", "--data-root", layer], root });
   assert.equal(report.markers.personal, null);
   assert.equal(report.markers.personal_source, null);
   assert.equal(report.data_allowances, 1);
-  assert.deepEqual(report.findings.map(x => [x.path,x.marker]), [["outside.txt","text.cyrillic"]]);
-  assert.throws(() => parseArguments(["--data-root",layer,"--candidate-root",layer]));
+  assert.deepEqual(
+    report.findings.map((x) => [x.path, x.marker]),
+    [["outside.txt", "text.cyrillic"]],
+  );
+  assert.throws(() => parseArguments(["--data-root", layer, "--candidate-root", layer]));
 });
 
 test("blocking CLI refuses a missing tracked file rather than a clean-looking report", (t) => {
   const root = repository(t, { "removed.md": "# Removed\n" });
   rmSync(join(root, "removed.md"));
-  const child = spawnSync(process.execPath, [cliPath, "--blocking"], {encoding:"utf8", env:{...process.env, JOB_PIPELINE_WORKSPACE_ROOT:root}});
+  const child = spawnSync(process.execPath, [cliPath, "--blocking"], {
+    encoding: "utf8",
+    env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: root },
+  });
   assert.equal(child.status, 1);
   assert.equal(JSON.parse(child.stdout).absent, 1);
 });

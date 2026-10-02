@@ -74,19 +74,19 @@ The [ADR index](docs/adr/README.md) explains why those choices were made and lin
 
 ## Repository map
 
-| Path | Start here for |
-| --- | --- |
-| [knowledge/](knowledge/) | Generation rules, scoring rubric, playbooks and authority rules. |
-| [instructions/](instructions/) | Operating contract, explicit pipeline steps and canonical skill procedures. |
-| [candidate.example/](candidate.example/) | Fictional profile, evidence, configuration, constraints and language packs used by tests. |
-| [tools/candidate/](tools/candidate/README.md) | Candidate-layer format and validation. |
-| [tools/job-scorer/](tools/job-scorer/) | Deterministic vacancy decisions and their trace. |
-| [tools/vacancy-fetch/](tools/vacancy-fetch/README.md) | Page capture and source adapters. |
-| [tools/triage-verify/](tools/triage-verify/README.md) | Batch evidence and verification checks. |
-| [tools/cv-builder/](tools/cv-builder/README.md) | DOCX build, rendering and pagination checks. |
-| [tests/](tests/) | Offline fixtures, behavioural tests and instruction pins. |
-| [docs/runbooks/](docs/runbooks/) | Development, operations, release and recovery procedures. |
-| [web/process-search/](web/process-search/) | Local read-only process search interface. |
+| Path                                                  | Start here for                                                                            |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [knowledge/](knowledge/)                              | Generation rules, scoring rubric, playbooks and authority rules.                          |
+| [instructions/](instructions/)                        | Operating contract, explicit pipeline steps and canonical skill procedures.               |
+| [candidate.example/](candidate.example/)              | Fictional profile, evidence, configuration, constraints and language packs used by tests. |
+| [tools/candidate/](tools/candidate/README.md)         | Candidate-layer format and validation.                                                    |
+| [tools/job-scorer/](tools/job-scorer/)                | Deterministic vacancy decisions and their trace.                                          |
+| [tools/vacancy-fetch/](tools/vacancy-fetch/README.md) | Page capture and source adapters.                                                         |
+| [tools/triage-verify/](tools/triage-verify/README.md) | Batch evidence and verification checks.                                                   |
+| [tools/cv-builder/](tools/cv-builder/README.md)       | DOCX build, rendering and pagination checks.                                              |
+| [tests/](tests/)                                      | Offline fixtures, behavioural tests and instruction pins.                                 |
+| [docs/runbooks/](docs/runbooks/)                      | Development, operations, release and recovery procedures.                                 |
+| [web/process-search/](web/process-search/)            | Local read-only process search interface.                                                 |
 
 `AGENTS.md`, `CLAUDE.md` and native skill wrappers are generated entry points. Edit their canonical
 sources in `instructions/`, then use `node tools/sync-agent-proxies.mjs --write` and `--check`.
