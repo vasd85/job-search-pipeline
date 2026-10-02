@@ -3,11 +3,12 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import test from "node:test";
 import { RESEARCH_CATEGORIES } from "../tools/pipeline-artifacts/validate-company-research.mjs";
 
@@ -101,6 +102,18 @@ function waitForJsonLine(child, label) {
   });
 }
 
+function browserProcessState(child) {
+  if (!child.pid) return "<not spawned>";
+  try {
+    return execFileSync("ps", [
+      "-p", String(child.pid), "-o", "pid=,ppid=,stat=,etime=,time=,comm=",
+    ], { encoding: "utf8", timeout: 1_000, maxBuffer: 8_192 }).trim().slice(-2_048)
+      || "<absent>";
+  } catch (error) {
+    return `<unavailable: ${error.code ?? error.status ?? "unknown"}>`;
+  }
+}
+
 async function waitForDevTools(profilePath, child, { timeoutMs = 10_000 } = {}) {
   let stderr = "";
   let truncated = false;
@@ -121,10 +134,16 @@ async function waitForDevTools(profilePath, child, { timeoutMs = 10_000 } = {}) 
     closed = true;
     child.stderr.off("data", onStderr);
   });
-  const failure = (message) => new Error(
+  const failure = (message) => {
+    let executable = child.spawnfile;
+    try { executable = realpathSync(executable); } catch { /* Keep the attempted executable. */ }
+    return new Error(
     `${message}; exit code: ${child.exitCode}; signal: ${child.signalCode}`
+      + `; executable: ${executable}; pid: ${child.pid ?? "<none>"}`
+      + `; process state: ${browserProcessState(child)}`
       + `; stderr${truncated ? " (tail)" : ""}: ${stderr.trim() || "<empty>"}`,
-  );
+    );
+  };
   const activePortPath = join(profilePath, "DevToolsActivePort");
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -196,6 +215,9 @@ test("browser startup timeout reports stderr and the running process", async (t)
     assert.match(error.message, /browser DevTools endpoint did not become ready/);
     assert.match(error.message, /exit code: null; signal: null/);
     assert.match(error.message, /startup stalled/);
+    assert.match(error.message, /executable:/);
+    assert.match(error.message, new RegExp(`pid: ${child.pid}`));
+    assert.match(error.message, /process state:/);
     return true;
   });
 });
