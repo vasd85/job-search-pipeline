@@ -1,0 +1,41 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "id": "4bb16644-9c3d-4f8a-8b21-7e0a5d6c9f31",
+      "title": "Senior QA Automation Engineer",
+      "location": "Remote, EMEA",
+      "employmentType": "FullTime",
+      "isListed": true,
+      "descriptionPlain": "Own the automation suite for the payments platform. You will work with the platform team on test design, flaky-test triage and release readiness.",
+      "descriptionHtml": "<h2>About the role</h2><p>Own the automation suite for the payments platform.</p><h2>Requirements</h2><p>You will work with the platform team on test design, flaky-test triage and release readiness.</p>",
+      "compensation": {
+        "compensationTierSummary": "$150K - $189K",
+        "compensationTiers": [
+          {
+            "title": "Salary",
+            "tierSummary": "$150K - $189K",
+            "components": [
+              {
+                "compensationType": "Salary",
+                "interval": "1 YEAR",
+                "currencyCode": "USD",
+                "minValue": 150000,
+                "maxValue": 189000
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "0c70da0f-2a5b-4e19-9d33-8f4c1b2a7e60",
+      "title": "Product Designer",
+      "location": "Berlin, Germany",
+      "employmentType": "FullTime",
+      "isListed": true,
+      "descriptionPlain": "Design the onboarding experience for new merchants.",
+      "descriptionHtml": "<h2>About the role</h2><p>Design the onboarding experience for new merchants.</p>"
+    }
+  ]
+}

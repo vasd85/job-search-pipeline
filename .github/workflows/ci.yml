@@ -1,0 +1,31 @@
+# Every repository gate lives in tools/ci.mjs. This workflow only prepares the
+# pinned toolchain and then delegates: exactly one step runs a gate, and it is
+# `npm run ci`. Adding a second gate step here would drift from the local
+# entrypoint, and tests/ci.test.mjs fails when that happens.
+#
+# No step interpolates event, branch, or author data into a command. Every
+# `run:` payload is a fixed literal, which is also what tests/ci.test.mjs pins.
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm install --global npm@11.16.0
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm ci --prefix tools/cv-builder --ignore-scripts --no-audit --no-fund
+      - run: npm run ci

@@ -1,0 +1,601 @@
+{
+  "schemaVersion": 2,
+  "createdAt": "2026-07-23T10:00:00.000Z",
+  "process": {
+    "id": "proc_fixture_step1_completed",
+    "sourceRef": "https://example.test/jobs/senior-quality-engineer",
+    "outputDir": "output/example-labs-senior-quality-engineer"
+  },
+  "inputs": {
+    "vacancy": {
+      "path": "vacancy.json",
+      "schemaVersion": 2,
+      "sha256": "e442e1f782329cda3a3a7ab95abb34df16ff68526f655353ab571fb9f5e9b697",
+      "bytes": 1546
+    },
+    "jobDescription": {
+      "path": "job-description.txt",
+      "schemaVersion": null,
+      "sha256": "861d1879d3f47e214ca8e4de872e0e6ec35a9da278baacb12b01bd90780411f2",
+      "bytes": 499
+    }
+  },
+  "companyNameVariants": [
+    "Example Labs",
+    "Example Labs Ltd.",
+    "ExampleLabs"
+  ],
+  "sourceCoverage": [
+    {
+      "category": "stated_values",
+      "status": "checked",
+      "sourceIds": [
+        "S01"
+      ],
+      "openedPrimaryUrls": [
+        "https://example.test/about/values"
+      ],
+      "queries": [],
+      "nameVariants": [],
+      "fallbackAttempted": null,
+      "confidence": "high",
+      "details": "Открыта страница ценностей компании; зафиксирована точная формулировка."
+    },
+    {
+      "category": "products_technical_complexity",
+      "status": "checked",
+      "sourceIds": [
+        "S02"
+      ],
+      "openedPrimaryUrls": [
+        "https://example.test/product"
+      ],
+      "queries": [],
+      "nameVariants": [],
+      "fallbackAttempted": null,
+      "confidence": "high",
+      "details": "Открыта продуктовая страница с описанием workflow automation и распределённых команд."
+    },
+    {
+      "category": "engineering_content",
+      "status": "not-found",
+      "sourceIds": [],
+      "openedPrimaryUrls": [],
+      "queries": [
+        "site:example.test engineering Example Labs CI",
+        "\"Example Labs\" Playwright conference"
+      ],
+      "nameVariants": [
+        "Example Labs",
+        "Example Labs Ltd."
+      ],
+      "fallbackAttempted": null,
+      "confidence": "none",
+      "details": "Отдельный engineering blog, техническая статья или доклад не найдены."
+    },
+    {
+      "category": "other_vacancies",
+      "status": "checked",
+      "sourceIds": [
+        "S03",
+        "S04"
+      ],
+      "openedPrimaryUrls": [
+        "https://example.test/careers",
+        "https://jobs.example.test/example-labs"
+      ],
+      "queries": [],
+      "nameVariants": [],
+      "fallbackAttempted": null,
+      "confidence": "high",
+      "details": "Проверены company careers и независимая job board; требования сопоставлены по ролям."
+    },
+    {
+      "category": "source_code_organizations",
+      "status": "checked",
+      "sourceIds": [
+        "S05"
+      ],
+      "openedPrimaryUrls": [
+        "https://github.com/example-labs"
+      ],
+      "queries": [],
+      "nameVariants": [],
+      "fallbackAttempted": null,
+      "confidence": "medium",
+      "details": "Открыта организация GitHub с активным TypeScript repository и Playwright tests."
+    },
+    {
+      "category": "engineering_leadership",
+      "status": "checked",
+      "sourceIds": [
+        "S06"
+      ],
+      "openedPrimaryUrls": [
+        "https://example.test/about/leadership"
+      ],
+      "queries": [],
+      "nameVariants": [],
+      "fallbackAttempted": null,
+      "confidence": "high",
+      "details": "На first-party странице найден VP Engineering."
+    },
+    {
+      "category": "employee_profiles",
+      "status": "checked",
+      "sourceIds": [
+        "S07",
+        "S08"
+      ],
+      "openedPrimaryUrls": [
+        "https://profiles.example.test/alex-qa",
+        "https://profiles.example.test/maria-platform"
+      ],
+      "queries": [],
+      "nameVariants": [],
+      "fallbackAttempted": null,
+      "confidence": "medium",
+      "details": "Открыты два current engineering profiles с QA и platform scope."
+    },
+    {
+      "category": "reviews_default_language",
+      "status": "checked",
+      "sourceIds": [
+        "S09"
+      ],
+      "openedPrimaryUrls": [
+        "https://reviews.example.test/example-labs/en"
+      ],
+      "queries": [],
+      "nameVariants": [],
+      "fallbackAttempted": null,
+      "confidence": "medium",
+      "details": "Открыта review page на языке по умолчанию; выводы ограничены наблюдаемыми отзывами."
+    },
+    {
+      "category": "reviews_additional_languages",
+      "status": "not-found",
+      "sourceIds": [],
+      "openedPrimaryUrls": [],
+      "queries": [
+        "\"Example Labs\" отзывы сотрудников",
+        "\"ExampleLabs\" работа отзывы"
+      ],
+      "nameVariants": [
+        "Example Labs",
+        "ExampleLabs"
+      ],
+      "fallbackAttempted": null,
+      "confidence": "none",
+      "details": "Employee reviews на дополнительных языках не найдены после проверки вариантов названия."
+    },
+    {
+      "category": "compensation",
+      "status": "not-found",
+      "sourceIds": [],
+      "openedPrimaryUrls": [],
+      "queries": [
+        "\"Example Labs\" Senior Quality Engineer salary",
+        "\"Example Labs Ltd.\" compensation QA"
+      ],
+      "nameVariants": [
+        "Example Labs",
+        "Example Labs Ltd."
+      ],
+      "fallbackAttempted": null,
+      "confidence": "none",
+      "details": "Публичный диапазон компенсации с currency, period и geography не найден."
+    },
+    {
+      "category": "recent_news_ai_direction",
+      "status": "checked",
+      "sourceIds": [
+        "S10"
+      ],
+      "openedPrimaryUrls": [
+        "https://example.test/news/assistant-workflows"
+      ],
+      "queries": [],
+      "nameVariants": [],
+      "fallbackAttempted": null,
+      "confidence": "high",
+      "details": "Открыта first-party новость об assistant features в продукте."
+    },
+    {
+      "category": "contractor_payment_logistics",
+      "status": "checked",
+      "sourceIds": [
+        "S11"
+      ],
+      "openedPrimaryUrls": [
+        "https://example.test/careers/contractors"
+      ],
+      "queries": [],
+      "nameVariants": [],
+      "fallbackAttempted": null,
+      "confidence": "medium",
+      "details": "Открыта careers FAQ с B2B engagement и EUR invoicing; paying entity не указана."
+    }
+  ],
+  "sources": [
+    {
+      "id": "S01",
+      "category": "stated_values",
+      "url": "https://example.test/about/values",
+      "title": "Values",
+      "owner": "Example Labs",
+      "observedAt": "2026-07-23T09:20:00.000Z",
+      "sourceType": "company_values",
+      "quotes": [
+        {
+          "original": "Build trust through observable systems.",
+          "translation": "Создавайте доверие через наблюдаемые системы."
+        }
+      ],
+      "notes": null
+    },
+    {
+      "id": "S02",
+      "category": "products_technical_complexity",
+      "url": "https://example.test/product",
+      "title": "Workflow automation platform",
+      "owner": "Example Labs",
+      "observedAt": "2026-07-23T09:22:00.000Z",
+      "sourceType": "company_website",
+      "quotes": [],
+      "notes": "Факты о продукте ограничены открытой first-party страницей."
+    },
+    {
+      "id": "S03",
+      "category": "other_vacancies",
+      "url": "https://example.test/careers",
+      "title": "Example Labs careers",
+      "owner": "Example Labs",
+      "observedAt": "2026-07-23T09:25:00.000Z",
+      "sourceType": "company_careers",
+      "quotes": [],
+      "notes": null
+    },
+    {
+      "id": "S04",
+      "category": "other_vacancies",
+      "url": "https://jobs.example.test/example-labs",
+      "title": "Example Labs open roles",
+      "owner": "Example Jobs",
+      "observedAt": "2026-07-23T09:27:00.000Z",
+      "sourceType": "job_board",
+      "quotes": [],
+      "notes": "Независимая job board использована для cross-check текущих role families."
+    },
+    {
+      "id": "S05",
+      "category": "source_code_organizations",
+      "url": "https://github.com/example-labs",
+      "title": "example-labs organization",
+      "owner": "Example Labs",
+      "observedAt": "2026-07-23T09:30:00.000Z",
+      "sourceType": "source_code_host",
+      "quotes": [],
+      "notes": "Synthetic fixture: организация не является реальной company source."
+    },
+    {
+      "id": "S06",
+      "category": "engineering_leadership",
+      "url": "https://example.test/about/leadership",
+      "title": "Leadership",
+      "owner": "Example Labs",
+      "observedAt": "2026-07-23T09:32:00.000Z",
+      "sourceType": "leadership_profile",
+      "quotes": [],
+      "notes": null
+    },
+    {
+      "id": "S07",
+      "category": "employee_profiles",
+      "url": "https://profiles.example.test/alex-qa",
+      "title": "Alex Kim — Senior QA Engineer",
+      "owner": "Alex Kim",
+      "observedAt": "2026-07-23T09:35:00.000Z",
+      "sourceType": "employee_profile",
+      "quotes": [],
+      "notes": "Текущий профиль в synthetic fixture."
+    },
+    {
+      "id": "S08",
+      "category": "employee_profiles",
+      "url": "https://profiles.example.test/maria-platform",
+      "title": "Maria Lopez — Platform Engineer",
+      "owner": "Maria Lopez",
+      "observedAt": "2026-07-23T09:36:00.000Z",
+      "sourceType": "employee_profile",
+      "quotes": [],
+      "notes": "Текущий профиль в synthetic fixture."
+    },
+    {
+      "id": "S09",
+      "category": "reviews_default_language",
+      "url": "https://reviews.example.test/example-labs/en",
+      "title": "Example Labs employee reviews",
+      "owner": "Example Reviews",
+      "observedAt": "2026-07-23T09:38:00.000Z",
+      "sourceType": "review_platform",
+      "quotes": [],
+      "notes": "Выводы из reviews не обобщаются за пределы наблюдаемых записей."
+    },
+    {
+      "id": "S10",
+      "category": "recent_news_ai_direction",
+      "url": "https://example.test/news/assistant-workflows",
+      "title": "Assistant workflows",
+      "owner": "Example Labs",
+      "observedAt": "2026-07-23T09:40:00.000Z",
+      "sourceType": "news_media",
+      "quotes": [
+        {
+          "original": "Assistant features suggest next actions but require user confirmation.",
+          "translation": "Функции ассистента предлагают следующие действия, но требуют подтверждения пользователя."
+        }
+      ],
+      "notes": null
+    },
+    {
+      "id": "S11",
+      "category": "contractor_payment_logistics",
+      "url": "https://example.test/careers/contractors",
+      "title": "Contractor FAQ",
+      "owner": "Example Labs",
+      "observedAt": "2026-07-23T09:42:00.000Z",
+      "sourceType": "payment_or_legal",
+      "quotes": [],
+      "notes": "Поля paying entity и counterparty jurisdiction не указаны."
+    }
+  ],
+  "analysis": {
+    "companyOverview": {
+      "summary": "Example Labs развивает workflow automation platform для распределённых product teams.",
+      "claims": [
+        {
+          "id": "C01",
+          "text": "Продукт автоматизирует командные workflows для распределённых product teams.",
+          "evidenceStatus": "verified",
+          "sourceIds": [
+            "S02"
+          ],
+          "inferenceBasis": null,
+          "scope": null
+        }
+      ]
+    },
+    "productTechnicalComplexity": {
+      "summary": "Качество зависит от согласованности API/UI workflows и надёжности автоматизированных действий.",
+      "claims": [
+        {
+          "id": "C02",
+          "text": "Продукт объединяет многошаговые workflows, поэтому ошибки состояния затрагивают распределённые команды.",
+          "evidenceStatus": "inferred",
+          "sourceIds": [
+            "S02"
+          ],
+          "inferenceBasis": "Вывод ограничен описанной многошаговой workflow automation platform.",
+          "scope": "Product platform"
+        }
+      ]
+    },
+    "engineeringCultureSignals": {
+      "summary": "Careers и source-code sources показывают TypeScript, Playwright и CI как team-scoped практики.",
+      "claims": [
+        {
+          "id": "C03",
+          "text": "TypeScript и Playwright подтверждены для Quality Engineering scope двумя независимыми sources.",
+          "evidenceStatus": "verified",
+          "sourceIds": [
+            "S03",
+            "S05"
+          ],
+          "inferenceBasis": null,
+          "scope": "Quality Engineering"
+        }
+      ]
+    },
+    "companyValuesCulture": {
+      "summary": "Заявленная ценность trust через observable systems согласуется с remote collaboration signals.",
+      "claims": [
+        {
+          "id": "C04",
+          "text": "Компания дословно связывает trust с observable systems.",
+          "evidenceStatus": "verified",
+          "sourceIds": [
+            "S01"
+          ],
+          "inferenceBasis": null,
+          "scope": null
+        },
+        {
+          "id": "C05",
+          "text": "Два current profiles описывают cross-team работу в распределённой engineering организации.",
+          "evidenceStatus": "verified",
+          "sourceIds": [
+            "S07",
+            "S08"
+          ],
+          "inferenceBasis": null,
+          "scope": "Engineering"
+        }
+      ]
+    },
+    "keyPeople": {
+      "summary": "First-party leadership page называет VP Engineering, но QA leadership не указано.",
+      "claims": [
+        {
+          "id": "C06",
+          "text": "На leadership page указан VP Engineering.",
+          "evidenceStatus": "verified",
+          "sourceIds": [
+            "S06"
+          ],
+          "inferenceBasis": null,
+          "scope": "Engineering leadership"
+        }
+      ]
+    },
+    "aiLiteracyEvidence": {
+      "summary": "Продукт использует assistant features с human confirmation; это factual AI-adjacent signal.",
+      "classification": "AI-adjacent",
+      "claims": [
+        {
+          "id": "C07",
+          "text": "Assistant features предлагают действия и требуют user confirmation.",
+          "evidenceStatus": "verified",
+          "sourceIds": [
+            "S10"
+          ],
+          "inferenceBasis": null,
+          "scope": "Product"
+        }
+      ]
+    },
+    "compensationFacts": {
+      "summary": "Публичный диапазон с currency, period и geography не найден.",
+      "claims": []
+    },
+    "contractorPaymentFacts": {
+      "summary": "Careers FAQ подтверждает B2B engagement и EUR invoicing; paying entity остаётся неизвестной.",
+      "claims": [
+        {
+          "id": "C08",
+          "text": "Для contractor engagement указаны B2B и EUR invoicing.",
+          "evidenceStatus": "verified",
+          "sourceIds": [
+            "S11"
+          ],
+          "inferenceBasis": null,
+          "scope": "Contractors"
+        }
+      ]
+    },
+    "interviewProcessFacts": {
+      "summary": "Проверяемые данные об interview stages и QA-specific tasks не найдены.",
+      "claims": []
+    },
+    "riskSignals": {
+      "summary": "Основные неизвестные — compensation range и paying entity.",
+      "claims": [
+        {
+          "id": "C09",
+          "text": "Compensation range и paying entity остаются неподтверждёнными.",
+          "evidenceStatus": "unverified",
+          "sourceIds": [],
+          "inferenceBasis": null,
+          "scope": null
+        }
+      ]
+    },
+    "whatCompanyValuesInEngineers": {
+      "summary": "Sources поддерживают trust, testability и cross-team collaboration как наблюдаемые качества.",
+      "claims": [
+        {
+          "id": "C10",
+          "text": "Trust через observable systems.",
+          "evidenceStatus": "verified",
+          "sourceIds": [
+            "S01"
+          ],
+          "inferenceBasis": null,
+          "scope": null
+        },
+        {
+          "id": "C11",
+          "text": "Testability и automation в Quality Engineering.",
+          "evidenceStatus": "verified",
+          "sourceIds": [
+            "S03",
+            "S05"
+          ],
+          "inferenceBasis": null,
+          "scope": "Quality Engineering"
+        },
+        {
+          "id": "C12",
+          "text": "Cross-team collaboration в распределённой Engineering organisation.",
+          "evidenceStatus": "verified",
+          "sourceIds": [
+            "S07",
+            "S08"
+          ],
+          "inferenceBasis": null,
+          "scope": "Engineering"
+        }
+      ]
+    }
+  },
+  "tailoringHooks": [
+    {
+      "id": "H01",
+      "challengeType": "workflow state reliability",
+      "fact": "Продукт объединяет многошаговые workflows для распределённых product teams.",
+      "claimIds": [
+        "C02"
+      ],
+      "sourceIds": [
+        "S02"
+      ]
+    },
+    {
+      "id": "H02",
+      "challengeType": "test automation reliability",
+      "fact": "Quality Engineering scope использует TypeScript, Playwright и CI.",
+      "claimIds": [
+        "C03"
+      ],
+      "sourceIds": [
+        "S03",
+        "S05"
+      ]
+    },
+    {
+      "id": "H03",
+      "challengeType": "human-confirmed assistant workflows",
+      "fact": "Assistant features требуют user confirmation перед действием.",
+      "claimIds": [
+        "C07"
+      ],
+      "sourceIds": [
+        "S10"
+      ]
+    }
+  ],
+  "openQuestions": [
+    {
+      "id": "Q01",
+      "decisionWeight": "high",
+      "question": "Какая paying entity заключает B2B contract и в какой jurisdiction?"
+    },
+    {
+      "id": "Q02",
+      "decisionWeight": "medium",
+      "question": "Какой compensation range предусмотрен для этой роли?"
+    }
+  ],
+  "verifyGate": {
+    "status": "pass",
+    "checkedInvariants": [
+      {
+        "id": "source_coverage",
+        "status": "pass"
+      },
+      {
+        "id": "evidence_integrity",
+        "status": "pass"
+      },
+      {
+        "id": "analysis_and_handoffs",
+        "status": "pass"
+      },
+      {
+        "id": "responsibility_boundary",
+        "status": "pass"
+      }
+    ],
+    "unrecoverableGaps": []
+  }
+}

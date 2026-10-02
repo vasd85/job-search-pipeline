@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "record_id": "lc_33333333cccc",
+  "recorded_at": "2026-09-16T08:03:21.507Z",
+  "occurred_on": "2026-09-16",
+  "process_id": "proc_20260916T075500Z_33333333",
+  "company_role": "northwind-labs-senior-qa-automation-engineer",
+  "publication_before": "pub_20260914_northwind_letter_rev2_22222222",
+  "publication_after": null,
+  "before_index": 1,
+  "after_state": "not_published",
+  "channel": "manual_file",
+  "language": "English",
+  "fragment_before": "I would be delighted to discuss this role further.",
+  "fragment_after": "I am happy to walk through any of this in a call.",
+  "user_reason": "Too formal for this company.",
+  "user_reason_absent": null,
+  "classes": [
+    "class-3"
+  ],
+  "reader_verdict": null,
+  "teach": true,
+  "origin": "revision",
+  "source_ref": null
+}

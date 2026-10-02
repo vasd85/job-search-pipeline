@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "record_id": "lc_44444444dddd",
+  "recorded_at": "2026-09-17T12:22:40.331Z",
+  "occurred_on": "2026-09-17",
+  "process_id": "proc_20260912T113000Z_22222222",
+  "company_role": "harbour-analytics-sdet",
+  "publication_before": "pub_20260912_harbour_letter_rev3_44444444",
+  "publication_after": "pub_20260917_harbour_letter_rev4_55555555",
+  "before_index": 2,
+  "after_state": "published",
+  "channel": "chat_command",
+  "language": "English",
+  "fragment_before": " I am a fast learner and a strong team player.",
+  "fragment_after": "",
+  "user_reason": null,
+  "user_reason_absent": "not_given",
+  "classes": [],
+  "reader_verdict": "flagged",
+  "teach": false,
+  "origin": "revision",
+  "source_ref": null
+}

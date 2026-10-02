@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "record_id": "lc_11111111aaaa",
+  "recorded_at": "2026-09-14T09:12:04.118Z",
+  "occurred_on": "2026-09-14",
+  "process_id": "proc_20260914T090000Z_11111111",
+  "company_role": "northwind-labs-senior-qa-automation-engineer",
+  "publication_before": "pub_20260914_northwind_letter_rev1_11111111",
+  "publication_after": "pub_20260914_northwind_letter_rev2_22222222",
+  "before_index": 0,
+  "after_state": "published",
+  "channel": "chat_command",
+  "language": "English",
+  "fragment_before": "I have extensive experience with test automation frameworks.",
+  "fragment_after": "I rebuilt a flaky suite of 400 tests into one that fails only on real defects.",
+  "user_reason": "Say what you did, not what you have.",
+  "user_reason_absent": null,
+  "classes": [],
+  "reader_verdict": "flagged",
+  "teach": false,
+  "origin": "revision",
+  "source_ref": null
+}

@@ -1,0 +1,80 @@
+{
+  "fileName": "Candidate_Name_CV_Example_Labs_Senior_Quality_Engineer.docx",
+  "font": "Calibri",
+  "bodySizePt": 10.5,
+  "nameSizePt": 16,
+  "header": {
+    "name": "Candidate Name",
+    "contact": "UTC+2 | candidate@example.com | linkedin.com/in/example",
+    "positioning": "Senior QA Automation Engineer / SDET, independent contractor."
+  },
+  "sections": [
+    {
+      "type": "summary",
+      "heading": "Summary",
+      "text": "Quality engineer with TypeScript depth and a bias for deterministic gates."
+    },
+    {
+      "type": "bullets",
+      "heading": "Selected Impact",
+      "bullets": [
+        "Cut a flaky suite from 6% to 0.4% failures without deleting a single check.",
+        [
+          {
+            "t": "Release gate: ",
+            "b": true
+          },
+          {
+            "t": "made the pipeline refuse an unproven build instead of warning about it."
+          }
+        ]
+      ]
+    },
+    {
+      "type": "skills",
+      "heading": "Skills",
+      "skills": [
+        {
+          "label": "Test Automation",
+          "body": "TypeScript, Playwright, pytest, Selenium"
+        },
+        {
+          "label": "Delivery",
+          "body": "CI/CD gates, trunk-based development, release readiness"
+        }
+      ]
+    },
+    {
+      "type": "experience",
+      "heading": "Experience",
+      "roles": [
+        {
+          "company": "Example Labs",
+          "title": "Senior QA Automation Engineer",
+          "dates": "2020 - Present",
+          "stack": "TypeScript, Playwright, GitHub Actions",
+          "bullets": [
+            "Owned the end-to-end suite for two product surfaces.",
+            "Reviewed every gate change with the team that had to live with it (https://github.com/example/gates)."
+          ]
+        },
+        {
+          "company": "Second Example",
+          "title": "QA Engineer",
+          "dates": "2016 - 2020",
+          "pageBreakBefore": true,
+          "bullets": [
+            "Built the first automated regression pass the team trusted."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "lines",
+      "heading": "Education",
+      "lines": [
+        "BSc Computer Science, Example University, 2010"
+      ]
+    }
+  ]
+}

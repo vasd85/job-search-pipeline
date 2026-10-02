@@ -1,0 +1,21 @@
+{
+  "name": "cv-builder",
+  "version": "1.0.0",
+  "description": "Shared renderer for the job-search-pipeline. Turns a per-run cv.json into an ATS-safe .docx. The /generate-cv skill calls this instead of scaffolding a build script per run.",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  },
+  "packageManager": "npm@11.16.0",
+  "bin": {
+    "cv-render": "render.js"
+  },
+  "scripts": {
+    "render": "node render.js"
+  },
+  "dependencies": {
+    "docx": "9.7.1"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "record_id": "lc_22222222bbbb",
+  "recorded_at": "2026-09-15T17:40:55.902Z",
+  "occurred_on": "2026-09-12",
+  "process_id": "proc_20260912T113000Z_22222222",
+  "company_role": "harbour-analytics-sdet",
+  "publication_before": "pub_20260912_harbour_letter_rev2_33333333",
+  "publication_after": "pub_20260912_harbour_letter_rev3_44444444",
+  "before_index": 1,
+  "after_state": "published",
+  "channel": "manual_file",
+  "language": "English",
+  "fragment_before": "The team was able to release twice as often after the change.",
+  "fragment_after": "After the change the team released twice a week instead of once.",
+  "user_reason": null,
+  "user_reason_absent": "in_place_edit",
+  "classes": [
+    "class-6",
+    "class-8"
+  ],
+  "reader_verdict": "missed",
+  "teach": false,
+  "origin": "retrospective-2026-09",
+  "source_ref": "candidate/research/letter-revisions-2026-09/02-harbour-analytics.md"
+}

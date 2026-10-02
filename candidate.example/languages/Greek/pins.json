@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "pins": [
+    {
+      "id": "plain-letter",
+      "expect": "accept",
+      "keyword_terms": ["Playwright"],
+      "why": "A finished Greek letter within the limits must pass, or the pack refuses every letter."
+    },
+    {
+      "id": "latin-paragraph",
+      "expect": "reject",
+      "finding": "cover-letter.txt body paragraph 4 must use Greek script",
+      "keyword_terms": ["Playwright"],
+      "why": "Latin is admitted beside Greek, never instead of it."
+    },
+    {
+      "id": "wrong-signature",
+      "expect": "reject",
+      "finding": "cover-letter.txt signature must be exactly Μάριγκολντ Μπράιτγουοτερ",
+      "keyword_terms": ["Playwright"],
+      "why": "A Greek letter is signed in Greek."
+    },
+    {
+      "id": "subject-line",
+      "expect": "reject",
+      "finding": "cover-letter.txt title must not use a Subject or Θέμα prefix",
+      "keyword_terms": ["Playwright"],
+      "why": "The title is a title, not an email subject line."
+    },
+    {
+      "id": "unaccented-spelling",
+      "expect": "reject",
+      "finding": "cover-letter.txt breaks candidate constraint \"tonos-dokimes\" (required_spellings): spell it \"δοκιμές\"",
+      "keyword_terms": ["Playwright"],
+      "why": "The pack's spelling rule reaches a letter in its language."
+    }
+  ]
+}

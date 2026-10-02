@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "constraints": [
+    {
+      "id": "tonos-dokimes",
+      "type": "required_spellings",
+      "scope": { "materials": ["cover_letter"] },
+      "spelling": "δοκιμές",
+      "instead_of": ["δοκιμες"],
+      "why": "A Greek word is written with its accent; without it the letter reads as typed in a hurry."
+    }
+  ]
+}

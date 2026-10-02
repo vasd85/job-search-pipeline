@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 2,
+  "createdAt": "2026-07-23T09:15:00.000Z",
+  "process": {
+    "id": "proc_fixture_step1_blocked",
+    "sourceRef": "fixture:quality-platform-engineer",
+    "finalUrl": null,
+    "outputDir": "output/fixture-systems-quality-platform-engineer"
+  },
+  "role": {
+    "company": "Fixture Systems",
+    "title": "Quality Platform Engineer",
+    "ats": "Unknown",
+    "vacancyLanguage": "English",
+    "market": {
+      "value": null,
+      "evidence": null
+    },
+    "feasibility": {
+      "workModel": {
+        "normalized": "unspecified",
+        "sourceText": null
+      },
+      "locations": [],
+      "employmentType": null,
+      "timezoneOverlap": null,
+      "workAuthorizationResidency": null,
+      "relocationVisaSupport": null,
+      "salary": null
+    }
+  },
+  "jobDescription": {
+    "path": "job-description.txt",
+    "sha256": "7eb0cf4905d861759057f74ff652a8c3c4ce686a9c312baed221746ceb90e573",
+    "bytes": 338
+  },
+  "sectionIndex": {
+    "responsibilities": {
+      "presence": "separated",
+      "sourceHeadings": [
+        "What you will do and bring"
+      ],
+      "embeddedIn": null
+    },
+    "requirements": {
+      "presence": "embedded",
+      "sourceHeadings": [],
+      "embeddedIn": "responsibilities"
+    },
+    "niceToHaves": {
+      "presence": "absent",
+      "sourceHeadings": [],
+      "embeddedIn": null
+    }
+  },
+  "ambiguities": [
+    {
+      "code": "market_ambiguous",
+      "question": "Which employment market governs this vacancy?",
+      "blocking": true
+    }
+  ]
+}

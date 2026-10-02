@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "constraints": [
+    {
+      "id": "no-introducer-name",
+      "type": "forbid_phrases",
+      "scope": { "materials": ["cover_letter", "cv"] },
+      "phrases": ["Jordan Vale"],
+      "why": "The introduction came through a private contact who asked not to be named."
+    },
+    {
+      "id": "regression-suite-not-pack",
+      "type": "prefer_terms",
+      "scope": { "materials": ["cover_letter", "cv"] },
+      "prefer": "regression suite",
+      "avoid": ["regression pack", "regression bundle"],
+      "why": "A suite is what reviewers in this field call it; the other two read as invented."
+    },
+    {
+      "id": "employer-name-spelling",
+      "type": "required_spellings",
+      "scope": { "materials": ["cover_letter", "cv"] },
+      "spelling": "Kestrelvale",
+      "instead_of": ["Kestrelvail"],
+      "why": "The employer spells its own name this way and the other spelling looks careless."
+    }
+  ]
+}

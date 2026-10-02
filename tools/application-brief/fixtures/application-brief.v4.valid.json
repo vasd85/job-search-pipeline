@@ -1,0 +1,573 @@
+{
+  "schemaVersion": 4,
+  "createdAt": "2026-07-23T12:30:00Z",
+  "process": {
+    "id": "proc_fixture_step1_completed",
+    "sourceRef": "https://example.test/jobs/senior-quality-engineer",
+    "outputDir": "output/example-labs-senior-quality-engineer"
+  },
+  "inputs": {
+    "vacancy": {
+      "path": "vacancy.json",
+      "schemaVersion": 2,
+      "sha256": "e442e1f782329cda3a3a7ab95abb34df16ff68526f655353ab571fb9f5e9b697",
+      "bytes": 1546
+    },
+    "jobDescription": {
+      "path": "job-description.txt",
+      "schemaVersion": null,
+      "sha256": "861d1879d3f47e214ca8e4de872e0e6ec35a9da278baacb12b01bd90780411f2",
+      "bytes": 499
+    },
+    "companyResearch": {
+      "path": "company-research.json",
+      "schemaVersion": 2,
+      "sha256": "4cee6e4c12a5fb601ad6458d01f1f6e213d809d69d7c4ca2ab55d4358115d8ee",
+      "bytes": 19261
+    },
+    "candidateProfile": {
+      "path": "candidate/profile.md",
+      "schemaVersion": null,
+      "sha256": "e84c0f4998727bda133d2c616aa73e0bf16f79327ee21d86cf40fa8ff4420a1a",
+      "bytes": 4426
+    }
+  },
+  "role": {
+    "company": "Example Labs",
+    "title": "Senior Quality Engineer",
+    "ats": "Workable",
+    "vacancyLanguage": "English",
+    "market": "international",
+    "feasibility": {
+      "workModel": {
+        "normalized": "remote",
+        "sourceText": "Europe (remote)"
+      },
+      "locations": [
+        "Europe"
+      ],
+      "employmentType": "Independent contractor",
+      "timezoneOverlap": "European business hours",
+      "workAuthorizationResidency": null,
+      "relocationVisaSupport": null,
+      "salary": null
+    }
+  },
+  "company": {
+    "challengeType": "workflow state reliability",
+    "challengeEvidence": {
+      "hookId": "H01",
+      "fact": "Продукт объединяет многошаговые workflows для распределённых product teams.",
+      "claimIds": [
+        "C02"
+      ],
+      "sourceIds": [
+        "S02"
+      ]
+    },
+    "values": [
+      {
+        "text": "Trust через observable systems.",
+        "claimIds": [
+          "C10"
+        ],
+        "sourceIds": [
+          "S01"
+        ]
+      }
+    ],
+    "tailoringHooks": [
+      {
+        "hookId": "H02",
+        "topic": "test automation reliability",
+        "evidence": "Quality Engineering scope использует TypeScript, Playwright и CI.",
+        "claimIds": [
+          "C03"
+        ],
+        "sourceIds": [
+          "S03",
+          "S05"
+        ]
+      }
+    ]
+  },
+  "positioning": {
+    "selectedLevers": [
+      {
+        "id": 1,
+        "wording": "Treat the automation framework as maintained engineering infrastructure.",
+        "rationale": "The role combines reliable automation, testability, and release-feedback ownership.",
+        "evidenceAnchors": [
+          "evidence-framework"
+        ],
+        "cvEvidenceCheckIds": [
+          "primary-lever-evidence"
+        ]
+      }
+    ],
+    "angleHint": "Connect maintainable automation boundaries to dependable workflow-state feedback.",
+    "aiRegister": "broad",
+    "supportingSignals": [
+      {
+        "id": "ai-assisted-qa",
+        "topic": "AI-assisted QA workflow",
+        "decision": "include",
+        "evidence": "Assistant features предлагают действия и требуют user confirmation.",
+        "claimIds": [
+          "C07"
+        ],
+        "sourceIds": [
+          "S10"
+        ],
+        "constraints": [
+          "Keep the signal commercially grounded and distinct from personal-project infrastructure."
+        ],
+        "cvEvidenceCheckId": "commercial-llm-work"
+      }
+    ]
+  },
+  "experience": {
+    "priorityEvidence": [
+      {
+        "id": "evidence-framework",
+        "priority": "primary",
+        "category": "Achievement",
+        "claim": "Rebuilt a loosely structured Playwright suite into a layered, maintainable automation framework.",
+        "profileSource": {
+          "path": "candidate/profile.md",
+          "section": "### 9.1. Tarnwick Studio - Senior QA Engineer"
+        },
+        "proof": [
+          "Established typed API layers, explicit architectural boundaries, stable auth strategies, fixtures, and shared conventions.",
+          "The nightly run went from about seventy minutes to about twenty-five after the rebuild."
+        ],
+        "cvPlacements": [
+          "Summary",
+          "Selected Impact",
+          "Skills",
+          "Experience:Current Company"
+        ]
+      },
+      {
+        "id": "evidence-web3",
+        "priority": "supporting",
+        "category": "Domain experience",
+        "claim": "Tested DApp flows, on-chain data, wallets, and transaction behavior across EVM products.",
+        "profileSource": {
+          "path": "candidate/profile.md",
+          "section": "### 6.2. Test Automation Frameworks & Tools"
+        },
+        "proof": [
+          "Used TypeScript, Playwright, Ethers.js, Web3.js, Tenderly, wallet infrastructure, and RPC interception patterns."
+        ],
+        "cvPlacements": [
+          "Skills",
+          "Experience:Previous Company"
+        ]
+      },
+      {
+        "id": "evidence-logistics",
+        "priority": "supporting",
+        "category": "Feasibility",
+        "claim": "Can work remotely as an independent contractor.",
+        "profileSource": {
+          "path": "candidate/profile.md",
+          "section": "## 1. Contacts & Logistics"
+        },
+        "proof": [
+          "The timezone, the working language and the invoicing arrangement are recorded in the candidate profile."
+        ],
+        "cvPlacements": [
+          "Header",
+          "Summary"
+        ]
+      },
+      {
+        "id": "evidence-llm-work",
+        "priority": "required",
+        "category": "Commercial work practice",
+        "claim": "Used LLM-based tools systematically in a commercial QA workflow.",
+        "profileSource": {
+          "path": "candidate/profile.md",
+          "section": "#### 6.5.1. AI-assisted QA workflow"
+        },
+        "proof": [
+          "Applied LLM-based tools to PR impact analysis, test scaffolding, requirements clarification, DOM analysis, and bug localization."
+        ],
+        "cvPlacements": [
+          "Experience:Current Company"
+        ]
+      }
+    ],
+    "traits": [
+      {
+        "id": "trait-systematic",
+        "trait": "Systematic ownership",
+        "behavior": "Turns recurring test problems into explicit architecture, tooling, and team conventions.",
+        "profileSource": {
+          "path": "candidate/profile.md",
+          "section": "### Working style"
+        }
+      }
+    ],
+    "gaps": [
+      {
+        "id": "gap-cypress",
+        "requirement": "Cypress end-to-end suite ownership",
+        "classification": "hard",
+        "transferableSupport": {
+          "status": "none",
+          "evidenceIds": []
+        },
+        "framing": "Never claim Cypress. Say plainly that the framework depth was built in Playwright, and describe how the typed layers, fixtures, and auth strategies carry over."
+      },
+      {
+        "id": "gap-team-leadership",
+        "requirement": "Formal line management of a quality engineering team",
+        "classification": "soft",
+        "transferableSupport": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "framing": "Do not imply a manager title. Describe the shared conventions and architectural boundaries the team adopted, and keep the claim at technical ownership."
+      },
+      {
+        "id": "gap-kubernetes-infra",
+        "requirement": "Kubernetes-based test infrastructure ownership",
+        "classification": "adjacent",
+        "transferableSupport": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework",
+            "evidence-web3"
+          ]
+        },
+        "framing": "Position the RPC interception and wallet infrastructure work as the closest real experience, and name where that boundary ends instead of stretching it."
+      }
+    ]
+  },
+  "ats": {
+    "keywords": [
+      {
+        "term": "TypeScript",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Summary"
+        ],
+        "required": true,
+        "placementMode": "all"
+      },
+      {
+        "term": "Playwright",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Skills"
+        ],
+        "required": true,
+        "placementMode": "all"
+      },
+      {
+        "term": "API testing",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Experience"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "UI test automation",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Skills"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "CI/CD",
+        "expanded": "continuous integration and continuous delivery",
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Skills"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "testability",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Selected Impact"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "observability",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Selected Impact"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "release confidence",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Selected Impact"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "Clear written English",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-logistics"
+          ]
+        },
+        "placements": [
+          "Summary"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "test automation",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Experience:Current Company"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "workflow automation",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Experience:Current Company"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "distributed product teams",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-framework"
+          ]
+        },
+        "placements": [
+          "Summary"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "Independent contractor",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-logistics"
+          ]
+        },
+        "placements": [
+          "Header"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "European business hours",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-logistics"
+          ]
+        },
+        "placements": [
+          "Header"
+        ],
+        "required": false,
+        "placementMode": "any"
+      },
+      {
+        "term": "remote",
+        "expanded": null,
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "evidence-logistics"
+          ]
+        },
+        "placements": [
+          "Header"
+        ],
+        "required": false,
+        "placementMode": "any"
+      }
+    ]
+  },
+  "cvPlan": {
+    "structure": "hybrid",
+    "llmWorkSignal": {
+      "evidenceId": "evidence-llm-work",
+      "checkId": "commercial-llm-work"
+    },
+    "headerPositioning": {
+      "mode": "explicit",
+      "text": "Remote independent contractor available across European business hours.",
+      "rationale": "The role outside the home market provides explicit remote, contractor, and timezone facts."
+    },
+    "projectDecision": {
+      "decision": "exclude",
+      "projectId": null,
+      "rationale": "Commercial framework and Web3 evidence is sufficient for the role."
+    },
+    "checks": {
+      "requiredEvidence": [
+        {
+          "id": "primary-lever-evidence",
+          "description": "The selected lever is represented by maintainable automation-framework evidence.",
+          "evidenceIds": [
+            "evidence-framework"
+          ],
+          "anyOf": [
+            "maintainable automation framework"
+          ],
+          "placements": [
+            "Selected Impact"
+          ],
+          "placementMode": "all"
+        },
+        {
+          "id": "commercial-llm-work",
+          "description": "Commercial LLM usage appears in the relevant Experience entry.",
+          "evidenceIds": [
+            "evidence-llm-work"
+          ],
+          "anyOf": [
+            "LLM-based"
+          ],
+          "placements": [
+            "Experience:Current Company"
+          ],
+          "placementMode": "all"
+        },
+        {
+          "id": "required-ats-evidence",
+          "description": "Required ATS terms stay connected to framework evidence in their planned placements.",
+          "evidenceIds": [
+            "evidence-framework"
+          ],
+          "anyOf": [
+            "TypeScript",
+            "Playwright"
+          ],
+          "placements": [
+            "Summary",
+            "Skills"
+          ],
+          "placementMode": "all"
+        }
+      ],
+      "forbiddenTerms": [
+        {
+          "term": "Cursor",
+          "reason": "The canonical profile forbids naming this vendor in generated materials."
+        }
+      ],
+      "skillGroups": [
+        {
+          "label": "Test Automation",
+          "mustContain": [
+            "TypeScript",
+            "Playwright"
+          ],
+          "forbiddenLabels": [
+            "Miscellaneous Tools"
+          ]
+        }
+      ]
+    }
+  },
+  "coverLetterPlan": {
+    "evidenceIds": [
+      "evidence-framework"
+    ],
+    "keywordTerms": [
+      "TypeScript",
+      "Playwright",
+      "API testing"
+    ]
+  }
+}

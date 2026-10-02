@@ -1,0 +1,10 @@
+Quality Platform Engineer
+
+Fixture Systems develops a testing platform for international software teams.
+
+What you will do and bring
+- Build test infrastructure in TypeScript.
+- Maintain Playwright suites and CI pipelines.
+- Work with a distributed engineering team.
+
+The posting does not identify the hiring entity or employment market.

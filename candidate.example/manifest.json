@@ -1,0 +1,53 @@
+{
+  "manifest_version": 1,
+  "files": [
+    { "role": "config", "path": "config.json", "required": true },
+    { "role": "constraints", "path": "constraints.json", "required": false },
+    {
+      "role": "profile",
+      "path": "profile.md",
+      "required": true,
+      "headings": [
+        "## 1. Contacts & Logistics",
+        "## 2. Role & Seniority",
+        "## 3. Career Target & Priorities",
+        "## 4. Compensation",
+        "## 5. Professional Identity",
+        "## 6. Technical Skills",
+        "### 6.1. Languages",
+        "### 6.2. Test Automation Frameworks & Tools",
+        "### 6.3. CI/CD & Infrastructure",
+        "### 6.4. Domain Skills",
+        "### 6.5. AI Tooling in Engineering Workflow",
+        "#### 6.5.1. AI-assisted QA workflow",
+        "#### 6.5.2. Agentic AI infrastructure",
+        "### 6.6. Other Technical Skills",
+        "## 7. Explicit Gaps",
+        "## 8. Work Approach & Team Style",
+        "### Decision-making",
+        "### Communication",
+        "### Values in a team",
+        "### Working style",
+        "### Strengths",
+        "### Risk areas",
+        "## 9. Experience",
+        "## 10. Personal Projects",
+        "## 11. Education"
+      ]
+    },
+    { "role": "levers", "path": "levers.md", "required": true, "headings": ["## Positioning"] },
+    { "role": "rules", "path": "rules.md", "required": true },
+    { "role": "letter_samples", "path": "letter-samples.md", "required": false },
+    { "role": "memory", "path": "memory.md", "required": false, "headings": ["## Open questions"] },
+    {
+      "role": "letter_reader_examples",
+      "path": "letter-reader-examples.md",
+      "required": false,
+      "headings": ["## reread", "## unclear_reference", "## missing_link", "## translated"]
+    },
+    { "role": "language_pack", "path": "languages/<language>/pack.json", "required": true },
+    { "role": "language_constraints", "path": "languages/<language>/constraints.json", "required": false },
+    { "role": "language_rules", "path": "languages/<language>/language-rules.md", "required": false },
+    { "role": "language_pins", "path": "languages/<language>/pins.json", "required": false }
+  ]
+}

@@ -1,0 +1,17 @@
+Senior Quality Engineer
+
+Example Labs builds workflow automation for distributed product teams.
+
+Location: Europe (remote)
+Engagement: Independent contractor
+Working hours: European business hours
+
+Responsibilities
+- Build reliable API and UI test automation.
+- Improve CI feedback and release confidence.
+- Partner with engineers on testability and observability.
+
+Requirements
+- Production experience with TypeScript and Playwright.
+- Strong API testing and CI/CD skills.
+- Clear written English.

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "vocabularyId": "triage-negative-space-v1-2026-09-29",
+  "note": "Literal phrases only. A phrase is appended by a deliberate git edit after a batch observed it; nothing here is generated at run time. See docs/runbooks/triage-verification.md.",
+  "zoneTerminators": [
+    { "id": "zone.people_also_viewed", "text": "People also viewed", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+    { "id": "zone.similar_jobs", "text": "Similar jobs", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+    { "id": "zone.more_jobs_from", "text": "More jobs from", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+    { "id": "zone.jobs_you_may_be_interested_in", "text": "Jobs you may be interested in", "addedIn": "2026-08-23", "source": "anticipated" }
+  ],
+  "families": [
+    {
+      "id": "residence",
+      "title": "Current residence stated as a requirement",
+      "note": "The family the 2026-08-18 batch missed: the run's own vocabulary had no entry that reached \"MUST BE currently based in Singapore\", the most important line in the batch.",
+      "phrases": [
+        { "id": "residence.currently_based_in", "text": "currently based in", "addedIn": "2026-08-23", "source": "run-2026-08-18", "note": "The exact miss. Only a session-devised supplementary pattern caught it." },
+        { "id": "residence.must_be_based_in", "text": "must be based in", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+        { "id": "residence.must_be_located_in", "text": "must be located in", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+        { "id": "residence.must_be_physically_located", "text": "must be physically located", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "residence.must_reside", "text": "must reside", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+        { "id": "residence.must_live_in", "text": "must live in", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "residence.resident_of", "text": "resident of", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "residence.residency_requirement", "text": "residency requirement", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "residence.local_candidates_only", "text": "local candidates only", "addedIn": "2026-08-23", "source": "anticipated" }
+      ]
+    },
+    {
+      "id": "contract",
+      "title": "Employment form stated as a requirement",
+      "note": "Phrasings that decide the engagement path the scorer would otherwise default. Every applied default reaches the trace as an assumption token, and the review runbook asks the user about the class - a phrasing the extractor missed turns that question into a wrong answer.",
+      "phrases": [
+        { "id": "contract.no_contractors", "text": "no contractors", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+        { "id": "contract.contractors_not_considered", "text": "we do not work with contractors", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "contract.full_time_employment_only", "text": "full-time employment only", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+        { "id": "contract.employment_contract_only", "text": "employment contract only", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "contract.w2_only", "text": "W2 only", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "contract.no_c2c", "text": "no C2C", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "contract.employer_of_record", "text": "employer of record", "addedIn": "2026-08-23", "source": "run-2026-08-18", "note": "A stated hiring model, not a barrier: it decides the engagement path instead of leaving it to a default." },
+        { "id": "contract.payroll_employment", "text": "payroll employment", "addedIn": "2026-08-23", "source": "anticipated" }
+      ]
+    },
+    {
+      "id": "work_format",
+      "title": "Work format stated in the body rather than the header",
+      "note": "The header fields are what the extractor reads first; a format contradicted or narrowed in the body is how a Remote-labelled vacancy turns out to require office days.",
+      "phrases": [
+        { "id": "work_format.work_from_home", "text": "work from home", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+        { "id": "work_format.fully_remote", "text": "fully remote", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+        { "id": "work_format.remote_first", "text": "remote-first", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "work_format.days_in_the_office", "text": "days in the office", "addedIn": "2026-08-23", "source": "run-2026-08-18" },
+        { "id": "work_format.days_a_week_in_office", "text": "days a week in the office", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "work_format.on_site_presence", "text": "on-site presence", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "work_format.return_to_office", "text": "return to office", "addedIn": "2026-08-23", "source": "anticipated" },
+        { "id": "work_format.in_office", "text": "in-office", "addedIn": "2026-08-23", "source": "anticipated" }
+      ]
+    }
+  ]
+}

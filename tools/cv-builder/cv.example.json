@@ -1,0 +1,81 @@
+{
+  "fileName": "Candidate_Name_CV_Company_Role.docx",
+  "font": "Calibri",
+  "bodySizePt": 10.5,
+  "nameSizePt": 16,
+  "header": {
+    "name": "[Candidate full name]",
+    "contact": "[Timezone | email | LinkedIn URL | GitHub URL]",
+    "positioning": "[Optional market-specific contractor or relocation positioning]"
+  },
+  "sections": [
+    {
+      "type": "summary",
+      "heading": "Summary",
+      "text": "[Write a role-specific summary with seniority, strongest match, and scope. Keep metrics in evidence sections.]"
+    },
+    {
+      "type": "bullets",
+      "heading": "Selected Impact",
+      "bullets": [
+        [
+          {
+            "t": "[Evidence label] - ",
+            "b": true
+          },
+          {
+            "t": "[Describe one verified, measurable result tied to the selected positioning lever.]"
+          }
+        ],
+        "[Describe another role-relevant outcome using facts from the canonical profile.]"
+      ]
+    },
+    {
+      "type": "skills",
+      "heading": "Skills",
+      "skills": [
+        {
+          "label": "[Primary capability group]",
+          "body": "[List the relevant languages, frameworks, tools, and testing scopes for this capability.]"
+        },
+        {
+          "label": "[Secondary capability group]",
+          "body": "[List only verified skills that belong together under this capability.]"
+        }
+      ]
+    },
+    {
+      "type": "experience",
+      "heading": "Experience",
+      "roles": [
+        {
+          "company": "[Company name]",
+          "title": "[Exact real title]",
+          "dates": "[Mon YYYY - Mon YYYY or Present]",
+          "stack": "[Relevant stack for this role]",
+          "bullets": [
+            "[Describe one verified contribution with outcome and scope.]",
+            "[Describe another contribution selected for this vacancy.]"
+          ]
+        },
+        {
+          "company": "[Earlier company name]",
+          "title": "[Exact real title]",
+          "dates": "[Mon YYYY - Mon YYYY]",
+          "pageBreakBefore": false,
+          "stack": "[Relevant stack or omit this field]",
+          "bullets": [
+            "[Keep only the older evidence that materially supports this role.]"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "lines",
+      "heading": "Education",
+      "lines": [
+        "[Institution - degree, field, dates]"
+      ]
+    }
+  ]
+}

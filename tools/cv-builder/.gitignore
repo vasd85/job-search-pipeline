@@ -1,0 +1,7 @@
+# Installed only by the explicit setup command documented in README.md.
+node_modules/
+
+# Rendered artifacts (e.g. from smoke-testing cv.example.json). Real run outputs
+# live in the gitignored output/ tree, never here.
+*.docx
+*.pdf

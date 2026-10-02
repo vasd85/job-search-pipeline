@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 2,
+  "createdAt": "2026-07-23T09:00:00.000Z",
+  "process": {
+    "id": "proc_fixture_step1_completed",
+    "sourceRef": "https://example.test/jobs/senior-quality-engineer",
+    "finalUrl": "https://example.test/jobs/senior-quality-engineer",
+    "outputDir": "output/example-labs-senior-quality-engineer"
+  },
+  "role": {
+    "company": "Example Labs",
+    "title": "Senior Quality Engineer",
+    "ats": "Workable",
+    "vacancyLanguage": "English",
+    "market": {
+      "value": "international",
+      "evidence": "Europe"
+    },
+    "feasibility": {
+      "workModel": {
+        "normalized": "remote",
+        "sourceText": "Europe (remote)"
+      },
+      "locations": [
+        "Europe"
+      ],
+      "employmentType": "Independent contractor",
+      "timezoneOverlap": "European business hours",
+      "workAuthorizationResidency": null,
+      "relocationVisaSupport": null,
+      "salary": null
+    }
+  },
+  "jobDescription": {
+    "path": "job-description.txt",
+    "sha256": "861d1879d3f47e214ca8e4de872e0e6ec35a9da278baacb12b01bd90780411f2",
+    "bytes": 499
+  },
+  "sectionIndex": {
+    "responsibilities": {
+      "presence": "separated",
+      "sourceHeadings": [
+        "Responsibilities"
+      ],
+      "embeddedIn": null
+    },
+    "requirements": {
+      "presence": "separated",
+      "sourceHeadings": [
+        "Requirements"
+      ],
+      "embeddedIn": null
+    },
+    "niceToHaves": {
+      "presence": "absent",
+      "sourceHeadings": [],
+      "embeddedIn": null
+    }
+  },
+  "ambiguities": []
+}

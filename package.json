@@ -1,0 +1,37 @@
+{
+  "name": "job-search-pipeline",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.18.0",
+    "npm": "11.16.0"
+  },
+  "packageManager": "npm@11.16.0",
+  "scripts": {
+    "backup": "node tools/operational-backup.mjs",
+    "board:import": "node tools/board/import.mjs",
+    "board:init": "node tools/board/init.mjs",
+    "bootstrap:init": "node tools/bootstrap.mjs --init",
+    "candidate:check": "node tools/candidate/cli.mjs --check",
+    "ci": "node tools/ci.mjs",
+    "letter-corrections": "node tools/letter-corrections/cli.mjs",
+    "ops:cutover": "node tools/ops-tree/cli.mjs cutover",
+    "ops:export": "node tools/ops-tree/cli.mjs export",
+    "ops:rollback": "node tools/ops-tree/cli.mjs rollback",
+    "ops:verify": "node tools/ops-tree/cli.mjs verify",
+    "preflight": "node tools/bootstrap.mjs --check",
+    "test": "node --test \"tests/!(process-search-browser).test.mjs\"",
+    "test:browser": "node --test tests/process-search-browser.test.mjs",
+    "search": "node tools/process-search-server.mjs",
+    "setup:github": "node tools/setup/github.mjs",
+    "setup:machine": "node tools/setup/machine.mjs",
+    "process-log:validate": "node tools/process-log.mjs validate",
+    "proxies:check": "node tools/sync-agent-proxies.mjs --check",
+    "publishability": "node tools/publishability/cli.mjs",
+    "records:import": "node tools/letter-corrections/import.mjs",
+    "task:worktree": "node tools/task-worktree.mjs",
+    "telegram:collect": "node tools/telegram-collect/cli.mjs",
+    "workspace:reset": "node tools/workspace-reset.mjs",
+    "public:export": "node tools/public-export.mjs"
+  }
+}

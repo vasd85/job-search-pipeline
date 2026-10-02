@@ -1,0 +1,14 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "id": "4bb16644-9c3d-4f8a-8b21-7e0a5d6c9f31",
+      "title": "Senior QA Automation Engineer",
+      "location": "Remote, EMEA",
+      "employmentType": "FullTime",
+      "isListed": false,
+      "descriptionPlain": "Own the automation suite for the payments platform.",
+      "descriptionHtml": "<h2>About the role</h2><p>Own the automation suite for the payments platform.</p>"
+    }
+  ]
+}

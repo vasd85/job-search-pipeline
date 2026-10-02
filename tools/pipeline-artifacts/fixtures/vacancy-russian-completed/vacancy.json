@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 2,
+  "createdAt": "2026-07-23T09:10:00.000Z",
+  "process": {
+    "id": "proc_fixture_step1_russian",
+    "sourceRef": "https://example.test/ru/jobs/senior-quality-engineer",
+    "finalUrl": "https://example.test/ru/jobs/senior-quality-engineer",
+    "outputDir": "output/example-labs-senior-quality-engineer-ru"
+  },
+  "role": {
+    "company": "Example Labs",
+    "title": "Senior Quality Engineer",
+    "ats": "hh.ru",
+    "vacancyLanguage": "Russian",
+    "market": {
+      "value": "domestic",
+      "evidence": "удалённо из России"
+    },
+    "feasibility": {
+      "workModel": {
+        "normalized": "remote",
+        "sourceText": "удалённо из России"
+      },
+      "locations": [
+        "Россия"
+      ],
+      "employmentType": "трудовой договор",
+      "timezoneOverlap": null,
+      "workAuthorizationResidency": null,
+      "relocationVisaSupport": null,
+      "salary": null
+    }
+  },
+  "jobDescription": {
+    "path": "job-description.txt",
+    "sha256": "075f795116b3383d8d227f5324485809669b3c8c3b7281fa3202886b9973f58b",
+    "bytes": 497
+  },
+  "sectionIndex": {
+    "responsibilities": {
+      "presence": "separated",
+      "sourceHeadings": [
+        "Обязанности"
+      ],
+      "embeddedIn": null
+    },
+    "requirements": {
+      "presence": "separated",
+      "sourceHeadings": [
+        "Требования"
+      ],
+      "embeddedIn": null
+    },
+    "niceToHaves": {
+      "presence": "absent",
+      "sourceHeadings": [],
+      "embeddedIn": null
+    }
+  },
+  "ambiguities": []
+}

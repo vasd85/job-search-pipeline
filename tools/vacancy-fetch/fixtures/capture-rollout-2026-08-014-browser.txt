@@ -1,0 +1,74 @@
+# vacancy-fetch capture v1
+# index: 14
+# adapter: browser
+# source-id: careers.epam.com
+# requested-url: https://careers.epam.com/en/vacancy/blt1gpp8j2u6rs75rd1_en
+# final-url: https://careers.epam.com/en/vacancy/blt1gpp8j2u6rs75rd1_en
+# fetched-at: 2026-08-24T22:08:46Z
+# http-status: 200
+# outcome: active
+# access-barrier: -
+# response-sha256: -
+# response-bytes: -
+# extracted-sha256: cbaf795f3b6150008077aa9f6ce98971762e403837171d97bc5ce50f3e968ddb
+# normalized-sha256: cbaf795f3b6150008077aa9f6ce98971762e403837171d97bc5ce50f3e968ddb
+# body-bytes: 3031
+# normalization: none
+#--- body ---
+EPAM Careers
+>
+Jobs
+>
+Senior Automation Tester in JS
+Back to Search
+Senior Automation Tester in JS
+HYBRID IN MEXICO: GUADALAJARA,
+& 2 OTHERS
+AUTOMATED TESTING IN JS, SYSTEM INTEGRATION TESTING
+APPLY
+Senior Automation Tester in JS
+MEXICO, GUADALAJARA
+Senior Quality Engineer (JavaScript)
+MEXICO
+Senior Quality Engineer (JavaScript, Playwright)
+MEXICO
+Senior Test Automation Engineer (JavaScript/TypeScript/Playwright)
+MEXICO
+Looking for something else?
+
+Find a vacancy that works for you. Send us your CV to receive a personalized offer.
+
+Find me a job
+Location-specific conditions & benefits*
+Mexico: Guadalajara
+
+We are looking for a technical and detail-oriented Senior Automation Tester in JS to join our engineering team. In this role, you will move beyond manual verification and lead the charge in building, maintaining, and scaling our automated test suites. You will write code to test code, integrating automated checks directly into our delivery pipelines to ensure our software remains stable, reliable, and regression-free.
+
+COLLAPSE DESCRIPTION
+Responsibilities
+Design, implement, and maintain robust automated testing frameworks for web applications, mobile apps, and backend APIs
+Translate manual test cases and user stories into scalable, reliable, and maintainable automation scripts
+Integrate automated test suites directly into CI/CD pipelines to enable continuous testing, automated regression runs, and rapid feedback loops for developers
+Develop automated tests spanning multiple layers, including UI validation and API/microservices validation
+Monitor automated test execution results, investigate and debug test failures, categorize flakiness, and maintain clear quality dashboards for the team
+Requirements
+3+ years of proven experience as an Automation QA Engineer, Automated Testing Engineer, or SDET
+Proficiency in JavaScript/TypeScript
+Hands-on experience with modern automation frameworks and tools such as Playwright, Selenium, and Cypress
+Familiarity with version control (Git) and CI/CD tools such as Jenkins, GitLab CI, and GitHub Actions
+Understanding of software testing methodologies, test-driven development (TDD), and behavior-driven development (BDD)
+English proficiency at B2 level or higher
+We offer/Benefits
+International projects with top brands
+Work with global teams of highly skilled, diverse peers
+Healthcare benefits
+Employee financial programs
+Paid time off and sick leave
+Upskilling, reskilling and certification courses
+Unlimited access to the LinkedIn Learning library and 22,000+ courses
+Global career opportunities
+Volunteer and community involvement opportunities
+EPAM Employee Groups
+Award-winning culture recognized by Glassdoor, Newsweek and LinkedIn
+
+EPAM is an Equal Opportunity Employer. All qualified applicants will receive consideration for employment without regard to race, color, religion, sex, national origin, age, sexual orientation, gender identity or expression, disability, protected veteran status, or any other characteristic protected by applicable law.

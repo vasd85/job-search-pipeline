@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 2,
+  "createdAt": "2026-07-23 09:00",
+  "process": {
+    "id": "proc_fixture_step1_invalid",
+    "sourceRef": "https://example.test/jobs/invalid",
+    "finalUrl": "ftp://example.test/jobs/invalid",
+    "outputDir": "output/Invalid Fixture"
+  },
+  "role": {
+    "company": "Example Labs",
+    "title": "Senior Quality Engineer",
+    "ats": "Workable",
+    "vacancyLanguage": "English",
+    "market": {
+      "value": null,
+      "evidence": null
+    },
+    "feasibility": {
+      "workModel": {
+        "normalized": "remote",
+        "sourceText": "Europe (remote)"
+      },
+      "locations": [],
+      "employmentType": null,
+      "timezoneOverlap": null,
+      "workAuthorizationResidency": null,
+      "relocationVisaSupport": null,
+      "salary": null
+    }
+  },
+  "jobDescription": {
+    "path": "job-description.txt",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "bytes": 499
+  },
+  "sectionIndex": {
+    "responsibilities": {
+      "presence": "separated",
+      "sourceHeadings": [],
+      "embeddedIn": null
+    },
+    "requirements": {
+      "presence": "embedded",
+      "sourceHeadings": [
+        "Requirements"
+      ],
+      "embeddedIn": "niceToHaves"
+    },
+    "niceToHaves": {
+      "presence": "absent",
+      "sourceHeadings": [],
+      "embeddedIn": null
+    }
+  },
+  "ambiguities": [],
+  "summary": "This deliberately invalid fixture proves strict validation."
+}

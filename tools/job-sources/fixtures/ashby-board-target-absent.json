@@ -1,0 +1,14 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "id": "0c70da0f-2a5b-4e19-9d33-8f4c1b2a7e60",
+      "title": "Product Designer",
+      "location": "Berlin, Germany",
+      "employmentType": "FullTime",
+      "isListed": true,
+      "descriptionPlain": "Design the onboarding experience for new merchants.",
+      "descriptionHtml": "<h2>About the role</h2><p>Design the onboarding experience for new merchants.</p>"
+    }
+  ]
+}

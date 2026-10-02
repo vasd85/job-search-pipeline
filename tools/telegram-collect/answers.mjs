@@ -1,0 +1,140 @@
+// The reader's answer, checked against what it was shown.
+//
+// An answer is one JSON object: for every post of the batch, by its number, a list of vacancies,
+// each naming the line of its title, up to five ways to apply as a closed `via` code with the number
+// of the link it points at, and the number of a details link. Numbers and codes only: the reader
+// never writes a title, an address or a name, so nothing of a post's text reaches the session
+// through the model. A number outside what the post showed, a link of a type the `via` does not
+// name, a key this schema does not know - the post is `answer_invalid` with a bounded code, and the
+// other posts of the batch stand. A file that is not one object gives every post of the batch
+// `file_invalid`; one markdown fence around the object is tolerated and stripped, because a cheap
+// model puts one there, and the canon still asks for the object alone.
+//
+// One number is corrected instead of rejected, and only where the answer cannot be ambiguous: in a
+// post that showed a single line, a `title_line` the post does not have is read as that line. The
+// corrected numbers of a post come back as `repairs`, so the sweep can print them.
+
+export const answerSchemaVersion = 1;
+export const applyVias = Object.freeze(["url", "tg", "email", "phone", "dm_author", "unspecified"]);
+export const answerCodes = Object.freeze([
+  "file_invalid",
+  "post_missing",
+  "post_duplicate",
+  "post_invalid",
+]);
+export const MAX_ANSWER_BYTES = 64 * 1024;
+export const MAX_VACANCIES_PER_POST = 20;
+export const MAX_APPLY_PER_VACANCY = 5;
+
+const LINK_TYPE_OF_VIA = Object.freeze({ url: "url", tg: "tg", email: "email" });
+const FENCE = /^\s*```[a-z]*\s*\n([\s\S]*?)\n\s*```\s*$/u;
+
+const isPlainObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+const keysAre = (value, keys) => Object.keys(value).sort().join() === [...keys].sort().join();
+const isIndex = (value) => Number.isSafeInteger(value) && value >= 1;
+
+/** Parse the text of one answer file into an object, or null when it is not one object. */
+export function parseAnswerText(text) {
+  if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > MAX_ANSWER_BYTES) return null;
+  const fenced = text.match(FENCE);
+  let parsed;
+  try {
+    parsed = JSON.parse(fenced === null ? text : fenced[1]);
+  } catch {
+    return null;
+  }
+  return isPlainObject(parsed) ? parsed : null;
+}
+
+/**
+ * One vacancy record checked against the descriptor of its post. Returns the record as it will be
+ * used, with the number the reader named under `repaired` when it had to be corrected, or null when
+ * the record is off the schema.
+ *
+ * There is one correction, and it is made only where the answer cannot be ambiguous. A post that
+ * showed a single line has a single place a title can stand in, so a `title_line` the post does not
+ * have is read as that line instead of rejecting the record - the reader has been seen to name a
+ * number out of nowhere in such a post, and rejecting it threw away a vacancy whose position could
+ * not be in doubt. With two shown lines or more the place is not decided, and a number outside the
+ * shown ones stays `post_invalid`: a card titled by the wrong line would name another vacancy.
+ * Nothing else is corrected - a link number the post does not offer, a link of a type the `via`
+ * does not name, a key this schema does not know are rejected as before.
+ */
+function checkVacancy(vacancy, descriptor) {
+  if (!isPlainObject(vacancy) || !keysAre(vacancy, ["title_line", "apply", "details_link"])) return null;
+  if (!isIndex(vacancy.title_line)) return null;
+  const shown = descriptor.shown.includes(vacancy.title_line);
+  const onlyLine = descriptor.shown.length === 1 ? descriptor.shown[0] : null;
+  if (!shown && onlyLine === null) return null;
+  if (!Array.isArray(vacancy.apply) || vacancy.apply.length > MAX_APPLY_PER_VACANCY) return null;
+  for (const apply of vacancy.apply) {
+    if (!isPlainObject(apply) || !keysAre(apply, ["via", "link"])) return null;
+    if (!applyVias.includes(apply.via)) return null;
+    const type = LINK_TYPE_OF_VIA[apply.via];
+    if (type === undefined) {
+      if (apply.link !== null) return null;
+      continue;
+    }
+    if (!isIndex(apply.link) || apply.link > descriptor.links.length) return null;
+    if (descriptor.links[apply.link - 1].type !== type) return null;
+  }
+  if (vacancy.details_link !== null) {
+    if (!isIndex(vacancy.details_link) || vacancy.details_link > descriptor.links.length) return null;
+    if (descriptor.links[vacancy.details_link - 1].type !== "url") return null;
+  }
+  return shown
+    ? { vacancy, repaired: null }
+    : { vacancy: { ...vacancy, title_line: onlyLine }, repaired: vacancy.title_line };
+}
+
+/**
+ * Check one answer object against its batch. Returns a Map of post number to
+ * `{ kind: "vacancy", vacancies }`, `{ kind: "none" }` or `{ kind: "invalid", code }`, plus the
+ * count of stray post numbers the answer named and the batch does not know.
+ */
+export function checkAnswer(answer, batch) {
+  const results = new Map();
+  const invalid = (code) => ({ kind: "invalid", code });
+  const allInvalid = (code) => {
+    for (const post of batch.posts) results.set(post.post, invalid(code));
+    return { results, stray: 0 };
+  };
+  if (answer === null || !keysAre(answer, ["schema_version", "batch", "posts"])
+    || answer.schema_version !== answerSchemaVersion || answer.batch !== batch.name
+    || !Array.isArray(answer.posts)) {
+    return allInvalid("file_invalid");
+  }
+  const byNumber = new Map(batch.posts.map((post) => [post.post, post]));
+  const seen = new Map();
+  let stray = 0;
+  for (const entry of answer.posts) {
+    const number = isPlainObject(entry) && isIndex(entry.post) ? entry.post : null;
+    if (number === null || !byNumber.has(number)) {
+      stray += 1;
+      continue;
+    }
+    seen.set(number, (seen.get(number) ?? 0) + 1);
+    if (seen.get(number) > 1) {
+      results.set(number, invalid("post_duplicate"));
+      continue;
+    }
+    const descriptor = byNumber.get(number);
+    const checked = !keysAre(entry, ["post", "vacancies"]) || !Array.isArray(entry.vacancies)
+      || entry.vacancies.length > MAX_VACANCIES_PER_POST
+      ? null
+      : entry.vacancies.map((vacancy) => checkVacancy(vacancy, descriptor));
+    if (checked === null || checked.includes(null)) {
+      results.set(number, invalid("post_invalid"));
+      continue;
+    }
+    results.set(number, checked.length === 0
+      ? { kind: "none" }
+      : {
+        kind: "vacancy",
+        vacancies: checked.map((item) => item.vacancy),
+        repairs: checked.filter((item) => item.repaired !== null).map((item) => item.repaired),
+      });
+  }
+  for (const post of batch.posts) if (!results.has(post.post)) results.set(post.post, invalid("post_missing"));
+  return { results, stray };
+}

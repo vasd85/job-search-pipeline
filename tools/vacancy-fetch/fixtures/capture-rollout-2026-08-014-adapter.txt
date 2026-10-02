@@ -1,0 +1,65 @@
+# vacancy-fetch capture v1
+# index: 14
+# adapter: generic-html@1
+# source-id: -
+# requested-url: https://careers.epam.com/en/vacancy/blt1gpp8j2u6rs75rd1_en
+# final-url: https://careers.epam.com/en/vacancy/blt1gpp8j2u6rs75rd1_en
+# fetched-at: 2026-08-24T21:09:09.768Z
+# http-status: 200
+# outcome: active
+# access-barrier: -
+# response-sha256: 0d1edd9ff5b79848fe367dc72060d07a401fbb86f7f343235c3d176c4db63bb1
+# response-bytes: 459529
+# extracted-sha256: e1ae6ce6f73c5b64bc6891b26d4cbd1b7edb72fc12bb79d2762fb4f1db984ba0
+# normalized-sha256: b6d524db6a13f1d8d3b6b59dfcc25d477672c18f2304ed9f65aa9516e55081fb
+# body-bytes: 1981
+# normalization: collapse_blank_runs=24,single_trailing_newline=1
+#--- body ---
+Back to Search
+
+Senior Automation Tester in JS
+
+Hybrid in Mexico: Guadalajara, & 2 others
+
+Automated Testing in JS, System Integration Testing
+
+apply
+
+FacebookLinkedInSend via email
+
+Looking for something else?
+
+Find a vacancy that works for you. Send us your CV to receive a personalized offer.
+Find me a job
+
+Location-specific conditions & benefits*
+
+Choose an option
+
+We are looking for a technical and detail-oriented Senior Automation Tester in JS to join our engineering team. In this role, you will move beyond manual verification and lead the charge in building, maintaining, and scaling our automated test suites. You will write code to test code, integrating automated checks directly into our delivery pipelines to ensure our software remains stable, reliable, and regression-free.
+
+Responsibilities
+
+Design, implement, and maintain robust automated testing frameworks for web applications, mobile apps, and backend APIs
+
+Translate manual test cases and user stories into scalable, reliable, and maintainable automation scripts
+
+Integrate automated test suites directly into CI/CD pipelines to enable continuous testing, automated regression runs, and rapid feedback loops for developers
+
+Develop automated tests spanning multiple layers, including UI validation and API/microservices validation
+
+Monitor automated test execution results, investigate and debug test failures, categorize flakiness, and maintain clear quality dashboards for the team
+
+Requirements
+
+3+ years of proven experience as an Automation QA Engineer, Automated Testing Engineer, or SDET
+
+Proficiency in JavaScript/TypeScript
+
+Hands-on experience with modern automation frameworks and tools such as Playwright, Selenium, and Cypress
+
+Familiarity with version control (Git) and CI/CD tools such as Jenkins, GitLab CI, and GitHub Actions
+
+Understanding of software testing methodologies, test-driven development (TDD), and behavior-driven development (BDD)
+
+English proficiency at B2 level or higher

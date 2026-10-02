@@ -1,0 +1,397 @@
+[
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "  const link = \"`profile.md#651-ai-assisted-qa-workflow`\";",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "  assert.equal(refusal(\"levers.md\", (text) => text.replace(link, \"profile §6.5.1\")), `levers.md line ${line}: names a section by number${tail}`);",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "  assert.equal(refusal(\"levers.md\", (text) => text.replace(link, \"`profile.md#651-nowhere`\")), `levers.md line ${line}: #651-nowhere names no heading of profile.md${tail}`);",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "  assert.equal(refusal(\"levers.md\", (text) => text.replace(link, \"`knowledge/impact-levers.md#nowhere`\")), `levers.md line ${line}: #nowhere names no heading of knowledge/impact-levers.md${tail}`);",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "  assert.equal(refusal(\"rules.md\", (text) => `${text}\\nAs in section 3.\\n`)?.startsWith(\"rules.md line \"), true);",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "  assert.equal(refusal(\"profile.md\", (text) => `${text}\\nSee [the gaps](#7-explicit-gaps-do-not-oversell).\\n`)?.includes(\"#7-explicit-gaps-do-not-oversell names no heading of this document\"), true);",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "  assert.equal(refusal(\"languages/Greek/language-rules.md\", (text) => `${text}\\nΚαι §2.\\n`)?.startsWith(\"languages/Greek/language-rules.md line \"), true);",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "  assert.equal(refusal(\"memory.md\", (text) => `${text}\\nprofile §7\\n`), null);",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"instructions/operating-contract.md memory.md#open-questions\",",
+    "count": 1,
+    "reason": "Expected normalized layer path; resolve in the candidate layer.",
+    "document": "candidate/profile.md"
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"instructions/operating-contract.md profile.md#7-explicit-gaps\",",
+    "count": 1,
+    "reason": "Expected normalized layer path; resolve in the candidate layer.",
+    "document": "candidate/profile.md"
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"knowledge/generation-rules.md profile.md#9-experience\",",
+    "count": 1,
+    "reason": "Expected normalized layer path; resolve in the candidate layer.",
+    "document": "candidate/profile.md"
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"knowledge/impact-levers.md profile.md#651-ai-assisted-qa-workflow\",",
+    "count": 1,
+    "reason": "Expected normalized layer path; resolve in the candidate layer.",
+    "document": "candidate/profile.md"
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"knowledge/job-match-rules.md profile.md#61-languages\",",
+    "count": 1,
+    "reason": "Expected normalized layer path; resolve in the candidate layer.",
+    "document": "candidate/profile.md"
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"knowledge/precedence.md profile.md#7-explicit-gaps\",",
+    "count": 1,
+    "reason": "Expected normalized layer path; resolve in the candidate layer.",
+    "document": "candidate/profile.md"
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"docs/runbooks/triage-review.md profile.md#3-career-target--priorities\",",
+    "count": 1,
+    "reason": "Expected normalized layer path; resolve in the candidate layer.",
+    "document": "candidate/profile.md"
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Broken: `candidate/profile.md#7-explicit-gaps-do-not-oversell`, `candidate/lever.md`.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Undeclared: `candidate/levers.md#stance` and `candidate/profile.md#91-tarnwick-studio`.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Gaps: profile §7.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"The stack: §7 of `candidate/profile.md`.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Classes — Профиль (§3) and профиля, §3.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"The rubric's Section 2.2 decides.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Sections 3.1 to 3.4 score it.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"The flags subsection 2 lists them.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"See Sec. 7 for the trace.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Классы — в разделе 3.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"§7 and section 7 in a fence\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Links: [own](#6-a-heading-of-its-own), [other](b.md#anchored), `knowledge/b.md#anchored`, `b.md#anchored`.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Broken: [own](#nowhere), [other](b.md#nowhere), [rooted](knowledge/b.md#anchored), `missing.md#x`.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Repeat: [second](b.md#anchored-1); own in code: `#6-a-heading-of-its-own`.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Broken in code and in plain parentheses: `#nowhere-code` (missing2.md#x).\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"The layer is checked by [the check](../candidate/README.md#checking).\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Section 4 of it.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "    \"Broken: `candidate/profile.md#nowhere`.\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "      \"1 profile.md#7-explicit-gaps\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "      \"1 levers.md#positioning\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "      \"2 memory.md#open-questions\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/candidate.test.mjs",
+    "text": "      \"4 profile.md#8-work-approach--team-style\",",
+    "count": 1,
+    "reason": "Synthetic candidate-layer scanner fixture or its expected diagnostic."
+  },
+  {
+    "file": "tests/instruction-contracts.test.mjs",
+    "text": "    \"the number of body paragraphs and of words without the title and the signature within the bounds of [letter composition](#5-letter-composition)\",",
+    "count": 1,
+    "reason": "Literal pin quoted from the governing document; validate in that document context.",
+    "document": "knowledge/cover-letter-playbook.md"
+  },
+  {
+    "file": "tests/instruction-contracts.test.mjs",
+    "text": "    \"The number of decisions - per the definition of `deep` in [the AI register](#13-ai-register-and-the-factual-boundary)\",",
+    "count": 1,
+    "reason": "Literal pin quoted from the governing document; validate in that document context.",
+    "document": "knowledge/impact-levers.md"
+  },
+  {
+    "file": "tests/instruction-contracts.test.mjs",
+    "text": "    \"It follows the same rule as the [micro-introduction](#51-micro-introduction)\",",
+    "count": 1,
+    "reason": "Literal pin quoted from the governing document; validate in that document context.",
+    "document": "knowledge/cover-letter-playbook.md"
+  },
+  {
+    "file": "tests/instruction-contracts.test.mjs",
+    "text": "    assert.doesNotMatch(line, /(?:§|Section )10\\.\\d/u, `rule ${number} addresses a project entry by number`);",
+    "count": 1,
+    "reason": "Regular expression that rejects the legacy reference form."
+  },
+  {
+    "file": "tests/instruction-contracts.test.mjs",
+    "text": "    \"They rank below the [honesty floor](#0-protected-honesty-floor) and below every rule of the engine, and above memory.\",",
+    "count": 1,
+    "reason": "Literal pin quoted from the governing document; validate in that document context.",
+    "document": "knowledge/precedence.md"
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "  const text = 'Section 3\\nsubsection 2\\nSec. 4\\nраздела 5\\n§7\\n> section\\n> 9\\n```text\\nsection 6\\n```\\n// section\\n// 8\\n';",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "  const workspace = fixture(t, { 'README.md': text, 'tools/new.js': 'throw Error(\"section 4\");\\n' });",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "    'docs/runbooks/new.md': '# Start\\n[own](#start)\\n[other](../../README.md#root)\\n```text\\nREADME.md#root\\n```\\n',",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "    'tools/new.js': '// README.md#caf%C3%A9--tea\\nconst message = \"README.md#root-1\";\\n',",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "  const workspace = fixture(t, { 'README.md': '# Root\\n[bad](missing.md#absent)\\n[bad](#absent)\\n[bad](#%ZZ)\\n[bad](../outside.md#heading)\\n' });",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "    'README.md': 'candidate/profile.md#profile\\n[profile](candidate/profile.md#profile)\\n',",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "  const workspace = fixture(t, { 'README.md': 'section 4\\nsection 5\\n' });",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "  const exception = { file: 'README.md', text: 'section 4', count: 1, reason: 'negative syntax example' };",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "  for (const text of ['', 'section 4\\nsection 4\\n']) {",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "  const workspace = fixture(t, { 'README.md': '# Root\\n', 'tests/new.mjs': 'const pin = \"[root](#root)\";\\n' });",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tests/section-links.test.mjs",
+    "text": "  const exception = { file: 'tests/new.mjs', text: '[root](#root)', count: 1, reason: 'quoted document pin', document: 'README.md' };",
+    "count": 1,
+    "reason": "Synthetic section-link checker input or expected fixture pin."
+  },
+  {
+    "file": "tools/candidate/README.md",
+    "text": "[<words>](#<anchor>)",
+    "count": 1,
+    "reason": "Placeholder syntax for a self-link, not a concrete heading."
+  },
+  {
+    "file": "tools/candidate/manifest.mjs",
+    "text": "// A section named by its number rather than by a link: the sign `§` anywhere, or \"section\" —",
+    "count": 1,
+    "reason": "The number scanner defines and documents the forbidden section sign."
+  },
+  {
+    "file": "tools/candidate/manifest.mjs",
+    "text": "const SECTION_NUMBER = /§|(?<![\\p{L}\\p{N}_-])(?:(?:sub)?sections?\\s+|secs?\\.\\s*|(?:под)?раздел\\p{L}*\\s+)\\d/giu;",
+    "count": 1,
+    "reason": "The number scanner defines and documents the forbidden section sign."
+  },
+  {
+    "file": "tools/cv-builder/docx-extract.mjs",
+    "text": "`#anchor`",
+    "count": 1,
+    "reason": "DOCX internal hyperlink syntax, not a Markdown section."
+  },
+  {
+    "file": "tools/telegram-collect/text.mjs",
+    "text": "`#digest`",
+    "count": 1,
+    "reason": "Telegram hashtag example, not a Markdown section."
+  },
+  {
+    "file": "tools/vacancy-fetch/html-text.mjs",
+    "text": "sect: \"§\"",
+    "count": 1,
+    "reason": "HTML named entity value, not a section reference."
+  },
+  {
+    "file": "tests/public-links.test.mjs",
+    "text": " const root=tree(t,{\"README.md\":\"[ADR](docs/adr/a.md#heading)\\n[space](docs/with%20space.md)\\n[ref]: docs/adr/a.md#heading\\n[web](https://example.org/missing)\\n\",\"docs/adr/a.md\":\"# Heading\\n\",\"docs/with space.md\":\"# Space\\n\"});",
+    "count": 1,
+    "reason": "Synthetic local-link checker fixture, validated in its disposable root."
+  },
+  {
+    "file": "tests/public-links.test.mjs",
+    "text": " writeFileSync(join(root,\"docs/adr/a.md\"),\"# Renamed\\n[missing](absent.md)\\n\");",
+    "count": 1,
+    "reason": "Synthetic local-link checker fixture, validated in its disposable root."
+  },
+  {
+    "file": "tests/public-links.test.mjs",
+    "text": " const root=tree(t,{\"README.md\":\"[private](private/a.md)\\n[missing](absent.md)\\n[escape](../a.md)\\n[encoding](%XX.md)\\n[heading](#missing)\\n\",\"private/a.md\":\"# Private\\n\"});",
+    "count": 1,
+    "reason": "Synthetic local-link checker fixture, validated in its disposable root."
+  },
+  {
+    "file": "tests/public-links.test.mjs",
+    "text": " const root=tree(t,{\"README.md\":\"[layer](candidate/profile.md#profile)\\n\",\"candidate.example/profile.md\":\"# Profile\\n\",\"candidate/profile.md\":\"# Wrong\\n\"});",
+    "count": 1,
+    "reason": "Synthetic local-link checker fixture, validated in its disposable root."
+  },
+  {
+    "file": "tests/public-links.test.mjs",
+    "text": " const root=tree(t,{\"README.md\":\"[link](alias.md)\\n\",\"target.md\":\"# Heading\\n\"});symlinkSync(\"target.md\",join(root,\"alias.md\"));",
+    "count": 1,
+    "reason": "Synthetic local-link checker fixture, validated in its disposable root."
+  }
+]

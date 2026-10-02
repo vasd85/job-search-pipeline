@@ -1,0 +1,273 @@
+{
+  "schema_version": 3,
+  "compensation": {
+    "floors": {
+      "comparable_cost_employment": {
+        "amount": 3000,
+        "basis": "net",
+        "currencies": [
+          "USD",
+          "SGD"
+        ]
+      },
+      "home_contractor": {
+        "amount": 110000,
+        "basis": "gross",
+        "currencies": [
+          "THB"
+        ]
+      },
+      "home_employment": {
+        "amount": 90000,
+        "basis": "net",
+        "currencies": [
+          "THB"
+        ]
+      },
+      "outside_home_contractor": {
+        "amount": 3500,
+        "basis": "gross",
+        "currencies": [
+          "USD"
+        ]
+      }
+    },
+    "home_currency": "THB",
+    "home_rate_provider": "BOT",
+    "target": 4500
+  },
+  "cv": {
+    "file_name_pattern": "Marigold_Brightwater_CV_<Company>_<Role>.docx",
+    "page_budget": 2
+  },
+  "domain_fit": {
+    "agency_outsourcing_vendor": 2,
+    "complex_saas_b2b": 4,
+    "data_platforms": 4,
+    "developer_tools": 4,
+    "distributed_systems": 4,
+    "fintech_payments_trading": 4,
+    "healthcare_biotech": 4,
+    "infra_platforms": 4,
+    "marketplaces": 4,
+    "media_entertainment": 4,
+    "other_complex": 4,
+    "security_tooling": 4,
+    "telecom": 4,
+    "web3": 4
+  },
+  "languages": {
+    "additional": [
+      "Greek"
+    ],
+    "working": "English"
+  },
+  "markets": {
+    "home": {
+      "countries": [
+        "Lindholm"
+      ],
+      "name": "domestic",
+      "timezone": "UTC+7",
+      "working_hours": "09:00-19:00"
+    },
+    "outside_home": {
+      "location": "Lindholm",
+      "name": "international",
+      "timezone": "UTC+7"
+    }
+  },
+  "mobility": {
+    "excluded_destinations": [
+      "AQ"
+    ],
+    "feasible_residences": [
+      "KH",
+      "LA",
+      "TH",
+      "VN"
+    ],
+    "home_region": [
+      "TH"
+    ],
+    "relocation_tiers": {
+      "high": [
+        "AU",
+        "JP",
+        "KR",
+        "SG"
+      ],
+      "low": [
+        "KH",
+        "LA",
+        "TH",
+        "VN"
+      ],
+      "middle": [
+        "MY",
+        "PH"
+      ]
+    },
+    "self_relocation": [
+      "KH",
+      "LA",
+      "VN"
+    ],
+    "west_near_subregion": "EU_UK",
+    "west_tier": "middle"
+  },
+  "priorities": {
+    "relocation_destinations": [
+      "JP"
+    ],
+    "relocation_west": false,
+    "remote_company_regions": [
+      "HOME"
+    ]
+  },
+  "tool_match": {
+    "languages": [
+      {
+        "name": "TypeScript",
+        "points": 4,
+        "experience": "direct"
+      },
+      {
+        "name": "Java",
+        "points": 1,
+        "experience": "transferable"
+      },
+      {
+        "name": "Python",
+        "points": 5,
+        "experience": "direct"
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "Playwright",
+        "points": 4,
+        "experience": "direct"
+      },
+      {
+        "name": "REST Assured",
+        "points": 2,
+        "experience": "transferable"
+      },
+      {
+        "name": "PyTest",
+        "points": 5,
+        "experience": "direct"
+      }
+    ]
+  },
+  "letter": {
+    "body_paragraphs": {
+      "min": 4,
+      "max": 5
+    },
+    "body_words": {
+      "min": 230,
+      "target": 250,
+      "max": 260,
+      "approved_max": 300
+    },
+    "signature": "Marigold Brightwater"
+  },
+  "scoring": {
+    "m": {
+      "max": 25,
+      "unknown": 15,
+      "sponsored": 25,
+      "remote": {
+        "broad_open": 25,
+        "broad_restricted": 20,
+        "far_local_open": 15,
+        "far_local_restricted": 10,
+        "near_local_open": 25,
+        "near_local_restricted": 20,
+        "far_unknown_open": 20,
+        "far_unknown_restricted": 10,
+        "near_unknown_open": 25,
+        "near_unknown_restricted": 15,
+        "other_near": 25,
+        "other_unknown": 20,
+        "other_far_unknown": 15,
+        "other_far_local": 5
+      },
+      "relocation": {
+        "high": 20,
+        "middle": 10,
+        "low": 0,
+        "unknown": 10,
+        "bonus": 5,
+        "max": 25
+      },
+      "cap_scores": [
+        4,
+        11,
+        19,
+        25
+      ],
+      "cap_limits": [
+        39,
+        59,
+        79,
+        100
+      ]
+    },
+    "c": {
+      "max": 35,
+      "unknown": 15,
+      "local": 15,
+      "start": 5,
+      "target": 15,
+      "below_floor": [
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      "reference": [
+        35,
+        31,
+        24,
+        17,
+        10
+      ]
+    },
+    "s": {
+      "max": 30,
+      "automation": {
+        "max": 14,
+        "primary": 12,
+        "major": 8,
+        "limited": 4,
+        "unknown": 4
+      },
+      "seniority": {
+        "max": 6,
+        "senior": 6,
+        "mid": 3,
+        "lower": 0,
+        "unknown": 3
+      },
+      "tools": {
+        "max": 10
+      }
+    },
+    "d": {
+      "max": 10,
+      "unknown": 4,
+      "steps": [
+        0,
+        2,
+        4,
+        6,
+        8,
+        10
+      ]
+    }
+  }
+}

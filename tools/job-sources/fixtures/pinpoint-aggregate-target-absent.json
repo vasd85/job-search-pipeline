@@ -1,0 +1,25 @@
+{
+  "data": [
+    {
+      "id": "2b1f0f4a-6c1e-4f2f-9a2b-0d5f7c3e8a10",
+      "title": "Senior Backend Engineer",
+      "status": "published",
+      "location": "Dubai, United Arab Emirates",
+      "description": "We are hiring a backend engineer for the payments platform."
+    },
+    {
+      "id": "c4a8b5e2-9f31-4d70-8e15-6a7b8c9d0e1f",
+      "title": "Engineering Manager",
+      "status": "published",
+      "location": "Riyadh, Saudi Arabia",
+      "description": "Lead two product engineering squads."
+    },
+    {
+      "id": "f1e2d3c4-b5a6-4978-8899-aabbccddeeff",
+      "title": "Data Analyst",
+      "status": "published",
+      "location": "Remote, EMEA",
+      "description": "Build reporting for the growth team."
+    }
+  ]
+}

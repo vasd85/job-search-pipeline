@@ -1,0 +1,10 @@
+#!/bin/sh
+# The engine's pre-push hook. Reached only through an absolute core.hooksPath pointing at this
+# directory (tools/push-guard/README.md). The guard lives beside it; without the guard, or without
+# node, the push is refused rather than let through unscanned.
+guard="$(dirname "$0")/../push-guard/cli.mjs"
+if [ ! -f "$guard" ]; then
+  echo "pre-push: the push guard is missing ($guard); nothing was sent." >&2
+  exit 1
+fi
+exec node "$guard" "$@"

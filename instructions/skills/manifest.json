@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "runtimes": {
+    "claude": {
+      "root_file": "CLAUDE.md",
+      "runner_id": "claude-code",
+      "skill_root": ".claude/skills",
+      "agent_root": ".claude/agents"
+    },
+    "codex": {
+      "root_file": "AGENTS.md",
+      "runner_id": "codex",
+      "skill_root": ".agents/skills"
+    }
+  },
+  "skills": [
+    {
+      "name": "get-vacancy",
+      "description": "Start one file-backed application process, fetch a vacancy, reserve its output directory, and publish validated job-description.txt plus vacancy.json. Explicit Step 1 run only.",
+      "common": "instructions/skills/get-vacancy.md",
+      "claude": {
+        "disable-model-invocation": true
+      },
+      "codex": {
+        "allow_implicit_invocation": false
+      }
+    },
+    {
+      "name": "research-company",
+      "description": "Resolve a file-backed process, research company/product/engineering/culture facts from validated Step 1 artifacts, and publish company-research.json. Explicit Step 2 run only.",
+      "common": "instructions/skills/research-company.md",
+      "claude": {
+        "disable-model-invocation": true
+      },
+      "codex": {
+        "allow_implicit_invocation": false
+      }
+    },
+    {
+      "name": "map-experience",
+      "description": "Resolve validated Step 1/2 artifacts, map the candidate to one role, make all downstream positioning decisions, and publish application-brief.json. Mandatory explicit Step 3 run.",
+      "common": "instructions/skills/map-experience.md",
+      "claude": {
+        "disable-model-invocation": true
+      },
+      "codex": {
+        "allow_implicit_invocation": false
+      }
+    },
+    {
+      "name": "generate-cv",
+      "description": "Build, visually verify, and atomically publish one targeted cv.json plus DOCX bundle from the validated application-brief.json. Explicit Step 4 run only.",
+      "common": "instructions/skills/generate-cv.md",
+      "claude": {
+        "disable-model-invocation": true
+      },
+      "codex": {
+        "allow_implicit_invocation": false
+      }
+    },
+    {
+      "name": "write-cover-letter",
+      "description": "Write, validate, and publish one cover-letter.txt from the validated application-brief.json and its selected evidence, keywords, positioning, and vacancy language. Explicit Step 5 run only.",
+      "common": "instructions/skills/write-cover-letter.md",
+      "claude": {
+        "disable-model-invocation": true
+      },
+      "codex": {
+        "allow_implicit_invocation": false
+      }
+    },
+    {
+      "name": "score-jobs",
+      "description": "Score and triage a batch of job-vacancy links from any source (LinkedIn, hh.ru, ATS and company career pages, or any other posting URL) against the match rubric to decide which roles are worth applying to. Use when given a list of posting URLs to evaluate for fit. Produces one Decision Trace per link. Explicit-run only.",
+      "common": "instructions/skills/score-jobs.md",
+      "claude": {
+        "disable-model-invocation": true
+      },
+      "codex": {
+        "allow_implicit_invocation": false
+      }
+    },
+    {
+      "name": "collect-telegram",
+      "description": "Sweep the configured public Telegram channels and groups and publish a links collection for score-jobs, vacancy cards and a sweep report of everything not emitted. A thematic source is taken whole; a general one goes through the telegram-reader agent, which answers with numbers only. No scoring and no ledger writes. Explicit-run only.",
+      "common": "instructions/skills/collect-telegram.md",
+      "claude": {
+        "disable-model-invocation": true
+      },
+      "codex": {
+        "allow_implicit_invocation": false
+      }
+    }
+  ],
+  "agents": [
+    {
+      "name": "telegram-reader",
+      "description": "Read one batch file of Telegram posts of a general source and answer, in one JSON object of numbers and codes, which posts carry a QA vacancy and how one applies. One tool: reading. Used by collect-telegram only.",
+      "common": "instructions/agents/telegram-reader.md",
+      "claude": {
+        "tools": [
+          "Read"
+        ],
+        "model": "haiku"
+      }
+    },
+    {
+      "name": "letter-reader",
+      "description": "Read one staged cover letter without its brief and report how it reads on a first reading: one phrase per paragraph, the sentences that had to be read twice, an unclear reference, a conclusion without its link and a sentence that sounds translated. One tool: reading. Used by write-cover-letter only.",
+      "common": "instructions/agents/letter-reader.md",
+      "claude": {
+        "tools": [
+          "Read"
+        ],
+        "model": "sonnet"
+      }
+    },
+    {
+      "name": "telegram-labeler",
+      "description": "The same reading of a Telegram batch as telegram-reader, by a stronger model over the full text, for the independent labelling of a measurement sample. One tool: reading. Used by the rehearsal measurement of collect-telegram only.",
+      "common": "instructions/agents/telegram-reader.md",
+      "claude": {
+        "tools": [
+          "Read"
+        ],
+        "model": "sonnet"
+      }
+    }
+  ]
+}

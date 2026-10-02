@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <title>LinkedIn-aanmelding</title>
+  <script>window.pageTracking = { page: "uas-login" };</script>
+</head>
+<body>
+  <header><a href="/">LinkedIn</a></header>
+  <main role="main">
+    <h1>Aanmelden</h1>
+    <p>Nieuw op LinkedIn? Word nu lid en blijf op de hoogte van uw professionele wereld.</p>
+    <form action="/checkpoint/lg/login-submit" method="post">
+      <label for="username">E-mailadres of telefoonnummer</label>
+      <input id="username" name="session_key" type="text">
+      <label for="password">Wachtwoord</label>
+      <input id="password" name="session_password" type="password">
+      <a href="/checkpoint/rp/request-password-reset">Wachtwoord vergeten?</a>
+      <button type="submit">Aanmelden</button>
+    </form>
+    <p>of</p>
+    <button type="button">Doorgaan met Google</button>
+    <button type="button">Aanmelden met Apple</button>
+    <p>Door op Doorgaan te klikken om lid te worden of u aan te melden, gaat u akkoord met de
+      Gebruikersovereenkomst, het Privacybeleid en het Cookiebeleid van LinkedIn.</p>
+    <p>Nieuw bij LinkedIn? Word nu lid. Maak gratis een profiel aan, vind contacten, volg bedrijven
+      en ontdek vacatures die bij uw ervaring passen, allemaal op een plek.</p>
+  </main>
+  <footer>
+    <p>LinkedIn &copy; 2026 · Gebruikersovereenkomst · Privacybeleid · Communityrichtlijnen ·
+      Cookiebeleid · Copyrightbeleid · Feedback verzenden · Taal</p>
+  </footer>
+</body>
+</html>

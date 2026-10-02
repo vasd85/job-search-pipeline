@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "purpose": "The personal half of the publishability contract for this fictional candidate. An id names what a marker is, never what it matches: the report counts every declared marker, so the ids are printed on every run, and an id spelling the employer would walk past the rule that a finding never carries its matched text. Everything here names one person, which is why it lives in the layer and never in the public tree: printed in the open, the list would reveal exactly what it hides. tools/publishability/README.md owns the shape, the public markers and the refusal codes.",
+  "markers": [
+    {
+      "id": "identity.surname",
+      "pattern": "Brightwater|Брайтуотер|Μπράιτγουοτερ",
+      "why": "The candidate's surname, in every script the materials use."
+    },
+    {
+      "id": "identity.given-name",
+      "pattern": "Marigold|Мэриголд|Μάριγκολντ",
+      "why": "The candidate's given name."
+    },
+    {
+      "id": "identity.handle",
+      "pattern": "mbright42",
+      "why": "The account name that appears in paths and remotes."
+    },
+    {
+      "id": "identity.email",
+      "pattern": "marigold\\.brightwater",
+      "why": "The local part of the address, which survives a changed domain."
+    },
+    {
+      "id": "employer.1",
+      "pattern": "Quillon Systems",
+      "why": "An employer from the candidate's history."
+    },
+    {
+      "id": "employer.2",
+      "pattern": "Halbrook Interactive",
+      "why": "An employer from the candidate's history."
+    },
+    {
+      "id": "application.1",
+      "pattern": "Perrinault Group",
+      "why": "A company the candidate applied to."
+    },
+    {
+      "id": "geo.residence",
+      "pattern": "Lindholm",
+      "why": "The country of residence, which the scoring constraints depend on."
+    },
+    {
+      "id": "geo.timezone",
+      "pattern": "UTC\\+7|GMT\\+7",
+      "why": "The presented time zone."
+    },
+    {
+      "id": "profile.path",
+      "pattern": "marigold_complete_profile",
+      "why": "The profile file name, which code and tests would otherwise reach by path."
+    }
+  ],
+  "allow": [
+    {
+      "marker": "geo.residence",
+      "path": "tools/job-scorer/iso-3166.mjs",
+      "why": "The ISO-3166 table is reference data of the engine, not a fact about the candidate."
+    },
+    {
+      "marker": "geo.residence",
+      "path": "tools/vacancy-fetch/fixtures/",
+      "why": "A country inside a captured vacancy page is somebody else's text."
+    }
+  ],
+  "cyrillic_data": [
+    {
+      "path": "tests/candidate.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/cover-letter-validator.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/docx-inspector.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/fixtures/job-scorer/decision-table.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/fixtures/process-log-v3.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/fixtures/process-search-ui.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/instruction-contracts.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/job-scorer.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/job-source-registry.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/job-source-routes.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/letter-corrections.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/operational-backup.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/operational-write-boundary.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/pretriage.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/process-log-core.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/process-log-v3-cli.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/process-log-v3-lifecycle-start.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/process-log-v3-output-reservation.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/process-log-v3-revision.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/process-log-v3-validation.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/process-search-server.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/safe-cli-input.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/section-links.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/task-worktree.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tests/telegram-collect.test.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/application-brief/fixtures/application-brief.v4.valid.json",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/candidate/manifest.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/letter-corrections/corpus.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/operational-backup.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/pipeline-artifacts/fixtures/company-research-scenarios.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/pipeline-artifacts/fixtures/research-v2-over-vacancy-v2/company-research.json",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/pipeline-artifacts/fixtures/vacancy-russian-completed/job-description.txt",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/pipeline-artifacts/fixtures/vacancy-russian-completed/vacancy.json",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/section-links.mjs",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/telegram-collect/fixtures/group-message-no-username.html",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "tools/vacancy-fetch/fixtures/generic-spa-deferred.html",
+      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
+    },
+    {
+      "path": "config/section-link-exceptions.json",
+      "why": "Exact synthetic checker input and detector syntax, not public prose."
+    }
+  ]
+}

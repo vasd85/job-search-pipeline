@@ -1,0 +1,77 @@
+# Generated output (CVs, cover letters, and other run artifacts)
+output/
+
+# Operational process ledger (local, per-worktree) and transient writer files
+/process-log.json
+process-log.json.lock
+process-log.json.lock.*
+process-log.json.*.tmp
+# Reviewed ledger backups taken before a cutover (docs/runbooks/source-key-v2-cutover.md)
+/process-log.backup-*.json
+/.pipeline-input/
+
+# Rehearsal worktree state: pinned base and unharvested batch evidence (gitflow runbook)
+/.rehearsal/
+
+# Scratch files of a session's own worktree, never committed (gitflow runbook, invariant 6)
+/.temp-docs/
+
+# Batch-triage ledger (local, per-worktree) and transient writer files
+/triage-ledger.json
+triage-ledger.json.lock
+triage-ledger.json.*.tmp
+
+# Batch store: one directory per triaged batch, beside the ledger that indexes it
+# (docs/runbooks/triage-review.md#11-batch-store-the-history-beside-the-index)
+/triage-batches/
+
+# Telegram collector (local, per-worktree): the working sources config, the cursor state and
+# one directory per sweep (tools/telegram-collect/README.md)
+/telegram-sources.json
+/telegram-sweep-state.json
+telegram-sweep-state.json.*.tmp
+telegram-sources.json.*.tmp
+/telegram-sweeps/
+
+# Private candidate layer (local, per-checkout): the profile, preferences and configured values of
+# one person. The tracked example of the same shape is candidate.example/
+# (tools/candidate/README.md)
+/candidate/
+
+# Run records beside the ledger: the letter-correction corpus a run writes, copied into the private
+# repository by `npm run records:import` (tools/letter-corrections/README.md)
+/records/
+
+# Task drafts a run files for the private board, waiting for `npm run board:import`
+# (tools/board/README.md)
+/outbox/
+
+# Local browser/runtime artifacts
+.playwright-mcp/
+pkcs11.txt
+
+# Private Claude data exports
+/conversations.json
+/apply-conversations.json
+
+# Dependencies
+node_modules/
+
+# Environment / secrets
+.env*
+
+# Local-only files
+*.local
+
+# OS junk
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# Editor cruft
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "batch": "generaljobs-001",
+  "posts": [
+    {
+      "post": 1,
+      "vacancies": [
+        {
+          "title_line": 3,
+          "apply": [
+            {
+              "via": "url",
+              "link": 1
+            },
+            {
+              "via": "tg",
+              "link": 2
+            }
+          ],
+          "details_link": null
+        }
+      ]
+    }
+  ]
+}

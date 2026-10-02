@@ -1,0 +1,261 @@
+{
+  "schemaVersion": 4,
+  "createdAt": "<current ISO-8601 timestamp>",
+  "process": {
+    "id": "<selected process id>",
+    "sourceRef": "<selected process source_ref>",
+    "outputDir": "output/<reserved-company-role>"
+  },
+  "inputs": {
+    "vacancy": {
+      "path": "vacancy.json",
+      "schemaVersion": "<exact schemaVersion of the current vacancy.json>",
+      "sha256": "<exact current vacancy.json SHA-256>",
+      "bytes": 1
+    },
+    "jobDescription": {
+      "path": "job-description.txt",
+      "schemaVersion": null,
+      "sha256": "<exact current job-description.txt SHA-256>",
+      "bytes": 1
+    },
+    "companyResearch": {
+      "path": "company-research.json",
+      "schemaVersion": "<exact schemaVersion of the current company-research.json>",
+      "sha256": "<exact current company-research.json SHA-256>",
+      "bytes": 1
+    },
+    "candidateProfile": {
+      "path": "candidate/profile.md",
+      "schemaVersion": null,
+      "sha256": "<exact current candidate-profile SHA-256>",
+      "bytes": 1
+    }
+  },
+  "role": {
+    "company": "<exact current vacancy company>",
+    "title": "<exact current vacancy title>",
+    "ats": "<current vacancy ATS>",
+    "vacancyLanguage": "<the default language or a configured one>",
+    "market": "<current vacancy market: the home market's or the outside-home market's configured name>",
+    "feasibility": {
+      "workModel": {
+        "normalized": "<remote, hybrid, onsite, or unspecified>",
+        "sourceText": "<verbatim current vacancy wording or null>"
+      },
+      "locations": [
+        "<verbatim current vacancy location>"
+      ],
+      "employmentType": "<verbatim current vacancy wording or null>",
+      "timezoneOverlap": "<verbatim current vacancy wording or null>",
+      "workAuthorizationResidency": "<verbatim current vacancy wording or null>",
+      "relocationVisaSupport": "<verbatim current vacancy wording or null>",
+      "salary": "<verbatim current vacancy wording or null>"
+    }
+  },
+  "company": {
+    "challengeType": "<selected current research hook challengeType>",
+    "challengeEvidence": {
+      "hookId": "<current research hook id>",
+      "fact": "<exact current research hook fact>",
+      "claimIds": [
+        "<current research claim id>"
+      ],
+      "sourceIds": [
+        "<current research source id>"
+      ]
+    },
+    "values": [
+      {
+        "text": "<exact selected current research claim>",
+        "claimIds": [
+          "<current research claim id>"
+        ],
+        "sourceIds": [
+          "<current research source id>"
+        ]
+      }
+    ],
+    "tailoringHooks": [
+      {
+        "hookId": "<current research hook id>",
+        "topic": "<exact current research hook challengeType>",
+        "evidence": "<exact current research hook fact>",
+        "claimIds": [
+          "<current research claim id>"
+        ],
+        "sourceIds": [
+          "<current research source id>"
+        ]
+      }
+    ]
+  },
+  "positioning": {
+    "selectedLevers": [
+      {
+        "id": 1,
+        "wording": "<new role-specific wording>",
+        "rationale": "<why this lever fits the current role and evidence>",
+        "evidenceAnchors": [
+          "<current priority-evidence id>"
+        ],
+        "cvEvidenceCheckIds": [
+          "<current CV check id>"
+        ]
+      }
+    ],
+    "angleHint": "<current lever-to-company-challenge connection>",
+    "aiRegister": "<current AI register selected under impact-levers.md>",
+    "supportingSignals": [
+      {
+        "id": "<new local signal id>",
+        "topic": "<current role-specific AI decision>",
+        "decision": "<include or exclude>",
+        "evidence": "<current-run evidence or exclusion reason>",
+        "claimIds": [
+          "<current research claim id when included>"
+        ],
+        "sourceIds": [
+          "<current research source id when included>"
+        ],
+        "constraints": [
+          "<current factual boundary>"
+        ],
+        "cvEvidenceCheckId": "<current CV check id only when included>"
+      }
+    ]
+  },
+  "experience": {
+    "priorityEvidence": [
+      {
+        "id": "<new local evidence id>",
+        "priority": "<current priority>",
+        "category": "<current evidence category>",
+        "claim": "<selected current profile-backed claim>",
+        "profileSource": {
+          "path": "candidate/profile.md",
+          "section": "<exact current canonical profile section heading>"
+        },
+        "proof": [
+          "<current verified metric, scope, mechanism, or outcome>"
+        ],
+        "cvPlacements": [
+          "<truthful current CV placement>"
+        ]
+      }
+    ],
+    "traits": [
+      {
+        "id": "<new local trait id>",
+        "trait": "<selected current profile-backed trait>",
+        "behavior": "<current observable behavior>",
+        "profileSource": {
+          "path": "candidate/profile.md",
+          "section": "<exact current canonical profile section heading>"
+        }
+      }
+    ],
+    "gaps": [
+      {
+        "id": "<new local gap id>",
+        "requirement": "<current unmet JD requirement>",
+        "classification": "<hard, soft, or adjacent>",
+        "transferableSupport": {
+          "status": "<evidence or none>",
+          "evidenceIds": [
+            "<current priority-evidence id when status is evidence>"
+          ]
+        },
+        "framing": "<current honest gap treatment>"
+      }
+    ]
+  },
+  "ats": {
+    "keywords": [
+      {
+        "term": "<exact current JD term with evidence>",
+        "expanded": "<expanded form or null>",
+        "support": {
+          "status": "evidence",
+          "evidenceIds": [
+            "<current priority-evidence id>"
+          ]
+        },
+        "placements": [
+          "<truthful current placement>"
+        ],
+        "required": true,
+        "placementMode": "<any or all>"
+      },
+      {
+        "term": "<exact current JD hard-gap term>",
+        "expanded": null,
+        "support": {
+          "status": "gap",
+          "gapId": "<current gap id>"
+        },
+        "placements": [],
+        "required": false,
+        "placementMode": "any"
+      }
+    ]
+  },
+  "cvPlan": {
+    "structure": "<chronological or hybrid>",
+    "llmWorkSignal": {
+      "evidenceId": "<current commercial LLM evidence id>",
+      "checkId": "<current commercial LLM CV check id>"
+    },
+    "headerPositioning": {
+      "mode": "<omit or explicit>",
+      "text": "<exact current positioning text or null>",
+      "rationale": "<current decision rationale>"
+    },
+    "projectDecision": {
+      "decision": "<include or exclude>",
+      "projectId": "<selected current project id or null>",
+      "rationale": "<current decision rationale>"
+    },
+    "checks": {
+      "requiredEvidence": [
+        {
+          "id": "<new local CV check id>",
+          "description": "<current evidence requirement>",
+          "evidenceIds": [
+            "<current priority-evidence id>"
+          ],
+          "anyOf": [
+            "<acceptable current CV wording>"
+          ],
+          "placements": [
+            "<current required placement>"
+          ],
+          "placementMode": "<any or all>"
+        }
+      ],
+      "forbiddenTerms": [
+        {
+          "term": "<current disallowed claim or term>",
+          "reason": "<current factual or relevance reason>"
+        }
+      ],
+      "skillGroups": [
+        {
+          "label": "<current capability group>",
+          "mustContain": [
+            "<current supported skill>"
+          ],
+          "forbiddenLabels": []
+        }
+      ]
+    }
+  },
+  "coverLetterPlan": {
+    "evidenceIds": [
+      "<one or two current priority-evidence ids>"
+    ],
+    "keywordTerms": [
+      "<three to five exact current ats.keywords terms>"
+    ]
+  }
+}

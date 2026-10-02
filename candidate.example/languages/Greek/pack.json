@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "locale": "el",
+  "script": "Greek",
+  "admits_scripts": ["Latin"],
+  "subject_prefix": "Θέμα",
+  "signature": "Μάριγκολντ Μπράιτγουοτερ"
+}

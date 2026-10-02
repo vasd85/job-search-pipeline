@@ -1,0 +1,18 @@
+{
+  "data": [
+    {
+      "id": "7e0c9d21-4b83-4a17-b0c6-1f2a3b4c5d6e",
+      "title": "QA Automation Engineer",
+      "status": "archived",
+      "location": "Remote, EMEA",
+      "description": "Own the end-to-end automation suite for the mobile application."
+    },
+    {
+      "id": "9d8c7b6a-5e4f-4321-9012-3456789abcde",
+      "title": "Security Engineer",
+      "status": "confidential",
+      "location": "Dubai, United Arab Emirates",
+      "description": "Confidential search handled by the internal recruiting team."
+    }
+  ]
+}

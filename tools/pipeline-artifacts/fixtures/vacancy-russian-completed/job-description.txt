@@ -1,0 +1,14 @@
+Senior Quality Engineer
+
+Example Labs развивает платформу автоматизации рабочих процессов.
+
+Формат работы: удалённо из России
+Оформление: трудовой договор
+
+Обязанности
+- Развивать API и UI test automation.
+- Улучшать CI feedback и надёжность релизов.
+
+Требования
+- Опыт с TypeScript и Playwright.
+- Навыки API testing и CI/CD.
