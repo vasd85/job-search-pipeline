@@ -250,8 +250,6 @@ function manifest() {
 function expectedWorkflowRunLines() {
   const { packageManager } = manifest();
   return [
-    "sudo apt-get update",
-    "sudo apt-get install --yes --no-install-recommends libreoffice-writer poppler-utils",
     `npm install --global ${packageManager}`,
     "npm ci --ignore-scripts --no-audit --no-fund",
     "npm ci --prefix tools/cv-builder --ignore-scripts --no-audit --no-fund",
