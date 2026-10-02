@@ -1,8 +1,14 @@
 #!/bin/sh
-# The engine's pre-commit hook, installed by the same absolute core.hooksPath as pre-push
-# (tools/setup/README.md). It refuses a commit whose staged content has a whitespace error — the
-# defects the format stage of `npm run ci` rejects once committed. It reads the index git hands it,
-# so `git commit -- <paths>` is checked on what it commits, not on the working tree.
+# Installed with pre-push by setup:machine. Use the tool beside this installed hook,
+# while formatting the committing repository's active index (including pathspec commits).
+formatter="$(dirname "$0")/../format-staged.mjs"
+if [ ! -f "$formatter" ]; then
+  echo "pre-commit: staged formatter is missing; nothing was committed." >&2
+  exit 1
+fi
+if ! node "$formatter"; then
+  exit 1
+fi
 if ! git diff --cached --check; then
   echo "pre-commit: whitespace errors in the staged changes (listed above); nothing was committed." >&2
   exit 1

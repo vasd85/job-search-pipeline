@@ -218,6 +218,21 @@ never visits untracked operational or candidate files. `.prettierignore` documen
 excluded family: byte-sensitive fixtures, the candidate example, generated runtime proxies,
 and npm-generated lockfiles. Regenerate proxies after changing their canonical instructions.
 
+`npm run setup:machine` installs a pre-commit hook that formats supported staged files before
+Git creates a commit, then checks staged whitespace. It reads the active index and its staged
+configuration, including the temporary index of `git commit -- <paths>`. Partial staging is
+preserved: unstaged file contents stay byte-for-byte unchanged; a fully staged working file
+is updated to the formatted result. Other staged paths stay outside a pathspec commit. No stash
+is used, and linked worktrees keep independent indexes.
+
+A missing formatter, dependency or staged policy, invalid syntax, an unmerged index, or a Git/
+working-file write failure refuses the commit. All parsing finishes before the index is updated.
+If a subsequent working-file synchronization fails, the commit is refused; formatted staged
+content and the original user content remain recoverable. The independent CI check also rejects
+unformatted committed content. Fixtures and generated files retain their excluded bytes.
+Source-reference exceptions pin the exact reference and occurrence count, independent of the
+surrounding code's quotes or layout; neighbouring references and semantic mutations remain checked.
+
 The mechanical formatting commit is recorded in `.git-blame-ignore-revs`. To retain useful
 line authorship locally, run:
 

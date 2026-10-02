@@ -80,6 +80,17 @@ export function sectionSourceFiles(root) {
   return result.sort();
 }
 
+// Reference exceptions match complete scanner tokens. A bare layer reference must not mask
+// the same substring inside a rooted link, and a short anchor must not mask a longer one.
+function referenceOccurrences(source, token) {
+  const numbers = source.replace(/\\[nr]/gu, "  ");
+  const numberTokens =
+    /\u00a7(?:\d[\d.a-z–-]*)?|(?<![\p{L}\p{N}_-])(?:(?:sub)?sections?\s+|secs?\.\s*|(?:под)?раздел\p{L}*\s+)\d[\d.a-z–-]*/giu;
+  return [...numbers.matchAll(numberTokens), ...source.matchAll(LINKS)]
+    .filter((match) => source.slice(match.index, match.index + match[0].length) === token)
+    .map((match) => match.index);
+}
+
 /** Exact exceptions mask only their text, preserve offsets and fail closed when stale. */
 export function checkSectionLinks({ root, files = sectionSourceFiles(root), exceptions = [] }) {
   const findings = [];
@@ -91,8 +102,19 @@ export function checkSectionLinks({ root, files = sectionSourceFiles(root), exce
   for (const exception of exceptions) {
     const { file, text, count, reason } = exception;
     const source = texts.get(file);
-    const actual = source === undefined || !text ? 0 : source.split(text).length - 1;
-    if (!reason || !Number.isInteger(count) || count < 1 || actual !== count) {
+    const offsets =
+      source !== undefined && text && exception.kind === "reference"
+        ? referenceOccurrences(source, text)
+        : null;
+    const actual =
+      source === undefined || !text ? 0 : (offsets?.length ?? source.split(text).length - 1);
+    if (
+      !reason ||
+      !Number.isInteger(count) ||
+      count < 1 ||
+      actual !== count ||
+      (exception.kind !== undefined && exception.kind !== "reference")
+    ) {
       findings.push({
         file,
         line: 1,
@@ -101,7 +123,13 @@ export function checkSectionLinks({ root, files = sectionSourceFiles(root), exce
       continue;
     }
     if (exception.document) examples.push([exception.document, text, file]);
-    texts.set(file, source.replaceAll(text, text.replace(/[^\n]/gu, " ")));
+    const masked = text.replace(/[^\n]/gu, " ");
+    let remainder = source;
+    if (offsets) {
+      for (const offset of offsets)
+        remainder = remainder.slice(0, offset) + masked + remainder.slice(offset + text.length);
+    } else remainder = source.replaceAll(text, masked);
+    texts.set(file, remainder);
   }
   for (const [document, text, sourceFile] of [...texts, ...examples]) {
     const file = sourceFile ?? document;

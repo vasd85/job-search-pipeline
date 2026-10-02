@@ -31,6 +31,7 @@ import {
   HOOKS_DIRECTORY,
   INSTALL_COMMANDS,
   OPERATIONAL_FOLDER_NAME,
+  checkFormatterDependencies,
   defaultContext,
   main,
 } from "../tools/setup/machine.mjs";
@@ -72,6 +73,7 @@ import { join } from "node:path";
 const argv = process.argv.slice(2);
 appendFileSync(process.env.FAKE_NPM_LOG, JSON.stringify({ argv, cwd: process.cwd() }) + "\n");
 if (argv.includes("--prefix")) writeFileSync(join(process.cwd(), ".stand-in-dependencies"), "");
+else writeFileSync(join(process.cwd(), ".stand-in-formatter"), "");
 `;
 
 const FAKE_LAUNCHCTL = String.raw`
@@ -168,6 +170,10 @@ function machine(
       if (!existsSync(join(dirname(dirname(builderRoot)), ".stand-in-dependencies")))
         throw new Error("missing");
     },
+    checkFormatterDependencies: (engineRoot) => {
+      if (!existsSync(join(engineRoot, ".stand-in-formatter")))
+        throw new Error("missing formatter");
+    },
     checkToolchain: ({ workspaceRoot }) => ({ stand_in: true, workspace_root: workspaceRoot }),
     commands: {
       git: ["git"],
@@ -259,7 +265,7 @@ test("a fresh machine: private clone, dependencies, hook path, a green check, no
   assert.deepEqual(tree(m.opsRoot), opsBefore);
   assert.equal(
     sh(m.engine, "git", "status", "--porcelain"),
-    "?? .gitignore\n?? .stand-in-dependencies\n",
+    "?? .gitignore\n?? .stand-in-dependencies\n?? .stand-in-formatter\n",
   );
 });
 
@@ -525,4 +531,31 @@ test("the install commands are the workflow's own", () => {
 test("the refusal codes are frozen", () => {
   const found = [...new Set(SOURCE.match(/setup_machine_[a-z_]+/gu))].sort();
   assert.deepEqual(found, PINNED_CODES);
+});
+
+test("an existing builder installation still installs a missing root formatter", (t) => {
+  const m = machine(t);
+  assert.equal(m.invoke(["--private", m.bare]).code, 0);
+  rmSync(join(m.engine, ".stand-in-formatter"));
+  assert.equal(m.invoke(["--check"]).error.code, "setup_machine_install_failed");
+  const repaired = m.invoke([]);
+  assert.equal(repaired.code, 0);
+  assert.equal(outcomes(repaired.result).dependencies, "done");
+  assert.equal(repaired.result.checked.formatter_dependencies, true);
+});
+
+test("formatter dependency readiness requires the pinned installed version", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "formatter-version-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(join(root, "package.json"), '{"devDependencies":{"prettier":"3.9.9"}}');
+  mkdirSync(join(root, "node_modules/prettier"), { recursive: true });
+  writeFileSync(join(root, "node_modules/prettier/index.mjs"), "");
+  const manifest = join(root, "node_modules/prettier/package.json");
+  for (const version of ["3.9.8", "3.9.9"]) {
+    writeFileSync(manifest, JSON.stringify({ version }));
+    if (version === "3.9.9") assert.doesNotThrow(() => checkFormatterDependencies(root));
+    else assert.throws(() => checkFormatterDependencies(root));
+  }
+  rmSync(join(root, "node_modules/prettier/index.mjs"));
+  assert.throws(() => checkFormatterDependencies(root));
 });

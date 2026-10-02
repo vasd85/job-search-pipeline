@@ -106,6 +106,10 @@ function engine(t, { hooksPath = HOOKS, seeded = true } = {}) {
   write(clone, ".gitignore", "/candidate/\n");
   mkdirSync(join(clone, "candidate"));
   copyFileSync(EXAMPLE_MARKERS, join(clone, "candidate", "publishability-markers.json"));
+  for (const path of [".prettierrc.json", ".prettierignore"]) {
+    copyFileSync(join(repoRoot, path), join(clone, path));
+    git(clone, "add", path);
+  }
   if (seeded) {
     commit(clone, "README.md", "engine\n", "seed");
     git(clone, "add", ".gitignore");

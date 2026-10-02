@@ -195,3 +195,70 @@ test("active section references also resolve throughout the public tree", (t) =>
     [],
   );
 });
+
+test("source-reference pins survive formatter layout changes and still reject semantic mutations", async (t) => {
+  const { format } = await import("prettier");
+  const exceptions = loadSectionExceptions(root);
+  const files = [
+    ...sectionSourceFiles(root),
+    "config/section-link-exceptions.json",
+    ...readdirSync(join(root, "docs/adr"))
+      .filter((name) => name.endsWith(".md"))
+      .map((name) => `docs/adr/${name}`),
+  ];
+  const workspace = fixture(
+    t,
+    Object.fromEntries(files.map((file) => [file, readFileSync(join(root, file))])),
+  );
+  for (const file of new Set(
+    exceptions.filter(({ file }) => file.endsWith(".mjs")).map(({ file }) => file),
+  )) {
+    const source = readFileSync(join(workspace, file), "utf8");
+    const formatted = await format(source, {
+      filepath: file,
+      singleQuote: true,
+      printWidth: 45,
+      embeddedLanguageFormatting: "off",
+    });
+    writeFileSync(join(workspace, file), formatted);
+  }
+  assert.deepEqual(checkSectionLinks({ root: workspace, exceptions }), []);
+  const pin = exceptions.find(
+    ({ file, document }) => file === "tests/instruction-contracts.test.mjs" && document,
+  );
+  const path = join(workspace, pin.file);
+  const formatted = readFileSync(path, "utf8");
+  for (const source of [
+    formatted.replace(pin.text, pin.text.replace(/#[^)]*/u, "#changed-anchor")),
+    `${formatted}\n// ${pin.text}\n`,
+    `${formatted}\n// README.md#changed-neighbour\n`,
+  ]) {
+    writeFileSync(path, source);
+    assert.notDeepEqual(checkSectionLinks({ root: workspace, exceptions }), []);
+  }
+});
+
+test("reference exceptions mask complete tokens and keep longer or rooted neighbours visible", (t) => {
+  const reference = "target.md" + "#short";
+  const workspace = fixture(t, {
+    "target.md": "# Short\n",
+    "tools/new.js": `${reference}\n${reference}-missing\nrooted/${reference}\n`,
+  });
+  const exception = {
+    file: "tools/new.js",
+    text: reference,
+    count: 1,
+    kind: "reference",
+    reason: "document pin",
+    document: "target.md",
+  };
+  assert.deepEqual(
+    checkSectionLinks({ root: workspace, exceptions: [exception] }).map(({ line }) => line),
+    [2, 3],
+  );
+  writeFileSync(join(workspace, "tools/new.js"), `${reference}-missing\n`);
+  assert.match(
+    checkSectionLinks({ root: workspace, exceptions: [exception] })[0].reason,
+    /stale or invalid/u,
+  );
+});

@@ -61,16 +61,19 @@ The script does, in order, skipping whatever is already done:
   is not one;
 - clones the private repository into the engine's `candidate` directory, which the engine ignores;
   a directory already there must be a repository of its own, with the named URL as its origin;
-- installs the dependencies with the two `npm ci` commands the CI workflow uses;
+- installs the dependencies with the two `npm ci` commands the CI workflow uses; an existing
+  cv-builder installation does not skip installation of a missing or outdated root Prettier;
 - points `core.hooksPath` at this clone's `tools/git-hooks`, which installs both hooks there: the
-  pre-push guard ([tools/push-guard](../push-guard/README.md)) and the pre-commit check that
-  refuses a commit whose staged content has a whitespace error;
+  pre-push guard ([tools/push-guard](../push-guard/README.md)) and the pre-commit formatter that
+  formats the active staged snapshot, preserves unstaged edits, and then checks whitespace;
+  missing formatter dependencies or staged policy refuse the commit (see
+  [formatting](../../README.md#formatting));
 - with `--operational`: renders the templates in the `machine` directory of the private layer
   into their targets, creates the backup destination, and registers the backup LaunchAgent with
   launchd unless launchd already knows it;
-- checks the machine: the toolchain, the private layer, the hook path — and with `--operational`
-  both targets, the registered agent and the operational folder's own `npm run preflight`. The
-  run is green only when all of these are.
+- checks the machine: the toolchain, the private layer, the hook path and the pinned root
+  formatter dependency — and with `--operational` both targets, the registered agent and the
+  operational folder's own `npm run preflight`. The run is green only when all of these are.
 
 `--check` runs only the last step.
 

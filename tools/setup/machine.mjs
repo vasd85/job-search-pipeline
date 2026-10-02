@@ -15,9 +15,9 @@
  * 2. The private repository is cloned into `candidate` when absent; when present it must be a
  *    repository of its own, the one `--private` names if given, and ignored by the engine.
  * 3. Dependencies are installed with the two `npm ci` commands of `.github/workflows/ci.yml`,
- *    unless the cv-builder's dependency check is already satisfied.
+ *    unless both root formatter and cv-builder dependencies are already satisfied.
  * 4. `core.hooksPath` of the clone is set to the absolute `tools/git-hooks`: the pre-push guard
- *    and the pre-commit whitespace check.
+ *    and the pre-commit formatter and whitespace check.
  * 5. With `--operational` only: the templates of the layer's `machine` directory are rendered
  *    into their fixed targets — the operational folder's local Claude Code settings and the backup
  *    LaunchAgent — and the agent is registered with launchd unless launchd already knows it. The
@@ -280,8 +280,23 @@ function setUpPrivate(context, privateUrl, steps) {
   }
 }
 
+export function checkFormatterDependencies(engineRoot) {
+  const expected = JSON.parse(readFileSync(join(engineRoot, "package.json"), "utf8"))
+    .devDependencies?.prettier;
+  const installed = JSON.parse(
+    readFileSync(join(engineRoot, "node_modules/prettier/package.json"), "utf8"),
+  );
+  if (
+    !expected ||
+    installed.version !== expected ||
+    !existsSync(join(engineRoot, "node_modules/prettier/index.mjs"))
+  )
+    throw new Error("The pinned root formatter dependency is missing or out of date.");
+}
+
 function dependenciesReady(context) {
   try {
+    context.checkFormatterDependencies(context.engineRoot);
     context.checkDependencies(join(context.engineRoot, "tools", "cv-builder"));
     return true;
   } catch {
@@ -365,7 +380,20 @@ export function checkMachine(context, { operational }) {
       "core.hooksPath does not name this clone's tools/git-hooks.",
     );
   }
-  const checked = { hooks_path: true, layer: layer.status, toolchain };
+  try {
+    context.checkFormatterDependencies(context.engineRoot);
+  } catch {
+    fail(
+      "setup_machine_install_failed",
+      "The pinned formatter dependency is unavailable; run npm ci in the engine clone.",
+    );
+  }
+  const checked = {
+    hooks_path: true,
+    formatter_dependencies: true,
+    layer: layer.status,
+    toolchain,
+  };
   if (!operational) return checked;
 
   assertOperationalFolder(context);
@@ -439,6 +467,7 @@ export function defaultContext({ engineRoot = repoRoot, env = process.env } = {}
   return {
     candidateRoot: join(root, PRIVATE_DIRECTORY_NAME),
     checkDependencies: checkCvBuilderDependencies,
+    checkFormatterDependencies,
     checkToolchain: realCheckToolchain,
     commands: { git: ["git"], launchctl: ["launchctl"], npm: ["npm"] },
     engineRoot: root,
