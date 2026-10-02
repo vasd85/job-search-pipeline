@@ -64,7 +64,6 @@ const EXPECTED_HOOKS = {
   PreToolUse: [
     {
       hooks: [
-        { command: EXPECTED_HOOK_COMMAND, type: "command" },
         { command: EXPECTED_SECOND_HOOK_COMMAND, type: "command" },
       ],
       matcher: EXPECTED_MATCHER,

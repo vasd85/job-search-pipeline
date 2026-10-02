@@ -135,11 +135,6 @@ test("factory-created roots pass direct and child validation with hooks disabled
       {
         hooks: [
           {
-            command:
-              'node "${CLAUDE_PROJECT_DIR}/.claude/hooks/operational-write-boundary.mjs"',
-            type: "command",
-          },
-          {
             command: 'node "${CLAUDE_PROJECT_DIR}/.claude/hooks/write-guard.mjs"',
             type: "command",
           },
