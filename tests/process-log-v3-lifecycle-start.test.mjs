@@ -106,20 +106,64 @@ function runV3StartChild(ledgerPath, sourceRef) {
     );
     process.stdout.write(JSON.stringify(result));
   `;
+  return runStartChildScript(script, {
+    ...process.env,
+    ...disposableWorkspaceEnv(environment),
+    TEST_V3_SOURCE: sourceRef,
+  });
+}
+
+function runStartChildScript(script, env = process.env) {
   return new Promise((resolveRun) => {
     execFile(process.execPath, ["--input-type=module", "--eval", script], {
       cwd: repoRoot,
       encoding: "utf8",
-      env: {
-        ...process.env,
-        ...disposableWorkspaceEnv(environment),
-        TEST_V3_SOURCE: sourceRef,
-      },
+      env,
     }, (error, stdout, stderr) => {
-      resolveRun({ code: error?.code ?? 0, stderr, stdout });
+      resolveRun({ code: error ? error.code ?? null : 0, signal: error?.signal ?? null, stderr, stdout });
     });
   });
 }
+
+function assertStartChildrenSucceeded(results) {
+  const failures = results.flatMap((result, index) => result.code === 0 && !result.signal ? [] : [{
+    index,
+    code: result.code,
+    signal: result.signal ?? null,
+    stdout: result.stdout.slice(-1_024),
+    stderr: result.stderr.slice(-1_024),
+  }]);
+  assert.deepEqual(results.map((result) => result.signal ?? result.code), Array(results.length).fill(0),
+    `parallel start child failures (output tails): ${JSON.stringify(failures)}`);
+}
+
+test("parallel start failures report bounded child output, index and signal", () => {
+  assert.throws(() => assertStartChildrenSucceeded([
+    { code: 0, stdout: "success output", stderr: "" },
+    { code: 1, signal: "SIGTERM", stdout: "x".repeat(10_000), stderr: "y".repeat(10_000) + "failure-tail" },
+  ]), (error) => {
+    assert.match(error.message, /"index":1/);
+    assert.match(error.message, /"code":1/);
+    assert.match(error.message, /SIGTERM/);
+    assert.match(error.message, /failure-tail/);
+    assert.doesNotMatch(error.message, /success output/);
+    assert.ok(error.message.length < 4_000);
+    return true;
+  });
+});
+
+test("parallel start diagnostics reject a real signal-terminated child", async () => {
+  const result = await runStartChildScript(
+    'process.stdout.write("before-signal"); process.stderr.write("signal-failure", () => process.kill(process.pid, "SIGTERM"));',
+  );
+  assert.throws(() => assertStartChildrenSucceeded([result]), (error) => {
+    assert.match(error.message, /"index":0/);
+    assert.match(error.message, /SIGTERM/);
+    assert.match(error.message, /before-signal/);
+    assert.match(error.message, /signal-failure/);
+    return true;
+  });
+});
 
 test("deterministic constructors create one running Step 1 and four independent pristine steps", () => {
   const pending = createPendingFileBackedStep();
@@ -798,7 +842,7 @@ test("parallel v3 starts share the locked writer and preserve every temporary-le
       runV3StartChild(ledgerPath, `parallel-v3-start:${index}`)),
   );
 
-  assert.deepEqual(results.map((result) => result.code), Array(attempts).fill(0));
+  assertStartChildrenSucceeded(results);
   const log = readLogV3(ledgerPath);
   assert.equal(log.processes.length, attempts);
   assert.equal(new Set(log.processes.map((record) => record.id)).size, attempts);
@@ -817,7 +861,7 @@ test("parallel v3 starts for one source create once and return duplicate metadat
       runV3StartChild(ledgerPath, "parallel-v3-duplicate:same")),
   );
 
-  assert.deepEqual(results.map((result) => result.code), Array(attempts).fill(0));
+  assertStartChildrenSucceeded(results);
   const statuses = results.map((result) => JSON.parse(result.stdout).status);
   assert.equal(statuses.filter((status) => status === "created").length, 1);
   assert.equal(statuses.filter((status) => status === "duplicate").length, attempts - 1);
@@ -837,7 +881,7 @@ test("parallel starts with colliding tracking identities create once and report 
       )),
   );
 
-  assert.deepEqual(results.map((result) => result.code), Array(attempts).fill(0));
+  assertStartChildrenSucceeded(results);
   const payloads = results.map((result) => JSON.parse(result.stdout));
   assert.equal(payloads.filter((result) => result.status === "created").length, 1);
   const duplicates = payloads.filter((result) => result.status === "duplicate");
@@ -860,7 +904,7 @@ test("parallel starts with distinct meaningful identities create one process eac
       )),
   );
 
-  assert.deepEqual(results.map((result) => result.code), Array(attempts).fill(0));
+  assertStartChildrenSucceeded(results);
   const payloads = results.map((result) => JSON.parse(result.stdout));
   assert.equal(payloads.filter((result) => result.status === "created").length, attempts);
   assert.equal(readLogV3(ledgerPath).processes.length, attempts);
