@@ -415,6 +415,39 @@ test(
       });
     });
 
+    let undrainedOutcome = "timeout";
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      if (browser.exitCode !== null) {
+        undrainedOutcome = `exit ${browser.exitCode}`;
+        break;
+      }
+      const activePortPath = join(profilePath, "DevToolsActivePort");
+      if (existsSync(activePortPath)) {
+        const [port] = readFileSync(activePortPath, "utf8").trim().split("\n");
+        if (/^\d+$/.test(port)) {
+          undrainedOutcome = `ready ${port}`;
+          break;
+        }
+      }
+      await delay(50);
+    }
+    const beforeDrain = `exit ${browser.exitCode}; signal ${browser.signalCode}; buffered ${browser.stderr.readableLength}`;
+    let stderrBytes = 0;
+    let stderrTail = "";
+    browser.stderr.on("data", (chunk) => {
+      stderrBytes += Buffer.byteLength(chunk);
+      stderrTail = (stderrTail + chunk).slice(-8_192);
+    });
+    let drainedOutcome;
+    try {
+      const recoveredPort = await waitForDevTools(profilePath, browser);
+      drainedOutcome = `ready ${recoveredPort}`;
+    } catch (error) {
+      drainedOutcome = error.message;
+    }
+    await delay(100);
+    assert.fail(`Chrome causal probe: undrained=${undrainedOutcome}; before drain=${beforeDrain}; drained=${drainedOutcome}; stderr bytes=${stderrBytes}; stderr tail=${stderrTail}`);
+
     const devToolsPort = await waitForDevTools(profilePath, browser);
     const targets = await (
       await fetch(`http://127.0.0.1:${devToolsPort}/json/list`)
