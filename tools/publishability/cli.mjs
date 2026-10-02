@@ -3,10 +3,8 @@
 /**
  * Is this tree ready to be published, and by how much is it not.
  *
- * Report mode is the default and prints counts; it does not refuse. That is the point of the first
- * stage: a number that falls as the cleanup tasks land, rather than a wall nobody can get past
- * while the tree is still half moved. `--blocking` is the same scan with a verdict, and turning it
- * on inside the aggregate gate belongs to the export task, not here.
+ * Report mode is the default and prints counts without refusing findings. `--blocking` adds a
+ * verdict, and the aggregate gate uses that verdict for every tracked public path.
  *
  * The candidate root is an explicit argument with no default. A reader that resolved the layer by
  * itself would read the operator's real candidate from a check, which is the rule
