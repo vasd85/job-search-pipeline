@@ -106,30 +106,34 @@ function runV3StartChild(ledgerPath, sourceRef) {
     );
     process.stdout.write(JSON.stringify(result));
   `;
+  return runStartChildScript(script, {
+    ...process.env,
+    ...disposableWorkspaceEnv(environment),
+    TEST_V3_SOURCE: sourceRef,
+  });
+}
+
+function runStartChildScript(script, env = process.env) {
   return new Promise((resolveRun) => {
     execFile(process.execPath, ["--input-type=module", "--eval", script], {
       cwd: repoRoot,
       encoding: "utf8",
-      env: {
-        ...process.env,
-        ...disposableWorkspaceEnv(environment),
-        TEST_V3_SOURCE: sourceRef,
-      },
+      env,
     }, (error, stdout, stderr) => {
-      resolveRun({ code: error?.code ?? 0, signal: error?.signal ?? null, stderr, stdout });
+      resolveRun({ code: error ? error.code ?? null : 0, signal: error?.signal ?? null, stderr, stdout });
     });
   });
 }
 
 function assertStartChildrenSucceeded(results) {
-  const failures = results.flatMap((result, index) => result.code === 0 ? [] : [{
+  const failures = results.flatMap((result, index) => result.code === 0 && !result.signal ? [] : [{
     index,
     code: result.code,
     signal: result.signal ?? null,
     stdout: result.stdout.slice(-1_024),
     stderr: result.stderr.slice(-1_024),
   }]);
-  assert.deepEqual(results.map((result) => result.code), Array(results.length).fill(0),
+  assert.deepEqual(results.map((result) => result.signal ?? result.code), Array(results.length).fill(0),
     `parallel start child failures (output tails): ${JSON.stringify(failures)}`);
 }
 
@@ -144,6 +148,19 @@ test("parallel start failures report bounded child output, index and signal", ()
     assert.match(error.message, /failure-tail/);
     assert.doesNotMatch(error.message, /success output/);
     assert.ok(error.message.length < 4_000);
+    return true;
+  });
+});
+
+test("parallel start diagnostics reject a real signal-terminated child", async () => {
+  const result = await runStartChildScript(
+    'process.stdout.write("before-signal"); process.stderr.write("signal-failure", () => process.kill(process.pid, "SIGTERM"));',
+  );
+  assert.throws(() => assertStartChildrenSucceeded([result]), (error) => {
+    assert.match(error.message, /"index":0/);
+    assert.match(error.message, /SIGTERM/);
+    assert.match(error.message, /before-signal/);
+    assert.match(error.message, /signal-failure/);
     return true;
   });
 });
