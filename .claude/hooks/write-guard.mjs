@@ -55,8 +55,7 @@
  *   marker constants are copies of the folder tool's, held equal by a test: a
  *   guard whose import breaks does not start, and a runtime reads a hook that
  *   did not start as "allow".
- * - **The session is `payload.cwd`.** A `cd` in the shell moves it, exactly as
- *   it moves the previous guard's.
+ * - **The session is `payload.cwd`.** A `cd` in the shell moves it.
  *
  * What it does not close: the shell channel (open in the desktop runtime),
  * Codex and any other agent that does not run this hook, file-writing tools
@@ -65,17 +64,8 @@
  * this file. Whether the desktop runtime fires a project hook in a folder
  * without `.git` has been measured only in the terminal CLI.
  *
- * The switch. This file is registered beside the previous guard,
- * `operational-write-boundary.mjs`; both run on every write and either one's
- * refusal refuses. On today's checkouts, which carry no marker, this guard
- * allows everything and the previous one holds the boundary. The first
- * release exported into a marked folder carries both, so that folder is
- * guarded from its first session. On the day of the switch one commit in the
- * new engine repository removes the previous guard's entry from
- * `.claude/settings.json` together with the two tests that freeze the
- * registration — before the first development write into the nested
- * `candidate/` repository, which the previous guard refuses to the engine
- * clone. The switch-day runbook owns that step.
+ * The tracked settings register this guard. The rights matrix and registration
+ * are checked by the surviving runtime suites.
  */
 
 import {
