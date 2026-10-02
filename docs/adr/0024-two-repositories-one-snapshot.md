@@ -269,12 +269,12 @@ the flow.
 - (−) The price is the largest change this project has taken: by the report's own count twenty to
   twenty-five tasks, and up to forty if the correction it applies to every architect applies to
   its author too. That is two to three times what remains of epic 146, and most of it runs under
-  the old heavy ceremony, because the old flow governs until the day of the switch.
+  the heavy ceremony of the predecessor flow during the transition.
 - (+) A great deal is deleted rather than retargeted. Three lanes and the table that derived them,
   direct commits to `main`, the range-diff and fast-forward transfer proofs, operational
   fingerprints, the review round caps, the protected-zone globs as a trigger, roughly 105
   assertions guarding the text of the development runbook, the absolute paths in a claim, the
-  task-worktree tool, the workspace reset tool, the topological write guard, the invariant that
+  task working-copy tool, the workspace reset tool, the topological write guard, the invariant that
   bans pushing while there is no remote, and the export exclusion list after the single export.
   What stays is the task format, red-before-green for defects, the one aggregate command, the
   loader contract and its fictional example, the corpus guard, the log locks and the daily backup.

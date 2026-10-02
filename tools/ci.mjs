@@ -123,7 +123,6 @@ export const EXPECTED_TEST_FILES = Object.freeze([
   join("tests", "disposable-workspace.test.mjs"),
   join("tests", "docx-extract.test.mjs"),
   join("tests", "docx-inspector.test.mjs"),
-  join("tests", "export-exclusions.test.mjs"),
   join("tests", "file-backed-pipeline-e2e.test.mjs"),
   join("tests", "git-hooks.test.mjs"),
   join("tests", "instruction-contracts.test.mjs"),
@@ -133,8 +132,6 @@ export const EXPECTED_TEST_FILES = Object.freeze([
   join("tests", "letter-corrections.test.mjs"),
   join("tests", "libreoffice-backend.test.mjs"),
   join("tests", "operational-backup.test.mjs"),
-  join("tests", "operational-fingerprint.test.mjs"),
-  join("tests", "operational-write-boundary.test.mjs"),
   join("tests", "ops-tree.test.mjs"),
   join("tests", "pipeline-artifacts.test.mjs"),
   join("tests", "pipeline-contract-scenarios.test.mjs"),
@@ -155,7 +152,6 @@ export const EXPECTED_TEST_FILES = Object.freeze([
   join("tests", "process-search-server.test.mjs"),
   join("tests", "process-search-view-model.test.mjs"),
   join("tests", "proxies.test.mjs"),
-  join("tests", "public-export.test.mjs"),
   join("tests", "public-links.test.mjs"),
   join("tests", "publishability.test.mjs"),
   join("tests", "push-guard.test.mjs"),
@@ -164,41 +160,16 @@ export const EXPECTED_TEST_FILES = Object.freeze([
   join("tests", "setup-github.test.mjs"),
   join("tests", "setup-machine.test.mjs"),
   join("tests", "source-key-v2-cutover.test.mjs"),
-  join("tests", "task-worktree.test.mjs"),
   join("tests", "telegram-collect.test.mjs"),
   join("tests", "toolchain-preflight.test.mjs"),
   join("tests", "triage-ledger.test.mjs"),
   join("tests", "triage-verify.test.mjs"),
   join("tests", "vacancy-fetch.test.mjs"),
-  join("tests", "workspace-reset.test.mjs"),
   join("tests", "write-guard.test.mjs"),
 ]);
 
-export const EXPECTED_SOURCE_TEST_FILES = Object.freeze([
-  ...EXPECTED_TEST_FILES, join("tests", "legacy-governance.test.mjs"),
-].sort());
-
-/** Absence of the seal is legal only for a complete public shape, never a partial source tree. */
-export function sourceLayout(root) {
-  const marker = join(root, "config", "source-layout.json");
-  if (existsSync(marker)) {
-    let data;
-    try { data = JSON.parse(readFileSync(marker, "utf8")); } catch { throw new CiError("ci_test_inventory_drift", "Source layout seal is unreadable."); }
-    if (JSON.stringify(data) !== JSON.stringify({ schema_version: 1, layout: "source" })) throw new CiError("ci_test_inventory_drift", "Source layout seal is invalid.");
-    for (const path of ["docs/runbooks/development-gitflow.md", "docs/backlog/README.md", "tests/legacy-governance.test.mjs", "config/section-link-source-exceptions.json"]) {
-      if (!existsSync(join(root, path))) throw new CiError("ci_test_inventory_drift", "Source layout is missing a legacy owner or pin suite.");
-    }
-    return "source";
-  }
-  for (const path of ["docs/backlog", "docs/archive", "docs/research", "docs/audits", "reference", "docs/product-decisions.md", "docs/runbooks/development-gitflow.md", "tests/legacy-governance.test.mjs", "config/section-link-source-exceptions.json"]) {
-    if (existsSync(join(root, path))) throw new CiError("ci_test_inventory_drift", "An unsealed tree still carries private predecessor content.");
-  }
-  return "public";
-}
-export function instructionTestFiles(root) {
-  return sourceLayout(root) === "source"
-    ? [join("tests", "instruction-contracts.test.mjs"), join("tests", "legacy-governance.test.mjs")]
-    : [join("tests", "instruction-contracts.test.mjs")];
+export function instructionTestFiles() {
+  return [join("tests", "instruction-contracts.test.mjs")];
 }
 
 /**
@@ -303,7 +274,7 @@ function enumerateTestFiles(workspaceRoot) {
   // Both directions: a frozen name with no file on disk, and a file on disk with
   // no frozen name. One direction alone would let a rename pass as an addition.
   const present = new Set(files);
-  const expected = sourceLayout(workspaceRoot) === "source" ? EXPECTED_SOURCE_TEST_FILES : EXPECTED_TEST_FILES;
+  const expected = EXPECTED_TEST_FILES;
   const missing = expected.filter((path) => !present.has(path));
   const unexpected = files.filter((path) => !expected.includes(path));
   if (missing.length > 0 || unexpected.length > 0) {

@@ -70,7 +70,7 @@ const PINNED_MARKER_SOURCES = ["tools/publishability/", "tests/publishability.te
 // The tracked example's shape, frozen here. Read back out of the example it would be a tautology:
 // trimming the example to one marker and an empty data list would keep the case green.
 const PINNED_EXAMPLE_MARKERS = 10;
-const PINNED_EXAMPLE_DATA_PATHS = 37;
+const PINNED_EXAMPLE_DATA_PATHS = 35;
 // Ids name what a marker is, never what it matches, because the report prints every declared id.
 const PINNED_EXAMPLE_IDS = [
   "application.1",
@@ -105,16 +105,10 @@ function tree(t, files) {
   return { paths: Object.keys(files), root };
 }
 
-/** A tiny git repository with an exclusion list, so the shipped entry point can be driven on it. */
+/** A tiny git repository with tracked files, so the shipped entry point can be driven on it. */
 function repository(t, files) {
   const root = disposableRoot(t);
   execFileSync("git", ["init", "-q"], { cwd: root });
-  mkdirSync(join(root, "config"), { recursive: true });
-  writeFileSync(join(root, "config", "export-exclusions.json"), JSON.stringify({
-    exclude: [{ kind: "directory", path: "docs/archive/", why: "history" }],
-    keep: [],
-    schema_version: 1,
-  }));
   for (const [path, body] of Object.entries(files)) {
     const absolute = join(root, path);
     mkdirSync(dirname(absolute), { recursive: true });
@@ -560,35 +554,32 @@ test("the report rolls up by file and bounds what it prints", (t) => {
       `a/file-${String(index).padStart(3, "0")}.md`,
       "docs/archive/x.md\n".repeat(index + 1),
     ])),
-    // Excluded, and with more findings than anything exported: without the area filter it would
-    // lead the roll-up, and nothing else in this case would notice.
+    // Every tracked path participates, including predecessor-looking directory names.
     "docs/archive/loudest.md": "docs/archive/x.md\n".repeat(count + 50),
     // A marker source, to prove `scanned` counts files read rather than paths git listed.
     "tests/publishability.test.mjs": "docs/archive/x.md\n",
   });
 
   const { report } = run({ argv: [], root });
-  assert.equal(report.files_with_findings, count);
+  assert.equal(report.files_with_findings, count + 1);
   assert.equal(report.files.length, REPORTED_FILE_LIMIT);
-  assert.equal(report.files_omitted, 3);
-  // Files actually read: the exclusion list, the excluded file and the rest. The marker source is
-  // not among them — it is counted by `skipped` on the next line, and the three add up to the 25
-  // paths git lists here.
-  assert.equal(report.scanned, count + 2);
+  assert.equal(report.files_omitted, 4);
+  // All tracked files are read except the marker source, counted as skipped.
+  assert.equal(report.scanned, count + 1);
   assert.equal(report.absent, 0);
   assert.equal(report.skipped, 1);
   for (const entry of report.files) assert.equal(entry.exported, true);
-  assert.ok(report.files.every((entry) => !entry.path.startsWith("docs/archive/")));
+  assert.equal(report.files[0].path, "docs/archive/loudest.md");
   // Descending, so the file worth opening first is the first one printed, and the roll-up is cut
   // after sorting rather than before.
   const totals = report.files.map((entry) => entry.total);
   assert.deepEqual([...totals].sort((left, right) => right - left), totals);
-  assert.equal(totals[0], count);
+  assert.equal(totals[0], count + 50);
   assert.equal(report.findings, undefined);
 
   const listed = run({ argv: ["--list"], root }).report.findings;
   assert.ok(listed.length > 0);
-  assert.ok(listed.every((finding) => !finding.path.startsWith("docs/archive/")));
+  assert.ok(listed.some((finding) => finding.path === "docs/archive/loudest.md"));
   for (const finding of listed) {
     assert.deepEqual(Object.keys(finding).sort(), ["class", "exported", "line", "marker", "path"]);
     assert.equal(finding.exported, true);
@@ -599,35 +590,28 @@ test("the blocking flag is the only difference between reporting and refusing", 
   const root = disposableRoot(t);
   const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" });
   git("init", "-q");
-  mkdirSync(join(root, "config"), { recursive: true });
-  writeFileSync(join(root, "config", "export-exclusions.json"), JSON.stringify({
-    exclude: [{ kind: "directory", path: "docs/archive/", why: "history" }],
-    keep: [],
-    schema_version: 1,
-  }));
   writeFileSync(join(root, "clean.md"), "nothing here\n");
   git("add", "-A");
 
   const clean = () => run({ argv: ["--blocking"], root });
   assert.equal(clean().report.places_exported, 0);
 
-  // A finding inside the area the export leaves behind is reported and must not refuse: it never
-  // reaches a published tree.
+  // A tracked finding refuses even under a predecessor-looking directory name.
   mkdirSync(join(root, "docs", "archive"), { recursive: true });
   writeFileSync(join(root, "docs", "archive", "old.md"), "see docs/archive/older.md\n");
   git("add", "-A");
   const behind = run({ argv: ["--blocking"], root });
   assert.equal(behind.report.places, 1);
-  assert.equal(behind.report.places_exported, 0);
+  assert.equal(behind.report.places_exported, 1);
 
   writeFileSync(join(root, "leak.md"), "see docs/archive/old.md\n");
   git("add", "-A");
   const dirty = run({ argv: ["--blocking"], root });
   assert.equal(dirty.report.places, 2);
-  assert.equal(dirty.report.places_exported, 1);
+  assert.equal(dirty.report.places_exported, 2);
   assert.equal(dirty.parsed.blocking, true);
 
-  // The exit code is `main`'s, and it is the one thing the export task switches on.
+  // The shipped CLI must refuse the same findings as the in-process scan.
   const exits = (args) => {
     const result = execFileSync(process.execPath, [cliPath, ...args], {
       cwd: root,
@@ -637,22 +621,23 @@ test("the blocking flag is the only difference between reporting and refusing", 
     return JSON.parse(result);
   };
   assert.equal(exits([]).status, "reported");
-  assert.equal(exits([]).places_exported, 1);
+  assert.equal(exits([]).places_exported, 2);
   assert.throws(() => exits(["--blocking"]), (error) => {
     assert.equal(error.status, 1);
     assert.equal(JSON.parse(error.stdout).status, "findings");
     return true;
   });
 
-  // The verdict itself, on the one tree where the two counters disagree: a finding that sits only
-  // in the area the export leaves behind must not refuse. Asserting the report's numbers is not
-  // enough — `blocked` is computed in `main`, and it is the exit code the export task switches on.
+  // A predecessor-looking path is still public when tracked; the shipped CLI refuses it.
   rmSync(join(root, "leak.md"));
   git("add", "-A");
-  const behindOnly = exits(["--blocking"]);
-  assert.equal(behindOnly.status, "reported");
-  assert.equal(behindOnly.places, 1);
-  assert.equal(behindOnly.places_exported, 0);
+  assert.throws(() => exits(["--blocking"]), (error) => {
+    assert.equal(error.status, 1);
+    const report = JSON.parse(error.stdout);
+    assert.equal(report.status, "findings");
+    assert.equal(report.places_exported, 1);
+    return true;
+  });
 });
 
 test("a real markers file copied over the example refuses the blocking gate", (t) => {
@@ -822,4 +807,10 @@ test("blocking CLI refuses a missing tracked file rather than a clean-looking re
   const child = spawnSync(process.execPath, [cliPath, "--blocking"], {encoding:"utf8", env:{...process.env, JOB_PIPELINE_WORKSPACE_ROOT:root}});
   assert.equal(child.status, 1);
   assert.equal(JSON.parse(child.stdout).absent, 1);
+});
+
+test("tracked scan requires no export filter", (t) => {
+  const root = repository(t, { "README.md": "# Public engine\n" });
+  const { report } = run({ argv: ["--blocking"], root });
+  assert.equal(report.places_exported, 0);
 });

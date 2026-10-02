@@ -192,8 +192,8 @@ function fixtureFolder(t, { control = PASSING, extra = {}, withState = true } = 
     writeFileSync(join(root, "process-log.json"), `${JSON.stringify(createValidV3Log(), null, 2)}\n`);
     mkdirSync(join(root, "output/example-labs-senior-sdet"), { recursive: true });
     writeFileSync(join(root, "output/example-labs-senior-sdet/cv.json"), "{}\n");
-    mkdirSync(join(root, "candidate/research/letter-corrections"), { recursive: true });
-    writeFileSync(join(root, "candidate/research/letter-corrections/record.json"), "{\"id\":1}\n");
+    mkdirSync(join(root, "records/letter-corrections"), { recursive: true });
+    writeFileSync(join(root, "records/letter-corrections/record.json"), "{\"id\":1}\n");
     writeFileSync(join(root, ".claude/settings.local.json"), "{\"local\":true}\n");
   }
   return { base, candidateRepo, engineRepo, root };
@@ -305,7 +305,7 @@ test("the zone table: state, handover, service and metadata are never digested; 
   const zones = zoneTableFor("operational");
   assert.equal(zoneOf(zones, "process-log.json.lock.claim-1"), "state");
   assert.equal(zoneOf(zones, "process-log.backup-pre-cutover.json"), "state");
-  assert.equal(zoneOf(zones, "candidate/research/x"), "state");
+  assert.equal(zoneOf(zones, "candidate/research/x"), "candidate");
   assert.equal(zoneOf(zones, ".claude/settings.local.json"), "state");
   assert.equal(zoneOf(zones, ".claude/.cc-writes/x"), "state");
   assert.equal(zoneOf(zones, ".claude/settings.json"), "engine");
@@ -352,7 +352,7 @@ test("verify ignores the state, handover and service zones and .DS_Store, and fa
   writeFileSync(join(root, "triage-ledger.json"), "{}\n");
   mkdirSync(join(root, ".temp-docs"));
   writeFileSync(join(root, "tools/.DS_Store"), "x");
-  writeFileSync(join(root, "candidate/research/letter-corrections/record-2.json"), "{}\n");
+  writeFileSync(join(root, "records/letter-corrections/record-2.json"), "{}\n");
   assert.equal(verifyFolder(root).status, "clean");
   rmSync(join(root, MANIFEST_FILE_NAME));
   assertCode(() => verifyFolder(root), "ops_manifest_missing");
@@ -373,7 +373,7 @@ test("cutover replaces both zones, drops files the release left, keeps the state
     ledger: readFileSync(join(root, "process-log.json"), "utf8"),
     local: readFileSync(join(root, ".claude/settings.local.json"), "utf8"),
     output: readFileSync(join(root, "output/example-labs-senior-sdet/cv.json"), "utf8"),
-    research: readFileSync(join(root, "candidate/research/letter-corrections/record.json"), "utf8"),
+    research: readFileSync(join(root, "records/letter-corrections/record.json"), "utf8"),
   };
   nextRelease(fixture, "release-20260902", { "docs/guide.md": null, "docs/new.md": "new\n" });
   commitAndTag(fixture.candidateRepo, { "profile.md": "# Fixture profile v2\n" }, "candidate-20260902");
@@ -387,7 +387,7 @@ test("cutover replaces both zones, drops files the release left, keeps the state
     ledger: readFileSync(join(root, "process-log.json"), "utf8"),
     local: readFileSync(join(root, ".claude/settings.local.json"), "utf8"),
     output: readFileSync(join(root, "output/example-labs-senior-sdet/cv.json"), "utf8"),
-    research: readFileSync(join(root, "candidate/research/letter-corrections/record.json"), "utf8"),
+    research: readFileSync(join(root, "records/letter-corrections/record.json"), "utf8"),
   }, stateBefore);
   const manifest = readManifest(root);
   assert.equal(manifest.engine.tag, "release-20260902");
@@ -611,7 +611,7 @@ test("a reversal never deletes an image holding a state file the folder has repl
   );
   assert.equal(readFileSync(join(root, ".claude/settings.local.json"), "utf8"), "{\"written\":\"meanwhile\"}\n");
   assert.equal(
-    readFileSync(join(root, "candidate/research/letter-corrections/record.json"), "utf8"),
+    readFileSync(join(root, "records/letter-corrections/record.json"), "utf8"),
     "{\"id\":1}\n",
     "the corpus came back",
   );
@@ -682,12 +682,12 @@ test("the lock: a live holder refuses, an abandoned one is taken over by exactly
 test("a staging leftover holding state other than the ledger copy refuses the next cutover", (t) => {
   const fixture = fixtureFolder(t);
   const leftover = join(fixture.root, ".ops-tree/staging/20260901T000000.000Z");
-  mkdirSync(join(leftover, "candidate/research"), { recursive: true });
-  writeFileSync(join(leftover, "candidate/research/record.json"), "{}\n");
+  mkdirSync(join(leftover, "records"), { recursive: true });
+  writeFileSync(join(leftover, "records/record.json"), "{}\n");
   nextRelease(fixture, "release-20260902", { "docs/new.md": "new\n" });
   const input = { candidate: "candidate-20260901", release: "release-20260902", root: fixture.root };
   assertCode(() => cutoverFolder(input, context()), "ops_tree_staging_holds_state");
-  rmSync(join(leftover, "candidate"), { recursive: true });
+  rmSync(join(leftover, "records"), { recursive: true });
   writeFileSync(join(leftover, "process-log.json"), "{}\n");
   writeFileSync(join(leftover, "process-log.json.lock.claim-1"), "x");
   assert.equal(cutoverFolder(input, context()).status, "cut_over");
@@ -817,14 +817,14 @@ test("a cutover killed while the root has no tools/ is recovered by the retained
 
 test("a cutover killed with tools/ still in place is recovered by the folder's own rollback; state survives", (t) => {
   const root = realFolder(t);
-  mkdirSync(join(root, "candidate/research"), { recursive: true });
-  writeFileSync(join(root, "candidate/research/record.json"), "{\"kept\":true}\n");
+  mkdirSync(join(root, "records"), { recursive: true });
+  writeFileSync(join(root, "records/record.json"), "{\"kept\":true}\n");
   mkdirSync(join(root, ".claude"), { recursive: true });
   writeFileSync(join(root, ".claude/settings.local.json"), "{\"local\":true}\n");
   const before = treeSnapshot(root);
   const child = interruptedCutover(t, root, { signal: "SIGKILL", stopWhen: "from:.github" });
   assert.equal(child.signal, "SIGKILL");
-  assert.equal(existsSync(join(root, "candidate/research")), false, "the corpus was in the image when the run died");
+  assert.equal(existsSync(join(root, "records/record.json")), true, "state stays in the root during the swap");
   assertCode(() => verifyFolder(root), "ops_tree_building");
 
   const recovered = runCli(join(root, "tools/ops-tree/cli.mjs"), ["rollback"]);
@@ -834,7 +834,7 @@ test("a cutover killed with tools/ still in place is recovered by the folder's o
     if (path.startsWith(".ops-tree/")) continue;
     assert.equal(after[path], row, path);
   }
-  assert.equal(readFileSync(join(root, "candidate/research/record.json"), "utf8"), "{\"kept\":true}\n");
+  assert.equal(readFileSync(join(root, "records/record.json"), "utf8"), "{\"kept\":true}\n");
   assert.equal(verifyFolder(root).status, "clean");
 });
 
@@ -954,4 +954,29 @@ test("the call points: the triage batch and the Telegram sweep refuse a drifted 
     writeFileSync(join(root, path), original);
   }
   passes();
+});
+
+test("new folders have no mutable private research exception; historical tables retain it", () => {
+  const zones = zoneTableFor("operational");
+  assert.equal(zoneOf(zones, "candidate/research/note.md"), "candidate");
+  const historical = { ...zones, stateNested: [...zones.stateNested, "candidate/research"] };
+  assert.equal(zoneOf(historical, "candidate/research/note.md"), "state");
+});
+
+test("historical manifest zones survive verification and rollback; residual research requires removal", (t) => {
+  const fixture = fixtureFolder(t, { withState: false });
+  const { root } = fixture;
+  const marker = readManifest(root);
+  marker.zones.stateNested.push("candidate/research");
+  writeFileSync(join(root, "ops-manifest.json"), `${JSON.stringify(marker, null, 2)}\n`);
+  mkdirSync(join(root, "candidate/research"), { recursive: true });
+  writeFileSync(join(root, "candidate/research/note.md"), "historical state\n");
+  assert.equal(verifyFolder(root).status, "clean");
+  nextRelease(fixture, "release-20260902", { "docs/new.md": "new\n" });
+  cutoverFolder({ candidate: "candidate-20260901", release: "release-20260902", root }, context());
+  assert.equal(readFileSync(join(root, "candidate/research/note.md"), "utf8"), "historical state\n");
+  assertCode(() => verifyFolder(root), "candidate_snapshot_drift");
+  rollbackFolder({ root }, context({ now: () => new Date("2026-09-25T12:00:00.000Z") }));
+  assert.equal(zoneOf(readManifest(root).zones, "candidate/research/note.md"), "state");
+  assert.equal(verifyFolder(root).status, "clean");
 });

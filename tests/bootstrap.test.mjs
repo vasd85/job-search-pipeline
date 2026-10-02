@@ -1435,9 +1435,9 @@ test("seed placement names every refusal direction and never guesses", (t) => {
   }
 });
 
-test("the seed detector scrubs the same git redirection variables as the write boundary", () => {
+test("the seed detector scrubs the pinned git redirection variables", () => {
   // Frozen as a literal rather than read back out of the module under test. The list is the
-  // hook's, not the CI runner's: `GIT_COMMON_DIR` is what the primary-worktree check compares,
+  // seed detector's, not the CI runner's: `GIT_COMMON_DIR` is what the primary-worktree check compares,
   // and the runner's list does not carry it.
   assert.deepEqual([...GIT_REDIRECTION_VARIABLES], [
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
@@ -1448,10 +1448,7 @@ test("the seed detector scrubs the same git redirection variables as the write b
     "GIT_OBJECT_DIRECTORY",
     "GIT_WORK_TREE",
   ]);
-  const hook = readFileSync(join(repoRoot, ".claude/hooks/operational-write-boundary.mjs"), "utf8");
-  for (const name of GIT_REDIRECTION_VARIABLES) {
-    assert.equal(hook.includes(`"${name}"`), true, `the write boundary does not scrub ${name}`);
-  }
+
 });
 
 test("init seeds the candidate layer in a rehearsal worktree", (t) => {

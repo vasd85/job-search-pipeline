@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, readdirSync, lstatSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { candidateHeadingAnchors } from "./candidate/manifest.mjs";
-import { isExcluded, loadExportExclusions } from "./export-exclusions.mjs";
 
 // Preserve offsets while omitting fenced blocks and complete single-line code spans.
 function renderedLinkText(text) {
@@ -26,7 +25,7 @@ function renderedLinkText(text) {
 }
 
 /** Validate the local links that a reader of the public snapshot can follow. */
-export function checkPublicLinks({ root, files, exclusions = loadExportExclusions({ root }) }) {
+export function checkPublicLinks({ root, files }) {
   if (files === undefined) {
     files = [];
     const walk = (path) => {
@@ -34,7 +33,7 @@ export function checkPublicLinks({ root, files, exclusions = loadExportExclusion
         const next = path ? `${path}/${entry.name}` : entry.name;
         if ([".git", "node_modules", ".temp-docs"].includes(entry.name) || next === "candidate") continue;
         if (entry.isDirectory()) walk(next);
-        else if (entry.isFile() && next.endsWith(".md") && !isExcluded(next, exclusions)) files.push(next);
+        else if (entry.isFile() && next.endsWith(".md")) files.push(next);
       }
     };
     walk("");
@@ -64,7 +63,7 @@ export function checkPublicLinks({ root, files, exclusions = loadExportExclusion
       // A configured layer is optional; its public example owns the promised path/heading parity.
       const actual = local.startsWith("candidate/")
         ? join(root, "candidate.example", local.slice("candidate/".length)) : target;
-      if ((!local.startsWith("candidate/") && isExcluded(local, exclusions)) || !existsSync(actual)) {
+      if (!existsSync(actual)) {
         fail("Local link target is absent from the public snapshot."); continue;
       }
       let linked = false;

@@ -20,11 +20,11 @@ the published arrangement; their status notices identify when it takes effect.
 | [0011](0011-untrusted-input-safe-cli-transport.md) | Untrusted external input and safe CLI transport | Accepted |
 | [0012](0012-versioned-extraction-and-vacancy-v2.md) | Versioned extraction, source capture, and vacancy v2 | Accepted |
 | [0013](0013-versioned-source-keys-and-identity-migration.md) | Versioned source keys and the identity migration path | Accepted |
-| [0014](0014-development-backlog-replaces-remediation-queue.md) | A development backlog replaces the remediation queue | Accepted; post-switch flow superseded by ADR 0024 |
+| [0014](0014-development-backlog-replaces-remediation-queue.md) | A development backlog replaces the remediation queue | Accepted; development flow superseded by ADR 0024 |
 | [0015](0015-lightweight-post-review-revision.md) | Lightweight post-review revision of published CV and cover letter | Accepted; explicit post-publication revision contract |
 | [0017](0017-user-confirmed-honesty-deviation.md) | User-confirmed deviation replaces hard refusal at the honesty floor | Accepted |
 | [0021](0021-uncertainty-tolerant-triage-policy.md) | Triage tolerates uncertainty — absent data scores a defined middle instead of ending the vacancy | Accepted; amended scoring configuration in ADR 0026 |
-| [0022](0022-three-lanes-derived-from-the-diff.md) | Ceremony is three lanes derived from the diff, not two | Accepted; post-switch ceremony superseded in part by ADR 0024 |
+| [0022](0022-three-lanes-derived-from-the-diff.md) | Ceremony is three lanes derived from the diff, not two | Accepted; development ceremony superseded in part by ADR 0024 |
 | [0023](0023-public-engine-and-private-candidate-layer.md) | Publish the engine, keep the candidate in a private layer | Accepted |
 | [0024](0024-two-repositories-one-snapshot.md) | Two repositories, one snapshot | Accepted |
 | [0025](0025-markets-are-candidate-configuration.md) | Markets and the presented location are candidate configuration | Accepted; replaces candidate-specific market and location decisions |
@@ -34,4 +34,4 @@ the published arrangement; their status notices identify when it takes effect.
 
 For development, read [ADR 0024](0024-two-repositories-one-snapshot.md) alongside
 [development-flow](../runbooks/development-flow.md). Older development ADRs explain the earlier
-arrangement; they do not override the switch boundary in that runbook.
+arrangement; they do not override the current procedure in that runbook.

@@ -77,8 +77,7 @@ validated only by this tool.
 
 A place is waived by the pair (marker, path), never by the path alone: one line can match two
 markers whose verdicts differ, and a path-only key would silence both. A path ending in a slash is
-a directory and matches on a segment boundary, the same reading `config/export-exclusions.json`
-uses. Every entry carries a reason, because a waiver nobody can review is a waiver nobody will
+a directory and matches on a segment boundary. Every entry carries a reason, because a waiver nobody can review is a waiver nobody will
 narrow again.
 
 Line numbers are deliberately not part of the key. A number goes stale on any edit above it, and
@@ -95,12 +94,11 @@ the waiver the check would report on every commit and, in blocking mode, refuse 
 there is. The waiver removes its literal and scans what is left, so a real address beside the
 trailer is still reported.
 
-## The area is not decided here
+## Every tracked public path
 
-Which paths the export keeps is answered by `config/export-exclusions.json`, and this tool asks its
-reader rather than carrying a second copy. Every count is reported three ways — total, in the
-exported part, in the excluded part — and the exported number is the one that matters. A file
-dropped from the export disappears from the report with no work here at all.
+The production CLI scans every path returned by `git ls-files`. No export filter hides files.
+The report retains total/exported/excluded fields for API compatibility; tracked public findings
+are exported findings, and blocking mode refuses them. Absent or unreadable tracked files refuse.
 
 ## A marker source is never read by a public marker
 
@@ -197,7 +195,6 @@ those paths remains blocking. Public marker allowances name individual marker/fi
 reviewable reasons; they never silence personal markers. Missing tracked files also refuse the
 aggregate gate. Ordinary diagnostics without either root load no candidate configuration.
 
-Publication uses [the public exporter](../public-export.mjs) and
-[the migration runbook](../../docs/runbooks/publication-switch.md). That separate gate requires
-an explicit real private marker set, checks personal markers even in marker-source files, and
-refuses a ready target until publishability, all local Markdown links and the full CI pass.
+Before pushing, the pre-push guard also scans personal markers, commit messages and the branch
+name. Development sessions scan PR titles and bodies with the private marker set before opening
+a PR, as [the development flow](../../docs/runbooks/development-flow.md#66-commit-push-pull-request) requires.

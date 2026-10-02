@@ -32,7 +32,7 @@ export const LAYER_CORPUS_DIRECTORY = "research/letter-corrections";
 
 /**
  * The file that makes a directory a run root. A development clone has no process log — that
- * absence is its protection (docs/runbooks/write-boundary-map.md#map-of-the-operational-write-boundary) — so a record is refused there rather than
+ * absence is its protection (docs/runbooks/development-flow.md#3-rules-that-do-not-bend) — so a record is refused there rather than
  * written somewhere a run never looks.
  */
 export const RUN_LEDGER_FILE = "process-log.json";

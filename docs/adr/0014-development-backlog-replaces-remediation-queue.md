@@ -45,7 +45,7 @@ way to track project development.
 3. **Ceremony scales with risk, derived from the diff.** The default lane is a task branch plus
    the full test suite and the runtime smoke checklist. A diff touching a protected zone
    (artifact validators, process lifecycle, `knowledge/` canon, `instructions/`, the proxy
-   generator, `tests/` pins) follows the heavy checklist in the development gitflow runbook.
+   generator, `tests/` pins) follows the heavy checklist in the previous development runbook.
    The lane is decided by the touched paths, not by a self-assessed field.
 4. **The remediation plan set is closed and archived.** Completed work keeps its evidence in
    the archived log; the closure record lists the fate of every audit finding — closed by an
@@ -63,14 +63,14 @@ way to track project development.
 
 ## Consequences
 
-- The development gitflow runbook is rewritten in backlog terms: schedulable unit, claim
-  verification, the heavy checklist, and the integration and operational-fingerprint
+- The previous development runbook is rewritten in backlog terms: schedulable unit, claim
+  verification, the heavy checklist, and the integration and state-preservation
   procedures previously defined only in the remediation runbooks move into it or into their
   own permanent homes.
 - Content pins in `tests/instruction-contracts.test.mjs` and
-  `tests/operational-write-boundary.test.mjs` that read the plan set and runbooks by literal
+  the former boundary suite that read the plan set and runbooks by literal
   path are updated in the same change as each move.
-- The worktree topology of the development gitflow runbook is unchanged: `main` remains the
+- The worktree topology of the previous development runbook is unchanged: `main` remains the
   integration baseline, `ops/current` owns real vacancy runs, each task runs in its own
   branch and worktree.
 - Memory notes that encoded the old lane ("behavior-changing code goes through the todo

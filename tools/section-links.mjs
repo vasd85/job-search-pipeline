@@ -83,15 +83,7 @@ export function checkSectionLinks({ root, files = sectionSourceFiles(root), exce
   return findings;
 }
 
-/** Source-only exceptions are mandatory under the explicit source-layout seal. */
+/** Exact exceptions for the public tree. */
 export function loadSectionExceptions(root) {
-  const read = (path) => JSON.parse(readFileSync(join(root, path), 'utf8'));
-  const exceptions = read('config/section-link-exceptions.json');
-  if (existsSync(join(root, 'config/source-layout.json'))) {
-    if (JSON.stringify(read('config/source-layout.json')) !== '{"schema_version":1,"layout":"source"}') throw Error('Invalid source layout seal.');
-    exceptions.push(...read('config/section-link-source-exceptions.json'));
-  } else if (existsSync(join(root, 'tests/legacy-governance.test.mjs')) || existsSync(join(root, 'config/section-link-source-exceptions.json'))) {
-    throw Error('Source exceptions require the source layout seal.');
-  }
-  return exceptions;
+  return JSON.parse(readFileSync(join(root, 'config/section-link-exceptions.json'), 'utf8'));
 }

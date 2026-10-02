@@ -99,10 +99,6 @@ independent review where required, then a pull request. The user reviews and mer
 commit. The public record of development is the runbooks, ADRs and pull-request history; the
 personal board is not needed to understand the engine or run its tests.
 
-That flow takes effect at the repository switch described in its status notice. Until the switch,
-the existing local repository follows its transitional gitflow runbook. The development-flow
-notice owns the boundary; the quick start above works on either side.
-
 For a Codex development session, follow the
 [environment checklist](docs/runbooks/codex-development.md). Source changes and live applications
 use separate directories. Tests use disposable roots and never the real candidate or journals.
@@ -114,8 +110,7 @@ For real applications, supply your own candidate layer in the
 [operational entry point](docs/runbooks/ops-pipeline-codex.md). The published layout separates the
 engine clone, private candidate repository and operational folder. The operational folder is
 built from an engine release tag and a candidate tag, as described in
-[ops-tree](tools/ops-tree/README.md). Its status notices also cover the transition from the older
-operational checkout. [Machine setup](tools/setup/README.md) is for that complete arrangement,
+[ops-tree](tools/ops-tree/README.md). [Machine setup](tools/setup/README.md) is for that complete arrangement,
 including access to your private repository; it is not required for the example above.
 
 Operational state stays local: `process-log.json` records application steps, `triage-ledger.json`
@@ -132,16 +127,9 @@ absent exact `process-log.json` containing an empty schema-v4 ledger, and — in
 a rehearsal worktree only — an absent `candidate/` copied from `candidate.example/`. It reports each
 creation and never overwrites, repairs, or merges an existing ledger.
 
-In the operational checkout `bootstrap:init` refuses to create the candidate layer and says so in
-its report, because the example is a fictional person and would otherwise end up under a real
-cover letter. Create it there by hand, once, empty; the real candidate's config, documents and
-language packs arrive by the transfer step of
-[docs/runbooks/ops-cutover.md](docs/runbooks/ops-cutover.md), and nothing of the example is ever
-copied in:
-
-```sh
-mkdir -p candidate
-```
+The operational folder receives the real candidate's config, documents and language packs from
+the candidate tag during [export and cutover](docs/runbooks/ops-cutover.md). The fictional example
+is never copied into that layer.
 
 `bootstrap --check` validates the layer when it is there and reports its absence as a fact; a
 present but broken one fails the check. `npm run candidate:check` does the same without needing a
@@ -180,13 +168,12 @@ The stages run in order: proxy inventory, instruction contracts, full suite, ser
 fresh committed-tree archive, format, blocking publishability. The gate stops on the first failing
 stage. It reads no real process log, output or candidate layer. The publishability stage refuses exported findings and missing tracked files. It loads only
 the fictional layer's declared language-data paths; it never reads real candidate files or personal
-markers. The [public exporter](docs/runbooks/publication-switch.md) additionally requires an
-explicit private marker set and validates every local Markdown link before publishing a snapshot.
+markers. The blocking scan covers every tracked public path.
 
 <details>
 <summary>Gate inventory and limits</summary>
 
-The runner freezes exactly 61 public executable test files, plus one source-only governance suite and exactly 26 generated proxy files as
+The runner freezes exactly 55 public executable test files and exactly 26 generated proxy files as
 literals. Test paths are compared against the tree in both directions; additions and removals
 require coordinated edits in `tools/ci.mjs`, `tests/ci.test.mjs` and the counts here. The proxy
 check verifies every expected path and the explicit-only invocation policy of all seven Codex
@@ -197,7 +184,7 @@ The inventory proves presence, not assertion quality. A named suite emptied of m
 assertions can still pass. The suppression-marker scan has a finite vocabulary and cannot prove
 that all tests executed. A focused `node --test` invocation should name one test file: with
 multiple names, Node can exit 0 despite a missing file when another resolves. `npm test` keeps its
-own glob over the 60 public non-browser files (61 in the source checkout); that glob is not cross-checked against the runner's
+own glob over the 54 public non-browser files; that glob is not cross-checked against the runner's
 inventory. The aggregate gate is the enforced entry point.
 
 The suite checks [active section links](tools/candidate/README.md#repository-section-links),

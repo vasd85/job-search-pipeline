@@ -23,14 +23,12 @@ import {
   sourceKeyTrackingParameters,
 } from "../tools/lib/process-log-core.mjs";
 import { adapterReasonCodes } from "../tools/vacancy-fetch/adapters/contract.mjs";
-import { parseDependencies, parseTaskDocument } from "../tools/task-worktree.mjs";
 import { fileBackedDocxRevisionStepName, fileBackedProtectedInputs } from "../tools/lib/process-log-v3-lifecycle.mjs";
 import {
   candidateLeversSourcePath,
   candidateProfileSourcePath,
   candidateRuleScopes,
 } from "../tools/candidate/documents.mjs";
-import { isExcluded, loadExportExclusions } from "../tools/export-exclusions.mjs";
 import { fileBackedRevisionChannels } from "../tools/lib/process-log-v3-validation.mjs";
 import {
   AFTER_STATES as letterCorrectionAfterStates,
@@ -4188,7 +4186,7 @@ test("the safe input-file transport is shared while the command table stays proc
   // The batch label is one token for three names. The rehearsal runbook is the document that
   // binds them, so it is pinned on the promoted flag and its promoted error code: the alphabet it
   // describes is only checkable against a validator the reader can still find.
-  const rehearsal = read("docs/runbooks/rehearsal-worktree.md");
+  const rehearsal = read("tools/vacancy-fetch/README.md");
   assert.match(rehearsal, /one name for both `--batch` and\s+the ledger's `batch_id`/);
   assert.match(rehearsal, /`batch_invalid` before the first request/);
   assert.doesNotMatch(rehearsal, /--experiment\b|`experiment_invalid`/);
@@ -4203,13 +4201,7 @@ test("the safe input-file transport is shared while the command table stays proc
   );
 });
 
-// The lists below decide how carefully every later task is worked on: one names the paths whose
-// change takes the heaviest lane, another names the classes a diff is sorted into, a third names
-// what each session reads. All three are ordinary prose in ordinary documents, so under the lanes
-// they define they are `D1` — the lightest lane, no review, a gate of seconds, straight into
-// `main`. Freezing them here does not forbid changing them; it makes a change reach a pin test,
-// and a pin test is itself inside the protected zone, so the task that widens or narrows the rules
-// is worked on under the rules it is changing. Decided by the user on 2026-08-29, ADR 0022.
+// Runtime language policy remains independently pinned.
 test("the contract resolves the default language of an engine message, and keeps it apart from chat", () => {
   const flat = (text) => text.replace(/\s+/g, " ");
   const contract = read("instructions/operating-contract.md");
@@ -4559,7 +4551,6 @@ test("the candidate's data live in the layer and every reader reaches them throu
   // from a walk of the tree in the fresh-archive stage, whose unpacked archive holds tracked files
   // only and no repository.
   const oldProfile = new RegExp(["_complete", "_profile\\.md"].join(""), "u");
-  const exclusions = loadExportExclusions({ root: repoRoot });
   const filesBelow = (path) => {
     const absolute = join(repoRoot, path);
     if (!statSync(absolute).isDirectory()) return [path];
@@ -4571,7 +4562,7 @@ test("the candidate's data live in the layer and every reader reaches them throu
     ? execFileSync("git", ["ls-files", "-z"], { cwd: repoRoot, encoding: "utf8" }).split("\0").filter(Boolean)
     : filesBelow("");
   const published = tracked
-    .filter((path) => !isExcluded(path, exclusions) && existsSync(join(repoRoot, path)));
+    .filter((path) => existsSync(join(repoRoot, path)));
   assert.ok(published.length > 100, "the published tree is read, not an empty list");
   for (const path of published) assert.doesNotMatch(read(path), oldProfile, path);
 

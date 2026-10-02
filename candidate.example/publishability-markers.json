@@ -115,10 +115,6 @@
       "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
     },
     {
-      "path": "tests/operational-write-boundary.test.mjs",
-      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
-    },
-    {
       "path": "tests/pretriage.test.mjs",
       "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
     },
@@ -156,10 +152,6 @@
     },
     {
       "path": "tests/section-links.test.mjs",
-      "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
-    },
-    {
-      "path": "tests/task-worktree.test.mjs",
       "why": "Configured-language fixture input, captured source text or literal vocabulary/regular expression used to detect that input; not public instructional prose."
     },
     {

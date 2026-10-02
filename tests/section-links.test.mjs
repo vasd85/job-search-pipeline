@@ -5,7 +5,6 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { checkSectionLinks, sectionSourceFiles, loadSectionExceptions } from '../tools/section-links.mjs';
-import { isExcluded, loadExportExclusions } from '../tools/export-exclusions.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 function fixture(t, files) {
@@ -98,11 +97,10 @@ test('external URLs, code-symbol links, numbered headings and procedure steps ar
 });
 
 
-test('active section references also resolve after removing every export exclusion', (t) => {
-  const exclusions = loadExportExclusions({root});
+test('active section references also resolve throughout the public tree', (t) => {
   const files = [...sectionSourceFiles(root), 'config/section-link-exceptions.json',
     ...readdirSync(join(root, 'docs/adr')).filter(name => name.endsWith('.md')).map(name => `docs/adr/${name}`)]
-    .filter(file => !isExcluded(file, exclusions));
+    ;
   const workspace = fixture(t, Object.fromEntries(files.map(file => [file, readFileSync(join(root, file))])));
   assert.deepEqual(checkSectionLinks({root: workspace, exceptions: loadSectionExceptions(workspace)}), []);
 });

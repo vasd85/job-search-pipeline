@@ -36,8 +36,8 @@ The tracked example beside this file, `fixtures/example-corpus/`, holds four fic
 the same shape — one per record form this file describes. The suite reads that one and never the
 private layer, so a rule that still assumes one particular person turns a check red here instead
 of passing unnoticed. It is a fixture and not part of `candidate.example/` on purpose: the
-operational checkout creates its layer by copying that example wholesale, and fictional letters
-must never land where real ones are written.
+operational folder receives its real layer from a candidate tag; fictional letters must never
+land where real ones are written.
 
 ## What a record holds
 
@@ -116,16 +116,11 @@ it from the process log; this tool does not see it.
 npm run records:import -- --ops-root <run root> [--candidate-root <private repository>]
 ```
 
-Run from a development clone, by the session and at the moment its runbook names: the
-pre-switch development procedure (in the private archive)
-before the day of the switch, the
-[development flow's board](../../docs/runbooks/development-flow.md#4-the-board) from that day.
-`--ops-root` is the operational folder, or today's operational
-checkout: a run root, which must hold `process-log.json`. A rehearsal folder or worktree is refused
-— its letters were never sent. `--candidate-root` defaults to `candidate/` beside the common git
-directory of the clone, the way `board:import` finds the board; it must be the root of its own
-clone. Before the day of the switch that default is the operational checkout's plain `candidate/`
-and is refused, so pass the private repository of the development clone.
+Run from a development clone at the moment named by the
+[development flow's board](../../docs/runbooks/development-flow.md#4-the-board).
+`--ops-root` is the operational folder and must hold `process-log.json`. Rehearsals are refused:
+their letters were never sent. `--candidate-root` defaults to the private clone beside the common
+git directory, as for `board:import`, and must be the root of its own repository.
 
 The command validates every record on both sides before it writes one, so a broken or misnamed
 record on either side refuses the whole import with the file named. Then, per record of the run:

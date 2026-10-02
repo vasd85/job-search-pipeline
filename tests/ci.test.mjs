@@ -31,8 +31,6 @@ import {
   EXPECTED_CODEX_POLICY,
   EXPECTED_PROXY_FILES,
   EXPECTED_TEST_FILES,
-  EXPECTED_SOURCE_TEST_FILES,
-  sourceLayout,
   PRESERVED_ENVIRONMENT_VARIABLES,
   SCRUBBED_ENVIRONMENT_PREFIXES,
   childEnvironment,
@@ -76,7 +74,6 @@ const PINNED_TEST_FILES = [
   "disposable-workspace.test.mjs",
   "docx-extract.test.mjs",
   "docx-inspector.test.mjs",
-  "export-exclusions.test.mjs",
   "file-backed-pipeline-e2e.test.mjs",
   "git-hooks.test.mjs",
   "instruction-contracts.test.mjs",
@@ -86,8 +83,6 @@ const PINNED_TEST_FILES = [
   "letter-corrections.test.mjs",
   "libreoffice-backend.test.mjs",
   "operational-backup.test.mjs",
-  "operational-fingerprint.test.mjs",
-  "operational-write-boundary.test.mjs",
   "ops-tree.test.mjs",
   "pipeline-artifacts.test.mjs",
   "pipeline-contract-scenarios.test.mjs",
@@ -108,7 +103,6 @@ const PINNED_TEST_FILES = [
   "process-search-server.test.mjs",
   "process-search-view-model.test.mjs",
   "proxies.test.mjs",
-  "public-export.test.mjs",
   "public-links.test.mjs",
   "publishability.test.mjs",
   "push-guard.test.mjs",
@@ -117,28 +111,15 @@ const PINNED_TEST_FILES = [
   "setup-github.test.mjs",
   "setup-machine.test.mjs",
   "source-key-v2-cutover.test.mjs",
-  "task-worktree.test.mjs",
   "telegram-collect.test.mjs",
   "toolchain-preflight.test.mjs",
   "triage-ledger.test.mjs",
   "triage-verify.test.mjs",
   "vacancy-fetch.test.mjs",
-  "workspace-reset.test.mjs",
   "write-guard.test.mjs",
 ].map((entry) => join("tests", entry));
 
-const PINNED_SOURCE_TEST_FILES = [...PINNED_TEST_FILES, join("tests", "legacy-governance.test.mjs")].sort();
-const CURRENT_TEST_FILES = sourceLayout(repoRoot) === "source" ? PINNED_SOURCE_TEST_FILES : PINNED_TEST_FILES;
-function materializeSourceLayout(root) {
-  if (sourceLayout(repoRoot) !== "source") return;
-  for (const [path, text] of [
-    ["config/source-layout.json", '{"schema_version":1,"layout":"source"}'],
-    ["docs/runbooks/development-gitflow.md", "Fixture legacy owner"],
-    ["docs/backlog/README.md", "Fixture board owner"],
-    ["tests/legacy-governance.test.mjs", "Fixture source suite"],
-    ["config/section-link-source-exceptions.json", "[]"],
-  ]) { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), text); }
-}
+const CURRENT_TEST_FILES = PINNED_TEST_FILES;
 
 // The generated inventory, frozen independently of the manifest that produces it
 // and of the checker that counts it.
@@ -214,7 +195,7 @@ const PINNED_PRESERVED_VARIABLES = ["JOB_PIPELINE_BROWSER_BIN"];
 // spellings below, not a boundary, and README states that bound.
 //
 // The pattern is assembled from fragments so that this file does not match its
-// own scan — the same dodge tests/operational-write-boundary.test.mjs uses
+// own scan — the same dodge tests/write-guard.test.mjs uses
 // against the runner scan at the bottom of this file.
 const SUPPRESSION_PATTERN = new RegExp([
   "\\.(?:", "skip", "|", "only", "|", "todo", ")\\s*\\(",
@@ -355,7 +336,6 @@ function recordingSpawn(overrides = {}) {
       // The extracted tree now has to satisfy the same proxy inventory the
       // working tree does, so the fixture materializes it.
       materializeProxyInventory(target);
-      materializeSourceLayout(target);
       return successfulSpawn();
     }
     return successfulSpawn();
@@ -572,9 +552,7 @@ test("every stage executes its exact argv in order", (t) => {
   assert.ok(commands.some((command) => command.startsWith("tar -xf")));
   // Once for the instruction stage, once inside the committed-tree archive.
   assert.equal(
-    commands.filter((command) => command.endsWith(sourceLayout(repoRoot) === "source"
-      ? "--test tests/instruction-contracts.test.mjs tests/legacy-governance.test.mjs"
-      : "--test tests/instruction-contracts.test.mjs")).length,
+    commands.filter((command) => command.endsWith("--test tests/instruction-contracts.test.mjs")).length,
     2,
   );
   const pinned = "--attr-source=4{40} -c core.whitespace=blank-at-eol,space-before-tab,blank-at-eof"
@@ -605,13 +583,12 @@ test("every stage executes its exact argv in order", (t) => {
 // breaks at least one pair.
 test("the executable test inventory agrees across test literal, runner and directory", () => {
   assert.deepEqual([...EXPECTED_TEST_FILES], PINNED_TEST_FILES);
-  assert.equal(PINNED_TEST_FILES.length, 61);
+  assert.equal(PINNED_TEST_FILES.length, 55);
 
   const onDisk = readdirSync(join(repoRoot, "tests"))
     .filter((entry) => entry.endsWith(".test.mjs"))
     .sort()
     .map((entry) => join("tests", entry));
-  assert.deepEqual([...EXPECTED_SOURCE_TEST_FILES], PINNED_SOURCE_TEST_FILES);
   assert.deepEqual(onDisk, CURRENT_TEST_FILES);
 
   assert.deepEqual([...EXPECTED_PROXY_FILES], PINNED_PROXY_FILES);
@@ -686,7 +663,6 @@ test("a drifted test inventory fails the full and serial stages", (t) => {
   for (const relative of CURRENT_TEST_FILES) {
     writeFileSync(join(inventoryRoot, relative), SYNTHETIC_FIXTURE_MARKER);
   }
-  materializeSourceLayout(inventoryRoot);
   const drive = (stage) => runStages({
     environment: {},
     spawn: () => successfulSpawn(),
@@ -1650,16 +1626,6 @@ test("no other test re-enters the runner", () => {
   }
 });
 
-test("source owners and their suite cannot disappear together to select public CI", t => {
-  const root = mkdtempSync(join(realpathSync(tmpdir()), "job-search-ci-layout-"));
-  t.after(() => rmSync(root, { force: true, recursive: true }));
-  mkdirSync(join(root, "docs/archive"), { recursive: true });
-  assert.throws(() => sourceLayout(root), e => e.code === "ci_test_inventory_drift");
-  rmSync(join(root, "docs"), { recursive: true });
-  assert.equal(sourceLayout(root), "public");
-  mkdirSync(join(root, "config")); writeFileSync(join(root, "config/source-layout.json"), '{"schema_version":1,"layout":"source"}');
-  assert.throws(() => sourceLayout(root), e => e.code === "ci_test_inventory_drift");
-});
 test("blocking publishability refuses findings and absent tracked files even on a successful child", () => {
   for (const detail of [{ places_exported: 1 }, { absent: 1 }]) {
     assert.throws(() => runStages({ workspaceRoot: repoRoot, stageIds: ["publishability"], spawn: () => ({ status: 0, stdout: JSON.stringify({ by_class: {}, ...detail }) }) }), e => e.code === "ci_publishability_findings");

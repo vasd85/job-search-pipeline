@@ -14,9 +14,7 @@
 // (ADR 0023, decision 6), so the Cyrillic class is written as a script property and the paths
 // whose text of a configured language is data come from the layer with the personal markers.
 //
-// The area is not decided here either. `config/export-exclusions.json` already answers which
-// paths the export leaves behind, and the scanner asks its reader instead of carrying a second
-// copy of that answer.
+// The production CLI scans every tracked public path.
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -42,7 +40,7 @@ export const PUBLISHABILITY_CLASSES = Object.freeze([
  * This file carries the patterns it searches for, the scanner carries the Cyrillic property, the
  * README describes both in words and the suite freezes them a second time. Without this rule the
  * gate reports itself on every run. The alternative — assembling the matching strings from pieces,
- * the way `tools/workspace-reset.mjs` builds a NUL byte — was rejected: a NUL cannot be written
+ * by constructing a NUL byte — was rejected: a NUL cannot be written
  * into source at all, whereas these can, and a frozen expectation spelled `'Cyr' + 'illic'` stops
  * being something a reader can check by eye, which is the only reason the second literal exists.
  *
@@ -147,8 +145,7 @@ export const PUBLIC_MARKERS = Object.freeze([
 
 /**
  * Places a public marker is allowed to match, by marker and path. A path ending in a slash is a
- * directory and matches on a segment boundary, the same reading `config/export-exclusions.json`
- * uses.
+ * directory and matches on a segment boundary.
  *
  * Not by line number, deliberately. A number goes stale on any edit above it, and then the
  * allowance misses and the gate reports a place it had already cleared. Every waiver the
@@ -162,7 +159,6 @@ export const PUBLIC_MARKERS = Object.freeze([
  * independent — a waived template never silences a personal marker on the same line.
  */
 export const PUBLIC_ALLOWANCES = Object.freeze([
-  Object.freeze({ marker: "path.candidate", path: "docs/runbooks/publication-switch.md", why: "The migration inventory names the temporary layer state and the nested private clone; no private file is linked." }),
   Object.freeze({
     marker: "template.email",
     path: "tests/job-source-registry.test.mjs",
@@ -207,81 +203,6 @@ export const PUBLIC_ALLOWANCES = Object.freeze([
     marker: "template.hh-vacancy",
     path: "tests/vacancy-fetch.test.mjs",
     why: "A synthetic URL of a supported source, not a link to an application.",
-  }),
-  Object.freeze({
-    marker: "path.backlog",
-    path: "config/export-exclusions.json",
-    why: "The list of what stays behind has to name what stays behind.",
-  }),
-  Object.freeze({
-    marker: "path.archive",
-    path: "config/export-exclusions.json",
-    why: "The list of what stays behind has to name what stays behind.",
-  }),
-  Object.freeze({
-    marker: "path.research",
-    path: "config/export-exclusions.json",
-    why: "The list of what stays behind has to name what stays behind.",
-  }),
-  Object.freeze({
-    marker: "path.audits",
-    path: "config/export-exclusions.json",
-    why: "The list of what stays behind has to name what stays behind.",
-  }),
-  Object.freeze({
-    marker: "path.product-decisions",
-    path: "config/export-exclusions.json",
-    why: "The list of what stays behind has to name what stays behind.",
-  }),
-  Object.freeze({
-    marker: "path.backlog",
-    path: "tests/export-exclusions.test.mjs",
-    why: "The suite that proves the list covers what it claims to cover.",
-  }),
-  Object.freeze({
-    marker: "path.archive",
-    path: "tests/export-exclusions.test.mjs",
-    why: "The suite that proves the list covers what it claims to cover.",
-  }),
-  Object.freeze({
-    marker: "path.research",
-    path: "tests/export-exclusions.test.mjs",
-    why: "The suite that proves the list covers what it claims to cover.",
-  }),
-  Object.freeze({
-    marker: "path.audits",
-    path: "tests/export-exclusions.test.mjs",
-    why: "The suite that proves the list covers what it claims to cover.",
-  }),
-  Object.freeze({
-    marker: "path.product-decisions",
-    path: "tests/export-exclusions.test.mjs",
-    why: "The suite that proves the list covers what it claims to cover.",
-  }),
-  Object.freeze({
-    marker: "path.backlog",
-    path: "tools/board/init.mjs",
-    why: "The tool that moves what stays behind into the private repository names where it comes from.",
-  }),
-  Object.freeze({
-    marker: "path.archive",
-    path: "tools/board/init.mjs",
-    why: "The tool that moves what stays behind into the private repository names where it comes from.",
-  }),
-  Object.freeze({
-    marker: "path.research",
-    path: "tools/board/init.mjs",
-    why: "The tool that moves what stays behind into the private repository names where it comes from.",
-  }),
-  Object.freeze({
-    marker: "path.audits",
-    path: "tools/board/init.mjs",
-    why: "The tool that moves what stays behind into the private repository names where it comes from.",
-  }),
-  Object.freeze({
-    marker: "path.product-decisions",
-    path: "tools/board/init.mjs",
-    why: "The tool that moves what stays behind into the private repository names where it comes from.",
   }),
   Object.freeze({
     marker: "path.backlog",
@@ -339,10 +260,8 @@ export const PUBLIC_ALLOWANCES = Object.freeze([
     why: "A fixture record carries a source reference of the same shape a real one has.",
   }),
   Object.freeze({"marker": "path.archive", "path": "tests/section-links.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.archive", "path": "tests/task-worktree.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.archive", "path": "tools/ci.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.archive", "path": "tools/section-links.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.archive", "path": "tools/task-worktree.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.audits", "path": "tests/section-links.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.audits", "path": "tools/ci.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.audits", "path": "tools/section-links.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
@@ -354,10 +273,8 @@ export const PUBLIC_ALLOWANCES = Object.freeze([
   Object.freeze({"marker": "path.backlog", "path": "knowledge/precedence.md", "why": "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone."}),
   Object.freeze({"marker": "path.backlog", "path": "tests/ci.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.backlog", "path": "tests/section-links.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.backlog", "path": "tests/task-worktree.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.backlog", "path": "tools/ci.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.backlog", "path": "tools/section-links.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.backlog", "path": "tools/task-worktree.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.candidate", "path": "config/section-link-exceptions.json", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
   Object.freeze({"marker": "path.candidate", "path": "docs/runbooks/operational-backup.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
   Object.freeze({"marker": "path.candidate", "path": "docs/runbooks/ops-cutover.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
@@ -397,16 +314,13 @@ export const PUBLIC_ALLOWANCES = Object.freeze([
   Object.freeze({"marker": "path.candidate", "path": "tools/ops-tree/README.md", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
   Object.freeze({"marker": "path.candidate", "path": "tools/ops-tree/manifest.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
   Object.freeze({"marker": "path.candidate", "path": "tools/pretriage/composition.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
-  Object.freeze({"marker": "path.candidate", "path": "tools/public-export.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
   Object.freeze({"marker": "path.candidate", "path": "tools/public-links.mjs", "why": "Documented layer contract or synthetic fixture path, resolved against the tracked fictional layer; no private file is read by CI."}),
   Object.freeze({"marker": "path.product-decisions", "path": "tests/section-links.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.product-decisions", "path": "tools/ci.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.product-decisions", "path": "tools/section-links.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "path.research", "path": "docs/runbooks/rehearsal-worktree.md", "why": "Historical pre-switch route named as a contract; private predecessor material is not linked or needed by a public clone."}),
   Object.freeze({"marker": "path.research", "path": "tests/section-links.test.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.research", "path": "tools/ci.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
   Object.freeze({"marker": "path.research", "path": "tools/section-links.mjs", "why": "Exact transition/checker mechanism or its synthetic fixture names predecessor paths to move or reject them."}),
-  Object.freeze({"marker": "template.email", "path": "tests/public-export.test.mjs", "why": "Invented identity and refusal addresses used by the exporter suite; personal markers still scan them."}),
 ]);
 
 /**

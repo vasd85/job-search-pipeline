@@ -11,6 +11,10 @@ every manifest records `isDefaultTransport: true`; the rollout that got it here 
 [docs/runbooks/vacancy-fetch-experiment.md](../../docs/runbooks/vacancy-fetch-experiment.md).
 The in-app browser stays the verified fallback, and `WebFetch` remains forbidden for vacancy pages.
 
+The batch label is one name for both `--batch` and
+the ledger's `batch_id`; it uses `[a-z0-9][a-z0-9-]{0,63}`. An invalid label refuses with
+`batch_invalid` before the first request.
+
 ## What it is not
 
 - **Not the Step 1 publication path.** It reserves no output directory, touches no

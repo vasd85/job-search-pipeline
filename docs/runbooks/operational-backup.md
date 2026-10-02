@@ -1,9 +1,8 @@
 # Rotating local backup of the operational state
 
 Status: **procedure in force**. The tool is `tools/operational-backup.mjs`; the schedule is the
-LaunchAgent `com.job-search-pipeline.backup`. The boundary the procedure narrows is recorded in
-pre-switch durability boundary (in the private pre-switch archive), and from the day of the switch in [Backup and what it does not cover](development-flow.md#11-backup-and-what-it-does-not-cover) of the
-[development flow document](development-flow.md).
+LaunchAgent `com.job-search-pipeline.backup`. The durability boundary is owned by
+[Backup and what it does not cover](development-flow.md#11-backup-and-what-it-does-not-cover).
 
 ## 1. What this protects against, and what not
 
@@ -13,12 +12,10 @@ The copies lie **on the same disk** as the original. The whole list follows from
 | --- | --- |
 | Accidental deletion of `output/` or the ledger | yes |
 | A bad write that corrupted a file | yes — yesterday's copy is intact |
-| A mistaken `workspace-reset` in the wrong tree | yes |
-| Loss of the disk, loss of the shared `.git`, theft of the machine | **no** |
+| Loss of the disk or theft of the machine | **no** |
 | Corruption noticed later than 7 days after the fact | **no** — rotation has already deleted anything older |
 
-The last two rows are the very durability boundary of gitflow pre-switch durability boundary (in the private pre-switch archive). It stays open: the procedure
-narrows it, it does not close it. An off-disk copy and its encryption are a separate decision of
+The last two rows remain outside this procedure. An off-disk copy and its encryption are a separate decision of
 the user, with its own consequences for privacy (`output/` holds the candidate's CVs and letters,
 and the batches hold data of third-party companies).
 
@@ -37,7 +34,7 @@ take**, so a snapshot is either consistent or loudly refused:
 The locks are taken **one after the other, never together**: no writer in the repository takes
 both, and nothing defines an order between them — holding them together would mean inventing one.
 
-Then, without a lock, six members that only a run or the user by hand writes and that are in no
+Then, without a lock, five members that only a run or the user by hand writes and that are in no
 repository. Each is copied if it exists; its absence is the status `absent`, not a refusal:
 
 | Member | Role | How it is written |
@@ -46,7 +43,6 @@ repository. Each is copied if it exists; its absence is the status `absent`, not
 | `telegram-sweep-state.json` | the positions of the channel sweep | a temporary file and a rename |
 | `records/` | the corpus of letter corrections — an artifact of a run | a record is written once |
 | `outbox/` | task drafts from a run; `board:import` takes and deletes them | by the run session |
-| `candidate/research/` | the corpus of letter corrections from before `records/`, revision logs, the inventory, the list of markers; a **temporary member** — removed after the switch | by a run and by hand |
 | `ops-manifest.json` | the operational folder's marker: the engine and layer tags the folder is rebuilt from ([Restore](#8-restore)) | a temporary file and a rename |
 
 The JSON members (`telegram-*.json`, `ops-manifest.json`) are parsed after the copy the same way
@@ -100,37 +96,26 @@ interrupted runs.
 ## 4. Daily run
 
 **The tool copies the tree it lies in.** There is no flag naming a directory: "which tree to copy"
-is not a value anyone types. The copy in the operational checkout is the one that runs:
+is not a value anyone types. The copy in the operational folder is the one that runs:
 
 ```bash
-node <operational-checkout>/tools/operational-backup.mjs run --dest ~/Backups/job-search-pipeline
+node <operational-folder>/tools/operational-backup.mjs run --dest ~/Backups/job-search-pipeline
 ```
 
 The source is recognized **by its marker** — an `ops-manifest.json` of the kind `operational` at
 the root of the tree. The marker decides even when a `.git` lies next to it: a folder of the kind
 `rehearsal` is refused (`backup_root_rehearsal`), a folder in the middle of a swap
-(`state: building`) is accepted, and the report says so. **Until the day of the switch** one more
-tree is accepted without a marker — the primary worktree, that is, today's operational checkout: its
-`.git` is a directory, while a linked tree's `.git` is a file, so the integration tree, a task tree
-and a run tree are refused even when they carry a perfectly fit ledger (`backup_root_unmarked`).
-The report's `source_identity` field says what the source was accepted by: `marker` or
-`primary-worktree`; after the switch `marker` is expected, and the transitional path is removed. And
-the tree must hold a `process-log.json` (`backup_root_not_operational`). All these refusals come
-before a single write to disk.
-
-> **Until the next cutover no copy can be taken at all — neither by the schedule nor by hand.** The
-> tool reaches the operational checkout only with a cutover, and a copy run from a development tree
-> refuses itself on the very first condition. This is the user's accepted decision of 2026-09-01,
-> not a defect; the gap is closed by a cutover, which the user starts and which has no set date.
-> Until it runs, the only protection is the snapshots taken before this change, and they are not
-> refreshed.
+(`state: building`) is accepted, and the report says so. Without an operational marker every
+tree refuses, including primary and linked checkouts (`backup_root_unmarked`).
+The report's `source_identity` is `marker`. The folder must hold `process-log.json`
+(`backup_root_not_operational`); refusals come before any write to disk.
 
 The schedule is a LaunchAgent, not `cron`: a calendar job missed during sleep runs on wake-up, while
 `cron` silently skips it; the machine is a laptop. The plist is printed for reading, not installed
 by the tool; `--script` is mandatory and names the copy the schedule must run:
 
 ```bash
-node tools/operational-backup.mjs print-plist --script <operational-checkout>/tools/operational-backup.mjs --dest ~/Backups/job-search-pipeline
+node tools/operational-backup.mjs print-plist --script <operational-folder>/tools/operational-backup.mjs --dest ~/Backups/job-search-pipeline
 ```
 
 `--script` accepts a path that does not exist yet — before a cutover it will not — and the report's
@@ -158,15 +143,9 @@ Four operational facts:
   does start — `node` is in place — and it is Node itself that fails, which is why the output
   redirection works and the error gets through. It differs from the other refusals not by silence
   but by form: it is a Node trace, not the JSON with an `error.code` field the tool itself prints.
-- **The job runs the working-tree file, not the committed version.** In the operational checkout
-  source is not edited (gitflow pre-switch branch and worktree roles (in the private pre-switch archive)), so exactly one thing rewrites this file — a cutover. And
-  `git checkout` is not atomic across `tools/operational-backup.mjs` and the `tools/lib/` modules
-  it imports, so a run at 11:00 in the middle of a cutover can pick up a mixed set. Unload the job
-  before a cutover (`launchctl bootout`), and afterwards load it back and check freshness; adding
-  that step to the cutover procedure is a separate backlog task. From the day of the switch the job
-  is not unloaded: a cutover of the operational folder swaps directories by renames, and a backup
-  run caught between two of them fails once, while the next one passes
-  ([tools/ops-tree/README.md](../../tools/ops-tree/README.md), the section The cutover).
+- **The job runs the installed folder's file.** A cutover swaps directories by renames. The job
+  is not unloaded: a run caught between renames fails once, while the next one passes
+  ([the cutover](../../tools/ops-tree/README.md#the-cutover)).
 - Full Disk Access is not needed for these paths: neither the repository directory nor `~/Backups`
   is a TCC-protected directory. If the destination or the checkout moves into `Documents`,
   `Desktop`, `Downloads` or iCloud Drive, a one-time interactive access prompt appears, and a
@@ -202,10 +181,10 @@ is in the checkout now. A difference names the changed, missing and extra files 
 
 | Code | What happened | What to do |
 | --- | --- | --- |
-| `backup_root_unmarked` | the tree has no operational-folder marker and is not the primary worktree: a linked tree — integration, task, run — or an unrelated directory | run the copy in the operational checkout or the operational folder. Neither a flag nor `cd` gets around this: the tree that is copied is the one the file lies in |
+| `backup_root_unmarked` | the tree has no operational-folder marker | run the copy in the operational folder or the operational folder. Neither a flag nor `cd` gets around this: the tree that is copied is the one the file lies in |
 | `backup_root_rehearsal` | the marker names a rehearsal folder | its state dies with it and is not copied |
 | `backup_root_manifest_invalid` | `ops-manifest.json` is unreadable, or there is an `.ops-tree/` without it | restore the marker with a cutover onto the current pair of tags ([tools/ops-tree/README.md](../../tools/ops-tree/README.md)) |
-| `backup_root_not_operational` | the tree has no `process-log.json` | this is not the operational checkout. The file's absence is the protection itself (gitflow pre-switch operational write boundary (in the private pre-switch archive)); run the right copy instead of creating the file |
+| `backup_root_not_operational` | the tree has no `process-log.json` | this is not the operational folder. The file's absence is a development protection; run the right copy instead of creating the file |
 | `backup_member_unreadable` | a JSON member of [What is copied](#2-what-is-copied) does not parse | **the snapshot is refused on purpose**, as with an unreadable ledger. Fix the file — its owner will refuse it the same way; the old copies are intact |
 | `backup_unsupported_entry` | a member of the wrong kind: a file instead of a directory, a link, a device | find out who put it there; the tool will not copy a pointer instead of the state |
 | `backup_path_not_absolute` | `--script` got a relative path | give an absolute one: a relative one would be completed from the launch directory |
@@ -248,11 +227,10 @@ operational folder is lost (8.2).
    checkout.
 4. **Move the damaged state aside, do not delete it**: rename the members being restored to
    `<name>.damaged-<date>`. Until the restore is proven to have worked, this is the only copy of
-   what was there. In the operational checkout — next to the original. **In the operational folder
-   — outside it**: under a new name inside the folder only the ledger files stay in the state zone,
+   what was there. Move it **outside the operational folder**: under a new name inside the folder only the ledger files stay in the state zone,
    while, for example, `output.damaged-…` at the root falls into the engine zone, and every pipeline
    step will refuse with `engine_tree_drift`.
-5. **Copy the needed members** from the snapshot into their places. A single member can be
+5. **Copy the needed current members** from the snapshot into their places. A single member can be
    restored too: `output/` without the ledger makes no sense, but the pair "ledger + its store" is
    the usual case. `ops-manifest.json` from the snapshot is not put in place: only `tools/ops-tree/`
    writes the marker.
@@ -264,10 +242,11 @@ operational folder is lost (8.2).
 ### 8.2. The whole operational folder
 
 When the folder is gone, or its engine and layer zones cannot be restored, it is rebuilt from the
-tags, and the state is taken from a snapshot. A snapshot taken before the day of the switch carries
-no marker — then this section does not apply, and the restore follows 8.1.
+tags, and the state is taken from a snapshot. A historical snapshot without a marker requires
+the user to name the tag pair; it cannot supply that information.
 
-1. **Unload the schedule**, as in 8.1, and **check the snapshot** — `verify --backup <stamp>`.
+1. **Unload the schedule**, as in 8.1, and **check the snapshot** — `verify --backup <stamp>`,
+   using the preserved older tool for a historical member inventory as described below.
 2. **Read the snapshot's marker** — `<stamp>/ops-manifest.json`: `engine.tag`, `candidate.tag` and
    the `repository` of each. A marker with `state: building` names the previous pair of tags, and an
    export by it is consistent.
@@ -282,8 +261,8 @@ no marker — then this section does not apply, and the restore follows 8.1.
 
    Any copy of the engine with `tools/ops-tree/` can run the command; `npm ci` in the export needs
    access to the package registry or its cache.
-5. **Copy the state members** from the snapshot into the new folder — everything the snapshot holds
-   except `ops-manifest.json` and `manifest.json`: the export wrote its own marker, and the
+5. **Copy the state members** from the snapshot into the new folder — only the members in the current table,
+   except `ops-manifest.json`: the export wrote its own marker, and the
    snapshot's manifest is not a file of the folder.
 6. **Check**: `npm run ops:verify`, `node tools/process-log.mjs validate`,
    `node tools/triage-ledger.mjs validate` and `npm run preflight` from the new folder.
@@ -296,3 +275,12 @@ Not restored: `.ops-tree/` — the kept trees of past cutovers and their evidenc
 The restore of individual members (8.1) was rehearsed when it went into use, on 2026-09-01, on a
 site that **already held other state**, so that its step 4 was really performed and not skipped as
 a copy into emptiness; the result of the rehearsal is kept in the private development history.
+
+### Historical member inventories
+
+Snapshots containing the former `candidate/research/` member, including pre-research-v2 and
+pre-vacancy-v2 snapshots, report a member-inventory mismatch under the current `verify --backup`.
+Keep these snapshots unchanged. If verification is needed, use the preserved older backup tool;
+restore only current state members, never research or a replacement `ops-manifest.json`.
+Private research is versioned in its repository; new run corrections live in `records/` and are
+imported through `records:import`.

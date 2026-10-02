@@ -599,7 +599,7 @@ repository-relative; Markdown links are relative to their document. Layer target
 tracked example. The check is offline: it does not fetch external URLs or inspect private files.
 
 Historical ADRs, product decisions, research, audits, task records, archives and external background
-reports are outside this check. The pre-switch board README stays in the source checkout's check.
+reports are outside this check.
 `config/section-link-exceptions.json` lists exact fixture or syntax examples with their occurrence
 counts and reasons; an unused exception fails. It never exempts a whole source file or code fence.
 

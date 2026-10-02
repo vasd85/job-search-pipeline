@@ -1,9 +1,4 @@
-// The board tools create and write git repositories, so every case here runs them over real git
-// in disposable roots: an old repository to move from, an engine clone to nest the private one
-// in, a bare repository standing in for the private remote, and clones of it standing in for two
-// machines. No case points git at this repository except the one read-only listing that proves
-// the layout covers every path its export list leaves behind. Every fixture path comes from
-// `mkdtemp`.
+// Board imports run over disposable git roots and remotes.
 //
 // Git reads a throwaway global config written below, so neither the operator's identity nor a
 // signing or hook setting of theirs changes what a case observes.
@@ -15,13 +10,10 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { isExcluded, loadExportExclusions } from "../tools/export-exclusions.mjs";
-import { BOARD_README_TEMPLATE, LAYOUT, placeOf } from "../tools/board/init.mjs";
 import { importDrafts } from "../tools/board/import.mjs";
 import { BoardError } from "../tools/board/git.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const INIT = join(repoRoot, "tools", "board", "init.mjs");
 const IMPORT = join(repoRoot, "tools", "board", "import.mjs");
 
 const configRoot = mkdtempSync(join(tmpdir(), "board-gitconfig-"));
@@ -55,17 +47,6 @@ const PINNED_CODES = [
   "board_import_push_refused",
   "board_import_root_not_a_clone",
   "board_import_target_exists",
-  "board_init_engine_not_a_checkout",
-  "board_init_engine_sees_layer",
-  "board_init_exclusions_unreadable",
-  "board_init_git_failed",
-  "board_init_layer_not_ignored",
-  "board_init_path_collision",
-  "board_init_push_failed",
-  "board_init_source_unreadable",
-  "board_init_target_not_empty",
-  "board_init_unmapped_path",
-  "board_init_unsupported_entry",
   "board_invalid_arguments",
   "board_not_in_a_checkout",
 ];
@@ -97,182 +78,6 @@ function task(id, type, title, extra = "") {
   return `---\nid: ${id}\ntype: ${type}\ntitle: ${title}\nstatus: open\npriority: p2\ncreated: 2026-09-01\n`
     + `source: probe\ndepends: []\n${extra}---\n\n## Acceptance\n\nNone.\n`;
 }
-
-const FIXTURE_EXCLUSIONS = {
-  schema_version: 1,
-  purpose: "probe",
-  exclude: [
-    { path: "docs/backlog/", kind: "directory", why: "probe" },
-    { path: "docs/archive/", kind: "directory", why: "probe" },
-    { path: "docs/research/", kind: "directory", why: "probe" },
-    { path: "docs/audits/", kind: "directory", why: "probe" },
-    { path: "docs/product-decisions.md", kind: "file", why: "probe" },
-    { path: "reference/", kind: "directory", why: "probe" },
-    { path: "docs/adr/0004-private.md", kind: "file", why: "probe" },
-  ],
-  keep: [{ path: "docs/backlog/README.md", why: "probe" }],
-};
-
-/** An old repository with one file in every area the layout places, and public files beside. */
-function oldRepository(root, { exclusions = FIXTURE_EXCLUSIONS, extra = {} } = {}) {
-  const files = {
-    "README.md": "public\n",
-    "config/export-exclusions.json": `${JSON.stringify(exclusions, null, 2)}\n`,
-    "docs/adr/0001-public.md": "public decision\n",
-    "docs/adr/0004-private.md": "private decision\n",
-    "docs/archive/backlog/005-bug-closed.md": task(5, "bug", "closed"),
-    "docs/archive/plans/plan.md": "old plan\n",
-    "docs/audits/audit.md": "audit\n",
-    "docs/backlog/007-feat-open.md": task(7, "feat", "open"),
-    "docs/backlog/README.md": "old format\n",
-    "docs/product-decisions.md": "directions\n",
-    "docs/research/study.md": "study\n",
-    "reference/report.md": "report\n",
-    ...extra,
-  };
-  mkdirSync(root, { recursive: true });
-  git(root, "init", "-q");
-  for (const [path, text] of Object.entries(files)) write(root, path, text);
-  git(root, "add", "-A");
-  git(root, "commit", "-q", "-m", "old");
-  return root;
-}
-
-function engineClone(root, { ignore = "/candidate/\n" } = {}) {
-  git(root, "init", "-q");
-  write(root, "README.md", "engine\n");
-  if (ignore !== null) write(root, ".gitignore", ignore);
-  git(root, "add", "-A");
-  git(root, "commit", "-q", "-m", "engine");
-  return root;
-}
-
-function fixture(t, options = {}) {
-  const base = temporary(t, "init");
-  const source = oldRepository(join(base, "old"), options);
-  mkdirSync(join(base, "engine"));
-  const engine = engineClone(join(base, "engine"), options);
-  const layer = join(base, "layer");
-  write(layer, "config.json", "{\"schema_version\": 1}\n");
-  write(layer, "research/letter.md", "corpus\n");
-  for (const [path, text] of Object.entries(options.layerExtra ?? {})) write(layer, path, text);
-  return { base, engine, layer, source };
-}
-
-test("board:init nests the private repository, places every excluded path and the engine does not see it", (t) => {
-  const { base, engine, layer, source } = fixture(t);
-  const bare = join(base, "private.git");
-  git(base, "init", "-q", "--bare", bare);
-  const result = run(INIT, ["--source", source, "--engine", engine, "--layer", layer, "--remote", bare]);
-  assert.equal(result.status, 0, JSON.stringify(result.err));
-  assert.equal(result.out.status, "created");
-  assert.equal(result.out.pushed, true);
-
-  const target = join(engine, "candidate");
-  const expected = {
-    ".gitignore": ".DS_Store\n",
-    "archive/plans/plan.md": "old plan\n",
-    "board/007-feat-open.md": task(7, "feat", "open"),
-    "board/done/005-bug-closed.md": task(5, "bug", "closed"),
-    "config.json": "{\"schema_version\": 1}\n",
-    "decisions/0004-private.md": "private decision\n",
-    "decisions/product-decisions.md": "directions\n",
-    "research/audits/audit.md": "audit\n",
-    "research/letter.md": "corpus\n",
-    "research/reference/report.md": "report\n",
-    "research/study.md": "study\n",
-  };
-  for (const [path, text] of Object.entries(expected)) {
-    assert.equal(readFileSync(join(target, path), "utf8"), text, path);
-  }
-  assert.equal(readFileSync(join(target, "board", "README.md"), "utf8"), readFileSync(BOARD_README_TEMPLATE, "utf8"));
-  // What the export keeps is public and stays where it is.
-  for (const path of ["README.md", "decisions/0001-public.md", "docs"]) {
-    assert.equal(existsSync(join(target, path)), false, path);
-  }
-  const tracked = git(target, "ls-files").trim().split("\n").sort();
-  assert.deepEqual(tracked, [...Object.keys(expected), "board/README.md"].sort());
-  assert.equal(git(target, "rev-list", "--count", "main").trim(), "1");
-  assert.match(git(target, "log", "-1", "--format=%B"), new RegExp(`Source commit: ${git(source, "rev-parse", "HEAD").trim()}`));
-  assert.equal(git(bare, "rev-parse", "main").trim(), result.out.commit);
-
-  // The engine does not see it: a clean status, and an archive of the engine without it.
-  assert.equal(git(engine, "status", "--porcelain", "--untracked-files=all"), "");
-  const archive = spawnSync("git", ["archive", "--format=tar", "HEAD"], { cwd: engine });
-  const listing = spawnSync("tar", ["-t"], { input: archive.stdout, encoding: "utf8" }).stdout.split("\n");
-  assert.deepEqual(listing.filter(Boolean).sort(), [".gitignore", "README.md"]);
-});
-
-test("board:init refuses before writing anything", async (t) => {
-  await t.test("the engine does not ignore candidate/", (tt) => {
-    const { engine, source } = fixture(tt, { ignore: null });
-    const result = run(INIT, ["--source", source, "--engine", engine]);
-    assert.equal(result.err.error.code, "board_init_layer_not_ignored");
-    assert.equal(existsSync(join(engine, "candidate")), false);
-  });
-  await t.test("candidate/ is not empty", (tt) => {
-    const { engine, source } = fixture(tt);
-    write(engine, "candidate/keep.md", "mine\n");
-    const result = run(INIT, ["--source", source, "--engine", engine]);
-    assert.equal(result.err.error.code, "board_init_target_not_empty");
-    assert.equal(readFileSync(join(engine, "candidate", "keep.md"), "utf8"), "mine\n");
-  });
-  await t.test("an excluded path has no place", (tt) => {
-    const exclusions = {
-      ...FIXTURE_EXCLUSIONS,
-      exclude: [...FIXTURE_EXCLUSIONS.exclude, { path: "docs/runbooks/", kind: "directory", why: "probe" }],
-    };
-    const { engine, source } = fixture(tt, { exclusions, extra: { "docs/runbooks/flow.md": "flow\n" } });
-    const result = run(INIT, ["--source", source, "--engine", engine]);
-    assert.equal(result.err.error.code, "board_init_unmapped_path");
-    assert.match(result.err.error.message, /docs\/runbooks\/flow\.md/u);
-    assert.equal(existsSync(join(engine, "candidate")), false);
-  });
-  await t.test("two sources land on one path", (tt) => {
-    const { engine, layer, source } = fixture(tt, { layerExtra: { "research/study.md": "other\n" } });
-    const result = run(INIT, ["--source", source, "--engine", engine, "--layer", layer]);
-    assert.equal(result.err.error.code, "board_init_path_collision");
-    assert.equal(existsSync(join(engine, "candidate")), false);
-  });
-  await t.test("the commit does not exist", (tt) => {
-    const { engine, source } = fixture(tt);
-    const result = run(INIT, ["--source", source, "--rev", "no-such-commit", "--engine", engine]);
-    assert.equal(result.err.error.code, "board_init_source_unreadable");
-  });
-  await t.test("only committed content moves", (tt) => {
-    const { engine, source } = fixture(tt);
-    write(source, "docs/backlog/007-feat-open.md", "uncommitted edit\n");
-    const result = run(INIT, ["--source", source, "--engine", engine]);
-    assert.equal(result.status, 0, JSON.stringify(result.err));
-    assert.equal(readFileSync(join(engine, "candidate", "board", "007-feat-open.md"), "utf8"), task(7, "feat", "open"));
-  });
-});
-
-test("the layout places every path this repository's export list leaves behind", () => {
-  // Read-only over this repository: its tracked list and its own exclusion file. A path added to
-  // the list without a row here would stay in a repository nobody publishes.
-  const exclusions = loadExportExclusions({ root: repoRoot });
-  const listed = spawnSync("git", ["ls-files", "-z"], { cwd: repoRoot, encoding: "utf8" });
-  assert.equal(listed.status, 0);
-  const excluded = listed.stdout.split("\0").filter(Boolean).filter((path) => isExcluded(path, exclusions));
-  for (const path of excluded) assert.notEqual(placeOf(path), null, path);
-  // The rows themselves, frozen: where each area lands is the private repository's layout.
-  assert.deepEqual(LAYOUT.map((row) => [row.from, row.to]), [
-    ["config/section-link-source-exceptions.json", "archive/pre-switch/section-link-source-exceptions.json"],
-    ["docs/backlog/README.md", "archive/pre-switch/backlog-README.md"],
-    ["docs/runbooks/development-gitflow.md", "archive/pre-switch/development-gitflow.md"],
-    ["tests/legacy-governance.test.mjs", "archive/pre-switch/legacy-governance.test.mjs"],
-    ["config/source-layout.json", "archive/pre-switch/source-layout.json"],
-    ["docs/archive/backlog/", "board/done/"],
-    ["docs/backlog/", "board/"],
-    ["docs/archive/", "archive/"],
-    ["docs/adr/", "decisions/"],
-    ["docs/product-decisions.md", "decisions/product-decisions.md"],
-    ["docs/audits/", "research/audits/"],
-    ["docs/research/", "research/"],
-    ["reference/", "research/reference/"],
-  ]);
-});
 
 // --- board:import ---------------------------------------------------------------------------
 
@@ -486,22 +291,8 @@ test("the refusal codes are the ones the README lists and the sources throw", ()
   const section = readme.slice(readme.indexOf("## Refusal codes"));
   const listed = [...section.matchAll(/`(board_[a-z_]+)`/gu)].map((match) => match[1]).sort();
   assert.deepEqual(listed, PINNED_CODES);
-  const sources = ["init.mjs", "import.mjs", "git.mjs", "draft.mjs"]
+  const sources = ["import.mjs", "git.mjs", "draft.mjs"]
     .map((name) => readFileSync(join(repoRoot, "tools", "board", name), "utf8")).join("\n");
   const thrown = [...new Set([...sources.matchAll(/"(board_[a-z_]+)"/gu)].map((match) => match[1]))].sort();
   assert.deepEqual(thrown, PINNED_CODES);
-});
-
-test("migration preserves old owners separately from the generated board README", (t) => {
-  const base = temporary(t, "pre-switch");
-  const paths = ["docs/runbooks/development-gitflow.md", "tests/legacy-governance.test.mjs", "config/source-layout.json", "config/section-link-source-exceptions.json"];
-  const exclusions = { ...FIXTURE_EXCLUSIONS, keep: [], exclude: [...FIXTURE_EXCLUSIONS.exclude, ...paths.map(path => ({path, kind:"file", why:"Source-only fixture."}))] };
-  const source = oldRepository(join(base, "source"), { exclusions, extra: Object.fromEntries(paths.map(path => [path, `Saved ${path}\n`])) });
-  mkdirSync(join(base, "engine"));
-  const engine = engineClone(join(base, "engine"));
-  const result = run(INIT, ["--source", source, "--engine", engine]);
-  assert.equal(result.status, 0, JSON.stringify(result.err));
-  assert.equal(readFileSync(join(engine, "candidate/archive/pre-switch/backlog-README.md"), "utf8"), "old format\n");
-  assert.equal(readFileSync(join(engine, "candidate/board/README.md"), "utf8"), readFileSync(BOARD_README_TEMPLATE, "utf8"));
-  for (const name of ["development-gitflow.md", "legacy-governance.test.mjs", "source-layout.json", "section-link-source-exceptions.json"]) assert.ok(existsSync(join(engine, "candidate/archive/pre-switch", name)));
 });
