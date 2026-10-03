@@ -88,9 +88,13 @@ export function run(context) {
     // three - while a copy with one unrelated field edited, or with its keys written in another
     // order, is still a copy and byte comparison would let it through.
     const primaryQuotes = record.evidence.quotes;
-    const sameEvidence = blindQuotes.length === primaryQuotes.length
-      && blindQuotes.every((quote, position) => quote.path === primaryQuotes[position].path
-        && quote.value === primaryQuotes[position].value);
+    const sameEvidence =
+      blindQuotes.length === primaryQuotes.length &&
+      blindQuotes.every(
+        (quote, position) =>
+          quote.path === primaryQuotes[position].path &&
+          quote.value === primaryQuotes[position].value,
+      );
     if (sameEvidence) {
       findings.push({ code: "blind_extraction_not_independent", index });
       continue;
@@ -109,8 +113,9 @@ export function run(context) {
       continue;
     }
     compared += 1;
-    const moved = comparedFields.filter((field) =>
-      (blindTrace[field] ?? null) !== (primaryTrace[field] ?? null));
+    const moved = comparedFields.filter(
+      (field) => (blindTrace[field] ?? null) !== (primaryTrace[field] ?? null),
+    );
     if (moved.length > 0) {
       disagreements += 1;
       findings.push({ code: "blind_extraction_disagrees", index, fields: moved });

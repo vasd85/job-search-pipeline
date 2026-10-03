@@ -123,11 +123,29 @@ export const MEMBERS = Object.freeze([
   Object.freeze({ id: "output", kind: "tree", lock: "process-log", required: false }),
   Object.freeze({ id: "triage-ledger.json", kind: "file", lock: "triage-ledger", required: false }),
   Object.freeze({ id: "triage-batches", kind: "tree", lock: "triage-ledger", required: false }),
-  Object.freeze({ id: "telegram-sources.json", kind: "file", lock: "none", required: false, json: true }),
-  Object.freeze({ id: "telegram-sweep-state.json", kind: "file", lock: "none", required: false, json: true }),
+  Object.freeze({
+    id: "telegram-sources.json",
+    kind: "file",
+    lock: "none",
+    required: false,
+    json: true,
+  }),
+  Object.freeze({
+    id: "telegram-sweep-state.json",
+    kind: "file",
+    lock: "none",
+    required: false,
+    json: true,
+  }),
   Object.freeze({ id: "records", kind: "tree", lock: "none", required: false }),
   Object.freeze({ id: "outbox", kind: "tree", lock: "none", required: false }),
-  Object.freeze({ id: "ops-manifest.json", kind: "file", lock: "none", required: false, json: true }),
+  Object.freeze({
+    id: "ops-manifest.json",
+    kind: "file",
+    lock: "none",
+    required: false,
+    json: true,
+  }),
 ]);
 
 export class OperationalBackupError extends Error {
@@ -186,8 +204,8 @@ function requireAbsentablePath(value, flag) {
   if (!isAbsolute(value)) {
     fail(
       "backup_path_not_absolute",
-      `${flag} takes an absolute path; ${value} would be read as ${resolved}, relative to `
-        + "wherever this command happened to run.",
+      `${flag} takes an absolute path; ${value} would be read as ${resolved}, relative to ` +
+        "wherever this command happened to run.",
     );
   }
   return resolved;
@@ -217,7 +235,10 @@ function requireCount(value, flag, { min, max }) {
 
 /** `2026-09-01T11:00:00.000Z` → `20260901T110000Z`. The stamp is the directory name. */
 export function stampOf(instant) {
-  return `${instant.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}`;
+  return `${instant
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z")}`;
 }
 
 function containsPath(outer, inner) {
@@ -336,7 +357,10 @@ function copyBatchStore(sourcePath, targetPath) {
   mkdirSync(targetPath, { mode: 0o700, recursive: true });
   for (const name of readdirSync(sourcePath).sort()) {
     const batchPath = join(sourcePath, name);
-    if (!lstatSync(batchPath).isDirectory() || !existsSync(join(batchPath, BATCH_RECORD_FILE_NAME))) {
+    if (
+      !lstatSync(batchPath).isDirectory() ||
+      !existsSync(join(batchPath, BATCH_RECORD_FILE_NAME))
+    ) {
       skippedBatches.push(name);
       continue;
     }
@@ -358,21 +382,27 @@ function memberReport(member, extra = {}) {
 function copyProcessLogPair(source, target, { lockTimeoutMs }) {
   const logPath = join(source, "process-log.json");
   const outputPath = join(source, "output");
-  return withLogV3Lock(logPath, ({ log }) => {
-    copyFileMember(logPath, join(target, "process-log.json"));
-    const reports = [memberReport(MEMBERS[0], { status: "copied", records: log.processes.length })];
-    if (!existsSync(outputPath)) {
-      reports.push(memberReport(MEMBERS[1], { status: "absent" }));
+  return withLogV3Lock(
+    logPath,
+    ({ log }) => {
+      copyFileMember(logPath, join(target, "process-log.json"));
+      const reports = [
+        memberReport(MEMBERS[0], { status: "copied", records: log.processes.length }),
+      ];
+      if (!existsSync(outputPath)) {
+        reports.push(memberReport(MEMBERS[1], { status: "absent" }));
+        return reports;
+      }
+      const skipped = copyTreeMember(
+        outputPath,
+        join(target, "output"),
+        (from) => basename(from) === STAGING_DIRECTORY_NAME,
+      );
+      reports.push(memberReport(MEMBERS[1], { status: "copied", excluded_paths: skipped }));
       return reports;
-    }
-    const skipped = copyTreeMember(
-      outputPath,
-      join(target, "output"),
-      (from) => basename(from) === STAGING_DIRECTORY_NAME,
-    );
-    reports.push(memberReport(MEMBERS[1], { status: "copied", excluded_paths: skipped }));
-    return reports;
-  }, { timeoutMs: lockTimeoutMs });
+    },
+    { timeoutMs: lockTimeoutMs },
+  );
 }
 
 /**
@@ -386,9 +416,11 @@ function copyTriagePair(source, target) {
   const storePath = join(source, "triage-batches");
   if (!existsSync(ledgerPath)) {
     const reports = [memberReport(MEMBERS[2], { status: "absent" })];
-    reports.push(memberReport(MEMBERS[3], {
-      status: existsSync(storePath) ? "skipped_without_ledger" : "absent",
-    }));
+    reports.push(
+      memberReport(MEMBERS[3], {
+        status: existsSync(storePath) ? "skipped_without_ledger" : "absent",
+      }),
+    );
     return reports;
   }
   // `changed: false` is what keeps this a read: the wrapper writes the ledger back only when the
@@ -397,10 +429,12 @@ function copyTriagePair(source, target) {
     copyFileMember(ledgerPath, join(target, "triage-ledger.json"));
     const reports = [memberReport(MEMBERS[2], { status: "copied", rows: ledger.entries.length })];
     if (existsSync(storePath)) {
-      reports.push(memberReport(MEMBERS[3], {
-        status: "copied",
-        skipped_batches: copyBatchStore(storePath, join(target, "triage-batches")),
-      }));
+      reports.push(
+        memberReport(MEMBERS[3], {
+          status: "copied",
+          skipped_batches: copyBatchStore(storePath, join(target, "triage-batches")),
+        }),
+      );
     } else {
       reports.push(memberReport(MEMBERS[3], { status: "absent" }));
     }
@@ -458,8 +492,8 @@ function requireReadableJson(member, path) {
   } catch {
     fail(
       "backup_member_unreadable",
-      `${member.id} is not readable JSON. The snapshot is refused rather than archiving it: a `
-        + "copy of a damaged file would take a rotation slot from a good one.",
+      `${member.id} is not readable JSON. The snapshot is refused rather than archiving it: a ` +
+        "copy of a damaged file would take a rotation slot from a good one.",
     );
   }
 }
@@ -525,7 +559,10 @@ function requireOperationalRoot(root) {
     manifest = readFolderManifest(root);
   } catch (error) {
     if (!(error instanceof OpsTreeError)) throw error;
-    fail("backup_root_manifest_invalid", `${root} carries an unreadable operational-folder marker: ${error.message}`);
+    fail(
+      "backup_root_manifest_invalid",
+      `${root} carries an unreadable operational-folder marker: ${error.message}`,
+    );
   }
   let folder = null;
   let identity;
@@ -541,22 +578,21 @@ function requireOperationalRoot(root) {
   } else {
     fail(
       "backup_root_unmarked",
-      `${root} carries no operational-folder marker (ops-manifest.json). `
-        + "The backup copies only the marked operational folder it lives in; "
-        + "development and rehearsal trees are never backed up.",
+      `${root} carries no operational-folder marker (ops-manifest.json). ` +
+        "The backup copies only the marked operational folder it lives in; " +
+        "development and rehearsal trees are never backed up.",
     );
   }
   if (!existsSync(join(root, "process-log.json"))) {
     fail(
       "backup_root_not_operational",
-      `${root} holds no process-log.json. The backup refuses rather than archiving a checkout `
-        + "that carries no operational state, where the absence of that file is the protection "
-        + "itself.",
+      `${root} holds no process-log.json. The backup refuses rather than archiving a checkout ` +
+        "that carries no operational state, where the absence of that file is the protection " +
+        "itself.",
     );
   }
   return { folder, identity, root };
 }
-
 
 /** Every snapshot this tool owns in a destination, newest first. Nothing else is ever listed. */
 export function ownedSnapshots(destination) {
@@ -610,19 +646,19 @@ export function run(options, { now, root }) {
   assertAllowed(options, ["dest", "keep", "lock-timeout-ms", "now"]);
   const { folder, identity, root: source } = requireOperationalRoot(root);
   const destination = resolveDestination(requireOption(options, "dest"));
-  const keep = "keep" in options
-    ? requireCount(options.keep, "--keep", { min: 1, max: 365 })
-    : DEFAULT_KEEP;
-  const lockTimeoutMs = "lock-timeout-ms" in options
-    ? requireCount(options["lock-timeout-ms"], "--lock-timeout-ms", { min: 1, max: 600_000 })
-    : DEFAULT_LOCK_TIMEOUT_MS;
+  const keep =
+    "keep" in options ? requireCount(options.keep, "--keep", { min: 1, max: 365 }) : DEFAULT_KEEP;
+  const lockTimeoutMs =
+    "lock-timeout-ms" in options
+      ? requireCount(options["lock-timeout-ms"], "--lock-timeout-ms", { min: 1, max: 600_000 })
+      : DEFAULT_LOCK_TIMEOUT_MS;
   const instant = "now" in options ? requireInstant(options.now, "--now") : now();
 
   if (containsPath(source, destination) || containsPath(destination, source)) {
     fail(
       "backup_destination_inside_source",
-      "the destination and the source must not contain each other; a destination inside the "
-        + "checkout would be copied into itself and would also be operational state.",
+      "the destination and the source must not contain each other; a destination inside the " +
+        "checkout would be copied into itself and would also be operational state.",
     );
   }
   const stamp = stampOf(instant);
@@ -756,9 +792,7 @@ export function verify(options, { now }) {
     }
     if (JSON.stringify(known) !== JSON.stringify(entry)) mismatched.push(entry.path);
   }
-  const missing = manifest.files
-    .map((entry) => entry.path)
-    .filter((path) => !seen.has(path));
+  const missing = manifest.files.map((entry) => entry.path).filter((path) => !seen.has(path));
   const ok = mismatched.length === 0 && missing.length === 0 && unexpected.length === 0;
   return {
     status: ok ? "verified" : "mismatch",
@@ -780,11 +814,10 @@ function verifyFreshness(options, instant) {
   // hide the answer inside a usage error. It is also not created here, because a check that
   // creates what it is checking for can never report its absence twice.
   const destination = requirePath(options.dest, "--dest");
-  const maxAgeHours = requireCount(
-    requireOption(options, "max-age-hours"),
-    "--max-age-hours",
-    { min: 1, max: 8760 },
-  );
+  const maxAgeHours = requireCount(requireOption(options, "max-age-hours"), "--max-age-hours", {
+    min: 1,
+    max: 8760,
+  });
   if (!existsSync(destination)) {
     return {
       status: "empty",
@@ -800,12 +833,10 @@ function verifyFreshness(options, instant) {
   }
   const owned = ownedSnapshots(realpathSync(destination));
   const newest = owned[0] ?? null;
-  const ageMs = newest === null
-    ? null
-    : instant.getTime() - new Date(newest.created_at).getTime();
+  const ageMs = newest === null ? null : instant.getTime() - new Date(newest.created_at).getTime();
   const ok = ageMs !== null && ageMs <= maxAgeHours * 3_600_000;
   return {
-    status: ok ? "fresh" : (newest === null ? "empty" : "stale"),
+    status: ok ? "fresh" : newest === null ? "empty" : "stale",
     ok,
     destination,
     checked_at: instant.toISOString(),
@@ -848,17 +879,16 @@ export function printPlist(options, { nodePath }) {
   assertAllowed(options, ["dest", "hour", "minute", "script", "node"]);
   const destination = requireAbsolutePath(requireOption(options, "dest"), "--dest");
   const hour = "hour" in options ? requireCount(options.hour, "--hour", { min: 0, max: 23 }) : 11;
-  const minute = "minute" in options
-    ? requireCount(options.minute, "--minute", { min: 0, max: 59 })
-    : 0;
+  const minute =
+    "minute" in options ? requireCount(options.minute, "--minute", { min: 0, max: 59 }) : 0;
   const script = requireAbsentablePath(requireOption(options, "script"), "--script");
   const node = "node" in options ? requireAbsolutePath(options.node, "--node") : nodePath;
   const logPath = join(destination, "backup.log");
   const argv = [node, script, "run", "--dest", destination];
   const plist = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
-      + '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" ' +
+      '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
     '<plist version="1.0">',
     "<dict>",
     "  <key>Label</key>",
@@ -994,11 +1024,10 @@ export function rootOfThisTool(scriptPath = fileURLToPath(import.meta.url)) {
   return resolve(dirname(realpathSync(scriptPath)), "..");
 }
 
-export function runOperationalBackup(argv, {
-  now = () => new Date(),
-  nodePath = process.execPath,
-  root = rootOfThisTool(),
-} = {}) {
+export function runOperationalBackup(
+  argv,
+  { now = () => new Date(), nodePath = process.execPath, root = rootOfThisTool() } = {},
+) {
   const { command, options } = parseArgs(argv);
   if (!command || !Object.hasOwn(COMMANDS, command)) {
     fail("backup_unknown_command", `Unknown command: ${command ?? "<none>"}`);
@@ -1020,9 +1049,11 @@ export function main(argv = process.argv.slice(2)) {
     console.log(JSON.stringify(result, null, 2));
     if (result.ok === false) process.exitCode = 1;
   } catch (error) {
-    console.error(JSON.stringify({
-      error: { code: reportedErrorCode(error), message: error?.message ?? "unknown error" },
-    }));
+    console.error(
+      JSON.stringify({
+        error: { code: reportedErrorCode(error), message: error?.message ?? "unknown error" },
+      }),
+    );
     process.exitCode = 1;
   }
 }

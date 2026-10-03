@@ -7,8 +7,7 @@ import {
 } from "./process-log-diagnostics.mjs";
 
 export const safeCliInputMaxBytes = 65_536;
-export const safeCliInputBasenamePattern =
-  /^input-([0-9a-f]{32})\.json$/;
+export const safeCliInputBasenamePattern = /^input-([0-9a-f]{32})\.json$/;
 
 const maxJsonDepth = 64;
 const stableDiagnosticCodePattern = processLogStableDiagnosticCodePattern;
@@ -167,17 +166,17 @@ function parseStrictJson(source) {
 
   function skipWhitespace() {
     while (
-      source[index] === " "
-      || source[index] === "\t"
-      || source[index] === "\n"
-      || source[index] === "\r"
+      source[index] === " " ||
+      source[index] === "\t" ||
+      source[index] === "\n" ||
+      source[index] === "\r"
     ) {
       index += 1;
     }
   }
 
   function parseString() {
-    if (source[index] !== "\"") jsonFailure();
+    if (source[index] !== '"') jsonFailure();
     const start = index;
     index += 1;
     while (index < source.length) {
@@ -200,7 +199,7 @@ function parseStrictJson(source) {
           index += 5;
           continue;
         }
-        if (!["\"", "\\", "/", "b", "f", "n", "r", "t"].includes(escape)) {
+        if (!['"', "\\", "/", "b", "f", "n", "r", "t"].includes(escape)) {
           jsonFailure();
         }
       }
@@ -210,9 +209,7 @@ function parseStrictJson(source) {
   }
 
   function parseNumber() {
-    const match = source.slice(index).match(
-      /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/,
-    );
+    const match = source.slice(index).match(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/);
     if (!match) jsonFailure();
     index += match[0].length;
     const value = Number(match[0]);
@@ -281,7 +278,7 @@ function parseStrictJson(source) {
     if (depth > maxJsonDepth) jsonFailure();
     skipWhitespace();
     const token = source[index];
-    if (token === "\"") return parseString();
+    if (token === '"') return parseString();
     if (token === "{") return parseObject(depth);
     if (token === "[") return parseArray(depth);
     if (token === "-" || (token >= "0" && token <= "9")) {
@@ -326,9 +323,9 @@ function assertSafeStrings(value, depth = 0) {
   }
   if (typeof value === "string") {
     if (
-      value.includes("\0")
-      || hasUnpairedSurrogate(value)
-      || Buffer.byteLength(value, "utf8") > safeCliInputMaxBytes
+      value.includes("\0") ||
+      hasUnpairedSurrogate(value) ||
+      Buffer.byteLength(value, "utf8") > safeCliInputMaxBytes
     ) {
       fail("safe_input_schema_mismatch", "Input payload schema is invalid.");
     }
@@ -353,8 +350,8 @@ function assertExactKeys(value, required, optional = []) {
   const allowed = new Set([...required, ...optional]);
   const actual = Object.keys(value);
   if (
-    required.some((key) => !Object.hasOwn(value, key))
-    || actual.some((key) => !allowed.has(key))
+    required.some((key) => !Object.hasOwn(value, key)) ||
+    actual.some((key) => !allowed.has(key))
   ) {
     fail("safe_input_schema_mismatch", "Input payload schema is invalid.");
   }
@@ -363,22 +360,19 @@ function assertExactKeys(value, required, optional = []) {
 function assertDiagnostic(value) {
   assertExactKeys(value, ["code", "message", "retryable"], ["details"]);
   if (
-    typeof value.code !== "string"
-    || typeof value.message !== "string"
-    || typeof value.retryable !== "boolean"
-    || !stableDiagnosticCodePattern.test(value.code)
-    || Buffer.byteLength(value.code, "utf8") > diagnosticCodeMaxBytes
-    || Buffer.byteLength(value.message, "utf8") > diagnosticMessageMaxBytes
-    || (
-      Object.hasOwn(value, "details")
-      && (
-        !Array.isArray(value.details)
-        || value.details.length > diagnosticDetailsMaxItems
-        || value.details.some((item) =>
-          typeof item !== "string"
-          || Buffer.byteLength(item, "utf8") > diagnosticDetailMaxBytes)
-      )
-    )
+    typeof value.code !== "string" ||
+    typeof value.message !== "string" ||
+    typeof value.retryable !== "boolean" ||
+    !stableDiagnosticCodePattern.test(value.code) ||
+    Buffer.byteLength(value.code, "utf8") > diagnosticCodeMaxBytes ||
+    Buffer.byteLength(value.message, "utf8") > diagnosticMessageMaxBytes ||
+    (Object.hasOwn(value, "details") &&
+      (!Array.isArray(value.details) ||
+        value.details.length > diagnosticDetailsMaxItems ||
+        value.details.some(
+          (item) =>
+            typeof item !== "string" || Buffer.byteLength(item, "utf8") > diagnosticDetailMaxBytes,
+        )))
   ) {
     fail("safe_input_schema_mismatch", "Input payload schema is invalid.");
   }
@@ -397,18 +391,14 @@ function assertWaiverRecords(value) {
     assertExactKeys(record, ["subject"], ["note"]);
     assertExactKeys(record.subject, ["kind", "key"]);
     if (
-      !waiverSubjectKinds.includes(record.subject.kind)
-      || typeof record.subject.key !== "string"
-      || record.subject.key.length === 0
-      || Buffer.byteLength(record.subject.key, "utf8") > diagnosticDetailMaxBytes
-      || (
-        Object.hasOwn(record, "note")
-        && (
-          typeof record.note !== "string"
-          || record.note.length === 0
-          || Buffer.byteLength(record.note, "utf8") > diagnosticMessageMaxBytes
-        )
-      )
+      !waiverSubjectKinds.includes(record.subject.kind) ||
+      typeof record.subject.key !== "string" ||
+      record.subject.key.length === 0 ||
+      Buffer.byteLength(record.subject.key, "utf8") > diagnosticDetailMaxBytes ||
+      (Object.hasOwn(record, "note") &&
+        (typeof record.note !== "string" ||
+          record.note.length === 0 ||
+          Buffer.byteLength(record.note, "utf8") > diagnosticMessageMaxBytes))
     ) {
       fail("safe_input_schema_mismatch", "Input payload schema is invalid.");
     }
@@ -429,9 +419,9 @@ function assertStringList(value, limits) {
   }
   for (const item of value) {
     if (
-      typeof item !== "string"
-      || item.length === 0
-      || Buffer.byteLength(item, "utf8") > itemMaxBytes
+      typeof item !== "string" ||
+      item.length === 0 ||
+      Buffer.byteLength(item, "utf8") > itemMaxBytes
     ) {
       fail("safe_input_schema_mismatch", "Input payload schema is invalid.");
     }
@@ -439,34 +429,22 @@ function assertStringList(value, limits) {
 }
 
 function validateEnvelope(value, command, nonce, schemas) {
-  assertExactKeys(
-    value,
-    ["schemaVersion", "command", "nonce", "values"],
-  );
+  assertExactKeys(value, ["schemaVersion", "command", "nonce", "values"]);
   if (value.schemaVersion !== 1 || !isRecord(value.values)) {
     fail("safe_input_schema_mismatch", "Input payload schema is invalid.");
   }
   if (value.command !== command) {
-    fail(
-      "safe_input_command_mismatch",
-      "Input payload command does not match the CLI command.",
-    );
+    fail("safe_input_command_mismatch", "Input payload command does not match the CLI command.");
   }
   if (value.nonce !== nonce) {
-    fail(
-      "safe_input_nonce_mismatch",
-      "Input payload nonce does not match its filename.",
-    );
+    fail("safe_input_nonce_mismatch", "Input payload nonce does not match its filename.");
   }
 
   // Own-property lookup: a bare `schemas[command]` resolves inherited names such as
   // `toString` to a truthy value and would reach the field loop below with no key sets.
   const schema = Object.hasOwn(schemas, command) ? schemas[command] : null;
   if (!schema) {
-    fail(
-      "safe_input_command_mismatch",
-      "This CLI command does not accept an input payload.",
-    );
+    fail("safe_input_command_mismatch", "This CLI command does not accept an input payload.");
   }
   assertExactKeys(value.values, schema.required, schema.optional);
   if (schema.atLeastOne && Object.keys(value.values).length === 0) {
@@ -493,24 +471,20 @@ function modeBits(stats) {
 
 function sameIdentityAndMetadata(left, right) {
   return (
-    left.dev === right.dev
-    && left.ino === right.ino
-    && left.size === right.size
-    && left.mtimeNs === right.mtimeNs
-    && left.ctimeNs === right.ctimeNs
-    && left.mode === right.mode
-    && left.uid === right.uid
-    && left.nlink === right.nlink
-    && left.isFile() === right.isFile()
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs &&
+    left.mode === right.mode &&
+    left.uid === right.uid &&
+    left.nlink === right.nlink &&
+    left.isFile() === right.isFile()
   );
 }
 
 function inspectInputRoot(inputRoot, fileSystem, uid) {
-  if (
-    typeof inputRoot !== "string"
-    || !isAbsolute(inputRoot)
-    || resolve(inputRoot) !== inputRoot
-  ) {
+  if (typeof inputRoot !== "string" || !isAbsolute(inputRoot) || resolve(inputRoot) !== inputRoot) {
     fail("safe_input_unsafe_path", "Input root path is unsafe.");
   }
   let stats;
@@ -522,11 +496,11 @@ function inspectInputRoot(inputRoot, fileSystem, uid) {
     fail("safe_input_root_invalid", "Input root is unavailable or unsafe.");
   }
   if (
-    stats.isSymbolicLink()
-    || !stats.isDirectory()
-    || stats.uid !== BigInt(uid)
-    || modeBits(stats) !== 0o700n
-    || realPath !== inputRoot
+    stats.isSymbolicLink() ||
+    !stats.isDirectory() ||
+    stats.uid !== BigInt(uid) ||
+    modeBits(stats) !== 0o700n ||
+    realPath !== inputRoot
   ) {
     fail("safe_input_root_invalid", "Input root is unavailable or unsafe.");
   }
@@ -534,11 +508,11 @@ function inspectInputRoot(inputRoot, fileSystem, uid) {
 
 function inspectInputFile(stats, uid) {
   if (
-    stats.isSymbolicLink()
-    || !stats.isFile()
-    || stats.uid !== BigInt(uid)
-    || modeBits(stats) !== 0o600n
-    || stats.nlink !== 1n
+    stats.isSymbolicLink() ||
+    !stats.isFile() ||
+    stats.uid !== BigInt(uid) ||
+    modeBits(stats) !== 0o600n ||
+    stats.nlink !== 1n
   ) {
     fail("safe_input_file_invalid", "Input file type or permissions are unsafe.");
   }
@@ -551,13 +525,7 @@ function readDescriptor(fileSystem, descriptor) {
   const bytes = Buffer.alloc(safeCliInputMaxBytes + 1);
   let total = 0;
   while (total < bytes.length) {
-    const read = fileSystem.readSync(
-      descriptor,
-      bytes,
-      total,
-      bytes.length - total,
-      null,
-    );
+    const read = fileSystem.readSync(descriptor, bytes, total, bytes.length - total, null);
     if (read === 0) break;
     total += read;
   }
@@ -582,18 +550,13 @@ export function readSafeCliInput({
   uid = typeof process.getuid === "function" ? process.getuid() : null,
 }) {
   if (
-    !["darwin", "linux"].includes(platform)
-    || !Number.isSafeInteger(uid)
-    || typeof fileSystem.constants?.O_NOFOLLOW !== "number"
+    !["darwin", "linux"].includes(platform) ||
+    !Number.isSafeInteger(uid) ||
+    typeof fileSystem.constants?.O_NOFOLLOW !== "number"
   ) {
-    fail(
-      "safe_input_unsupported_platform",
-      "Safe input files are unsupported on this platform.",
-    );
+    fail("safe_input_unsupported_platform", "Safe input files are unsupported on this platform.");
   }
-  const match = typeof basename === "string"
-    ? basename.match(safeCliInputBasenamePattern)
-    : null;
+  const match = typeof basename === "string" ? basename.match(safeCliInputBasenamePattern) : null;
   if (!match) {
     fail("safe_input_unsafe_path", "Input filename is unsafe.");
   }
@@ -630,12 +593,10 @@ export function readSafeCliInput({
       fail("safe_input_replaced", "Input file changed during the read.");
     }
   } catch (error) {
-    failure = error instanceof SafeCliInputError
-      ? error
-      : new SafeCliInputError(
-        "safe_input_file_invalid",
-        "Input file could not be read safely.",
-      );
+    failure =
+      error instanceof SafeCliInputError
+        ? error
+        : new SafeCliInputError("safe_input_file_invalid", "Input file could not be read safely.");
   } finally {
     if (descriptor !== null) {
       try {
@@ -652,12 +613,7 @@ export function readSafeCliInput({
   }
   if (failure) throw failure;
 
-  if (
-    bytes.length >= 1
-    && bytes[0] === 0xef
-    && bytes[1] === 0xbb
-    && bytes[2] === 0xbf
-  ) {
+  if (bytes.length >= 1 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
     fail("safe_input_invalid_utf8", "Input payload must be UTF-8 without a BOM.");
   }
   if (bytes.includes(0)) {
@@ -686,10 +642,7 @@ export function hydrateSafeCliOptions({
   }
   const schema = commandSchemas[command];
   if (!schema) {
-    fail(
-      "safe_input_command_mismatch",
-      "This CLI command does not accept an input payload.",
-    );
+    fail("safe_input_command_mismatch", "This CLI command does not accept an input payload.");
   }
   if (externalValueOptions.some((key) => Object.hasOwn(options, key))) {
     fail(
@@ -697,14 +650,8 @@ export function hydrateSafeCliOptions({
       "Do not combine --input-file with legacy external-value flags.",
     );
   }
-  if (
-    schema.disallowedMachineOptions?.some((key) =>
-      Object.hasOwn(options, key))
-  ) {
-    fail(
-      "safe_input_conflicting_flags",
-      "Input payload conflicts with another command selector.",
-    );
+  if (schema.disallowedMachineOptions?.some((key) => Object.hasOwn(options, key))) {
+    fail("safe_input_conflicting_flags", "Input payload conflicts with another command selector.");
   }
   const basename = options["input-file"];
   const envelope = readSafeCliInput({
@@ -716,14 +663,11 @@ export function hydrateSafeCliOptions({
     uid,
   });
   if (
-    command === "update"
-    && options["clear-company-hint"]
-    && Object.hasOwn(envelope.values, "companyHint")
+    command === "update" &&
+    options["clear-company-hint"] &&
+    Object.hasOwn(envelope.values, "companyHint")
   ) {
-    fail(
-      "safe_input_conflicting_flags",
-      "Input companyHint conflicts with --clear-company-hint.",
-    );
+    fail("safe_input_conflicting_flags", "Input companyHint conflicts with --clear-company-hint.");
   }
 
   const merged = { ...options };
@@ -738,10 +682,12 @@ export function hydrateSafeCliOptions({
         details: [],
       });
     } else if (schema.waiverFields?.includes(key)) {
-      merged[optionName] = JSON.stringify(value.map((record) => ({
-        subject: { kind: record.subject.kind, key: record.subject.key },
-        ...(Object.hasOwn(record, "note") ? { note: record.note } : {}),
-      })));
+      merged[optionName] = JSON.stringify(
+        value.map((record) => ({
+          subject: { kind: record.subject.kind, key: record.subject.key },
+          ...(Object.hasOwn(record, "note") ? { note: record.note } : {}),
+        })),
+      );
     } else {
       merged[optionName] = value;
     }

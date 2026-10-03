@@ -16,13 +16,13 @@ work that has not started — `source-capture.json` is in no module, the ledger 
 
 Every bounded set below has one machine owner. Read the module, never a prose copy of it.
 
-| Rule | Owner |
-| --- | --- |
-| Bounded outcome names and their retryability | `failureRetryability`, `statusVocabulary` in `tools/job-sources/routes.mjs` |
+| Rule                                                      | Owner                                                                                        |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Bounded outcome names and their retryability              | `failureRetryability`, `statusVocabulary` in `tools/job-sources/routes.mjs`                  |
 | The access-barrier axis and the direct-route status table | `outcomeNames`, `accessBarriers`, `classifyDirectRoute` in `tools/vacancy-fetch/outcome.mjs` |
-| The response-header allowlist | `recordedResponseHeaders` in `tools/vacancy-fetch/transport.mjs` |
-| The URL rule | `serverSuppliedUrl`, `requestedUrl` in `tools/vacancy-fetch/url-rule.mjs` |
-| The triage-lane tool applying them | [tools/vacancy-fetch/README.md](../tools/vacancy-fetch/README.md) |
+| The response-header allowlist                             | `recordedResponseHeaders` in `tools/vacancy-fetch/transport.mjs`                             |
+| The URL rule                                              | `serverSuppliedUrl`, `requestedUrl` in `tools/vacancy-fetch/url-rule.mjs`                    |
+| The triage-lane tool applying them                        | [tools/vacancy-fetch/README.md](../tools/vacancy-fetch/README.md)                            |
 
 **The URL rule.** A server-supplied URL — every redirect hop, the final URL when it differs from
 the requested one, any location header — is recorded as origin and path. The requested URL keeps

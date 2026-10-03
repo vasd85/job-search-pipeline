@@ -79,14 +79,17 @@ export function fingerprintOf(post, { handle, urlKeys, seenAt }) {
 function similarText(a, b) {
   if (a.text !== null || b.text !== null) return a.text !== null && a.text === b.text;
   let equal = 0;
-  for (let index = 0; index < MINHASH_SIZE; index += 1) if (a.minhash[index] === b.minhash[index]) equal += 1;
+  for (let index = 0; index < MINHASH_SIZE; index += 1)
+    if (a.minhash[index] === b.minhash[index]) equal += 1;
   return equal / MINHASH_SIZE >= JACCARD_THRESHOLD;
 }
 
 export function isRepostOf(candidate, original) {
-  return candidate.head === original.head
-    && candidate.urls === original.urls
-    && similarText(candidate, original);
+  return (
+    candidate.head === original.head &&
+    candidate.urls === original.urls &&
+    similarText(candidate, original)
+  );
 }
 
 /** The first line of `post` that the original does not carry, or null when every line is there. */
@@ -124,7 +127,10 @@ export function repostIndex(stored, { nowMs, memoryDays }) {
   return {
     add,
     find(candidate) {
-      return (byLegs.get(legs(candidate)) ?? []).find((original) => isRepostOf(candidate, original)) ?? null;
+      return (
+        (byLegs.get(legs(candidate)) ?? []).find((original) => isRepostOf(candidate, original)) ??
+        null
+      );
     },
     touch(original, seenAt) {
       original.last_seen = seenAt;

@@ -46,11 +46,11 @@ lifecycle rule and no recipe. `R2-01D` and the per-source adapter tasks implemen
 Three decisions landed after the audit baseline. This ADR records them as settled so that no
 dependent task re-derives or reverses them by accident.
 
-| Decision | Closed by | This ADR |
-| --- | --- | --- |
-| Source domain identification is single-sourced through the registry; the duplicated policy-domain list is gone and company-domain mutation is fail-closed | `R1-04A` | Inherited unchanged. The extractor binds adapters to registry source ids; it never reintroduces a second domain matcher |
-| The Notion route is unsupported and names no helper that does not exist; the two invented helper names are banned across every runtime-readable surface | `R1-04C` | Inherited unchanged. This ADR contracts the **generic rendered fallback** only, and does not restate the Notion recipe, whose exact wording is frozen by test |
-| Bounded outcome names collapse deliberately: one real condition carries exactly one name, an unknown status stays active rather than becoming a failure, and only an access failure is retryable | `R1-04B` | Inherited unchanged, and extended only along a new orthogonal axis. See **Access and outcome taxonomy** |
+| Decision                                                                                                                                                                                         | Closed by | This ADR                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source domain identification is single-sourced through the registry; the duplicated policy-domain list is gone and company-domain mutation is fail-closed                                        | `R1-04A`  | Inherited unchanged. The extractor binds adapters to registry source ids; it never reintroduces a second domain matcher                                       |
+| The Notion route is unsupported and names no helper that does not exist; the two invented helper names are banned across every runtime-readable surface                                          | `R1-04C`  | Inherited unchanged. This ADR contracts the **generic rendered fallback** only, and does not restate the Notion recipe, whose exact wording is frozen by test |
+| Bounded outcome names collapse deliberately: one real condition carries exactly one name, an unknown status stays active rather than becoming a failure, and only an access failure is retryable | `R1-04B`  | Inherited unchanged, and extended only along a new orthogonal axis. See **Access and outcome taxonomy**                                                       |
 
 The remaining halves of `EXTRACT-04` and `EXTRACT-06` — the typed adapter layer and the generic
 fallback contract — are open and are what this ADR decides.
@@ -116,7 +116,7 @@ the same run that wrote the description is the defect of `EXTRACT-03` with one m
 The chain from the live posting to a published fact has two stages with different owners and
 different strengths.
 
-**Stage A — response bytes to ordered blocks.** Performed by a per-source adapter. It is *not*
+**Stage A — response bytes to ordered blocks.** Performed by a per-source adapter. It is _not_
 verified per run: nothing in a local run can know what the live page really said. It is verified
 per source, offline, by frozen fixtures that pin one captured response to one expected block
 sequence. A fixture is synthetic unless its own bytes say otherwise, and a synthetic fixture pins
@@ -200,14 +200,14 @@ rather than to the outcome names.
 `accessBarrier` is recorded only when the outcome is `access_failure`, and every value is retryable,
 because a barrier describes why a fetch did not complete and never asserts that a posting is gone:
 
-| `accessBarrier` | Meaning |
-| --- | --- |
-| `network` | The transport did not complete |
-| `http_status` | A status that says only that this fetch failed — never one the status table below maps to a terminal outcome |
-| `unparseable` | The response loaded but its shape is unknown, including an aggregate holding no postings |
-| `authentication` | A credential, consent or membership wall, on any route, including the posting route itself |
-| `anti_bot` | A challenge, interstitial or block page instead of the posting, whatever status carries it |
-| `rate_limit` | The source refused for volume reasons |
+| `accessBarrier`  | Meaning                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| `network`        | The transport did not complete                                                                               |
+| `http_status`    | A status that says only that this fetch failed — never one the status table below maps to a terminal outcome |
+| `unparseable`    | The response loaded but its shape is unknown, including an aggregate holding no postings                     |
+| `authentication` | A credential, consent or membership wall, on any route, including the posting route itself                   |
+| `anti_bot`       | A challenge, interstitial or block page instead of the posting, whatever status carries it                   |
+| `rate_limit`     | The source refused for volume reasons                                                                        |
 
 A terminal verdict is never derived from a barrier. This is the fail-safe direction the audit's Step
 1 findings repeatedly required: an uncertain outcome stays retryable.
@@ -217,17 +217,17 @@ left to each adapter. A direct posting route resolves its HTTP status here, once
 
 The rows are ordered and the first match wins, so no observation resolves twice:
 
-| Observed on a direct posting route | Outcome | Barrier | Why |
-| --- | --- | --- | --- |
-| A challenge, interstitial or block page, at any status | `access_failure` | `anti_bot` | A block page is not a posting, and the status it arrives under says nothing about the posting |
-| `404`, `410` | `absent` | none | The posting is gone from a route that answers for exactly one posting. This is the case the triage layer already treats as terminal after a retry |
-| `401`, `403`, on any route | `access_failure` | `authentication` | A wall states what this reader may see, never whether the posting exists. A live posting behind a sign-in or bot wall is a case this repository has already observed, so the fail-safe direction is mandatory here |
-| `429` | `access_failure` | `rate_limit` | Volume, not availability |
-| `5xx`, transport failure, timeout | `access_failure` | `network` or `http_status` | The source did not answer |
-| `200` carrying a first-party status word the bounded vocabulary maps to closed | `closed` | none | The source said so, in its own words |
-| `200` carrying a first-party status word or listing flag the bounded vocabulary maps to private | `private` | none | The source said so. Only a first-party statement makes a posting private; an HTTP status never does |
-| `200` with a posting body | `active` | none | The posting is there |
-| Any other status, or a body of unknown shape | `access_failure` | `unparseable` | Fail retryable, never terminal, on incomplete information |
+| Observed on a direct posting route                                                              | Outcome          | Barrier                    | Why                                                                                                                                                                                                                |
+| ----------------------------------------------------------------------------------------------- | ---------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A challenge, interstitial or block page, at any status                                          | `access_failure` | `anti_bot`                 | A block page is not a posting, and the status it arrives under says nothing about the posting                                                                                                                      |
+| `404`, `410`                                                                                    | `absent`         | none                       | The posting is gone from a route that answers for exactly one posting. This is the case the triage layer already treats as terminal after a retry                                                                  |
+| `401`, `403`, on any route                                                                      | `access_failure` | `authentication`           | A wall states what this reader may see, never whether the posting exists. A live posting behind a sign-in or bot wall is a case this repository has already observed, so the fail-safe direction is mandatory here |
+| `429`                                                                                           | `access_failure` | `rate_limit`               | Volume, not availability                                                                                                                                                                                           |
+| `5xx`, transport failure, timeout                                                               | `access_failure` | `network` or `http_status` | The source did not answer                                                                                                                                                                                          |
+| `200` carrying a first-party status word the bounded vocabulary maps to closed                  | `closed`         | none                       | The source said so, in its own words                                                                                                                                                                               |
+| `200` carrying a first-party status word or listing flag the bounded vocabulary maps to private | `private`        | none                       | The source said so. Only a first-party statement makes a posting private; an HTTP status never does                                                                                                                |
+| `200` with a posting body                                                                       | `active`         | none                       | The posting is there                                                                                                                                                                                               |
+| Any other status, or a body of unknown shape                                                    | `access_failure` | `unparseable`              | Fail retryable, never terminal, on incomplete information                                                                                                                                                          |
 
 Two properties of that table are the point of writing it down. A terminal unavailability verdict —
 `absent`, `closed` or `private` — is reachable only from what the source states in its own words, or
@@ -242,13 +242,13 @@ where the adapters would otherwise each invent an answer.
 Mapping to the vocabularies that already exist, so that one condition keeps one meaning across the
 pipeline:
 
-| This ADR | Ledger diagnostic today | Triage vocabulary today |
-| --- | --- | --- |
-| `active` | no failure diagnostic | `usable` |
-| `absent` | non-retryable unavailability | `closed`, with the observed symptom quoted |
-| `closed` | non-retryable unavailability | `closed`, with the observed status quoted |
-| `private` | non-retryable unavailability | `closed`, with the observed status quoted |
-| `access_failure` with any barrier | retryable fetch failure | `technical_unavailable` |
+| This ADR                          | Ledger diagnostic today      | Triage vocabulary today                    |
+| --------------------------------- | ---------------------------- | ------------------------------------------ |
+| `active`                          | no failure diagnostic        | `usable`                                   |
+| `absent`                          | non-retryable unavailability | `closed`, with the observed symptom quoted |
+| `closed`                          | non-retryable unavailability | `closed`, with the observed status quoted  |
+| `private`                         | non-retryable unavailability | `closed`, with the observed status quoted  |
+| `access_failure` with any barrier | retryable fetch failure      | `technical_unavailable`                    |
 
 The triage vocabulary keeps its three values; this ADR does not widen it. `R2-05A` owns whether the
 barrier reaches a decision trace.
@@ -260,88 +260,88 @@ has a row. Rows that this ADR does not touch say so explicitly rather than being
 
 ### Artifact versions
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 1 | `vacancy.json` v1 | The only accepted value | Stays readable and revalidatable under the v1 contract; never rewritten in place | `R2-01D` |
-| 2 | `vacancy.json` v2 | Does not exist | Introduced with the delta above | `R2-01D` |
-| 3 | v1 to v2 | Not applicable | Only by an explicit reopen of Step 1 after cutover; never automatic, never bulk | `R2-01D` |
-| 4 | v2 to v1 | Not applicable | Not supported. A v2 bundle is never downgraded; the rollback path is Git revert of the release plus finishing in-flight processes on the previous release | `R2-01D` |
-| 5 | Ledger artifact pin for the vacancy kind | Asserts equality with a single schema number | Must accept the set of both versions; a scalar equality would refuse every existing record the moment the new release lands | `R2-01D` |
-| 6 | `job-description.txt` | Unversioned; null schema version in ledger metadata; the reference inside the vacancy omits a version | Stays unversioned. Its version is implied by the vacancy that references it | `R2-01D` |
-| 7 | Render determinism across versions | Not defined | A v2 render of the same blocks is not guaranteed byte-identical to a v1 hand transcription. Reopening therefore republishes description bytes, which is a real change and is why reopen is explicit | `R2-01D` |
-| 8 | `source-capture.json` | Does not exist | New Step 1 artifact kind, schema version 1, in the reserved output directory, with an explicit maximum size and a bounded block count. Its basename joins the reserved canonical set, which today lists six names, because a canonical basename is declared and never discovered by extension | `R2-01D` |
-| 9 | Capture web-readability | Not applicable | Must stay out of the public reader's artifact allowlist. Unknown kinds are skipped today, so this holds by default and must be pinned rather than assumed | `R2-01D` |
-| 10 | `company-research.json` v1 | Current | Not applicable — owned by `R2-02A` | `R2-02A` |
-| 11 | `application-brief.json` v3, with v1 and v2 explicitly refused | Current | Not applicable to the brief itself. It is cited as the repository's only worked multi-version reader and is the pattern the vacancy dispatch follows | `R2-03P` |
-| 12 | `cv.json` | Unversioned | Not applicable | `R2-04B` |
-| 13 | The CV document, whose basename is frozen at first publication | Current | Not applicable | `R2-04B` |
-| 14 | `cover-letter.txt` | Unversioned | Not applicable | `R2-04C` |
-| 15 | Triage normalized input v1 | Current | Not applicable to this ADR. Whether a v2 vacancy or an access barrier forces a new normalized-input version is decided by `R2-05A`, which depends on this ADR | `R2-05A` |
-| 16 | Existing vacancy fixtures | Three valid v1 bundles plus one frozen negative bundle, reaching eleven suites directly or through the shared producers | The three valid bundles stay valid under the v2 reader without edits, and the negative bundle keeps producing the same errors; a separate v2 fixture set is added beside them | `R2-01D` |
+|   # | Item                                                           | Today                                                                                                                   | Under this ADR                                                                                                                                                                                                                                                                                | Owner    |
+| --: | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+|   1 | `vacancy.json` v1                                              | The only accepted value                                                                                                 | Stays readable and revalidatable under the v1 contract; never rewritten in place                                                                                                                                                                                                              | `R2-01D` |
+|   2 | `vacancy.json` v2                                              | Does not exist                                                                                                          | Introduced with the delta above                                                                                                                                                                                                                                                               | `R2-01D` |
+|   3 | v1 to v2                                                       | Not applicable                                                                                                          | Only by an explicit reopen of Step 1 after cutover; never automatic, never bulk                                                                                                                                                                                                               | `R2-01D` |
+|   4 | v2 to v1                                                       | Not applicable                                                                                                          | Not supported. A v2 bundle is never downgraded; the rollback path is Git revert of the release plus finishing in-flight processes on the previous release                                                                                                                                     | `R2-01D` |
+|   5 | Ledger artifact pin for the vacancy kind                       | Asserts equality with a single schema number                                                                            | Must accept the set of both versions; a scalar equality would refuse every existing record the moment the new release lands                                                                                                                                                                   | `R2-01D` |
+|   6 | `job-description.txt`                                          | Unversioned; null schema version in ledger metadata; the reference inside the vacancy omits a version                   | Stays unversioned. Its version is implied by the vacancy that references it                                                                                                                                                                                                                   | `R2-01D` |
+|   7 | Render determinism across versions                             | Not defined                                                                                                             | A v2 render of the same blocks is not guaranteed byte-identical to a v1 hand transcription. Reopening therefore republishes description bytes, which is a real change and is why reopen is explicit                                                                                           | `R2-01D` |
+|   8 | `source-capture.json`                                          | Does not exist                                                                                                          | New Step 1 artifact kind, schema version 1, in the reserved output directory, with an explicit maximum size and a bounded block count. Its basename joins the reserved canonical set, which today lists six names, because a canonical basename is declared and never discovered by extension | `R2-01D` |
+|   9 | Capture web-readability                                        | Not applicable                                                                                                          | Must stay out of the public reader's artifact allowlist. Unknown kinds are skipped today, so this holds by default and must be pinned rather than assumed                                                                                                                                     | `R2-01D` |
+|  10 | `company-research.json` v1                                     | Current                                                                                                                 | Not applicable — owned by `R2-02A`                                                                                                                                                                                                                                                            | `R2-02A` |
+|  11 | `application-brief.json` v3, with v1 and v2 explicitly refused | Current                                                                                                                 | Not applicable to the brief itself. It is cited as the repository's only worked multi-version reader and is the pattern the vacancy dispatch follows                                                                                                                                          | `R2-03P` |
+|  12 | `cv.json`                                                      | Unversioned                                                                                                             | Not applicable                                                                                                                                                                                                                                                                                | `R2-04B` |
+|  13 | The CV document, whose basename is frozen at first publication | Current                                                                                                                 | Not applicable                                                                                                                                                                                                                                                                                | `R2-04B` |
+|  14 | `cover-letter.txt`                                             | Unversioned                                                                                                             | Not applicable                                                                                                                                                                                                                                                                                | `R2-04C` |
+|  15 | Triage normalized input v1                                     | Current                                                                                                                 | Not applicable to this ADR. Whether a v2 vacancy or an access barrier forces a new normalized-input version is decided by `R2-05A`, which depends on this ADR                                                                                                                                 | `R2-05A` |
+|  16 | Existing vacancy fixtures                                      | Three valid v1 bundles plus one frozen negative bundle, reaching eleven suites directly or through the shared producers | The three valid bundles stay valid under the v2 reader without edits, and the negative bundle keeps producing the same errors; a separate v2 fixture set is added beside them                                                                                                                 | `R2-01D` |
 
 ### Ledger schema and artifact metadata
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 17 | Ledger schema v3 | Current and enforced | A new artifact kind does not change the ledger schema number. If per-record source-key versioning later demands one, that is `R2-01B`'s event, not this ADR's | `R2-01D` |
-| 18 | Ledger schema v2 | Refused by the v3 ledger | Not applicable — remains dead | none |
-| 19 | The shipped v1-to-v2 ledger migrator | Still present | Not applicable — untouched | none |
-| 20 | Bundle entry shape | Fixed key set per artifact entry | Unchanged. The capture is a new entry, not a new field | `R2-01D` |
-| 21 | Per-kind schema equality | Strict equality | Becomes a per-kind accepted set for the vacancy kind only | `R2-01D` |
-| 22 | Artifact mode | Must be file-backed | Not applicable — unchanged | none |
-| 23 | Artifact digests and byte counts in the ledger | Computed by the lifecycle from staged bytes, not accepted from the caller | Unchanged, and deliberately so: this is already the one place where the number is not self-reported, and the capture inherits it | `R2-01D` |
-| 24 | Mandatory artifact descriptors at publication | Every contract artifact with a fixed path is mandatory for every publication of its step | Adding the capture makes it mandatory for **every** Step 1 publication that has an adapter, including a reopen of a process that never had one. A no-adapter run cannot satisfy it, and which exemption it gets depends on the open user decision below | `R2-01D` |
-| 25 | `finalUrl` | Nullable, never cross-checked | Bound to the capture's final URL in v2; unchanged for v1 | `R2-01D` |
+|   # | Item                                           | Today                                                                                    | Under this ADR                                                                                                                                                                                                                                          | Owner    |
+| --: | ---------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+|  17 | Ledger schema v3                               | Current and enforced                                                                     | A new artifact kind does not change the ledger schema number. If per-record source-key versioning later demands one, that is `R2-01B`'s event, not this ADR's                                                                                           | `R2-01D` |
+|  18 | Ledger schema v2                               | Refused by the v3 ledger                                                                 | Not applicable — remains dead                                                                                                                                                                                                                           | none     |
+|  19 | The shipped v1-to-v2 ledger migrator           | Still present                                                                            | Not applicable — untouched                                                                                                                                                                                                                              | none     |
+|  20 | Bundle entry shape                             | Fixed key set per artifact entry                                                         | Unchanged. The capture is a new entry, not a new field                                                                                                                                                                                                  | `R2-01D` |
+|  21 | Per-kind schema equality                       | Strict equality                                                                          | Becomes a per-kind accepted set for the vacancy kind only                                                                                                                                                                                               | `R2-01D` |
+|  22 | Artifact mode                                  | Must be file-backed                                                                      | Not applicable — unchanged                                                                                                                                                                                                                              | none     |
+|  23 | Artifact digests and byte counts in the ledger | Computed by the lifecycle from staged bytes, not accepted from the caller                | Unchanged, and deliberately so: this is already the one place where the number is not self-reported, and the capture inherits it                                                                                                                        | `R2-01D` |
+|  24 | Mandatory artifact descriptors at publication  | Every contract artifact with a fixed path is mandatory for every publication of its step | Adding the capture makes it mandatory for **every** Step 1 publication that has an adapter, including a reopen of a process that never had one. A no-adapter run cannot satisfy it, and which exemption it gets depends on the open user decision below | `R2-01D` |
+|  25 | `finalUrl`                                     | Nullable, never cross-checked                                                            | Bound to the capture's final URL in v2; unchanged for v1                                                                                                                                                                                                | `R2-01D` |
 
 ### Identity and source keys
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 26 | `source_key` has no version field | Current | Not applicable — owned by `R2-01B`. This ADR deliberately records no capture-derived identity, so that it cannot pre-empt that decision | `R2-01B` |
-| 27 | Source reference normalization semantics | Frozen | Not applicable — unchanged here. Changing its meaning under the same version is forbidden by the plan's own rule | `R2-01B` |
-| 28 | Tracking parameters stripped from the key, including meaningful ones | Current | Not applicable — the correction is `R2-01B`'s scope | `R2-01B` |
-| 29 | Duplicate detection by source key | Current | Not applicable — unchanged | `R2-01B` |
-| 30 | Legacy source-key collision containment | Integrated, read-only, reports rather than migrates | Not applicable — unchanged, and must not be contradicted | `R2-01B` |
-| 31 | Historical source references are immutable | Current | Not applicable — unchanged | none |
-| 32 | Historical source-key canonicality is enforced on load for historical records too | Current | Named as an inherited constraint for `R2-01B`: any normalization change invalidates the historical corpus at load time, so it is a ledger-schema event and not a local edit | `R2-01B` |
+|   # | Item                                                                              | Today                                               | Under this ADR                                                                                                                                                              | Owner    |
+| --: | --------------------------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+|  26 | `source_key` has no version field                                                 | Current                                             | Not applicable — owned by `R2-01B`. This ADR deliberately records no capture-derived identity, so that it cannot pre-empt that decision                                     | `R2-01B` |
+|  27 | Source reference normalization semantics                                          | Frozen                                              | Not applicable — unchanged here. Changing its meaning under the same version is forbidden by the plan's own rule                                                            | `R2-01B` |
+|  28 | Tracking parameters stripped from the key, including meaningful ones              | Current                                             | Not applicable — the correction is `R2-01B`'s scope                                                                                                                         | `R2-01B` |
+|  29 | Duplicate detection by source key                                                 | Current                                             | Not applicable — unchanged                                                                                                                                                  | `R2-01B` |
+|  30 | Legacy source-key collision containment                                           | Integrated, read-only, reports rather than migrates | Not applicable — unchanged, and must not be contradicted                                                                                                                    | `R2-01B` |
+|  31 | Historical source references are immutable                                        | Current                                             | Not applicable — unchanged                                                                                                                                                  | none     |
+|  32 | Historical source-key canonicality is enforced on load for historical records too | Current                                             | Named as an inherited constraint for `R2-01B`: any normalization change invalidates the historical corpus at load time, so it is a ledger-schema event and not a local edit | `R2-01B` |
 
 ### Historical records
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 33 | Imported web-application provenance is historical-only | Enforced | Not applicable — a historical record can never own a file-backed artifact, so it can never carry a capture or a v2 vacancy | none |
-| 34 | Historical versus file-backed record classification | Enforced | Not applicable — unchanged | none |
-| 35 | Imported historical source-reference grammar is not a URL | Current | Not applicable — unchanged. Named because it does not pass through URL normalization | `R2-01B` |
-| 36 | Historical records are read-only | Enforced | Not applicable — a historical process cannot be reopened into v2 | none |
+|   # | Item                                                      | Today    | Under this ADR                                                                                                             | Owner    |
+| --: | --------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- | -------- |
+|  33 | Imported web-application provenance is historical-only    | Enforced | Not applicable — a historical record can never own a file-backed artifact, so it can never carry a capture or a v2 vacancy | none     |
+|  34 | Historical versus file-backed record classification       | Enforced | Not applicable — unchanged                                                                                                 | none     |
+|  35 | Imported historical source-reference grammar is not a URL | Current  | Not applicable — unchanged. Named because it does not pass through URL normalization                                       | `R2-01B` |
+|  36 | Historical records are read-only                          | Enforced | Not applicable — a historical process cannot be reopened into v2                                                           | none     |
 
 ### Reopen, staleness and descendants
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 37 | Reopen precondition: the step is completed or stale | Enforced | Unchanged; it is the only door to v2 | `R2-01D` |
-| 38 | Reopen is refused while a dependent step is running | Enforced | Unchanged | `R2-01D` |
-| 39 | Reopen marks completed descendants stale | Enforced | Named as the real cost of moving one process to v2: research, brief, CV and letter all go stale. The default of finishing a started application on its existing release stands | `R2-01D` |
-| 40 | Input snapshots carry the schema version of each input | Current | A v1-to-v2 change alters the snapshot for the research and mapping steps, which is exactly what makes their staleness visible instead of silent | `R2-01D` |
-| 41 | Downstream steps fail closed on a stale prerequisite | Enforced | Unchanged and relied upon | `R2-01D` |
-| 42 | Step dependency graph | Fixed | Unchanged. The mapping step reads both Step 1 and Step 2, so a v2 vacancy reaches it through two edges | `R2-01D` |
-| 43 | Public reader presentation of a vacancy | Renders by artifact kind with no version check | **Uncontained.** A v2 body would render as missing data rather than as an unsupported version, and no queue row in this lane holds the web presentation lock. Named as uncontained rather than assigned to a task that cannot act | none today |
+|   # | Item                                                   | Today                                          | Under this ADR                                                                                                                                                                                                                    | Owner      |
+| --: | ------------------------------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+|  37 | Reopen precondition: the step is completed or stale    | Enforced                                       | Unchanged; it is the only door to v2                                                                                                                                                                                              | `R2-01D`   |
+|  38 | Reopen is refused while a dependent step is running    | Enforced                                       | Unchanged                                                                                                                                                                                                                         | `R2-01D`   |
+|  39 | Reopen marks completed descendants stale               | Enforced                                       | Named as the real cost of moving one process to v2: research, brief, CV and letter all go stale. The default of finishing a started application on its existing release stands                                                    | `R2-01D`   |
+|  40 | Input snapshots carry the schema version of each input | Current                                        | A v1-to-v2 change alters the snapshot for the research and mapping steps, which is exactly what makes their staleness visible instead of silent                                                                                   | `R2-01D`   |
+|  41 | Downstream steps fail closed on a stale prerequisite   | Enforced                                       | Unchanged and relied upon                                                                                                                                                                                                         | `R2-01D`   |
+|  42 | Step dependency graph                                  | Fixed                                          | Unchanged. The mapping step reads both Step 1 and Step 2, so a v2 vacancy reaches it through two edges                                                                                                                            | `R2-01D`   |
+|  43 | Public reader presentation of a vacancy                | Renders by artifact kind with no version check | **Uncontained.** A v2 body would render as missing data rather than as an unsupported version, and no queue row in this lane holds the web presentation lock. Named as uncontained rather than assigned to a task that cannot act | none today |
 
 ### Routes and outcomes
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 44 | Machine route facts cover two of nine sources | Current | Each remaining source gains an adapter in its own task, in the order the epic fixes; the unstable demand-only routes stay a placeholder that must be replaced by separate tasks before activation | `R2-01D`, `R2-01H`, `R2-01I`, `R2-01J`, `R2-01K`, `R2-01L`, `R2-01F` |
-| 45 | Route facts carry an observation date but no version | Current | Adapter id and adapter version become part of the capture, which is what lets one adapter degrade without the others | `R2-01D` |
-| 46 | Outcome vocabulary and retryability | Frozen by an integrated task | Unchanged; extended only by the orthogonal barrier axis | `R2-01D` |
-| 47 | Live-route verification | Assigned to a release gate that has since completed and explicitly disclaimed it | **Uncontained.** Restated here as a scheduled or manual live smoke with no current owner rather than left attached to a closed gate | none today |
+|   # | Item                                                 | Today                                                                            | Under this ADR                                                                                                                                                                                    | Owner                                                                |
+| --: | ---------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+|  44 | Machine route facts cover two of nine sources        | Current                                                                          | Each remaining source gains an adapter in its own task, in the order the epic fixes; the unstable demand-only routes stay a placeholder that must be replaced by separate tasks before activation | `R2-01D`, `R2-01H`, `R2-01I`, `R2-01J`, `R2-01K`, `R2-01L`, `R2-01F` |
+|  45 | Route facts carry an observation date but no version | Current                                                                          | Adapter id and adapter version become part of the capture, which is what lets one adapter degrade without the others                                                                              | `R2-01D`                                                             |
+|  46 | Outcome vocabulary and retryability                  | Frozen by an integrated task                                                     | Unchanged; extended only by the orthogonal barrier axis                                                                                                                                           | `R2-01D`                                                             |
+|  47 | Live-route verification                              | Assigned to a release gate that has since completed and explicitly disclaimed it | **Uncontained.** Restated here as a scheduled or manual live smoke with no current owner rather than left attached to a closed gate                                                               | none today                                                           |
 
 ### Capture integrity
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 48 | Who may write a published artifact | Every candidate is read from bytes the agent staged, so authorship is not a property the publication path can distinguish | The extractor writes the capture into staging itself and no command accepts capture content from a caller, so the procedure offers no way to author one. This is structural, not proven: an actor writing arbitrary staged bytes defeats it, and that actor is ADR 0011's same-UID residual | `R2-01D`, as a pinned negative on the absent interface |
-| 49 | Response headers in the capture | Not recorded anywhere | A bounded allowlist rather than the epic's raw header set, so that no header value beyond it, and no URL outside the URL rule, reaches a published artifact. It carries content encoding, because the body digest is over the bytes as received, and the authentication scheme, because the status table classifies on it | `R2-01D` |
-| 50 | URLs in the capture | `finalUrl` is a whole URL and nothing narrows it; no redirect chain is recorded at all | One rule for all of them: a server-supplied URL keeps origin and path, and the requested URL stays whole because process identity keys on it. A path-borne token and a secret inside the requested URL are named residuals, not claims | `R2-01D` |
+|   # | Item                               | Today                                                                                                                     | Under this ADR                                                                                                                                                                                                                                                                                                            | Owner                                                  |
+| --: | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+|  48 | Who may write a published artifact | Every candidate is read from bytes the agent staged, so authorship is not a property the publication path can distinguish | The extractor writes the capture into staging itself and no command accepts capture content from a caller, so the procedure offers no way to author one. This is structural, not proven: an actor writing arbitrary staged bytes defeats it, and that actor is ADR 0011's same-UID residual                               | `R2-01D`, as a pinned negative on the absent interface |
+|  49 | Response headers in the capture    | Not recorded anywhere                                                                                                     | A bounded allowlist rather than the epic's raw header set, so that no header value beyond it, and no URL outside the URL rule, reaches a published artifact. It carries content encoding, because the body digest is over the bytes as received, and the authentication scheme, because the status table classifies on it | `R2-01D`                                               |
+|  50 | URLs in the capture                | `finalUrl` is a whole URL and nothing narrows it; no redirect chain is recorded at all                                    | One rule for all of them: a server-supplied URL keeps origin and path, and the requested URL stays whole because process identity keys on it. A path-borne token and a secret inside the requested URL are named residuals, not claims                                                                                    | `R2-01D`                                               |
 
 ## Cutover and rollback
 
@@ -395,22 +395,22 @@ and may not weaken it locally.
 Every guarantee stated above, with the task that must prove it. A guarantee with no owner is written
 as uncontained, not quietly assigned.
 
-| Guarantee | Verified by |
-| --- | --- |
+| Guarantee                                                                                           | Verified by                                                                                                                                             |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | No command accepts capture content from a caller, so the ordinary procedure cannot author a capture | `R2-01D`, as a pinned negative. This is the first guarantee to verify: every row below is worthless without it, and it is structural rather than proven |
-| The published description is a byte-identical render of the capture blocks | `R2-01D`, per run and by test |
-| A fabricated, truncated or reordered description is refused | `R2-01D`, negative tests derived from this task's reproduction probe |
-| A quoted fact that is not in the capture is refused | `R2-01D` |
-| Each status in the table maps as the table says, and no barrier is terminal | `R2-01D`, plus one fixture per status per direct-route adapter. That the table is total and disjoint is argued, not proven |
-| The capture carries no header outside the bounded allowlist | `R2-01D`, as a pinned negative |
-| Response bytes map to the correct ordered blocks for a given source | Frozen per-source fixtures in `R2-01D`, `R2-01H`, `R2-01I`, `R2-01J`, `R2-01K`, `R2-01L` |
-| One adapter can fail without disabling the others | Each adapter task |
-| Existing v1 bundles stay readable | `R2-01D`, against the existing fixtures |
-| The capture never becomes web-readable | `R2-01D`, as a pinned negative |
-| The outcome vocabulary and retryability are unchanged | `R2-01D` |
-| Identity and source keys are unaffected | `R2-01B` |
-| Live route behaviour matches the frozen fixtures | **Uncontained** — a scheduled or manual smoke with no current owner |
-| A v2 vacancy is presented honestly by the public reader | **Uncontained** — no row in this lane holds that lock |
+| The published description is a byte-identical render of the capture blocks                          | `R2-01D`, per run and by test                                                                                                                           |
+| A fabricated, truncated or reordered description is refused                                         | `R2-01D`, negative tests derived from this task's reproduction probe                                                                                    |
+| A quoted fact that is not in the capture is refused                                                 | `R2-01D`                                                                                                                                                |
+| Each status in the table maps as the table says, and no barrier is terminal                         | `R2-01D`, plus one fixture per status per direct-route adapter. That the table is total and disjoint is argued, not proven                              |
+| The capture carries no header outside the bounded allowlist                                         | `R2-01D`, as a pinned negative                                                                                                                          |
+| Response bytes map to the correct ordered blocks for a given source                                 | Frozen per-source fixtures in `R2-01D`, `R2-01H`, `R2-01I`, `R2-01J`, `R2-01K`, `R2-01L`                                                                |
+| One adapter can fail without disabling the others                                                   | Each adapter task                                                                                                                                       |
+| Existing v1 bundles stay readable                                                                   | `R2-01D`, against the existing fixtures                                                                                                                 |
+| The capture never becomes web-readable                                                              | `R2-01D`, as a pinned negative                                                                                                                          |
+| The outcome vocabulary and retryability are unchanged                                               | `R2-01D`                                                                                                                                                |
+| Identity and source keys are unaffected                                                             | `R2-01B`                                                                                                                                                |
+| Live route behaviour matches the frozen fixtures                                                    | **Uncontained** — a scheduled or manual smoke with no current owner                                                                                     |
+| A v2 vacancy is presented honestly by the public reader                                             | **Uncontained** — no row in this lane holds that lock                                                                                                   |
 
 ## Open decisions that require the user
 

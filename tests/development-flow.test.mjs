@@ -13,8 +13,8 @@ const FLOW = "docs/runbooks/development-flow.md";
 
 // The sentence and its list, whitespace-tolerant so a rewrap of the sentence is not a change.
 const LIGHT_LIST = new RegExp(
-  String.raw`\*\*Light\*\*\s+applies\s+only\s+when\s+every\s+changed\s+path\s+matches\s+one\s+of\s+`
-    + String.raw`these\s+globs:\n\n\x60{3}text\n([\s\S]*?)\n\x60{3}\n`,
+  String.raw`\*\*Light\*\*\s+applies\s+only\s+when\s+every\s+changed\s+path\s+matches\s+one\s+of\s+` +
+    String.raw`these\s+globs:\n\n\x60{3}text\n([\s\S]*?)\n\x60{3}\n`,
   "g",
 );
 const LIGHT_GLOBS = Object.freeze(["docs/**", "README.md"]);
@@ -30,7 +30,10 @@ test("the light level is exactly the frozen list of paths, and every other path 
   // pin catches is a widening written as prose; the pull request's reader is the check there.
   const start = flow.indexOf("\n## 5. ");
   const end = flow.indexOf("\n## 6. ", start);
-  assert.ok(start !== -1 && end !== -1, "docs/runbooks/development-flow.md#5-two-levels-of-ceremony holds the two levels");
+  assert.ok(
+    start !== -1 && end !== -1,
+    "docs/runbooks/development-flow.md#5-two-levels-of-ceremony holds the two levels",
+  );
   const openers = [];
   let open = false;
   for (const line of flow.slice(start, end).split("\n")) {
@@ -39,7 +42,11 @@ test("the light level is exactly the frozen list of paths, and every other path 
     if (!open) openers.push(fence[1]);
     open = !open;
   }
-  assert.deepEqual(openers, ["text", "sh"], "docs/runbooks/development-flow.md#5-two-levels-of-ceremony fences: the light list, the diff command");
+  assert.deepEqual(
+    openers,
+    ["text", "sh"],
+    "docs/runbooks/development-flow.md#5-two-levels-of-ceremony fences: the light list, the diff command",
+  );
 
   // The default is what makes the list an exception rather than one level among several.
   assert.match(flow, /Any other path makes the task \*\*full\*\*\./);

@@ -94,7 +94,14 @@ function readText(absolute, path) {
  * personalization inventory used: without it the sum over markers has nothing it can be checked
  * against.
  */
-export function scanTree({ allow = [], cyrillicData = [], isExported = () => true, markers, paths, root }) {
+export function scanTree({
+  allow = [],
+  cyrillicData = [],
+  isExported = () => true,
+  markers,
+  paths,
+  root,
+}) {
   if (!Array.isArray(markers) || markers.length === 0) {
     fail("publishability_scan_invalid", "the scan needs at least one marker.");
   }
@@ -105,7 +112,8 @@ export function scanTree({ allow = [], cyrillicData = [], isExported = () => tru
   const dataPaths = cyrillicData.map((entry) => entry.path);
   const byMarker = new Map(markers.map((marker) => [marker.id, emptyTally()]));
   const byClass = new Map();
-  for (const marker of markers) if (!byClass.has(marker.class)) byClass.set(marker.class, emptyTally());
+  for (const marker of markers)
+    if (!byClass.has(marker.class)) byClass.set(marker.class, emptyTally());
   const files = [];
   const findings = [];
   const absent = [];
@@ -122,14 +130,17 @@ export function scanTree({ allow = [], cyrillicData = [], isExported = () => tru
     const allowed = allowedMarkersFor(path, allow);
     const isData = dataPaths.some((entry) => coversPath(entry, path));
     const source = isMarkerSource(path);
-    const applicable = markers.filter((marker) => !allowed.has(marker.id)
-      // The data allowance is a property of one class: a file whose Cyrillic is data is still
-      // searched for every personal marker and every shared template it may carry.
-      && !(isData && marker.class === "cyrillic_prose")
-      // A marker source carries the public patterns by design, so no public marker reads it; see
-      // `MARKER_SOURCE_PATHS`. The personal markers still do: a real markers file copied over the
-      // tracked example is exactly the leak the export gate exists to refuse.
-      && !(source && marker.class !== "personal_marker"));
+    const applicable = markers.filter(
+      (marker) =>
+        !allowed.has(marker.id) &&
+        // The data allowance is a property of one class: a file whose Cyrillic is data is still
+        // searched for every personal marker and every shared template it may carry.
+        !(isData && marker.class === "cyrillic_prose") &&
+        // A marker source carries the public patterns by design, so no public marker reads it; see
+        // `MARKER_SOURCE_PATHS`. The personal markers still do: a real markers file copied over the
+        // tracked example is exactly the leak the export gate exists to refuse.
+        !(source && marker.class !== "personal_marker"),
+    );
     if (source && applicable.length === 0) {
       skipped += 1;
       continue;

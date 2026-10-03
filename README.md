@@ -74,19 +74,19 @@ The [ADR index](docs/adr/README.md) explains why those choices were made and lin
 
 ## Repository map
 
-| Path | Start here for |
-| --- | --- |
-| [knowledge/](knowledge/) | Generation rules, scoring rubric, playbooks and authority rules. |
-| [instructions/](instructions/) | Operating contract, explicit pipeline steps and canonical skill procedures. |
-| [candidate.example/](candidate.example/) | Fictional profile, evidence, configuration, constraints and language packs used by tests. |
-| [tools/candidate/](tools/candidate/README.md) | Candidate-layer format and validation. |
-| [tools/job-scorer/](tools/job-scorer/) | Deterministic vacancy decisions and their trace. |
-| [tools/vacancy-fetch/](tools/vacancy-fetch/README.md) | Page capture and source adapters. |
-| [tools/triage-verify/](tools/triage-verify/README.md) | Batch evidence and verification checks. |
-| [tools/cv-builder/](tools/cv-builder/README.md) | DOCX build, rendering and pagination checks. |
-| [tests/](tests/) | Offline fixtures, behavioural tests and instruction pins. |
-| [docs/runbooks/](docs/runbooks/) | Development, operations, release and recovery procedures. |
-| [web/process-search/](web/process-search/) | Local read-only process search interface. |
+| Path                                                  | Start here for                                                                            |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [knowledge/](knowledge/)                              | Generation rules, scoring rubric, playbooks and authority rules.                          |
+| [instructions/](instructions/)                        | Operating contract, explicit pipeline steps and canonical skill procedures.               |
+| [candidate.example/](candidate.example/)              | Fictional profile, evidence, configuration, constraints and language packs used by tests. |
+| [tools/candidate/](tools/candidate/README.md)         | Candidate-layer format and validation.                                                    |
+| [tools/job-scorer/](tools/job-scorer/)                | Deterministic vacancy decisions and their trace.                                          |
+| [tools/vacancy-fetch/](tools/vacancy-fetch/README.md) | Page capture and source adapters.                                                         |
+| [tools/triage-verify/](tools/triage-verify/README.md) | Batch evidence and verification checks.                                                   |
+| [tools/cv-builder/](tools/cv-builder/README.md)       | DOCX build, rendering and pagination checks.                                              |
+| [tests/](tests/)                                      | Offline fixtures, behavioural tests and instruction pins.                                 |
+| [docs/runbooks/](docs/runbooks/)                      | Development, operations, release and recovery procedures.                                 |
+| [web/process-search/](web/process-search/)            | Local read-only process search interface.                                                 |
 
 `AGENTS.md`, `CLAUDE.md` and native skill wrappers are generated entry points. Edit their canonical
 sources in `instructions/`, then use `node tools/sync-agent-proxies.mjs --write` and `--check`.
@@ -206,3 +206,40 @@ outside the gate.
 
 No license has been selected. This is a deliberate deferred decision; outside pull requests are
 not accepted until it is made.
+
+## Formatting
+
+Run `npm run format` to format tracked files and `npm run format:check` to check them.
+The `format` CI stage checks Prettier as well as whitespace. Prettier is pinned in the root
+lockfile; install it with `npm ci --ignore-scripts --no-audit --no-fund`.
+The shared configuration uses a width of 100, preserves prose wrapping, and leaves embedded
+code examples unchanged. The formatter infers supported file types, includes dotfiles, and
+never visits untracked operational or candidate files. `.prettierignore` documents every
+excluded family: byte-sensitive fixtures, the candidate example, generated runtime proxies,
+and npm-generated lockfiles. Regenerate proxies after changing their canonical instructions.
+
+`npm run setup:machine` installs a pre-commit hook that formats supported staged files before
+Git creates a commit, then checks staged whitespace. It reads the active index and its staged
+configuration, including the temporary index of `git commit -- <paths>`. Partial staging is
+preserved: unstaged file contents stay byte-for-byte unchanged; a fully staged working file
+is updated to the formatted result. Other staged paths stay outside a pathspec commit. No stash
+is used, and linked worktrees keep independent indexes.
+
+A missing formatter, dependency or staged policy, invalid syntax, an unmerged index, or a Git/
+working-file write failure refuses the commit. All parsing finishes before the index is updated.
+If a subsequent working-file synchronization fails, the commit is refused; formatted staged
+content and the original user content remain recoverable. The independent CI check also rejects
+unformatted committed content. Fixtures and generated files retain their excluded bytes.
+Source-reference exceptions pin the exact reference and occurrence count, independent of the
+surrounding code's quotes or layout; neighbouring references and semantic mutations remain checked.
+
+The mechanical formatting commit is recorded in `.git-blame-ignore-revs`. To retain useful
+line authorship locally, run:
+
+```sh
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
+For a single invocation, use `git blame --ignore-revs-file .git-blame-ignore-revs <file>`.
+Configuration, tooling, and test corrections remain visible in blame; only mechanical
+formatting is ignored.

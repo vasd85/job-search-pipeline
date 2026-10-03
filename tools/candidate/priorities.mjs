@@ -19,8 +19,10 @@ export const PRIORITY_COMPANY_REGIONS = Object.freeze(["WEST", "HOME", "OTHER"])
 
 /** Distinct company regions of the vocabulary above; the list may be empty. */
 export function acceptsCompanyRegions(value) {
-  return value.every((region) => PRIORITY_COMPANY_REGIONS.includes(region))
-    && new Set(value).size === value.length;
+  return (
+    value.every((region) => PRIORITY_COMPANY_REGIONS.includes(region)) &&
+    new Set(value).size === value.length
+  );
 }
 
 /**

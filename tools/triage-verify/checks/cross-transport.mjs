@@ -76,12 +76,16 @@ function resolvedByManifest(record) {
  * difference rather than passing quietly.
  */
 function walledOnRetry(record, manifestRecord) {
-  const retryOwed = (manifestRecord.outcome === "active" && manifestRecord.usable === true)
-    || manifestRecord.outcome === "absent";
+  const retryOwed =
+    (manifestRecord.outcome === "active" && manifestRecord.usable === true) ||
+    manifestRecord.outcome === "absent";
   if (!retryOwed) return false;
-  return record.captures.some((capture) => capture.provenance !== "http_fetch"
-    && capture.verified?.ok === true
-    && capture.verified.header.outcome === "access_failure");
+  return record.captures.some(
+    (capture) =>
+      capture.provenance !== "http_fetch" &&
+      capture.verified?.ok === true &&
+      capture.verified.header.outcome === "access_failure",
+  );
 }
 
 export function run(context) {
@@ -103,9 +107,11 @@ export function run(context) {
 
   for (const record of context.records) {
     const verifiedCaptures = record.captures.filter((capture) => capture.verified?.ok === true);
-    const urls = new Set(verifiedCaptures
-      .map((capture) => context.normalizeUrl(capture.verified.header["requested-url"]))
-      .filter((url) => url !== null));
+    const urls = new Set(
+      verifiedCaptures
+        .map((capture) => context.normalizeUrl(capture.verified.header["requested-url"]))
+        .filter((url) => url !== null),
+    );
     if (urls.size > 1) {
       findings.push({ code: "capture_url_disagreement", index: record.index });
     }
@@ -167,8 +173,9 @@ export function run(context) {
         }
       }
     } else if (record.input?.source?.accessOutcome === "usable") {
-      const fallbackCapture = record.captures.some((capture) =>
-        capture.primary === false && capture.verified?.ok === true);
+      const fallbackCapture = record.captures.some(
+        (capture) => capture.primary === false && capture.verified?.ok === true,
+      );
       if (!fallbackCapture) {
         findings.push({ code: "fallback_not_honoured", index: record.index });
       }
@@ -182,8 +189,12 @@ export function run(context) {
     // body. `closed` and `private` are read out of a body whose structural checks held and owe no
     // such confirmation, so scoring one of those is still the contradiction this catches.
     const confirmedLive = manifestRecord.outcome === "absent" && rescued;
-    if (TERMINAL_MANIFEST_OUTCOMES.has(manifestRecord.outcome) && declared !== null
-      && declared !== "closed" && !confirmedLive) {
+    if (
+      TERMINAL_MANIFEST_OUTCOMES.has(manifestRecord.outcome) &&
+      declared !== null &&
+      declared !== "closed" &&
+      !confirmedLive
+    ) {
       findings.push({ code: "closed_source_scored", index: record.index });
     }
     // The direction that closes the cheap exit: a declared unavailability has to be something the
@@ -229,13 +240,17 @@ export function run(context) {
       if (recorded.has(index) || manifestRecord.skipped === true) continue;
       findings.push({ code: "manifest_record_unaccounted", index });
     }
-    const closedByManifest = new Set(context.records
-      .filter((record) => TERMINAL_MANIFEST_OUTCOMES.has(byIndex.get(record.index)?.outcome))
-      .map((record) => record.index));
+    const closedByManifest = new Set(
+      context.records
+        .filter((record) => TERMINAL_MANIFEST_OUTCOMES.has(byIndex.get(record.index)?.outcome))
+        .map((record) => record.index),
+    );
     manifestClosed = closedByManifest.size;
     const skippedUnavailable = context.records
-      .filter((record) => record.trace?.decision === "SKIP"
-        && record.trace?.skip_code === "vacancy_unavailable")
+      .filter(
+        (record) =>
+          record.trace?.decision === "SKIP" && record.trace?.skip_code === "vacancy_unavailable",
+      )
       .map((record) => record.index);
     const beyond = skippedUnavailable.filter((index) => !closedByManifest.has(index));
     if (beyond.length > 0) diffs.push({ code: "closed_beyond_manifest", indices: beyond });
@@ -255,9 +270,12 @@ export function run(context) {
     // corroboration in this directory at all. The counts in the report are what keeps the class
     // visible, and the runbook says what a batch of them is worth.
     const uncorroborated = context.records
-      .filter((record) => record.input?.source?.accessOutcome !== undefined
-        && record.input.source.accessOutcome !== "usable"
-        && record.captures.every((capture) => capture.verified?.ok !== true))
+      .filter(
+        (record) =>
+          record.input?.source?.accessOutcome !== undefined &&
+          record.input.source.accessOutcome !== "usable" &&
+          record.captures.every((capture) => capture.verified?.ok !== true),
+      )
       .map((record) => record.index);
     if (uncorroborated.length > 0) {
       diffs.push({ code: "unavailability_uncorroborated_no_manifest", indices: uncorroborated });

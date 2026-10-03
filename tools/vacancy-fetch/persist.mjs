@@ -98,8 +98,7 @@ export function verifyCaptureFile(contents) {
   const actualDigest = sha256Utf8(body);
   if (declaredDigest !== actualDigest) problems.push("capture_digest_mismatch");
   const declaredBytes = Number(header["body-bytes"]);
-  if (!Number.isSafeInteger(declaredBytes)
-    || declaredBytes !== Buffer.byteLength(body, "utf8")) {
+  if (!Number.isSafeInteger(declaredBytes) || declaredBytes !== Buffer.byteLength(body, "utf8")) {
     problems.push("capture_size_mismatch");
   }
   return { ok: problems.length === 0, header, body, problems };

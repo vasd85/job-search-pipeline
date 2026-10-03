@@ -5,7 +5,16 @@
 // out of the module it is checking, because a test that asks the code what it should say cannot
 // disagree with it. Files are written only inside a disposable root.
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -35,8 +44,18 @@ import { renderCompositionReport, renderPreTriagePlan } from "../tools/pretriage
 import { buildDecisionTrace } from "../tools/job-scorer/trace.mjs";
 import { candidateExampleRootFor, candidateScoringValues } from "../tools/candidate/load.mjs";
 import { candidatePrioritiesFrom } from "../tools/candidate/priorities.mjs";
-import { initLedger, planBatch, readLedger, recordBatch } from "../tools/lib/triage-ledger-core.mjs";
-import { claimGroup, collectionGroup, groupBatchId, splitCollection } from "../tools/pretriage/groups.mjs";
+import {
+  initLedger,
+  planBatch,
+  readLedger,
+  recordBatch,
+} from "../tools/lib/triage-ledger-core.mjs";
+import {
+  claimGroup,
+  collectionGroup,
+  groupBatchId,
+  splitCollection,
+} from "../tools/pretriage/groups.mjs";
 import { sliceRange } from "../tools/triage-verify/links.mjs";
 
 // Frozen literals. The window is the runbook's standard cadence today; the test states the number
@@ -216,7 +235,10 @@ test("a fully dated collection is ordered newest first and ties keep input order
     { url: LINK_THREE, posted_at: "2026-08-22T00:00:00Z" },
   ]);
   assert.equal(ordered.basis, "posted_at");
-  assert.deepEqual(ordered.links.map((entry) => entry.url), [LINK_TWO, LINK_THREE, LINK_ONE]);
+  assert.deepEqual(
+    ordered.links.map((entry) => entry.url),
+    [LINK_TWO, LINK_THREE, LINK_ONE],
+  );
 });
 
 test("one undated link stops the sort and the basis says so", () => {
@@ -225,7 +247,10 @@ test("one undated link stops the sort and the basis says so", () => {
     { url: LINK_TWO },
   ]);
   assert.equal(ordered.basis, "input_order");
-  assert.deepEqual(ordered.links.map((entry) => entry.url), [LINK_ONE, LINK_TWO]);
+  assert.deepEqual(
+    ordered.links.map((entry) => entry.url),
+    [LINK_ONE, LINK_TWO],
+  );
 });
 
 test("an operator's declared order is reported as a claim, not as a sort", () => {
@@ -247,17 +272,17 @@ test("the header carries the collection date and the declared order", () => {
 });
 
 test("a comment after the first link cannot date the collection", () => {
-  assert.deepEqual(
-    parseCollectionHeader("https://example.com/a\n# collected: 2026-08-17"),
-    { collected_at: null, declared_order: null },
-  );
+  assert.deepEqual(parseCollectionHeader("https://example.com/a\n# collected: 2026-08-17"), {
+    collected_at: null,
+    declared_order: null,
+  });
 });
 
 test("a file with no header reports both facts absent", () => {
-  assert.deepEqual(
-    parseCollectionHeader("https://example.com/a"),
-    { collected_at: null, declared_order: null },
-  );
+  assert.deepEqual(parseCollectionHeader("https://example.com/a"), {
+    collected_at: null,
+    declared_order: null,
+  });
 });
 
 test("a header key stated twice is a caller error", () => {
@@ -291,16 +316,21 @@ test("a links file is read as one collection, header and list together", (t) => 
   const collection = readCollection(path);
   assert.equal(collection.collected_at, "2026-08-17");
   assert.equal(collection.declared_order, "newest-first");
-  assert.deepEqual(collection.links.map((entry) => entry.url), [LINK_ONE, LINK_TWO]);
+  assert.deepEqual(
+    collection.links.map((entry) => entry.url),
+    [LINK_ONE, LINK_TWO],
+  );
 });
 
 // ----------------------------------------------------------------- liveness
 
 test("a manifest is read into bounded liveness observations", () => {
-  const observations = sweepFromManifest(manifest([
-    manifestRecord(),
-    manifestRecord({ index: 2, requestedUrl: LINK_TWO, outcome: "closed", finalUrl: LINK_TWO }),
-  ]));
+  const observations = sweepFromManifest(
+    manifest([
+      manifestRecord(),
+      manifestRecord({ index: 2, requestedUrl: LINK_TWO, outcome: "closed", finalUrl: LINK_TWO }),
+    ]),
+  );
   assert.equal(observations.length, 2);
   assert.deepEqual(observations[1], {
     index: 2,
@@ -316,7 +346,13 @@ test("a manifest is read into bounded liveness observations", () => {
 });
 
 test("a manifest that is not a vacancy-fetch manifest of a known version is refused", () => {
-  for (const value of [null, [], { schemaVersion: 3, tool: "vacancy-fetch", records: [] }, { schemaVersion: 1, tool: "other", records: [] }, { schemaVersion: 1, tool: "vacancy-fetch" }]) {
+  for (const value of [
+    null,
+    [],
+    { schemaVersion: 3, tool: "vacancy-fetch", records: [] },
+    { schemaVersion: 1, tool: "other", records: [] },
+    { schemaVersion: 1, tool: "vacancy-fetch" },
+  ]) {
     assert.throws(
       () => sweepFromManifest(value),
       (error) => error.code === "pretriage_manifest_unrecognized",
@@ -365,14 +401,24 @@ test("a manifest outcome outside the layer's vocabulary is refused, never guesse
 });
 
 test("an active usable record opens the expensive lane", () => {
-  const classified = classifyLiveness({ index: 1, outcome: "active", usable: true, skipped: false });
+  const classified = classifyLiveness({
+    index: 1,
+    outcome: "active",
+    usable: true,
+    skipped: false,
+  });
   assert.equal(classified.verdict, "live");
   assert.equal(classified.reason, "active_body_usable");
   assert.equal(classified.source, null);
 });
 
 test("a closure banner in a page that checked out ends the link without the expensive lane", () => {
-  const classified = classifyLiveness({ index: 1, outcome: "closed", usable: true, skipped: false });
+  const classified = classifyLiveness({
+    index: 1,
+    outcome: "closed",
+    usable: true,
+    skipped: false,
+  });
   assert.equal(classified.verdict, "gone");
   assert.equal(classified.reason, "closed_banner_observed");
   assert.equal(classified.evidence_required, true);
@@ -383,13 +429,23 @@ test("a closure banner in a page that checked out ends the link without the expe
 });
 
 test("an absent record owes a browser confirmation load before it is terminal", () => {
-  const classified = classifyLiveness({ index: 1, outcome: "absent", usable: false, skipped: false });
+  const classified = classifyLiveness({
+    index: 1,
+    outcome: "absent",
+    usable: false,
+    skipped: false,
+  });
   assert.equal(classified.verdict, "unresolved");
   assert.equal(classified.reason, "absent_awaiting_confirmation");
 });
 
 test("a closure read out of a layout the adapter no longer recognizes is not trusted", () => {
-  const classified = classifyLiveness({ index: 1, outcome: "closed", usable: false, skipped: false });
+  const classified = classifyLiveness({
+    index: 1,
+    outcome: "closed",
+    usable: false,
+    skipped: false,
+  });
   assert.equal(classified.verdict, "unresolved");
   assert.equal(classified.reason, "structural_checks_failed");
 });
@@ -417,7 +473,12 @@ test("a link the batch never attempted says nothing about the posting", () => {
 });
 
 test("a private listing is not expired, removed or closed", () => {
-  const classified = classifyLiveness({ index: 1, outcome: "private", usable: true, skipped: false });
+  const classified = classifyLiveness({
+    index: 1,
+    outcome: "private",
+    usable: true,
+    skipped: false,
+  });
   assert.equal(classified.verdict, "unresolved");
   assert.equal(classified.reason, "private_listing_reported");
 });
@@ -448,7 +509,8 @@ test("a closed vacancy without its quote is refused rather than passed on", () =
     (error) => error.code === "pretriage_evidence_missing",
   );
   assert.throws(
-    () => goneScorerSource(gone, { sourceRef: "", evidenceQuote: "No longer accepting applications" }),
+    () =>
+      goneScorerSource(gone, { sourceRef: "", evidenceQuote: "No longer accepting applications" }),
     (error) => error.code === "pretriage_source_ref_missing",
   );
 });
@@ -478,7 +540,14 @@ test("a swept-dead link scores as SKIP vacancy_unavailable with no model in the 
       automation: "unknown",
       domain: "unclear",
       evidence: {
-        aiProduct: null, aiWork: null, automation: null, domain: null, language: null, role: null, seniority: null, tools: null,
+        aiProduct: null,
+        aiWork: null,
+        automation: null,
+        domain: null,
+        language: null,
+        role: null,
+        seniority: null,
+        tools: null,
       },
       family: "unknown",
       language: "unknown",
@@ -509,7 +578,11 @@ function prioritiesOf({
 } = {}) {
   return candidatePrioritiesFrom({
     mobility: { excluded_destinations: excluded },
-    priorities: { relocation_destinations: destinations, relocation_west: west, remote_company_regions: remote },
+    priorities: {
+      relocation_destinations: destinations,
+      relocation_west: west,
+      remote_company_regions: remote,
+    },
   });
 }
 const ranked = { priorities: prioritiesOf() };
@@ -543,12 +616,18 @@ test("an unobserved work format is unknown, never outside", () => {
 
 test("a sponsored relocation to a ranked destination is the priority-3 class", () => {
   assert.equal(classOf(onSite({ company_region: "WEST" })), "3");
-  assert.equal(classOf(onSite({ company_region: "OTHER", relocation_destination_code: "JP" })), "3");
+  assert.equal(
+    classOf(onSite({ company_region: "OTHER", relocation_destination_code: "JP" })),
+    "3",
+  );
   assert.equal(classOf(onSite({ company_region: "WEST", relocation_destination_code: "DE" })), "3");
 });
 
 test("a relocation outside the ranked destinations is acceptable but outside the classes", () => {
-  assert.equal(classOf(onSite({ company_region: "OTHER", relocation_destination_code: "AE" })), "outside");
+  assert.equal(
+    classOf(onSite({ company_region: "OTHER", relocation_destination_code: "AE" })),
+    "outside",
+  );
   // Without a code a HOME or OTHER company's posting is placed by its region, which ranks nothing.
   assert.equal(classOf(onSite({ company_region: "OTHER" })), "outside");
   assert.equal(classOf(onSite({ company_region: "HOME" })), "outside");
@@ -556,18 +635,34 @@ test("a relocation outside the ranked destinations is acceptable but outside the
 
 test("the destination code decides before the company region", () => {
   // A WEST country with the company's region unobserved: ranked.
-  assert.equal(classOf(onSite({ company_region: "UNKNOWN", relocation_destination_code: "DE" })), "3");
+  assert.equal(
+    classOf(onSite({ company_region: "UNKNOWN", relocation_destination_code: "DE" })),
+    "3",
+  );
   // A WEST company relocating outside the ranked set: not ranked.
-  assert.equal(classOf(onSite({ company_region: "WEST", relocation_destination_code: "AE" })), "outside");
+  assert.equal(
+    classOf(onSite({ company_region: "WEST", relocation_destination_code: "AE" })),
+    "outside",
+  );
   // A country outside the ranked set with the company's region unobserved: not ranked.
-  assert.equal(classOf(onSite({ company_region: "UNKNOWN", relocation_destination_code: "AE" })), "outside");
+  assert.equal(
+    classOf(onSite({ company_region: "UNKNOWN", relocation_destination_code: "AE" })),
+    "outside",
+  );
   // A HOME or OTHER company relocating to a WEST country: ranked.
-  assert.equal(classOf(onSite({ company_region: "OTHER", relocation_destination_code: "DE" })), "3");
+  assert.equal(
+    classOf(onSite({ company_region: "OTHER", relocation_destination_code: "DE" })),
+    "3",
+  );
 });
 
 test("an excluded destination never ranks, not even as a member of a ranked region", () => {
   for (const company_region of ["WEST", "UNKNOWN", "OTHER"]) {
-    assert.equal(classOf(onSite({ company_region, relocation_destination_code: "MT" })), "outside", company_region);
+    assert.equal(
+      classOf(onSite({ company_region, relocation_destination_code: "MT" })),
+      "outside",
+      company_region,
+    );
   }
   assert.equal(ranked.priorities.relocationCountries.includes("MT"), false);
   assert.equal(ranked.priorities.relocationCountries.includes("DE"), true);
@@ -576,8 +671,14 @@ test("an excluded destination never ranks, not even as a member of a ranked regi
 test("without the whole region ranked, a WEST company names nothing a class can use", () => {
   const some = { priorities: prioritiesOf({ west: false, destinations: ["DE", "JP"] }) };
   assert.equal(classOf(onSite({ company_region: "WEST" }), some), "unknown");
-  assert.equal(classOf(onSite({ company_region: "WEST", relocation_destination_code: "DE" }), some), "3");
-  assert.equal(classOf(onSite({ company_region: "WEST", relocation_destination_code: "FR" }), some), "outside");
+  assert.equal(
+    classOf(onSite({ company_region: "WEST", relocation_destination_code: "DE" }), some),
+    "3",
+  );
+  assert.equal(
+    classOf(onSite({ company_region: "WEST", relocation_destination_code: "FR" }), some),
+    "outside",
+  );
   const outsideWest = { priorities: prioritiesOf({ west: false, destinations: ["JP"] }) };
   assert.equal(classOf(onSite({ company_region: "WEST" }), outsideWest), "outside");
   const nothing = { priorities: prioritiesOf({ west: false, destinations: [] }) };
@@ -585,11 +686,17 @@ test("without the whole region ranked, a WEST company names nothing a class can 
 });
 
 test("silence about sponsorship on a ranked destination is unknown, not class 3", () => {
-  assert.equal(classOf({ work_format: "Hybrid", company_region: "WEST", sponsorship: "unknown" }), "unknown");
+  assert.equal(
+    classOf({ work_format: "Hybrid", company_region: "WEST", sponsorship: "unknown" }),
+    "unknown",
+  );
 });
 
 test("a refusal to sponsor puts a ranked destination outside the classes", () => {
-  assert.equal(classOf({ work_format: "Hybrid", company_region: "WEST", sponsorship: "unavailable" }), "outside");
+  assert.equal(
+    classOf({ work_format: "Hybrid", company_region: "WEST", sponsorship: "unavailable" }),
+    "outside",
+  );
 });
 
 test("a destination this stage cannot place is unknown rather than guessed", () => {
@@ -633,16 +740,22 @@ test("the priorities are the candidate layer's or the class is refused", () => {
       JSON.stringify(options),
     );
   }
-  assert.throws(() => composeBatch([], {}), (error) => error.code === "pretriage_priorities_invalid");
+  assert.throws(
+    () => composeBatch([], {}),
+    (error) => error.code === "pretriage_priorities_invalid",
+  );
 });
 
 test("the composition report counts every bucket and both observed axes", () => {
-  const report = composeBatch([
-    { work_format: "Remote", company_region: "WEST" },
-    onSite({ company_region: "OTHER", relocation_destination_code: "AE" }),
-    onSite({ company_region: "OTHER", relocation_destination_code: "AE" }),
-    { work_format: "Unknown", company_region: "UNKNOWN" },
-  ], ranked);
+  const report = composeBatch(
+    [
+      { work_format: "Remote", company_region: "WEST" },
+      onSite({ company_region: "OTHER", relocation_destination_code: "AE" }),
+      onSite({ company_region: "OTHER", relocation_destination_code: "AE" }),
+      { work_format: "Unknown", company_region: "UNKNOWN" },
+    ],
+    ranked,
+  );
   assert.equal(report.total, 4);
   assert.deepEqual(report.by_priority_class, { 1: 1, 2: 0, 3: 0, outside: 2, unknown: 1 });
   assert.equal(report.priority_one_share, 0.25);
@@ -667,12 +780,10 @@ test("the ledger's skips and unreadable links are disposed of before the sweep",
     ledgerPlan: ledgerPlan(["fetch_new", "skip_closed", "skip_known", null]),
     asOf: "2026-08-23T00:00:00Z",
   });
-  assert.deepEqual(plan.links.map((row) => row.disposition), [
-    "pending_sweep",
-    "skipped_by_ledger",
-    "skipped_by_ledger",
-    "unreadable_link",
-  ]);
+  assert.deepEqual(
+    plan.links.map((row) => row.disposition),
+    ["pending_sweep", "skipped_by_ledger", "skipped_by_ledger", "unreadable_link"],
+  );
   assert.deepEqual(plan.sweep.links, [LINK_ONE]);
   // Two ledger skips plus the unreadable link: all three are avoided, but only the ledger's two are
   // anyone's saving, and pre-triage claims none of them.
@@ -710,11 +821,12 @@ test("a ledger plan that does not cover the collection is refused", () => {
   // the two lists are not about the same batch.
   for (const actions of [["fetch_new"], ["fetch_new", "fetch_new", "fetch_new"]]) {
     assert.throws(
-      () => planPreTriage({
-        collection: collectionOf([LINK_ONE, LINK_TWO]),
-        ledgerPlan: ledgerPlan(actions),
-        asOf: "2026-08-23T00:00:00Z",
-      }),
+      () =>
+        planPreTriage({
+          collection: collectionOf([LINK_ONE, LINK_TWO]),
+          ledgerPlan: ledgerPlan(actions),
+          asOf: "2026-08-23T00:00:00Z",
+        }),
       (error) => error.code === "pretriage_ledger_plan_mismatch",
     );
   }
@@ -733,11 +845,10 @@ test("the sweep turns every pending link into a verdict and reopens the gate", (
       manifestRecord({ index: 3, requestedUrl: LINK_THREE, outcome: "absent", usable: false }),
     ]),
   });
-  assert.deepEqual(swept.links.map((row) => row.disposition), [
-    "expensive_lane",
-    "terminal_gone",
-    "browser_rung",
-  ]);
+  assert.deepEqual(
+    swept.links.map((row) => row.disposition),
+    ["expensive_lane", "terminal_gone", "browser_rung"],
+  );
   assert.equal(swept.spend.avoided_expensive_lane, 1);
   assert.equal(swept.gate.expensive_lane_open, true);
   assert.equal(swept.sweep.applied, true);
@@ -765,9 +876,10 @@ test("a manifest about another link is refused, not silently believed", () => {
     asOf: "2026-08-23T00:00:00Z",
   });
   assert.throws(
-    () => applyLivenessSweep(plan, {
-      manifest: manifest([manifestRecord({ requestedUrl: LINK_TWO })]),
-    }),
+    () =>
+      applyLivenessSweep(plan, {
+        manifest: manifest([manifestRecord({ requestedUrl: LINK_TWO })]),
+      }),
     (error) => error.code === "pretriage_manifest_link_mismatch",
   );
 });
@@ -784,7 +896,10 @@ test("a batch split across invocations is folded in invocation order", () => {
       manifest([manifestRecord({ index: 1, requestedUrl: LINK_TWO, outcome: "closed" })]),
     ],
   });
-  assert.deepEqual(swept.links.map((row) => row.disposition), ["expensive_lane", "terminal_gone"]);
+  assert.deepEqual(
+    swept.links.map((row) => row.disposition),
+    ["expensive_lane", "terminal_gone"],
+  );
 });
 
 test("a manifest whose records do not start at its own first request is refused", () => {
@@ -794,12 +909,13 @@ test("a manifest whose records do not start at its own first request is refused"
     asOf: "2026-08-23T00:00:00Z",
   });
   assert.throws(
-    () => applyLivenessSweep(plan, {
-      manifest: manifest([
-        manifestRecord({ index: 2, requestedUrl: LINK_ONE }),
-        manifestRecord({ index: 3, requestedUrl: LINK_TWO }),
-      ]),
-    }),
+    () =>
+      applyLivenessSweep(plan, {
+        manifest: manifest([
+          manifestRecord({ index: 2, requestedUrl: LINK_ONE }),
+          manifestRecord({ index: 3, requestedUrl: LINK_TWO }),
+        ]),
+      }),
     (error) => error.code === "pretriage_manifest_link_mismatch",
   );
 });
@@ -814,13 +930,15 @@ test("passing both a manifest and a list of them is a caller error", () => {
   // either guard alone would satisfy both cases and neither would be pinned.
   assert.throws(
     () => applyLivenessSweep(plan, { manifest: manifest([manifestRecord()]), manifests: [] }),
-    (error) => error.code === "pretriage_invalid_manifest_input"
-      && error.message === "Pass either one manifest or a list, not both.",
+    (error) =>
+      error.code === "pretriage_invalid_manifest_input" &&
+      error.message === "Pass either one manifest or a list, not both.",
   );
   assert.throws(
     () => applyLivenessSweep(plan, {}),
-    (error) => error.code === "pretriage_invalid_manifest_input"
-      && error.message === "The sweep needs at least one fetch manifest.",
+    (error) =>
+      error.code === "pretriage_invalid_manifest_input" &&
+      error.message === "The sweep needs at least one fetch manifest.",
   );
 });
 
@@ -845,13 +963,18 @@ test("the plan report names the saving, the gate and every withheld link", () =>
     ledgerPlan: ledgerPlan(["fetch_new", "skip_closed"]),
     asOf: "2026-08-23T00:00:00Z",
   });
-  const rendered = renderPreTriagePlan(applyLivenessSweep(plan, {
-    manifest: manifest([manifestRecord({ index: 1, requestedUrl: LINK_ONE, outcome: "closed" })]),
-  }));
+  const rendered = renderPreTriagePlan(
+    applyLivenessSweep(plan, {
+      manifest: manifest([manifestRecord({ index: 1, requestedUrl: LINK_ONE, outcome: "closed" })]),
+    }),
+  );
   assert.match(rendered, /Pre-triage: 2 links, order — input_order\./u);
   assert.match(rendered, /state stale/u);
   assert.match(rendered, /Saved: 2 of 2 \(100\.0%\)/u);
-  assert.match(rendered, /of those 1 were removed by pre-triage, 1 by the ledger, 0 are unreadable\./u);
+  assert.match(
+    rendered,
+    /of those 1 were removed by pre-triage, 1 by the ledger, 0 are unreadable\./u,
+  );
   assert.match(rendered, /#1 terminal_gone closed_banner_observed/u);
   assert.match(rendered, /#2 skipped_by_ledger skip_closed/u);
 });
@@ -868,10 +991,20 @@ test("an undated collection is reported as unproven rather than as an age", () =
 });
 
 test("the composition report prints all five buckets and both axes", () => {
-  const rendered = renderCompositionReport(composeBatch([
-    { work_format: "Remote", company_region: "WEST" },
-    { work_format: "On-site", company_region: "OTHER", relocation_destination_code: "QA", sponsorship: "available" },
-  ], ranked));
+  const rendered = renderCompositionReport(
+    composeBatch(
+      [
+        { work_format: "Remote", company_region: "WEST" },
+        {
+          work_format: "On-site",
+          company_region: "OTHER",
+          relocation_destination_code: "QA",
+          sponsorship: "available",
+        },
+      ],
+      ranked,
+    ),
+  );
   assert.match(rendered, /Batch composition: 2 vacancies/u);
   assert.match(rendered, /class 1: 1 \(50\.0%\)/u);
   assert.match(rendered, /outside \(none of the three classes\): 1 \(50\.0%\)/u);
@@ -910,7 +1043,10 @@ test("a second spelling of one vacancy is not worth a request", () => {
     },
     asOf: "2026-08-23T00:00:00Z",
   });
-  assert.deepEqual(plan.links.map((row) => row.disposition), ["pending_sweep", "duplicate_in_batch"]);
+  assert.deepEqual(
+    plan.links.map((row) => row.disposition),
+    ["pending_sweep", "duplicate_in_batch"],
+  );
   assert.deepEqual(plan.sweep.links, [LINK_ONE]);
   assert.equal(plan.spend.avoided_by_pretriage, 1);
   assert.equal(plan.spend.never_fetched, 1);
@@ -947,45 +1083,75 @@ test("a sweep record carrying no requested URL is not believed by default", () =
     asOf: "2026-08-23T00:00:00Z",
   });
   assert.throws(
-    () => applyLivenessSweep(plan, {
-      manifest: manifest([manifestRecord({ requestedUrl: null })]),
-    }),
+    () =>
+      applyLivenessSweep(plan, {
+        manifest: manifest([manifestRecord({ requestedUrl: null })]),
+      }),
     (error) => error.code === "pretriage_manifest_link_mismatch",
   );
 });
 
 test("a verdict carries no manifest index that two links could share", () => {
-  const classified = classifyLiveness({ index: 1, outcome: "active", usable: true, skipped: false });
+  const classified = classifyLiveness({
+    index: 1,
+    outcome: "active",
+    usable: true,
+    skipped: false,
+  });
   assert.equal(Object.hasOwn(classified, "index"), false);
 });
 
 test("the ledger accepts the class this stage computes", (t) => {
   const path = join(disposableRoot(t), "triage-ledger.json");
   initLedger(path);
-  assert.equal(priorityClassForLedger({ work_format: "Remote", company_region: "WEST" }, ranked), 1);
-  assert.equal(priorityClassForLedger({ work_format: "Remote", company_region: "OTHER" }, ranked), 2);
   assert.equal(
-    priorityClassForLedger({ work_format: "On-site", company_region: "WEST", sponsorship: "available" }, ranked),
+    priorityClassForLedger({ work_format: "Remote", company_region: "WEST" }, ranked),
+    1,
+  );
+  assert.equal(
+    priorityClassForLedger({ work_format: "Remote", company_region: "OTHER" }, ranked),
+    2,
+  );
+  assert.equal(
+    priorityClassForLedger(
+      { work_format: "On-site", company_region: "WEST", sponsorship: "available" },
+      ranked,
+    ),
     3,
   );
-  assert.equal(priorityClassForLedger({ work_format: "Unknown", company_region: "WEST" }, ranked), null);
   assert.equal(
-    priorityClassForLedger({ work_format: "Hybrid", company_region: "OTHER", sponsorship: "unavailable" }, ranked),
+    priorityClassForLedger({ work_format: "Unknown", company_region: "WEST" }, ranked),
     null,
   );
-  const computed = priorityClassForLedger({ work_format: "Remote", company_region: "WEST" }, ranked);
-  recordBatch(path, {
-    batch_id: "pretriage-seam-1",
-    observed_at: "2026-08-23T00:00:00Z",
-    policy_id: "triage-policy-v2-2026-08-21",
-    entries: [{
-      url: LINK_ONE,
-      status: "open",
-      decision: "EVALUATED",
-      flags: [],
-      priority_class: computed,
-    }],
-  }, { artifactsDir: null });
+  assert.equal(
+    priorityClassForLedger(
+      { work_format: "Hybrid", company_region: "OTHER", sponsorship: "unavailable" },
+      ranked,
+    ),
+    null,
+  );
+  const computed = priorityClassForLedger(
+    { work_format: "Remote", company_region: "WEST" },
+    ranked,
+  );
+  recordBatch(
+    path,
+    {
+      batch_id: "pretriage-seam-1",
+      observed_at: "2026-08-23T00:00:00Z",
+      policy_id: "triage-policy-v2-2026-08-21",
+      entries: [
+        {
+          url: LINK_ONE,
+          status: "open",
+          decision: "EVALUATED",
+          flags: [],
+          priority_class: computed,
+        },
+      ],
+    },
+    { artifactsDir: null },
+  );
   assert.equal(readLedger(path).entries[0].priority_class, 1);
 });
 
@@ -996,46 +1162,149 @@ test("every bounded caller error this stage can raise is named by a case", () =>
     asOf: "2026-08-23T00:00:00Z",
   });
   const cases = [
-    ["pretriage_invalid_collection", () => planPreTriage({
-      collection: null, ledgerPlan: ledgerPlan([]), asOf: "2026-08-23T00:00:00Z" })],
-    ["pretriage_invalid_ledger_plan", () => planPreTriage({
-      collection: collectionOf([]), ledgerPlan: { items: null }, asOf: "2026-08-23T00:00:00Z" })],
-    ["pretriage_invalid_plan", () => applyLivenessSweep({ links: null }, { manifest: manifest([]) })],
+    [
+      "pretriage_invalid_collection",
+      () =>
+        planPreTriage({
+          collection: null,
+          ledgerPlan: ledgerPlan([]),
+          asOf: "2026-08-23T00:00:00Z",
+        }),
+    ],
+    [
+      "pretriage_invalid_ledger_plan",
+      () =>
+        planPreTriage({
+          collection: collectionOf([]),
+          ledgerPlan: { items: null },
+          asOf: "2026-08-23T00:00:00Z",
+        }),
+    ],
+    [
+      "pretriage_invalid_plan",
+      () => applyLivenessSweep({ links: null }, { manifest: manifest([]) }),
+    ],
     // One case per field each renderer reads, so no guard clause rests on a sibling catching it.
     ["pretriage_invalid_plan", () => renderPreTriagePlan({ links: [] })],
-    ["pretriage_invalid_plan", () => renderPreTriagePlan({
-      links: [], freshness: {}, ordering: {}, gate: {} })],
-    ["pretriage_invalid_plan", () => renderPreTriagePlan({
-      links: [], spend: {}, ordering: {}, gate: {} })],
-    ["pretriage_invalid_plan", () => renderPreTriagePlan({
-      links: [], spend: {}, freshness: {}, gate: {} })],
-    ["pretriage_invalid_plan", () => renderPreTriagePlan({
-      links: [], spend: {}, freshness: {}, ordering: {} })],
+    [
+      "pretriage_invalid_plan",
+      () =>
+        renderPreTriagePlan({
+          links: [],
+          freshness: {},
+          ordering: {},
+          gate: {},
+        }),
+    ],
+    [
+      "pretriage_invalid_plan",
+      () =>
+        renderPreTriagePlan({
+          links: [],
+          spend: {},
+          ordering: {},
+          gate: {},
+        }),
+    ],
+    [
+      "pretriage_invalid_plan",
+      () =>
+        renderPreTriagePlan({
+          links: [],
+          spend: {},
+          freshness: {},
+          gate: {},
+        }),
+    ],
+    [
+      "pretriage_invalid_plan",
+      () =>
+        renderPreTriagePlan({
+          links: [],
+          spend: {},
+          freshness: {},
+          ordering: {},
+        }),
+    ],
     ["pretriage_invalid_composition", () => renderCompositionReport({ total: 1 })],
-    ["pretriage_invalid_composition", () => renderCompositionReport({
-      priority_class_shares: {}, by_work_format: {}, by_company_region: {} })],
-    ["pretriage_invalid_composition", () => renderCompositionReport({
-      by_priority_class: {}, by_work_format: {}, by_company_region: {} })],
-    ["pretriage_invalid_composition", () => renderCompositionReport({
-      by_priority_class: {}, priority_class_shares: {}, by_company_region: {} })],
-    ["pretriage_invalid_composition", () => renderCompositionReport({
-      by_priority_class: {}, priority_class_shares: {}, by_work_format: {} })],
+    [
+      "pretriage_invalid_composition",
+      () =>
+        renderCompositionReport({
+          priority_class_shares: {},
+          by_work_format: {},
+          by_company_region: {},
+        }),
+    ],
+    [
+      "pretriage_invalid_composition",
+      () =>
+        renderCompositionReport({
+          by_priority_class: {},
+          by_work_format: {},
+          by_company_region: {},
+        }),
+    ],
+    [
+      "pretriage_invalid_composition",
+      () =>
+        renderCompositionReport({
+          by_priority_class: {},
+          priority_class_shares: {},
+          by_company_region: {},
+        }),
+    ],
+    [
+      "pretriage_invalid_composition",
+      () =>
+        renderCompositionReport({
+          by_priority_class: {},
+          priority_class_shares: {},
+          by_work_format: {},
+        }),
+    ],
     ["pretriage_invalid_header", () => parseCollectionHeader(42)],
     ["pretriage_invalid_links", () => orderNewestFirst("not an array")],
     ["pretriage_links_unreadable", () => readCollection("/nonexistent/links.txt")],
     ["pretriage_manifest_record_invalid", () => sweepFromManifest(manifest([null]))],
     ["pretriage_observation_invalid", () => priorityClassFor("not an object", ranked)],
     ["pretriage_observation_invalid", () => composeBatch("not an array", ranked)],
-    ["pretriage_observation_invalid", () => priorityClassFor({
-      work_format: "Remote", company_region: "WEST", sponsorship: "maybe" }, ranked)],
+    [
+      "pretriage_observation_invalid",
+      () =>
+        priorityClassFor(
+          {
+            work_format: "Remote",
+            company_region: "WEST",
+            sponsorship: "maybe",
+          },
+          ranked,
+        ),
+    ],
     ["pretriage_priorities_invalid", () => composeBatch([], undefined)],
     ["pretriage_invalid_collection", () => splitCollection({ links: null })],
-    ["pretriage_invalid_group_size", () => splitCollection(collectionOf([LINK_ONE]), { groupSize: 0 })],
-    ["pretriage_invalid_group", () => collectionGroup(collectionOf([LINK_ONE]), { from: 1, to: 2 })],
+    [
+      "pretriage_invalid_group_size",
+      () => splitCollection(collectionOf([LINK_ONE]), { groupSize: 0 }),
+    ],
+    [
+      "pretriage_invalid_group",
+      () => collectionGroup(collectionOf([LINK_ONE]), { from: 1, to: 2 }),
+    ],
     ["pretriage_invalid_label", () => groupBatchId("", { from: 1, to: 1 })],
-    ["pretriage_store_missing", () => claimGroup({ storeDir: "relative", split: { groups: [] }, labelPrefix: "x" })],
-    ["pretriage_invalid_split", () => claimGroup({
-      storeDir: realpathSync(tmpdir()), split: { groups: [] }, labelPrefix: "x" })],
+    [
+      "pretriage_store_missing",
+      () => claimGroup({ storeDir: "relative", split: { groups: [] }, labelPrefix: "x" }),
+    ],
+    [
+      "pretriage_invalid_split",
+      () =>
+        claimGroup({
+          storeDir: realpathSync(tmpdir()),
+          split: { groups: [] },
+          labelPrefix: "x",
+        }),
+    ],
   ];
   for (const [code, run] of cases) {
     assert.throws(run, (error) => error.code === code, `expected ${code}`);
@@ -1059,14 +1328,22 @@ test("an open gate and a withheld-versus-pending split are both stated", () => {
   assert.match(preSweep, /Still costing the budget:\n {2}#1 pending_sweep/u);
   assert.match(preSweep, /Not reaching the expensive lane:\n {2}#3 skipped_by_ledger/u);
 
-  const swept = renderPreTriagePlan(applyLivenessSweep(plan, {
-    manifest: manifest([
-      manifestRecord({ index: 1, requestedUrl: LINK_ONE, outcome: "absent", usable: false }),
-      manifestRecord({ index: 2, requestedUrl: LINK_TWO, outcome: "closed" }),
-    ]),
-  }));
-  assert.match(swept, /Still costing the budget:\n {2}#1 browser_rung absent_awaiting_confirmation/u);
-  assert.match(swept, /of those 1 were removed by pre-triage, 2 by the ledger, 0 are unreadable\. Never fetched at all: 2\./u);
+  const swept = renderPreTriagePlan(
+    applyLivenessSweep(plan, {
+      manifest: manifest([
+        manifestRecord({ index: 1, requestedUrl: LINK_ONE, outcome: "absent", usable: false }),
+        manifestRecord({ index: 2, requestedUrl: LINK_TWO, outcome: "closed" }),
+      ]),
+    }),
+  );
+  assert.match(
+    swept,
+    /Still costing the budget:\n {2}#1 browser_rung absent_awaiting_confirmation/u,
+  );
+  assert.match(
+    swept,
+    /of those 1 were removed by pre-triage, 2 by the ledger, 0 are unreadable\. Never fetched at all: 2\./u,
+  );
 });
 
 test("a rendered link cannot break the report into a line the stage did not write", () => {
@@ -1078,7 +1355,10 @@ test("a rendered link cannot break the report into a line the stage did not writ
   });
   const rendered = renderPreTriagePlan(plan);
   assert.equal(rendered.includes("\u2028"), false);
-  assert.match(rendered, /#1 skipped_by_ledger skip_closed — https:\/\/example\.com\/a\ufffdfake-line/u);
+  assert.match(
+    rendered,
+    /#1 skipped_by_ledger skip_closed — https:\/\/example\.com\/a\ufffdfake-line/u,
+  );
 });
 
 test("a rendered link is truncated rather than printed whole", () => {
@@ -1088,7 +1368,9 @@ test("a rendered link is truncated rather than printed whole", () => {
     ledgerPlan: ledgerPlan(["skip_closed"]),
     asOf: "2026-08-23T00:00:00Z",
   });
-  const line = renderPreTriagePlan(plan).split("\n").find((entry) => entry.startsWith("  #1"));
+  const line = renderPreTriagePlan(plan)
+    .split("\n")
+    .find((entry) => entry.startsWith("  #1"));
   assert.equal(line.endsWith("…"), true);
   assert.equal(line.length, 200 + "  #1 skipped_by_ledger skip_closed — ".length + 1);
 });
@@ -1105,7 +1387,11 @@ test("an impossible calendar date is refused in the zoned spelling too", () => {
 
 test("a links file larger than this stage reads is refused before it is read", (t) => {
   const path = join(disposableRoot(t), "links.txt");
-  writeFileSync(path, `# collected: 2026-08-17\n${LINK_ONE}\n#${"x".repeat(1024 * 1024)}\n`, "utf8");
+  writeFileSync(
+    path,
+    `# collected: 2026-08-17\n${LINK_ONE}\n#${"x".repeat(1024 * 1024)}\n`,
+    "utf8",
+  );
   assert.throws(
     () => readCollection(path),
     (error) => error.code === "pretriage_links_unreadable",
@@ -1117,24 +1403,40 @@ test("a duplicate of a link the ledger already closed is the ledger's saving", (
     collection: collectionOf([LINK_ONE, LINK_TWO]),
     ledgerPlan: {
       items: [
-        { input_index: 1, action: "skip_closed", reason: "ledger status closed", duplicate_in_batch: false },
-        { input_index: 2, action: "skip_closed", reason: "ledger status closed", duplicate_in_batch: true },
+        {
+          input_index: 1,
+          action: "skip_closed",
+          reason: "ledger status closed",
+          duplicate_in_batch: false,
+        },
+        {
+          input_index: 2,
+          action: "skip_closed",
+          reason: "ledger status closed",
+          duplicate_in_batch: true,
+        },
       ],
     },
     asOf: "2026-08-23T00:00:00Z",
   });
-  assert.deepEqual(plan.links.map((row) => row.disposition), ["skipped_by_ledger", "skipped_by_ledger"]);
+  assert.deepEqual(
+    plan.links.map((row) => row.disposition),
+    ["skipped_by_ledger", "skipped_by_ledger"],
+  );
   assert.equal(plan.spend.avoided_by_ledger, 2);
   assert.equal(plan.spend.avoided_by_pretriage, 0);
 });
 
 test("a ledger plan about another collection is refused, not joined by position", () => {
   assert.throws(
-    () => planPreTriage({
-      collection: collectionOf([LINK_ONE]),
-      ledgerPlan: { items: [{ input_index: 1, action: "fetch_new", reason: "x", link: LINK_TWO }] },
-      asOf: "2026-08-23T00:00:00Z",
-    }),
+    () =>
+      planPreTriage({
+        collection: collectionOf([LINK_ONE]),
+        ledgerPlan: {
+          items: [{ input_index: 1, action: "fetch_new", reason: "x", link: LINK_TWO }],
+        },
+        asOf: "2026-08-23T00:00:00Z",
+      }),
     (error) => error.code === "pretriage_ledger_plan_mismatch",
   );
 });
@@ -1146,7 +1448,9 @@ test("a sweep that attempted nothing does not open a stale collection's gate", (
     asOf: "2026-08-23T00:00:00Z",
   });
   const sweptStale = applyLivenessSweep(stale, {
-    manifest: manifest([manifestRecord({ outcome: "access_failure", usable: false, skipped: true })]),
+    manifest: manifest([
+      manifestRecord({ outcome: "access_failure", usable: false, skipped: true }),
+    ]),
   });
   assert.equal(sweptStale.gate.expensive_lane_open, false);
   assert.deepEqual(sweptStale.gate.blocked_by, ["sweep_incomplete"]);
@@ -1158,7 +1462,9 @@ test("a sweep that attempted nothing does not open a stale collection's gate", (
     asOf: "2026-08-23T00:00:00Z",
   });
   const sweptFresh = applyLivenessSweep(fresh, {
-    manifest: manifest([manifestRecord({ outcome: "access_failure", usable: false, skipped: true })]),
+    manifest: manifest([
+      manifestRecord({ outcome: "access_failure", usable: false, skipped: true }),
+    ]),
   });
   assert.equal(sweptFresh.gate.expensive_lane_open, true);
 });
@@ -1169,18 +1475,28 @@ test("a null field is refused by the renderers, not thrown through", () => {
     (error) => error.code === "pretriage_invalid_plan",
   );
   assert.throws(
-    () => renderCompositionReport({
-      by_priority_class: null, priority_class_shares: {}, by_work_format: {}, by_company_region: {} }),
+    () =>
+      renderCompositionReport({
+        by_priority_class: null,
+        priority_class_shares: {},
+        by_work_format: {},
+        by_company_region: {},
+      }),
     (error) => error.code === "pretriage_invalid_composition",
   );
 });
 
 test("the report agrees with itself on one link and on many", () => {
-  const render = (count) => renderPreTriagePlan(planPreTriage({
-    collection: collectionOf(Array.from({ length: count }, (_, index) => `https://example.com/${index}`)),
-    ledgerPlan: ledgerPlan(Array.from({ length: count }, () => "skip_closed")),
-    asOf: "2026-08-23T00:00:00Z",
-  }));
+  const render = (count) =>
+    renderPreTriagePlan(
+      planPreTriage({
+        collection: collectionOf(
+          Array.from({ length: count }, (_, index) => `https://example.com/${index}`),
+        ),
+        ledgerPlan: ledgerPlan(Array.from({ length: count }, () => "skip_closed")),
+        asOf: "2026-08-23T00:00:00Z",
+      }),
+    );
   assert.match(render(1), /Pre-triage: 1 link,/u);
   assert.match(render(2), /Pre-triage: 2 links,/u);
   assert.match(render(5), /Pre-triage: 5 links,/u);
@@ -1206,10 +1522,13 @@ function linkAt(number) {
 }
 
 function collectionOfSize(count) {
-  return collectionOf(Array.from({ length: count }, (_, index) => linkAt(index + 1)), {
-    collected_at: "2026-09-19",
-    declared_order: "newest-first",
-  });
+  return collectionOf(
+    Array.from({ length: count }, (_, index) => linkAt(index + 1)),
+    {
+      collected_at: "2026-09-19",
+      declared_order: "newest-first",
+    },
+  );
 }
 
 test("the split is the same twice, reads no ledger, and covers the collection without overlap", () => {
@@ -1219,26 +1538,52 @@ test("the split is the same twice, reads no ledger, and covers the collection wi
   assert.deepEqual(first, second);
   // No ledger in the signature: the cut depends on the file and the number, and on nothing else.
   assert.equal(splitCollection.length, 1);
-  assert.deepEqual(first.groups.map((group) => [group.from, group.to]), [[1, 15], [16, 30], [31, 45], [46, 52]]);
-  assert.deepEqual(first.groups.map((group) => group.group), [1, 2, 3, 4]);
+  assert.deepEqual(
+    first.groups.map((group) => [group.from, group.to]),
+    [
+      [1, 15],
+      [16, 30],
+      [31, 45],
+      [46, 52],
+    ],
+  );
+  assert.deepEqual(
+    first.groups.map((group) => group.group),
+    [1, 2, 3, 4],
+  );
   assert.equal(first.group_size, 15);
   assert.equal(first.total, 52);
   const covered = first.groups.flatMap((group) =>
-    Array.from({ length: group.to - group.from + 1 }, (_, offset) => group.from + offset));
+    Array.from({ length: group.to - group.from + 1 }, (_, offset) => group.from + offset),
+  );
   assert.equal(covered.length, 52, "no position twice");
-  assert.deepEqual([...new Set(covered)].sort((a, b) => a - b), Array.from({ length: 52 }, (_, i) => i + 1));
+  assert.deepEqual(
+    [...new Set(covered)].sort((a, b) => a - b),
+    Array.from({ length: 52 }, (_, i) => i + 1),
+  );
   assert.deepEqual(first.cross_group_spellings, []);
 });
 
 test("no size means one group, and a size that is not a positive integer is refused", () => {
   const collection = collectionOfSize(7);
   assert.deepEqual(splitCollection(collection).groups, [{ group: 1, from: 1, to: 7, size: 7 }]);
-  assert.deepEqual(splitCollection(collection, { groupSize: 7 }).groups, [{ group: 1, from: 1, to: 7, size: 7 }]);
-  assert.deepEqual(splitCollection(collection, { groupSize: 100 }).groups, [{ group: 1, from: 1, to: 7, size: 7 }]);
+  assert.deepEqual(splitCollection(collection, { groupSize: 7 }).groups, [
+    { group: 1, from: 1, to: 7, size: 7 },
+  ]);
+  assert.deepEqual(splitCollection(collection, { groupSize: 100 }).groups, [
+    { group: 1, from: 1, to: 7, size: 7 },
+  ]);
   for (const groupSize of [0, -1, 1.5, "15", NaN]) {
-    assert.throws(() => splitCollection(collection, { groupSize }), (error) => error.code === "pretriage_invalid_group_size", String(groupSize));
+    assert.throws(
+      () => splitCollection(collection, { groupSize }),
+      (error) => error.code === "pretriage_invalid_group_size",
+      String(groupSize),
+    );
   }
-  assert.throws(() => splitCollection(collectionOf([]), { groupSize: 3 }), (error) => error.code === "pretriage_invalid_collection");
+  assert.throws(
+    () => splitCollection(collectionOf([]), { groupSize: 3 }),
+    (error) => error.code === "pretriage_invalid_collection",
+  );
 });
 
 test("a group's slice is the verify suite's slice, and the pre-triage plan takes it as a collection", () => {
@@ -1246,7 +1591,10 @@ test("a group's slice is the verify suite's slice, and the pre-triage plan takes
   const split = splitCollection(collection, { groupSize: 3 });
   const group = collectionGroup(collection, split.groups[1]);
   assert.deepEqual(group.links, sliceRange(collection.links, 4, 6));
-  assert.deepEqual(group.links.map((link) => link.position), [4, 5, 6]);
+  assert.deepEqual(
+    group.links.map((link) => link.position),
+    [4, 5, 6],
+  );
   assert.equal(group.collected_at, "2026-09-19");
   assert.equal(group.declared_order, "newest-first");
   const plan = planPreTriage({
@@ -1254,10 +1602,19 @@ test("a group's slice is the verify suite's slice, and the pre-triage plan takes
     ledgerPlan: ledgerPlan(["fetch_new", "fetch_new", "fetch_new"]),
     asOf: "2026-09-20T10:00:00Z",
   });
-  assert.deepEqual(plan.links.map((row) => row.input_index), [1, 2, 3]);
+  assert.deepEqual(
+    plan.links.map((row) => row.input_index),
+    [1, 2, 3],
+  );
   assert.deepEqual(plan.sweep.links, [linkAt(4), linkAt(5), linkAt(6)]);
-  assert.throws(() => collectionGroup(collection, { from: 6, to: 9 }), (error) => error.code === "pretriage_invalid_group");
-  assert.throws(() => collectionGroup(collection, null), (error) => error.code === "pretriage_invalid_group");
+  assert.throws(
+    () => collectionGroup(collection, { from: 6, to: 9 }),
+    (error) => error.code === "pretriage_invalid_group",
+  );
+  assert.throws(
+    () => collectionGroup(collection, null),
+    (error) => error.code === "pretriage_invalid_group",
+  );
 });
 
 test("a second spelling of one posting in another group is named before anything is fetched", () => {
@@ -1271,12 +1628,25 @@ test("a second spelling of one posting in another group is named before anything
 });
 
 test("a group's batch id is the manual runs' shape, checked against the ledger's pattern up front", () => {
-  assert.equal(groupBatchId("2026-09-20-telegram", { from: 1, to: 15 }), "2026-09-20-telegram-1-15");
-  assert.equal(groupBatchId("2026-09-20-telegram", { from: 46, to: 52 }), "2026-09-20-telegram-46-52");
+  assert.equal(
+    groupBatchId("2026-09-20-telegram", { from: 1, to: 15 }),
+    "2026-09-20-telegram-1-15",
+  );
+  assert.equal(
+    groupBatchId("2026-09-20-telegram", { from: 46, to: 52 }),
+    "2026-09-20-telegram-46-52",
+  );
   for (const prefix of ["", "с пробелом и кириллицей", "a".repeat(64), "-leading-dash"]) {
-    assert.throws(() => groupBatchId(prefix, { from: 1, to: 15 }), (error) => error.code === "pretriage_invalid_label", prefix);
+    assert.throws(
+      () => groupBatchId(prefix, { from: 1, to: 15 }),
+      (error) => error.code === "pretriage_invalid_label",
+      prefix,
+    );
   }
-  assert.throws(() => groupBatchId("ok", { from: 1 }), (error) => error.code === "pretriage_invalid_group");
+  assert.throws(
+    () => groupBatchId("ok", { from: 1 }),
+    (error) => error.code === "pretriage_invalid_group",
+  );
 });
 
 test("the batch directory is the claim: groups are taken in order, once each, and only in a store that exists", (t) => {
@@ -1284,23 +1654,44 @@ test("the batch directory is the claim: groups are taken in order, once each, an
   const store = join(root, "triage-batches");
   const split = splitCollection(collectionOfSize(7), { groupSize: 3 });
   const missing = { storeDir: store, split, labelPrefix: "2026-09-20-telegram" };
-  assert.throws(() => claimGroup(missing), (error) => error.code === "pretriage_store_missing");
-  assert.throws(() => claimGroup({ ...missing, storeDir: "triage-batches" }), (error) => error.code === "pretriage_store_missing");
+  assert.throws(
+    () => claimGroup(missing),
+    (error) => error.code === "pretriage_store_missing",
+  );
+  assert.throws(
+    () => claimGroup({ ...missing, storeDir: "triage-batches" }),
+    (error) => error.code === "pretriage_store_missing",
+  );
   mkdirSync(store);
 
   const taken = [1, 2, 3].map(() => claimGroup(missing));
-  assert.deepEqual(taken.map((claim) => [claim.group, claim.from, claim.to, claim.batch_id]), [
-    [1, 1, 3, "2026-09-20-telegram-1-3"],
-    [2, 4, 6, "2026-09-20-telegram-4-6"],
-    [3, 7, 7, "2026-09-20-telegram-7-7"],
-  ]);
+  assert.deepEqual(
+    taken.map((claim) => [claim.group, claim.from, claim.to, claim.batch_id]),
+    [
+      [1, 1, 3, "2026-09-20-telegram-1-3"],
+      [2, 4, 6, "2026-09-20-telegram-4-6"],
+      [3, 7, 7, "2026-09-20-telegram-7-7"],
+    ],
+  );
   for (const claim of taken) assert.equal(claim.dir, join(store, claim.batch_id));
   assert.deepEqual(readdirSync(store).sort(), taken.map((claim) => claim.batch_id).sort());
-  assert.throws(() => claimGroup(missing), (error) => error.code === "pretriage_no_free_group");
+  assert.throws(
+    () => claimGroup(missing),
+    (error) => error.code === "pretriage_no_free_group",
+  );
   // Taking a group again on purpose is by number, and a claimed one says so rather than yielding.
-  assert.throws(() => claimGroup({ ...missing, group: 2 }), (error) => error.code === "pretriage_group_claimed");
-  assert.throws(() => claimGroup({ ...missing, group: 9 }), (error) => error.code === "pretriage_invalid_group");
-  assert.throws(() => claimGroup({ ...missing, split: { groups: [] } }), (error) => error.code === "pretriage_invalid_split");
+  assert.throws(
+    () => claimGroup({ ...missing, group: 2 }),
+    (error) => error.code === "pretriage_group_claimed",
+  );
+  assert.throws(
+    () => claimGroup({ ...missing, group: 9 }),
+    (error) => error.code === "pretriage_invalid_group",
+  );
+  assert.throws(
+    () => claimGroup({ ...missing, split: { groups: [] } }),
+    (error) => error.code === "pretriage_invalid_split",
+  );
   rmSync(taken[1].dir, { recursive: true });
   assert.equal(claimGroup({ ...missing, group: 2 }).batch_id, "2026-09-20-telegram-4-6");
 
@@ -1324,10 +1715,16 @@ test("two sessions claiming at once get two different groups", async (t) => {
   const store = join(root, "triage-batches");
   mkdirSync(store);
   const collectionPath = join(root, "collection.links.txt");
-  writeFileSync(collectionPath, `# collected: 2026-09-19\n${Array.from({ length: 6 }, (_, i) => linkAt(i + 1)).join("\n")}\n`, "utf8");
+  writeFileSync(
+    collectionPath,
+    `# collected: 2026-09-19\n${Array.from({ length: 6 }, (_, i) => linkAt(i + 1)).join("\n")}\n`,
+    "utf8",
+  );
   const childPath = join(root, "claim-child.mjs");
   const groupsPath = fileURLToPath(new URL("../tools/pretriage/groups.mjs", import.meta.url));
-  const collectionModule = fileURLToPath(new URL("../tools/pretriage/collection.mjs", import.meta.url));
+  const collectionModule = fileURLToPath(
+    new URL("../tools/pretriage/collection.mjs", import.meta.url),
+  );
   writeFileSync(
     childPath,
     [
@@ -1335,18 +1732,31 @@ test("two sessions claiming at once get two different groups", async (t) => {
       `import { readCollection } from ${JSON.stringify(collectionModule)};`,
       "const [storeDir, collectionPath] = process.argv.slice(2);",
       "const split = splitCollection(readCollection(collectionPath), { groupSize: 3 });",
-      "console.log(claimGroup({ storeDir, split, labelPrefix: \"2026-09-20-telegram\" }).batch_id);",
+      'console.log(claimGroup({ storeDir, split, labelPrefix: "2026-09-20-telegram" }).batch_id);',
       "",
     ].join("\n"),
   );
-  const claimed = await Promise.all([0, 1].map(() => new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [childPath, store, collectionPath], { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
-    child.on("close", (status) => (status === 0 ? resolve(stdout.trim()) : reject(new Error(stderr))));
-  })));
+  const claimed = await Promise.all(
+    [0, 1].map(
+      () =>
+        new Promise((resolve, reject) => {
+          const child = spawn(process.execPath, [childPath, store, collectionPath], {
+            stdio: ["ignore", "pipe", "pipe"],
+          });
+          let stdout = "";
+          let stderr = "";
+          child.stdout.on("data", (chunk) => {
+            stdout += chunk;
+          });
+          child.stderr.on("data", (chunk) => {
+            stderr += chunk;
+          });
+          child.on("close", (status) =>
+            status === 0 ? resolve(stdout.trim()) : reject(new Error(stderr)),
+          );
+        }),
+    ),
+  );
   assert.deepEqual(claimed.sort(), ["2026-09-20-telegram-1-3", "2026-09-20-telegram-4-6"]);
 });
 
@@ -1360,36 +1770,56 @@ test("every group planned and recorded leaves one row per vacancy and one batch 
   const split = splitCollection(collection, { groupSize: 3 });
 
   for (const group of split.groups) {
-    const claim = claimGroup({ storeDir: store, split, labelPrefix: "2026-09-20-telegram", group: group.group });
+    const claim = claimGroup({
+      storeDir: store,
+      split,
+      labelPrefix: "2026-09-20-telegram",
+      group: group.group,
+    });
     const slice = collectionGroup(collection, claim);
     const urls = slice.links.map((link) => link.url);
     // The batch's start: the ledger plan over the slice, written where the record write reads it.
     const plan = planBatch(readLedger(ledgerPath), urls, { asOf: "2026-09-20T10:00:00Z" });
     writeFileSync(join(claim.dir, "plan.json"), `${JSON.stringify(plan)}\n`, "utf8");
-    const preTriage = planPreTriage({ collection: slice, ledgerPlan: plan, asOf: "2026-09-20T10:00:00Z" });
+    const preTriage = planPreTriage({
+      collection: slice,
+      ledgerPlan: plan,
+      asOf: "2026-09-20T10:00:00Z",
+    });
     assert.equal(preTriage.spend.supplied, urls.length);
     mkdirSync(join(claim.dir, "traces"));
     urls.forEach((url, index) => {
-      writeFileSync(join(claim.dir, "traces", `${String(index + 1).padStart(3, "0")}.trace.json`), JSON.stringify({ source_ref: url }), "utf8");
+      writeFileSync(
+        join(claim.dir, "traces", `${String(index + 1).padStart(3, "0")}.trace.json`),
+        JSON.stringify({ source_ref: url }),
+        "utf8",
+      );
     });
-    recordBatch(ledgerPath, {
-      batch_id: claim.batch_id,
-      observed_at: "2026-09-20T10:30:00Z",
-      policy_id: "triage-policy-v3-2026-09-02",
-      entries: urls.map((url) => ({ url, status: "open", decision: "EVALUATED", flags: [] })),
-    }, { artifactsDir: claim.dir });
+    recordBatch(
+      ledgerPath,
+      {
+        batch_id: claim.batch_id,
+        observed_at: "2026-09-20T10:30:00Z",
+        policy_id: "triage-policy-v3-2026-09-02",
+        entries: urls.map((url) => ({ url, status: "open", decision: "EVALUATED", flags: [] })),
+      },
+      { artifactsDir: claim.dir },
+    );
     assert.ok(existsSync(join(claim.dir, "ledger-record.json")));
   }
 
   const ledger = readLedger(ledgerPath);
   assert.equal(ledger.entries.length, 7, "one row per vacancy that reached the record");
   assert.equal(new Set(ledger.entries.map((row) => row.key)).size, 7, "none twice");
-  assert.deepEqual(ledger.batches.map((row) => row.batch_id), [
-    "2026-09-20-telegram-1-3",
-    "2026-09-20-telegram-4-6",
-    "2026-09-20-telegram-7-7",
-  ]);
+  assert.deepEqual(
+    ledger.batches.map((row) => row.batch_id),
+    ["2026-09-20-telegram-1-3", "2026-09-20-telegram-4-6", "2026-09-20-telegram-7-7"],
+  );
   // The closing check the skill prescribes: nothing of the collection is still new.
-  const closing = planBatch(ledger, collection.links.map((link) => link.url), { asOf: "2026-09-20T11:00:00Z" });
+  const closing = planBatch(
+    ledger,
+    collection.links.map((link) => link.url),
+    { asOf: "2026-09-20T11:00:00Z" },
+  );
   assert.equal(closing.counts.fetch_new, 0);
 });

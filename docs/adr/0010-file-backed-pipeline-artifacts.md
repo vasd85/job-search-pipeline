@@ -24,15 +24,15 @@ choices that the implementation encoded.
 ownership, step state, input snapshots, artifact inventory, and publication recovery metadata.
 Substantive content remains in the reserved output directory:
 
-| Artifact kind | Canonical path | Owner |
-| --- | --- | --- |
-| `job_description` | `job-description.txt` | Step 1 |
-| `vacancy` | `vacancy.json` | Step 1 |
-| `company_research` | `company-research.json` | Step 2 |
-| `application_brief` | `application-brief.json` | Step 3 |
-| `cv_source` | `cv.json` | Step 4 |
-| `cv_docx` | the safe basename declared by `cv.json.fileName` | Step 4 |
-| `cover_letter` | `cover-letter.txt` | Step 5 |
+| Artifact kind       | Canonical path                                   | Owner  |
+| ------------------- | ------------------------------------------------ | ------ |
+| `job_description`   | `job-description.txt`                            | Step 1 |
+| `vacancy`           | `vacancy.json`                                   | Step 1 |
+| `company_research`  | `company-research.json`                          | Step 2 |
+| `application_brief` | `application-brief.json`                         | Step 3 |
+| `cv_source`         | `cv.json`                                        | Step 4 |
+| `cv_docx`           | the safe basename declared by `cv.json.fileName` | Step 4 |
+| `cover_letter`      | `cover-letter.txt`                               | Step 5 |
 
 The first successful Step 4 publication freezes the concrete `cv_docx` path for that process.
 Later Step 4 revisions must publish to the same path. The name must be a non-hidden basename ending

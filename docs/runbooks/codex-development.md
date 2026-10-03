@@ -32,12 +32,12 @@ roots and resolve `git rev-parse --path-format=absolute --git-common-dir`; do no
 `.claude/settings.json`. The [OpenAI sandbox documentation](https://learn.chatgpt.com/docs/sandboxing)
 describes the boundary and its separate approval control.
 
-| Operation | How to run it when the sandbox refuses it |
-| --- | --- |
+| Operation                                                   | How to run it when the sandbox refuses it                                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `git add`, commit, branch, rebase, merge, worktree metadata | Request `require_escalated` for the exact command; inspect the common Git directory and intended refs first. |
-| Create or remove a sibling task directory | Request `require_escalated` for the task's exact path, using the governing flow's command. |
-| Full `npm run ci` with loopback/browser tests | Run it as a separate command with `require_escalated` when loopback access is refused. |
-| Private-board writes and network calls | Request approval for the exact required operation; a refused pull or push follows the flow's stop rule. |
+| Create or remove a sibling task directory                   | Request `require_escalated` for the task's exact path, using the governing flow's command.                   |
+| Full `npm run ci` with loopback/browser tests               | Run it as a separate command with `require_escalated` when loopback access is refused.                       |
+| Private-board writes and network calls                      | Request approval for the exact required operation; a refused pull or push follows the flow's stop rule.      |
 
 An approval is permission for that command, not a persistent expansion of writable roots. After a
 failed worktree creation or removal, inspect `git worktree list --porcelain`, the task branch and

@@ -36,9 +36,15 @@ export function isValidMessageId(value) {
 
 /** One message of a group: the card of `probe <handle> <id>`. Counts and codes, no text and no name. */
 export async function probeMessage({ handle, messageId, fetchImpl }) {
-  if (!isValidHandle(handle)) fail("handle_invalid", "The handle does not match the handle pattern.");
-  if (!isValidMessageId(messageId)) fail("argv_invalid", "The message id must be a positive integer.");
-  const record = await fetchDocument({ url: embedUrl(handle, messageId), headers: defaultRequestHeaders, fetchImpl });
+  if (!isValidHandle(handle))
+    fail("handle_invalid", "The handle does not match the handle pattern.");
+  if (!isValidMessageId(messageId))
+    fail("argv_invalid", "The message id must be a positive integer.");
+  const record = await fetchDocument({
+    url: embedUrl(handle, messageId),
+    headers: defaultRequestHeaders,
+    fetchImpl,
+  });
   const { outcome, post } = detectMessagePage(record, { handle });
   if (outcome !== "message_ok") return { handle, message_id: messageId, outcome };
   if (post.id !== messageId) return { handle, message_id: messageId, outcome: "unrecognized_page" };
@@ -58,7 +64,8 @@ export async function probeMessage({ handle, messageId, fetchImpl }) {
 }
 
 export async function probeChannel({ handle, fetchImpl }) {
-  if (!isValidHandle(handle)) fail("handle_invalid", "The handle does not match the handle pattern.");
+  if (!isValidHandle(handle))
+    fail("handle_invalid", "The handle does not match the handle pattern.");
   const record = await fetchDocument({
     url: channelUrl(handle, null),
     headers: defaultRequestHeaders,
@@ -69,7 +76,8 @@ export async function probeChannel({ handle, fetchImpl }) {
 
   const posts = page.posts;
   const instants = posts.map((post) => Date.parse(post.instant));
-  const spanDays = posts.length < 2 ? null : (Math.max(...instants) - Math.min(...instants)) / DAY_MS;
+  const spanDays =
+    posts.length < 2 ? null : (Math.max(...instants) - Math.min(...instants)) / DAY_MS;
   let withUrl = 0;
   let withContact = 0;
   let withoutText = 0;
@@ -90,9 +98,8 @@ export async function probeChannel({ handle, fetchImpl }) {
     // A bot that posts a page within seconds makes the page span meaningless as a rate: under a
     // day of span the card gives the span and no rate (live 2026-09-17: 20 posts in 24 seconds).
     page_span_hours: spanDays === null ? null : Math.round(spanDays * 24 * 10) / 10,
-    posts_per_day: spanDays === null || spanDays < 1
-      ? null
-      : Math.round((posts.length / spanDays) * 10) / 10,
+    posts_per_day:
+      spanDays === null || spanDays < 1 ? null : Math.round((posts.length / spanDays) * 10) / 10,
     share_with_links: share(withUrl, posts.length),
     share_with_contact: share(withContact, posts.length),
     share_without_text: share(withoutText, posts.length),

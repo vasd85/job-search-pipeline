@@ -58,18 +58,29 @@ function invalid(message) {
   throw new PublishabilityCliError("invalid_publishability_arguments", message);
 }
 
-export const USAGE = "use [--blocking] [--list] [--candidate-root <absolute path>]"
-  + " [--data-root <absolute path>] [--commit-msg <path>]";
+export const USAGE =
+  "use [--blocking] [--list] [--candidate-root <absolute path>]" +
+  " [--data-root <absolute path>] [--commit-msg <path>]";
 
 export function parseArguments(argv) {
-  const parsed = { blocking: false, candidateRoot: null, dataRoot: null, commitMessage: null, list: false };
+  const parsed = {
+    blocking: false,
+    candidateRoot: null,
+    dataRoot: null,
+    commitMessage: null,
+    list: false,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--blocking") {
       parsed.blocking = true;
     } else if (argument === "--list") {
       parsed.list = true;
-    } else if (argument === "--candidate-root" || argument === "--data-root" || argument === "--commit-msg") {
+    } else if (
+      argument === "--candidate-root" ||
+      argument === "--data-root" ||
+      argument === "--commit-msg"
+    ) {
       const value = argv[index + 1];
       if (value === undefined || value.startsWith("--")) invalid(USAGE);
       if (argument === "--candidate-root" || argument === "--data-root") {
@@ -86,8 +97,10 @@ export function parseArguments(argv) {
       invalid(USAGE);
     }
   }
-  if (parsed.candidateRoot !== null && parsed.dataRoot !== null) invalid("Use either personal markers or data-only allowances, never both roots.");
-  if (parsed.dataRoot !== null && parsed.commitMessage !== null) invalid("Data-only allowances are for tree scans only.");
+  if (parsed.candidateRoot !== null && parsed.dataRoot !== null)
+    invalid("Use either personal markers or data-only allowances, never both roots.");
+  if (parsed.dataRoot !== null && parsed.commitMessage !== null)
+    invalid("Data-only allowances are for tree scans only.");
   return parsed;
 }
 
@@ -114,7 +127,9 @@ export function trackedPaths({ root, spawn = spawnSync }) {
     );
   }
   // Built rather than written, so this file carries no raw NUL of its own.
-  return String(result.stdout ?? "").split(String.fromCharCode(0)).filter(Boolean);
+  return String(result.stdout ?? "")
+    .split(String.fromCharCode(0))
+    .filter(Boolean);
 }
 
 /**
@@ -197,7 +212,10 @@ function messageReport({ candidateRoot, commitMessage, list, root }) {
     );
   }
   if (text.length > MAX_MESSAGE_BYTES) {
-    throw new PublishabilityError("publishability_message_unreadable", `${commitMessage}: too large.`);
+    throw new PublishabilityError(
+      "publishability_message_unreadable",
+      `${commitMessage}: too large.`,
+    );
   }
   const scan = scanText({
     markers: contract.markers,
@@ -224,32 +242,40 @@ function messageReport({ candidateRoot, commitMessage, list, root }) {
 
 export function run({ argv, root = repoRoot, spawn = spawnSync }) {
   const parsed = parseArguments(argv);
-  const report = parsed.commitMessage === null
-    ? treeReport({ ...parsed, root, spawn })
-    : messageReport({ ...parsed, root });
+  const report =
+    parsed.commitMessage === null
+      ? treeReport({ ...parsed, root, spawn })
+      : messageReport({ ...parsed, root });
   return { parsed, report };
 }
 
-export function main(argv = process.argv.slice(2), { root = defaultRoot(), spawn = spawnSync } = {}) {
+export function main(
+  argv = process.argv.slice(2),
+  { root = defaultRoot(), spawn = spawnSync } = {},
+) {
   try {
     const { parsed, report } = run({ argv, root, spawn });
     // The verdict keys on the exported part alone. A finding in a file the export leaves behind
     // is worth reporting and must never refuse a commit.
     const blocked = parsed.blocking && (report.places_exported > 0 || (report.absent ?? 0) > 0);
-    process.stdout.write(`${JSON.stringify({
-      ...report,
-      status: blocked ? "findings" : "reported",
-    })}\n`);
+    process.stdout.write(
+      `${JSON.stringify({
+        ...report,
+        status: blocked ? "findings" : "reported",
+      })}\n`,
+    );
     if (blocked) process.exitCode = 1;
   } catch (error) {
     const known = error instanceof PublishabilityCliError || error instanceof PublishabilityError;
-    process.stderr.write(`${JSON.stringify({
-      error: {
-        code: known ? error.code : "publishability_failed",
-        message: known ? error.message : "the publishability scan failed unexpectedly",
-      },
-      status: "error",
-    })}\n`);
+    process.stderr.write(
+      `${JSON.stringify({
+        error: {
+          code: known ? error.code : "publishability_failed",
+          message: known ? error.message : "the publishability scan failed unexpectedly",
+        },
+        status: "error",
+      })}\n`,
+    );
     process.exitCode = 1;
   }
 }

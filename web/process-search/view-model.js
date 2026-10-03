@@ -7,13 +7,7 @@ export const processFilters = Object.freeze([
 ]);
 
 const filterIds = new Set(processFilters.map((filter) => filter.id));
-const attentionStates = new Set([
-  "blocked",
-  "corrupt",
-  "failed",
-  "missing",
-  "stale",
-]);
+const attentionStates = new Set(["blocked", "corrupt", "failed", "missing", "stale"]);
 
 export function parseAppRoute(pathname) {
   if (pathname === "/") return { name: "list" };
@@ -26,10 +20,10 @@ export function parseAppRoute(pathname) {
     return { name: "not-found" };
   }
   if (
-    !processId
-    || processId.includes("/")
-    || processId.includes("\\")
-    || processId.includes("\0")
+    !processId ||
+    processId.includes("/") ||
+    processId.includes("\\") ||
+    processId.includes("\0")
   ) {
     return { name: "not-found" };
   }
@@ -47,21 +41,17 @@ export function processMatchesFilter(result, filterValue) {
   if (filter === "historical") return process.mode === "historical";
   if (filter === "completed") return process.lifecycle_state === "complete";
   if (filter === "attention") {
-    return (
-      attentionStates.has(process.lifecycle_state)
-      || process.attention_steps.length > 0
-    );
+    return attentionStates.has(process.lifecycle_state) || process.attention_steps.length > 0;
   }
   return (
-    process.mode === "file-backed"
-    && process.lifecycle_state !== "complete"
-    && !attentionStates.has(process.lifecycle_state)
+    process.mode === "file-backed" &&
+    process.lifecycle_state !== "complete" &&
+    !attentionStates.has(process.lifecycle_state)
   );
 }
 
 export function filterProcessResults(results, filterValue) {
-  return results.filter((result) =>
-    processMatchesFilter(result, filterValue));
+  return results.filter((result) => processMatchesFilter(result, filterValue));
 }
 
 export function listLocation({ filter = "all", query = "" } = {}) {

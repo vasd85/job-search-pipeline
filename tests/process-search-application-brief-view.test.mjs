@@ -11,10 +11,12 @@ import {
 } from "../web/process-search/application-brief-view.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const brief = JSON.parse(readFileSync(
-  resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
-  "utf8",
-));
+const brief = JSON.parse(
+  readFileSync(
+    resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
+    "utf8",
+  ),
+);
 
 // Frozen here, never derived from the fixture or from the module. Emptying `experience.gaps` again,
 // dropping a classification, or collapsing both support statuses onto one leg has to fail here.
@@ -41,11 +43,7 @@ function recordingProxy(node, records, path = "") {
       if (typeof key === "string" && !Reflect.has(target, key)) {
         records.push(`absent key read: ${path}${key}`);
       }
-      return recordingProxy(
-        Reflect.get(target, key, receiver),
-        records,
-        `${path}${String(key)}.`,
-      );
+      return recordingProxy(Reflect.get(target, key, receiver), records, `${path}${String(key)}.`);
     },
     has(target, key) {
       records.push(`membership test: ${path}${String(key)}`);
@@ -104,7 +102,8 @@ test("gap cards map exactly the keys the schema-v4 contract defines", () => {
       classification: "hard",
       supportStatus: "none",
       supportEvidenceIds: [],
-      framing: "Never claim Cypress. Say plainly that the framework depth was built in Playwright, and describe how the typed layers, fixtures, and auth strategies carry over.",
+      framing:
+        "Never claim Cypress. Say plainly that the framework depth was built in Playwright, and describe how the typed layers, fixtures, and auth strategies carry over.",
     },
     {
       id: "gap-team-leadership",
@@ -112,7 +111,8 @@ test("gap cards map exactly the keys the schema-v4 contract defines", () => {
       classification: "soft",
       supportStatus: "evidence",
       supportEvidenceIds: ["evidence-framework"],
-      framing: "Do not imply a manager title. Describe the shared conventions and architectural boundaries the team adopted, and keep the claim at technical ownership.",
+      framing:
+        "Do not imply a manager title. Describe the shared conventions and architectural boundaries the team adopted, and keep the claim at technical ownership.",
     },
     {
       id: "gap-kubernetes-infra",
@@ -120,7 +120,8 @@ test("gap cards map exactly the keys the schema-v4 contract defines", () => {
       classification: "adjacent",
       supportStatus: "evidence",
       supportEvidenceIds: ["evidence-framework", "evidence-web3"],
-      framing: "Position the RPC interception and wallet infrastructure work as the closest real experience, and name where that boundary ends instead of stretching it.",
+      framing:
+        "Position the RPC interception and wallet infrastructure work as the closest real experience, and name where that boundary ends instead of stretching it.",
     },
   ]);
 });
@@ -144,8 +145,11 @@ test("the mappers read no key the contract cannot contain and enumerate nothing"
   const observed = [];
   const calls = [
     ...brief.experience.gaps.map((gap) => ["gap", gapCardView, gap]),
-    ...brief.experience.priorityEvidence.map((item) =>
-      ["priorityEvidence", priorityEvidenceCardView, item]),
+    ...brief.experience.priorityEvidence.map((item) => [
+      "priorityEvidence",
+      priorityEvidenceCardView,
+      item,
+    ]),
     ...brief.experience.traits.map((item) => ["trait", traitCardView, item]),
   ];
   for (const [shape, mapper, node] of calls) {
@@ -185,38 +189,36 @@ test("the read guard itself records absent keys, enumeration and membership test
     assert.equal(call.thrown, null);
     assert.equal(call.records[0], "enumeration: node");
   }
-  assert.deepEqual(
-    watchedCall((node) => "term" in node, gap).records,
-    ["membership test: term"],
-  );
-  assert.deepEqual(
-    watchedCall((node) => Object.hasOwn(node, "term"), gap).records,
-    ["descriptor read: term"],
-  );
-  assert.deepEqual(
-    watchedCall((node) => node.transferableEvidence?.status, gap).records,
-    ["absent key read: transferableEvidence"],
-  );
+  assert.deepEqual(watchedCall((node) => "term" in node, gap).records, ["membership test: term"]);
+  assert.deepEqual(watchedCall((node) => Object.hasOwn(node, "term"), gap).records, [
+    "descriptor read: term",
+  ]);
+  assert.deepEqual(watchedCall((node) => node.transferableEvidence?.status, gap).records, [
+    "absent key read: transferableEvidence",
+  ]);
 });
 
 test("the mappers do not mutate the contract node", () => {
   const [gap] = brief.experience.gaps;
   assert.match(
-    watchedCall((node) => { node.term = "x"; }, gap).thrown.message,
+    watchedCall((node) => {
+      node.term = "x";
+    }, gap).thrown.message,
     /contract node mutated: term/,
   );
   assert.match(
-    watchedCall((node) => { delete node.framing; }, gap).thrown.message,
+    watchedCall((node) => {
+      delete node.framing;
+    }, gap).thrown.message,
     /contract node key deleted: framing/,
   );
   // `Object.defineProperty`, `Object.preventExtensions` and `Object.setPrototypeOf` each bypass the
   // `set` trap entirely, so each needs its own probe. Without them a mapper could mutate the shared
   // fixture object and leak that state into every later test in this file.
   assert.match(
-    watchedCall(
-      (node) => { Object.defineProperty(node, "term", { value: "x" }); },
-      gap,
-    ).thrown.message,
+    watchedCall((node) => {
+      Object.defineProperty(node, "term", { value: "x" });
+    }, gap).thrown.message,
     /contract node redefined: term/,
   );
   assert.match(
@@ -238,7 +240,13 @@ test("a mapper that defers a read past its return is still recorded", () => {
   // deferral shape cannot escape the recorder by evaluating after the mapper returned. Prototype,
   // non-enumerable and symbol-keyed accessors are outside that reach and are declared containment.
   const deferred = watchedCall(
-    (node) => ({ requirement: { get value() { return node.title ?? node.requirement; } } }),
+    (node) => ({
+      requirement: {
+        get value() {
+          return node.title ?? node.requirement;
+        },
+      },
+    }),
     gap,
   );
   assert.deepEqual(deferred.records, ["absent key read: title"]);
@@ -259,20 +267,14 @@ test("transferable support is read only through its discriminator", () => {
   );
 
   const [, backed] = brief.experience.gaps;
-  assert.notEqual(
-    gapCardView(backed).supportEvidenceIds,
-    backed.transferableSupport.evidenceIds,
-  );
+  assert.notEqual(gapCardView(backed).supportEvidenceIds, backed.transferableSupport.evidenceIds);
 });
 
 test("the support line states the decision the contract records, and nothing more", () => {
   const [absent, single, several] = brief.experience.gaps.map(gapCardView);
   assert.equal(gapSupportLine(absent), "Transferable evidence deliberately not declared.");
   assert.equal(gapSupportLine(single), "Transferable evidence: evidence-framework");
-  assert.equal(
-    gapSupportLine(several),
-    "Transferable evidence: evidence-framework, evidence-web3",
-  );
+  assert.equal(gapSupportLine(several), "Transferable evidence: evidence-framework, evidence-web3");
   // `gap` is a real status elsewhere in this schema — `ats.keywords[].support.status` — so a brief
   // carrying it on a gap node must not be rendered as a deliberate declaration of honesty.
   assert.equal(
@@ -299,7 +301,8 @@ test("priority evidence cards show both priority and category", () => {
     {
       id: "evidence-framework",
       meta: "primary · Achievement",
-      claim: "Rebuilt a loosely structured Playwright suite into a layered, maintainable automation framework.",
+      claim:
+        "Rebuilt a loosely structured Playwright suite into a layered, maintainable automation framework.",
       proof: [
         "Established typed API layers, explicit architectural boundaries, stable auth strategies, fixtures, and shared conventions.",
         "The nightly run went from about seventy minutes to about twenty-five after the rebuild.",
@@ -309,7 +312,8 @@ test("priority evidence cards show both priority and category", () => {
     {
       id: "evidence-web3",
       meta: "supporting · Domain experience",
-      claim: "Tested DApp flows, on-chain data, wallets, and transaction behavior across EVM products.",
+      claim:
+        "Tested DApp flows, on-chain data, wallets, and transaction behavior across EVM products.",
       proof: [
         "Used TypeScript, Playwright, Ethers.js, Web3.js, Tenderly, wallet infrastructure, and RPC interception patterns.",
       ],
@@ -341,7 +345,8 @@ test("trait cards carry the trait shape and no evidence separator", () => {
     {
       id: "trait-systematic",
       trait: "Systematic ownership",
-      behavior: "Turns recurring test problems into explicit architecture, tooling, and team conventions.",
+      behavior:
+        "Turns recurring test problems into explicit architecture, tooling, and team conventions.",
       sourceLine: "candidate/profile.md · ### Working style",
     },
   ]);

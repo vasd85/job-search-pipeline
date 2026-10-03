@@ -68,11 +68,7 @@
  * are checked by the surviving runtime suites.
  */
 
-import {
-  lstatSync,
-  readFileSync,
-  realpathSync,
-} from "node:fs";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -91,8 +87,15 @@ export const WRITABLE_ZONES = Object.freeze(["handover", "state"]);
 export const LOCAL_SETTINGS_PATH = ".claude/settings.local.json";
 
 const ZONE_LISTS = Object.freeze([
-  "candidateExcludes", "dependencies", "handover", "metadataBasenames", "service",
-  "servicePrefixes", "stateNames", "stateNested", "statePrefixes",
+  "candidateExcludes",
+  "dependencies",
+  "handover",
+  "metadataBasenames",
+  "service",
+  "servicePrefixes",
+  "stateNames",
+  "stateNested",
+  "statePrefixes",
 ]);
 
 export class GuardError extends Error {
@@ -171,8 +174,10 @@ function entryExists(path) {
 }
 
 function hasMarker(directory) {
-  return entryExists(join(directory, MANIFEST_FILE_NAME))
-    || entryExists(join(directory, SERVICE_DIRECTORY_NAME));
+  return (
+    entryExists(join(directory, MANIFEST_FILE_NAME)) ||
+    entryExists(join(directory, SERVICE_DIRECTORY_NAME))
+  );
 }
 
 /** Every directory from `path` up to the filesystem root that carries a marker, innermost first. */
@@ -192,10 +197,13 @@ function isRecord(value) {
 }
 
 function validZones(zones) {
-  return isRecord(zones)
-    && typeof zones.candidate === "string"
-    && ZONE_LISTS.every((key) => Array.isArray(zones[key])
-      && zones[key].every((item) => typeof item === "string"));
+  return (
+    isRecord(zones) &&
+    typeof zones.candidate === "string" &&
+    ZONE_LISTS.every(
+      (key) => Array.isArray(zones[key]) && zones[key].every((item) => typeof item === "string"),
+    )
+  );
 }
 
 /** The kind and zone table of a marked folder; anything that is not a readable manifest refuses. */
@@ -220,15 +228,18 @@ export function loadFolder(root) {
   try {
     manifest = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    throw new GuardError("ops_manifest_invalid", `${path} is not readable JSON (${error?.code ?? error?.name})`);
+    throw new GuardError(
+      "ops_manifest_invalid",
+      `${path} is not readable JSON (${error?.code ?? error?.name})`,
+    );
   }
   if (
-    !isRecord(manifest)
-    || manifest.schema !== MANIFEST_SCHEMA
-    || manifest.schema_version !== MANIFEST_SCHEMA_VERSION
-    || !FOLDER_KINDS.includes(manifest.kind)
-    || !FOLDER_STATES.includes(manifest.state)
-    || !validZones(manifest.zones)
+    !isRecord(manifest) ||
+    manifest.schema !== MANIFEST_SCHEMA ||
+    manifest.schema_version !== MANIFEST_SCHEMA_VERSION ||
+    !FOLDER_KINDS.includes(manifest.kind) ||
+    !FOLDER_STATES.includes(manifest.state) ||
+    !validZones(manifest.zones)
   ) {
     throw new GuardError("ops_manifest_invalid", `${path} is not an ops manifest this guard reads`);
   }
@@ -271,11 +282,18 @@ export function zoneOf(zones, relativePath) {
   if (zones.handover.includes(top)) return "handover";
   if (zones.stateNames.includes(top)) return "state";
   if (zones.statePrefixes.some((prefix) => top.startsWith(prefix))) return "state";
-  if (zones.stateNested.some((nested) => relativePath === nested || relativePath.startsWith(`${nested}/`))) {
+  if (
+    zones.stateNested.some(
+      (nested) => relativePath === nested || relativePath.startsWith(`${nested}/`),
+    )
+  ) {
     return "state";
   }
-  if (zones.dependencies.some((dependency) => relativePath === dependency
-    || relativePath.startsWith(`${dependency}/`))) {
+  if (
+    zones.dependencies.some(
+      (dependency) => relativePath === dependency || relativePath.startsWith(`${dependency}/`),
+    )
+  ) {
     return "dependencies";
   }
   if (relativePath === zones.candidate || relativePath.startsWith(`${zones.candidate}/`)) {
@@ -303,7 +321,10 @@ function resolvedIfPresent(path) {
 }
 
 /** The four roots an operational session may write outside its folder, resolved. */
-export function outsideRoots(folderRoot, { home = homedir(), temporaryDirectories = [tmpdir(), "/tmp"] } = {}) {
+export function outsideRoots(
+  folderRoot,
+  { home = homedir(), temporaryDirectories = [tmpdir(), "/tmp"] } = {},
+) {
   const claude = join(home, ".claude");
   const roots = [
     resolvePath(join(claude, "projects", projectDirectoryName(folderRoot), "memory")),
@@ -379,35 +400,50 @@ export function decide(payload, options = {}) {
 export function denyMessage({ reason, root, target, zone }) {
   switch (reason) {
     case "outbound":
-      return `write guard [outbound]: this session lives in the marked folder ${root}, and a session `
-        + `there writes only under it. Blocked target: ${target}. Source, board and candidate changes `
-        + `belong to a development session; a task for the board is a draft in the folder's outbox.`;
+      return (
+        `write guard [outbound]: this session lives in the marked folder ${root}, and a session ` +
+        `there writes only under it. Blocked target: ${target}. Source, board and candidate changes ` +
+        `belong to a development session; a task for the board is a draft in the folder's outbox.`
+      );
     case "inbound":
-      return `write guard [inbound]: ${root} is a marked folder, and only a session living in it `
-        + `writes there; its outbox is collected by the board tool, not by file tools. Blocked `
-        + `target: ${target}. Read the folder by absolute path, and write under your own tree.`;
+      return (
+        `write guard [inbound]: ${root} is a marked folder, and only a session living in it ` +
+        `writes there; its outbox is collected by the board tool, not by file tools. Blocked ` +
+        `target: ${target}. Read the folder by absolute path, and write under your own tree.`
+      );
     case "read_only_zone":
-      return `write guard [read_only_zone]: ${target} is in the ${zone} zone of the marked folder `
-        + `${root}, which no session writes; the folder changes only through its tool. Blocked `
-        + `target: ${target}. The run writes its state and its outbox.`;
+      return (
+        `write guard [read_only_zone]: ${target} is in the ${zone} zone of the marked folder ` +
+        `${root}, which no session writes; the folder changes only through its tool. Blocked ` +
+        `target: ${target}. The run writes its state and its outbox.`
+      );
     case "settings_local":
-      return `write guard [settings_local]: the runtime reads hooks and disableAllHooks from `
-        + `${LOCAL_SETTINGS_PATH}, so no session writes it with a file tool. Blocked target: `
-        + `${target}. It is rendered by the machine setup script.`;
+      return (
+        `write guard [settings_local]: the runtime reads hooks and disableAllHooks from ` +
+        `${LOCAL_SETTINGS_PATH}, so no session writes it with a file tool. Blocked target: ` +
+        `${target}. It is rendered by the machine setup script.`
+      );
     default:
-      return `write guard [unclassified]: this write was refused by a rule this message cannot `
-        + `name, which is itself a defect in the guard. Blocked target: ${target}.`;
+      return (
+        `write guard [unclassified]: this write was refused by a rule this message cannot ` +
+        `name, which is itself a defect in the guard. Blocked target: ${target}.`
+      );
   }
 }
 
 export function failClosedMessage(error) {
   const code = error instanceof GuardError ? error.code : "unexpected_error";
   const detail = error instanceof GuardError ? error.message : "internal failure";
-  return `write guard: could not resolve whether this write is allowed (${code}: ${detail}). `
-    + `Denying, because this guard fails closed.`;
+  return (
+    `write guard: could not resolve whether this write is allowed (${code}: ${detail}). ` +
+    `Denying, because this guard fails closed.`
+  );
 }
 
-export function main(read = () => readFileSync(0, "utf8"), write = (text) => process.stderr.write(text)) {
+export function main(
+  read = () => readFileSync(0, "utf8"),
+  write = (text) => process.stderr.write(text),
+) {
   let text;
   try {
     const raw = read();

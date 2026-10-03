@@ -1,17 +1,6 @@
-import {
-  accessSync,
-  constants,
-  lstatSync,
-  mkdirSync,
-  realpathSync,
-} from "node:fs";
+import { accessSync, constants, lstatSync, mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import {
-  isAbsolute,
-  relative,
-  resolve,
-  sep,
-} from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 export class OutputRootError extends Error {
   constructor(code, message) {
@@ -30,10 +19,7 @@ function requireExactAbsolutePath(value, field) {
     fail("invalid_output_environment", `${field} must be a non-empty string`);
   }
   if (!isAbsolute(value) || value !== resolve(value)) {
-    fail(
-      "invalid_output_environment",
-      `${field} must be an absolute normalized path`,
-    );
+    fail("invalid_output_environment", `${field} must be an absolute normalized path`);
   }
   return value;
 }
@@ -42,8 +28,8 @@ function expectedCanonicalPath(path) {
   const temporaryPath = resolve(tmpdir());
   const temporaryRealPath = realpathSync(temporaryPath);
   if (
-    temporaryPath !== temporaryRealPath
-    && (path === temporaryPath || path.startsWith(`${temporaryPath}${sep}`))
+    temporaryPath !== temporaryRealPath &&
+    (path === temporaryPath || path.startsWith(`${temporaryPath}${sep}`))
   ) {
     return resolve(temporaryRealPath, relative(temporaryPath, path));
   }
@@ -56,21 +42,12 @@ function inspectDirectory(path, field, { missingIsBootstrap = false } = {}) {
     stats = lstatSync(path);
   } catch (error) {
     if (missingIsBootstrap && error.code === "ENOENT") {
-      fail(
-        "bootstrap_required",
-        "output root is missing; run npm run bootstrap:init",
-      );
+      fail("bootstrap_required", "output root is missing; run npm run bootstrap:init");
     }
-    fail(
-      "invalid_output_environment",
-      `${field} is unavailable (${error.code ?? "unknown"})`,
-    );
+    fail("invalid_output_environment", `${field} is unavailable (${error.code ?? "unknown"})`);
   }
   if (stats.isSymbolicLink() || !stats.isDirectory()) {
-    fail(
-      "invalid_output_environment",
-      `${field} must be a non-symlink directory`,
-    );
+    fail("invalid_output_environment", `${field} must be a non-symlink directory`);
   }
 
   let realPath;
@@ -83,10 +60,7 @@ function inspectDirectory(path, field, { missingIsBootstrap = false } = {}) {
     );
   }
   if (realPath !== expectedCanonicalPath(path)) {
-    fail(
-      "invalid_output_environment",
-      `${field} must not use a symlinked path or ancestor`,
-    );
+    fail("invalid_output_environment", `${field} must not use a symlinked path or ancestor`);
   }
   return { realPath, stats };
 }
@@ -96,16 +70,10 @@ function requireDirectoryAccess(path, stats, field) {
   const hasWrite = (stats.mode & 0o222) !== 0;
   const hasExecute = (stats.mode & 0o111) !== 0;
   if (!hasRead || !hasWrite || !hasExecute) {
-    fail(
-      "invalid_output_environment",
-      `${field} must be readable, writable, and searchable`,
-    );
+    fail("invalid_output_environment", `${field} must be readable, writable, and searchable`);
   }
   try {
-    accessSync(
-      path,
-      constants.R_OK | constants.W_OK | constants.X_OK,
-    );
+    accessSync(path, constants.R_OK | constants.W_OK | constants.X_OK);
   } catch (error) {
     fail(
       "invalid_output_environment",
@@ -129,16 +97,8 @@ function requireOutputPaths({ outputRoot, workspaceRoot }) {
 export function checkOutputRoot(input) {
   const { outputPath, workspacePath } = requireOutputPaths(input);
   const workspace = inspectDirectory(workspacePath, "workspaceRoot");
-  requireDirectoryAccess(
-    workspacePath,
-    workspace.stats,
-    "workspaceRoot",
-  );
-  const output = inspectDirectory(
-    outputPath,
-    "outputRoot",
-    { missingIsBootstrap: true },
-  );
+  requireDirectoryAccess(workspacePath, workspace.stats, "workspaceRoot");
+  const output = inspectDirectory(outputPath, "outputRoot", { missingIsBootstrap: true });
   requireDirectoryAccess(outputPath, output.stats, "outputRoot");
   if (output.realPath !== resolve(workspace.realPath, "output")) {
     fail(

@@ -21,7 +21,7 @@ instead of closing it.
 
 ## Context
 
-ADR 0023 decided *that* the engine is published and the candidate stays private. It deliberately
+ADR 0023 decided _that_ the engine is published and the candidate stays private. It deliberately
 left the shape open: the private layer's form was a working hypothesis of epic 146, and how tasks
 are documented after the move was handed to a separate task. Three requirements the user stated
 afterwards could not be met by the flow this repository runs today.
@@ -145,16 +145,16 @@ holds it and, as the report's invariant demands, the path that mechanism does no
 recommended layout the operational folder and the development clone are on the same disk of the
 same machine, so the uncovered paths are named plainly rather than smoothed over.
 
-| Actor and target | Mechanism | What it does not close |
-| --- | --- | --- |
-| run → its own artifacts | state zones, written by the folder's own session; the existing log locks | nothing — this is the permitted cell |
-| run → engine sources | no `.git`, so nothing can be committed; the engine zone is read-only; the tool's drift check runs on every pipeline step | an edit through the shell, or by a second agent, before the first drift check |
-| run → the board | only a draft in the outbox; the number is given by the next development session; rule 2 of the write guard keeps the run out of the live board | the shell and a second agent can write into the live board — it is on the same disk |
-| run → candidate data | the snapshot's candidate zone is read-only and drift-checked on every step; rule 2 of the write guard covers the live nested clone | the shell and a second agent — into the snapshot before the first step, into the live clone at any time |
-| development → the run's artifacts | rule 1 of the write guard; a development clone holds no process log | the shell; a second agent; the one declared exception of the outbox — deleting a draft already imported and recording its number |
-| development → engine sources | permitted; into public `main` only through a pull request with a green check | nothing |
-| development → the board | permitted, through the nested private clone, under the board's two rules | nothing |
-| development → candidate data | permitted; a change reaches a run only through a tag and a cutover | nothing |
+| Actor and target                  | Mechanism                                                                                                                                      | What it does not close                                                                                                           |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| run → its own artifacts           | state zones, written by the folder's own session; the existing log locks                                                                       | nothing — this is the permitted cell                                                                                             |
+| run → engine sources              | no `.git`, so nothing can be committed; the engine zone is read-only; the tool's drift check runs on every pipeline step                       | an edit through the shell, or by a second agent, before the first drift check                                                    |
+| run → the board                   | only a draft in the outbox; the number is given by the next development session; rule 2 of the write guard keeps the run out of the live board | the shell and a second agent can write into the live board — it is on the same disk                                              |
+| run → candidate data              | the snapshot's candidate zone is read-only and drift-checked on every step; rule 2 of the write guard covers the live nested clone             | the shell and a second agent — into the snapshot before the first step, into the live clone at any time                          |
+| development → the run's artifacts | rule 1 of the write guard; a development clone holds no process log                                                                            | the shell; a second agent; the one declared exception of the outbox — deleting a draft already imported and recording its number |
+| development → engine sources      | permitted; into public `main` only through a pull request with a green check                                                                   | nothing                                                                                                                          |
+| development → the board           | permitted, through the nested private clone, under the board's two rules                                                                       | nothing                                                                                                                          |
+| development → candidate data      | permitted; a change reaches a run only through a tag and a cutover                                                                             | nothing                                                                                                                          |
 
 The mechanisms themselves are built by the tasks named in the decisions above: the marker file and
 the zone table by task 173, the two guard rules by task 174, the outbox and the board rules by

@@ -119,14 +119,14 @@ transport, not a comparison.
 
 The result of the comparison is one document, not a chat message. It contains:
 
-| Section | Content |
-| --- | --- |
-| Batch identity | label, date, number of links, collection date of the list, adapter versions |
-| Fidelity | a table per link: usable for each transport, field agreement, divergences verbatim |
-| Cost | bytes, wall-clock, fallback share, estimated saving of model context |
-| Rate limits | everything from [what to measure](#5-what-to-measure), including an explicit "not observed" |
-| Adapter degradations | every record with `structuralOk: false` and its reason code |
-| Verdict | what becomes the default, what stays a fallback, what was not checked |
+| Section              | Content                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------- |
+| Batch identity       | label, date, number of links, collection date of the list, adapter versions                 |
+| Fidelity             | a table per link: usable for each transport, field agreement, divergences verbatim          |
+| Cost                 | bytes, wall-clock, fallback share, estimated saving of model context                        |
+| Rate limits          | everything from [what to measure](#5-what-to-measure), including an explicit "not observed" |
+| Adapter degradations | every record with `structuralOk: false` and its reason code                                 |
+| Verdict              | what becomes the default, what stays a fallback, what was not checked                       |
 
 The document refers to the batch's `fetch-manifest.json` and to the capture files by their digests
 instead of copying the JD. `verifyCaptureFile` re-checks every capture file against its own header

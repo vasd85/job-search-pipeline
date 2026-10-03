@@ -67,38 +67,40 @@ const MAX_DOCUMENT_BYTES = 1024 * 1024;
 
 export { CandidateError };
 
-export const candidateErrorCodes = Object.freeze([
-  ...candidateDocumentErrorCodes,
-  ...candidateLanguageErrorCodes,
-  ...candidateManifestErrorCodes,
-  "candidate_config_invalid_json",
-  "candidate_config_key_missing",
-  "candidate_config_key_type_invalid",
-  "candidate_config_missing",
-  "candidate_config_shape_invalid",
-  "candidate_config_unknown_key",
-  "candidate_config_unreadable",
-  "candidate_config_value_invalid",
-  "candidate_constraint_conflicts_with_engine",
-  "candidate_constraint_id_duplicate",
-  "candidate_constraint_id_invalid",
-  "candidate_constraint_payload_invalid",
-  "candidate_constraint_scope_invalid",
-  "candidate_constraint_type_unknown",
-  "candidate_constraint_unknown_field",
-  "candidate_constraint_why_invalid",
-  "candidate_constraints_invalid_json",
-  "candidate_constraints_schema_version_missing",
-  "candidate_constraints_schema_version_unsupported",
-  "candidate_constraints_shape_invalid",
-  "candidate_constraints_unreadable",
-  "candidate_key_root_invalid",
-  "candidate_root_invalid",
-  "candidate_schema_key_type_unknown",
-  "candidate_schema_relation_invalid",
-  "candidate_schema_version_missing",
-  "candidate_schema_version_unsupported",
-].sort());
+export const candidateErrorCodes = Object.freeze(
+  [
+    ...candidateDocumentErrorCodes,
+    ...candidateLanguageErrorCodes,
+    ...candidateManifestErrorCodes,
+    "candidate_config_invalid_json",
+    "candidate_config_key_missing",
+    "candidate_config_key_type_invalid",
+    "candidate_config_missing",
+    "candidate_config_shape_invalid",
+    "candidate_config_unknown_key",
+    "candidate_config_unreadable",
+    "candidate_config_value_invalid",
+    "candidate_constraint_conflicts_with_engine",
+    "candidate_constraint_id_duplicate",
+    "candidate_constraint_id_invalid",
+    "candidate_constraint_payload_invalid",
+    "candidate_constraint_scope_invalid",
+    "candidate_constraint_type_unknown",
+    "candidate_constraint_unknown_field",
+    "candidate_constraint_why_invalid",
+    "candidate_constraints_invalid_json",
+    "candidate_constraints_schema_version_missing",
+    "candidate_constraints_schema_version_unsupported",
+    "candidate_constraints_shape_invalid",
+    "candidate_constraints_unreadable",
+    "candidate_key_root_invalid",
+    "candidate_root_invalid",
+    "candidate_schema_key_type_unknown",
+    "candidate_schema_relation_invalid",
+    "candidate_schema_version_missing",
+    "candidate_schema_version_unsupported",
+  ].sort(),
+);
 
 function fail(code, message) {
   throw new CandidateError(code, message);
@@ -162,10 +164,10 @@ function collectPaths(value, prefix, found) {
   for (const [key, entry] of Object.entries(value)) {
     const path = prefix === "" ? key : `${prefix}.${key}`;
     if (
-      entry !== null
-      && typeof entry === "object"
-      && !Array.isArray(entry)
-      && Object.keys(entry).length > 0
+      entry !== null &&
+      typeof entry === "object" &&
+      !Array.isArray(entry) &&
+      Object.keys(entry).length > 0
     ) {
       collectPaths(entry, path, found);
       continue;
@@ -185,7 +187,10 @@ function hasType(value, type) {
     case "integer[]":
       return Array.isArray(value) && value.every(Number.isSafeInteger);
     case "record[]":
-      return Array.isArray(value) && value.every(entry => entry !== null && typeof entry === "object" && !Array.isArray(entry));
+      return (
+        Array.isArray(value) &&
+        value.every((entry) => entry !== null && typeof entry === "object" && !Array.isArray(entry))
+      );
     case "string[]":
       return Array.isArray(value) && value.every((entry) => typeof entry === "string");
     default:
@@ -217,14 +222,19 @@ export function validateCandidateConfig(
   keys = candidateConfigKeys,
   relations = keys === candidateConfigKeys ? candidateConfigRelations : [],
   distinct = keys === candidateConfigKeys ? candidateConfigDistinct : [],
-  { subsets = keys === candidateConfigKeys ? candidateConfigSubsets : [],
-    disjoint = keys === candidateConfigKeys ? candidateConfigDisjoint : [] } = {},
+  {
+    subsets = keys === candidateConfigKeys ? candidateConfigSubsets : [],
+    disjoint = keys === candidateConfigKeys ? candidateConfigDisjoint : [],
+  } = {},
 ) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     fail("candidate_config_shape_invalid", "candidate config must be a JSON object");
   }
   if (!Object.hasOwn(value, candidateSchemaVersionKey)) {
-    fail("candidate_schema_version_missing", `candidate config must carry ${candidateSchemaVersionKey}`);
+    fail(
+      "candidate_schema_version_missing",
+      `candidate config must carry ${candidateSchemaVersionKey}`,
+    );
   }
   if (value[candidateSchemaVersionKey] !== candidateConfigSchemaVersion) {
     fail(
@@ -238,25 +248,37 @@ export function validateCandidateConfig(
   const declared = new Map(keys.map((key) => [key.path, key.type]));
   for (const [path, type] of declared) {
     if (!candidateConfigKeyTypes.includes(type)) {
-      fail("candidate_schema_key_type_unknown", `the schema declares ${path} with a type this reader does not know: ${type}`);
+      fail(
+        "candidate_schema_key_type_unknown",
+        `the schema declares ${path} with a type this reader does not know: ${type}`,
+      );
     }
   }
   for (const path of found.keys()) {
     if (!declared.has(path)) {
-      fail("candidate_config_unknown_key", `candidate config declares a key the schema does not: ${path}`);
+      fail(
+        "candidate_config_unknown_key",
+        `candidate config declares a key the schema does not: ${path}`,
+      );
     }
   }
   for (const relation of relations) {
     for (const path of [relation.lower, relation.upper]) {
       if (declared.get(path) !== "integer") {
-        fail("candidate_schema_relation_invalid", `the schema relates ${path}, which it does not declare as an integer`);
+        fail(
+          "candidate_schema_relation_invalid",
+          `the schema relates ${path}, which it does not declare as an integer`,
+        );
       }
     }
   }
   for (const pair of distinct) {
     for (const path of [pair.one, pair.other]) {
       if (declared.get(path) !== "string") {
-        fail("candidate_schema_relation_invalid", `the schema requires ${path} to differ, which it does not declare as a string`);
+        fail(
+          "candidate_schema_relation_invalid",
+          `the schema requires ${path} to differ, which it does not declare as a string`,
+        );
       }
     }
   }
@@ -266,7 +288,10 @@ export function validateCandidateConfig(
   ]) {
     for (const path of pair) {
       if (declared.get(path) !== "string[]") {
-        fail("candidate_schema_relation_invalid", `the schema relates the members of ${path}, which it does not declare as a list`);
+        fail(
+          "candidate_schema_relation_invalid",
+          `the schema relates the members of ${path}, which it does not declare as a list`,
+        );
       }
     }
   }
@@ -281,15 +306,23 @@ export function validateCandidateConfig(
   for (const key of keys) {
     const entry = found.get(key.path);
     if (key.minimum !== undefined && entry < key.minimum) {
-      fail("candidate_config_value_invalid", `candidate config key ${key.path} must be at least ${key.minimum}`);
+      fail(
+        "candidate_config_value_invalid",
+        `candidate config key ${key.path} must be at least ${key.minimum}`,
+      );
     }
     // The value is not quoted: it is the candidate's own, and a refusal travels into transcripts.
     if (key.accepts !== undefined && !key.accepts(entry)) {
-      fail("candidate_config_value_invalid", `candidate config key ${key.path} must be ${key.expected}`);
+      fail(
+        "candidate_config_value_invalid",
+        `candidate config key ${key.path} must be ${key.expected}`,
+      );
     }
   }
   for (const { lower, strict, upper } of relations) {
-    if (strict === true ? found.get(lower) >= found.get(upper) : found.get(lower) > found.get(upper)) {
+    if (
+      strict === true ? found.get(lower) >= found.get(upper) : found.get(lower) > found.get(upper)
+    ) {
       fail(
         "candidate_config_value_invalid",
         `candidate config key ${lower} must ${strict === true ? "stay below" : "not exceed"} ${upper}`,
@@ -298,23 +331,32 @@ export function validateCandidateConfig(
   }
   for (const { one, other } of distinct) {
     if (found.get(one) === found.get(other)) {
-      fail("candidate_config_value_invalid", `candidate config keys ${one} and ${other} must differ`);
+      fail(
+        "candidate_config_value_invalid",
+        `candidate config keys ${one} and ${other} must differ`,
+      );
     }
   }
   for (const { subset, superset } of subsets) {
     const members = new Set(found.get(superset));
     if (!found.get(subset).every((entry) => members.has(entry))) {
-      fail("candidate_config_value_invalid", `every member of candidate config key ${subset} must also be in ${superset}`);
+      fail(
+        "candidate_config_value_invalid",
+        `every member of candidate config key ${subset} must also be in ${superset}`,
+      );
     }
   }
   for (const { one, other } of disjoint) {
     const members = new Set(found.get(one));
     if (found.get(other).some((entry) => members.has(entry))) {
-      fail("candidate_config_value_invalid", `candidate config keys ${one} and ${other} must share no member`);
+      fail(
+        "candidate_config_value_invalid",
+        `candidate config keys ${one} and ${other} must share no member`,
+      );
     }
   }
-  if (keys.some(key => key.path === "scoring.m.max")) {
-    validateScoringPoints(value, message => fail("candidate_config_value_invalid", message));
+  if (keys.some((key) => key.path === "scoring.m.max")) {
+    validateScoringPoints(value, (message) => fail("candidate_config_value_invalid", message));
   }
   return deepFreeze(value);
 }
@@ -346,7 +388,10 @@ function readConfigBytes(configPath) {
     if (error?.code === "ENOENT") {
       fail("candidate_config_missing", `candidate config is missing: ${candidateConfigBasename}`);
     }
-    fail("candidate_config_unreadable", `candidate config is not readable (${error?.code ?? "unknown"})`);
+    fail(
+      "candidate_config_unreadable",
+      `candidate config is not readable (${error?.code ?? "unknown"})`,
+    );
   }
   if (bytes.length > MAX_CONFIG_BYTES) {
     fail("candidate_config_unreadable", "candidate config is larger than this reader accepts");
@@ -389,7 +434,10 @@ function readDocument(root, basename, { required }) {
       if (!required) return null;
       fail("candidate_document_missing", `the candidate layer is missing ${basename}`);
     }
-    fail("candidate_document_unreadable", `${basename} is not readable (${error?.code ?? "unknown"})`);
+    fail(
+      "candidate_document_unreadable",
+      `${basename} is not readable (${error?.code ?? "unknown"})`,
+    );
   }
   if (bytes.length > MAX_DOCUMENT_BYTES) {
     fail("candidate_document_unreadable", `${basename} is larger than this reader accepts`);
@@ -420,9 +468,10 @@ export function loadCandidateDocuments({ root } = {}) {
   const rules = readDocument(exact, candidateRulesBasename, { required: true });
   const samples = readDocument(exact, candidateLetterSamplesBasename, { required: false });
   return Object.freeze({
-    letterSamples: samples === null
-      ? null
-      : Object.freeze({ path: samples.path, ...validateCandidateLetterSamples(samples.text) }),
+    letterSamples:
+      samples === null
+        ? null
+        : Object.freeze({ path: samples.path, ...validateCandidateLetterSamples(samples.text) }),
     levers: Object.freeze({ path: levers.path, ...validateCandidateLevers(levers.text) }),
     profile: Object.freeze({ path: profile.path, ...validateCandidateProfile(profile.text) }),
     rules: Object.freeze({ path: rules.path, ...validateCandidateRules(rules.text) }),
@@ -488,7 +537,9 @@ export function candidateScoringValues({ root } = {}) {
   return deepFreeze(candidateScoringFrom(loadCandidateConfig({ root: exact }).config));
 }
 
-const scoringKeys = Object.freeze(candidateConfigKeys.filter((key) => isScoringInputPath(key.path)));
+const scoringKeys = Object.freeze(
+  candidateConfigKeys.filter((key) => isScoringInputPath(key.path)),
+);
 const onScoringKeys = (paths) => paths.every(isScoringInputPath);
 
 /**
@@ -501,13 +552,18 @@ export function validateCandidateScoring(value) {
     fail("candidate_config_shape_invalid", "scoring values must be a JSON object");
   }
   const checked = validateCandidateConfig(
-    { ...JSON.parse(JSON.stringify(value)), [candidateSchemaVersionKey]: candidateConfigSchemaVersion },
+    {
+      ...JSON.parse(JSON.stringify(value)),
+      [candidateSchemaVersionKey]: candidateConfigSchemaVersion,
+    },
     scoringKeys,
     candidateConfigRelations.filter(({ lower, upper }) => onScoringKeys([lower, upper])),
     [],
     {
       disjoint: candidateConfigDisjoint.filter(({ one, other }) => onScoringKeys([one, other])),
-      subsets: candidateConfigSubsets.filter(({ subset, superset }) => onScoringKeys([subset, superset])),
+      subsets: candidateConfigSubsets.filter(({ subset, superset }) =>
+        onScoringKeys([subset, superset]),
+      ),
     },
   );
   const { [candidateSchemaVersionKey]: _version, ...values } = checked;
@@ -552,20 +608,31 @@ export function inspectCandidateLayer({ root, keys = candidateConfigKeys, manife
   const loaded = loadCandidateConfig({ keys, root: exact });
   const documents = loadCandidateDocuments({ root: exact });
   // A caller that injects its own key table has no language keys to read the packs by.
-  const languages = keys === candidateConfigKeys
-    ? Object.freeze(readCandidateLanguages({ config: loaded.config, root: exact }).map((language) => language.name))
-    : null;
-  const uncovered = languages === null || documents.letterSamples === null
-    ? undefined
-    : documents.letterSamples.languages.find((language) => !languages.includes(language));
+  const languages =
+    keys === candidateConfigKeys
+      ? Object.freeze(
+          readCandidateLanguages({ config: loaded.config, root: exact }).map(
+            (language) => language.name,
+          ),
+        )
+      : null;
+  const uncovered =
+    languages === null || documents.letterSamples === null
+      ? undefined
+      : documents.letterSamples.languages.find((language) => !languages.includes(language));
   if (uncovered !== undefined) {
     fail(
       "candidate_letter_samples_invalid",
       `Covered languages names ${uncovered}, which is neither the default language nor a configured one`,
     );
   }
-  const packLanguages = languages === null ? null : languages.filter((name) => name !== DEFAULT_LANGUAGE.name);
-  checkCandidateLayerParity({ languages: packLanguages, manifest: manifest ?? loadCandidateManifest(), root: exact });
+  const packLanguages =
+    languages === null ? null : languages.filter((name) => name !== DEFAULT_LANGUAGE.name);
+  checkCandidateLayerParity({
+    languages: packLanguages,
+    manifest: manifest ?? loadCandidateManifest(),
+    root: exact,
+  });
   checkCandidateLayerSections({ languages: packLanguages, root: exact });
   return Object.freeze({
     configPath: loaded.configPath,

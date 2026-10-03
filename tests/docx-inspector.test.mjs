@@ -180,10 +180,7 @@ const MALFORMED_XML_CASES = Object.freeze([
   ["duplicate-declaration", '<?xml version="1.0"?><?xml version="1.0"?><root/>'],
   ["declaration-missing-version", '<?xml encoding="UTF-8"?><root/>'],
   ["declaration-unknown-attribute", '<?xml version="1.0" mode="strict"?><root/>'],
-  [
-    "declaration-out-of-order",
-    '<?xml version="1.0" standalone="yes" encoding="UTF-8"?><root/>',
-  ],
+  ["declaration-out-of-order", '<?xml version="1.0" standalone="yes" encoding="UTF-8"?><root/>'],
   ["duplicate-declaration-attribute", '<?xml version="1.0" version="1.0"?><root/>'],
   ["unterminated-declaration", '<?xml version="1.0"><root/>'],
   ["declaration-reference-value", '<?xml version="1&#46;0"?><root/>'],
@@ -209,10 +206,7 @@ const EXPECTED_VALID_XML_CASE_IDS = Object.freeze([
 const VALID_XML_CASES = Object.freeze([
   ["qnames-and-self-closing", '<r:root xmlns:r="urn:test"><r:child/></r:root>'],
   ["single-and-double-quoted-attributes", `<root one='1' two="2"/>`],
-  [
-    "supported-declaration",
-    '<?xml version="1.0" encoding="utf-8" standalone="yes"?><root/>',
-  ],
+  ["supported-declaration", '<?xml version="1.0" encoding="utf-8" standalone="yes"?><root/>'],
   [
     "comment-pi-and-cdata-contexts",
     "<!-- <!DOCTYPE root> &unknown; <?xml?> ]]> --><?target ok?><root><![CDATA[<!DOCTYPE root> &unknown; <?xml?> ]]></root>",
@@ -253,7 +247,8 @@ test("roles in every experience section are checked, not only the first", () => 
   });
   assert.deepEqual(
     inspectDocxBytes(createDocxBytes({ cv }), cv).filter((check) =>
-      check.startsWith("role-header keepNext")),
+      check.startsWith("role-header keepNext"),
+    ),
     ["role-header keepNext (2)"],
   );
 
@@ -394,9 +389,7 @@ test("a compression bomb is rejected instead of being inflated", () => {
   end.writeUInt32LE(directory.length + name.length, 12);
   end.writeUInt32LE(local.length + name.length + packed.length, 16);
 
-  const error = rejection(
-    Buffer.concat([local, name, packed, directory, name, end]),
-  );
+  const error = rejection(Buffer.concat([local, name, packed, directory, name, end]));
   assert.match(error.message, /implausibly large/);
 });
 
@@ -418,12 +411,18 @@ test("every required XML part is parsed instead of merely decoded", () => {
   const validParts = readDocxParts(createDocxBytes({ cv }));
   const declaredCases = [
     [CONTENT_TYPES_PART, (xml) => xml.replace("</Types>", "&undefined;</Types>")],
-    [ROOT_RELATIONSHIPS_PART, (xml) =>
-      xml.replace("</Relationships>", "&undefined;</Relationships>")],
-    [MAIN_DOCUMENT_PART, (xml) =>
-      xml.replace("<w:body>", "<w:body><w:p><w:r><w:t>&undefined;</w:t></w:r></w:p>")],
-    [MAIN_DOCUMENT_RELATIONSHIPS_PART, (xml) =>
-      xml.replace("</Relationships>", "&undefined;</Relationships>")],
+    [
+      ROOT_RELATIONSHIPS_PART,
+      (xml) => xml.replace("</Relationships>", "&undefined;</Relationships>"),
+    ],
+    [
+      MAIN_DOCUMENT_PART,
+      (xml) => xml.replace("<w:body>", "<w:body><w:p><w:r><w:t>&undefined;</w:t></w:r></w:p>"),
+    ],
+    [
+      MAIN_DOCUMENT_RELATIONSHIPS_PART,
+      (xml) => xml.replace("</Relationships>", "&undefined;</Relationships>"),
+    ],
   ];
   const executed = new Set();
 
@@ -579,10 +578,7 @@ test("layout regressions in the rendered package are rejected", () => {
 });
 
 test("the inspector stays importable from the dependency-free repository root", () => {
-  const source = readFileSync(
-    resolve(repoRoot, "tools/cv-builder/docx-inspector.mjs"),
-    "utf8",
-  );
+  const source = readFileSync(resolve(repoRoot, "tools/cv-builder/docx-inspector.mjs"), "utf8");
   const imports = [...source.matchAll(/^import\s[\s\S]*?from\s+"([^"]+)";/gm)].map(
     (match) => match[1],
   );
@@ -617,8 +613,7 @@ test("readDocxParts tolerates real-package encoding variants", () => {
 
 test("a declaration that only appears inside an XML comment does not count", () => {
   const cv = makeCv();
-  const commented = (xml, pattern) =>
-    xml.replace(pattern, (match) => `<!-- ${match} -->`);
+  const commented = (xml, pattern) => xml.replace(pattern, (match) => `<!-- ${match} -->`);
   const parts = readDocxParts(createDocxBytes({ cv }));
   const contentTypes = parts.get(CONTENT_TYPES_PART).toString("utf8");
   const rootRelationships = parts.get(ROOT_RELATIONSHIPS_PART).toString("utf8");
@@ -644,22 +639,25 @@ test("a part that merely mentions the namespace is not a document", () => {
   const cases = [
     [
       "wrong root element",
-      '<?xml version="1.0"?><notdocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-      + "<w:body><w:p/></w:body></notdocument>",
+      '<?xml version="1.0"?><notdocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+        "<w:body><w:p/></w:body></notdocument>",
     ],
     [
       "right root, namespace not bound",
-      '<?xml version="1.0"?><w:document xmlns:w="http://example.com/not-wordprocessingml">'
-      + '<w:body><w:p>http://schemas.openxmlformats.org/wordprocessingml/2006/main</w:p></w:body></w:document>',
+      '<?xml version="1.0"?><w:document xmlns:w="http://example.com/not-wordprocessingml">' +
+        "<w:body><w:p>http://schemas.openxmlformats.org/wordprocessingml/2006/main</w:p></w:body></w:document>",
     ],
     [
       "namespace only inside a comment",
-      '<?xml version="1.0"?><!-- <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"> -->'
-      + "<w:body/>",
+      '<?xml version="1.0"?><!-- <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"> -->' +
+        "<w:body/>",
     ],
   ];
   for (const [label, documentXml] of cases) {
-    const error = rejection(createDocxBytes({ cv, replace: { [MAIN_DOCUMENT_PART]: documentXml } }), cv);
+    const error = rejection(
+      createDocxBytes({ cv, replace: { [MAIN_DOCUMENT_PART]: documentXml } }),
+      cv,
+    );
     assert.ok(error.message.length > 0, label);
   }
 });

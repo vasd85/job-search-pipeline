@@ -47,20 +47,22 @@ function validateFixture(name, options = {}) {
 
 test("completed Step 1 fixture validates exact JD bytes and selected process identity", () => {
   const fixture = readFixture("vacancy-v2-completed");
-  fixture.vacancy.process.finalUrl =
-    "https://redirected.example.test/jobs/senior-quality-engineer";
-  assert.deepEqual(validateVacancy(fixture.vacancy, {
-    jobDescriptionBytes: fixture.jobDescriptionBytes,
-    markets: exampleMarkets,
-    outcome: "completed",
-    expectedProcess: {
-      id: "proc_fixture_step1_completed",
-      sourceRef: "https://example.test/jobs/senior-quality-engineer",
-      outputDir: "output/example-labs-senior-quality-engineer",
-      companyObserved: "Example Labs",
-      role: "Senior Quality Engineer",
-    },
-  }), []);
+  fixture.vacancy.process.finalUrl = "https://redirected.example.test/jobs/senior-quality-engineer";
+  assert.deepEqual(
+    validateVacancy(fixture.vacancy, {
+      jobDescriptionBytes: fixture.jobDescriptionBytes,
+      markets: exampleMarkets,
+      outcome: "completed",
+      expectedProcess: {
+        id: "proc_fixture_step1_completed",
+        sourceRef: "https://example.test/jobs/senior-quality-engineer",
+        outputDir: "output/example-labs-senior-quality-engineer",
+        companyObserved: "Example Labs",
+        role: "Senior Quality Engineer",
+      },
+    }),
+    [],
+  );
 
   const result = readAndValidateVacancyBundle(
     resolve(fixture.directory, "vacancy.json"),
@@ -88,11 +90,13 @@ test("blocked Step 1 fixture preserves JD and an honest market ambiguity", () =>
     /role\.market\.value null requires a blocking market_ambiguous ambiguity/,
   );
 
-  withoutBlocker.vacancy.ambiguities = [{
-    code: "salary_ambiguous",
-    question: "What compensation applies?",
-    blocking: true,
-  }];
+  withoutBlocker.vacancy.ambiguities = [
+    {
+      code: "salary_ambiguous",
+      question: "What compensation applies?",
+      blocking: true,
+    },
+  ];
   assert.match(
     validateVacancy(withoutBlocker.vacancy, {
       jobDescriptionBytes: withoutBlocker.jobDescriptionBytes,
@@ -118,37 +122,51 @@ test("vacancy schema rejects missing and unknown fields at nested boundaries", a
   const scenarios = [
     {
       name: "missing schemaVersion",
-      mutate: (vacancy) => { delete vacancy.schemaVersion; },
+      mutate: (vacancy) => {
+        delete vacancy.schemaVersion;
+      },
       expected: /schemaVersion must be one of: 2$/m,
     },
     {
       name: "unknown process field",
-      mutate: (vacancy) => { vacancy.process.status = "completed"; },
+      mutate: (vacancy) => {
+        vacancy.process.status = "completed";
+      },
       expected: /process contains unknown key: status/,
     },
     {
       name: "impossible timestamp",
-      mutate: (vacancy) => { vacancy.createdAt = "2026-02-31T09:00:00Z"; },
+      mutate: (vacancy) => {
+        vacancy.createdAt = "2026-02-31T09:00:00Z";
+      },
       expected: /createdAt must be an ISO-8601 timestamp with a timezone/,
     },
     {
       name: "missing feasibility",
-      mutate: (vacancy) => { delete vacancy.role.feasibility; },
+      mutate: (vacancy) => {
+        delete vacancy.role.feasibility;
+      },
       expected: /role\.feasibility must be an object/,
     },
     {
       name: "unknown work-model field",
-      mutate: (vacancy) => { vacancy.role.feasibility.workModel.inferred = true; },
+      mutate: (vacancy) => {
+        vacancy.role.feasibility.workModel.inferred = true;
+      },
       expected: /role\.feasibility\.workModel contains unknown key: inferred/,
     },
     {
       name: "unknown Section index field",
-      mutate: (vacancy) => { vacancy.sectionIndex.other = {}; },
+      mutate: (vacancy) => {
+        vacancy.sectionIndex.other = {};
+      },
       expected: /sectionIndex contains unknown key: other/,
     },
     {
       name: "unexpected JD schema version",
-      mutate: (vacancy) => { vacancy.jobDescription.schemaVersion = null; },
+      mutate: (vacancy) => {
+        vacancy.jobDescription.schemaVersion = null;
+      },
       expected: /jobDescription contains unknown key: schemaVersion/,
     },
     {
@@ -183,17 +201,23 @@ test("JD reference is fixed-name, non-empty, UTF-8, digest and size checked", as
   const scenarios = [
     {
       name: "wrong path",
-      mutate: ({ vacancy }) => { vacancy.jobDescription.path = "description.txt"; },
+      mutate: ({ vacancy }) => {
+        vacancy.jobDescription.path = "description.txt";
+      },
       expected: /jobDescription\.path must equal job-description\.txt/,
     },
     {
       name: "wrong digest",
-      mutate: ({ vacancy }) => { vacancy.jobDescription.sha256 = "f".repeat(64); },
+      mutate: ({ vacancy }) => {
+        vacancy.jobDescription.sha256 = "f".repeat(64);
+      },
       expected: /jobDescription\.sha256 does not match/,
     },
     {
       name: "wrong size",
-      mutate: ({ vacancy }) => { vacancy.jobDescription.bytes += 1; },
+      mutate: ({ vacancy }) => {
+        vacancy.jobDescription.bytes += 1;
+      },
       expected: /jobDescription\.bytes does not match/,
     },
     {
@@ -272,30 +296,39 @@ test("Step 1 refuses a vacancy language outside the layer's set", async (t) => {
     const fixture = readFixture("vacancy-v2-completed");
     for (const language of languages) {
       fixture.vacancy.role.vacancyLanguage = language;
-      assert.deepEqual(validateVacancy(fixture.vacancy, {
-        jobDescriptionBytes: fixture.jobDescriptionBytes,
-        languages,
-        markets: exampleMarkets,
-        outcome: "completed",
-      }), []);
+      assert.deepEqual(
+        validateVacancy(fixture.vacancy, {
+          jobDescriptionBytes: fixture.jobDescriptionBytes,
+          languages,
+          markets: exampleMarkets,
+          outcome: "completed",
+        }),
+        [],
+      );
     }
     // A fixture written in another configured language reads under a set that configures it.
     const other = readFixture("vacancy-russian-completed");
-    assert.deepEqual(validateVacancy(other.vacancy, {
-      jobDescriptionBytes: other.jobDescriptionBytes,
-      languages: ["English", other.vacancy.role.vacancyLanguage],
-      markets: exampleMarkets,
-      outcome: "completed",
-    }), []);
+    assert.deepEqual(
+      validateVacancy(other.vacancy, {
+        jobDescriptionBytes: other.jobDescriptionBytes,
+        languages: ["English", other.vacancy.role.vacancyLanguage],
+        markets: exampleMarkets,
+        outcome: "completed",
+      }),
+      [],
+    );
   });
 
   await t.test("without the layer's set only the default language is accepted", () => {
     const fixture = readFixture("vacancy-v2-completed");
-    assert.deepEqual(validateVacancy(fixture.vacancy, {
-      jobDescriptionBytes: fixture.jobDescriptionBytes,
-      markets: exampleMarkets,
-      outcome: "completed",
-    }), []);
+    assert.deepEqual(
+      validateVacancy(fixture.vacancy, {
+        jobDescriptionBytes: fixture.jobDescriptionBytes,
+        markets: exampleMarkets,
+        outcome: "completed",
+      }),
+      [],
+    );
     fixture.vacancy.role.vacancyLanguage = "Greek";
     assert.match(
       validateVacancy(fixture.vacancy, {
@@ -320,43 +353,72 @@ test("a vacancy names one of the layer's two markets", async (t) => {
     }).join("\n");
   };
 
-  await t.test("either configured market is accepted, under the version a publication expects", () => {
-    assert.equal(current(), "");
-    assert.equal(current((vacancy) => { vacancy.role.market.value = markets.home.name; }), "");
-    assert.equal(current(() => {}, { expectedSchemaVersion: 2 }), "");
-  });
+  await t.test(
+    "either configured market is accepted, under the version a publication expects",
+    () => {
+      assert.equal(current(), "");
+      assert.equal(
+        current((vacancy) => {
+          vacancy.role.market.value = markets.home.name;
+        }),
+        "",
+      );
+      assert.equal(
+        current(() => {}, { expectedSchemaVersion: 2 }),
+        "",
+      );
+    },
+  );
 
   await t.test("a name the layer does not configure is refused, the old words included", () => {
     for (const value of ["elsewhere", "russian-market", "foreign-market"]) {
       assert.match(
-        current((vacancy) => { vacancy.role.market.value = value; }),
+        current((vacancy) => {
+          vacancy.role.market.value = value;
+        }),
         /role\.market\.value must be one of: "domestic", "international", null/,
         value,
       );
     }
   });
 
-  await t.test("without markets a named market is refused and an unresolved one still blocks", () => {
-    assert.match(
-      current(() => {}, { markets: null }),
-      /role\.market\.value must be null: the candidate layer configures no market/,
-    );
-    assert.match(
-      current(() => {}, { markets: undefined }),
-      /role\.market\.value must be null: the candidate layer configures no market/,
-    );
-    const blocked = readFixture("vacancy-blocked");
-    assert.deepEqual(validateVacancy(blocked.vacancy, {
-      jobDescriptionBytes: blocked.jobDescriptionBytes,
-      outcome: "blocked",
-    }), []);
-  });
+  await t.test(
+    "without markets a named market is refused and an unresolved one still blocks",
+    () => {
+      assert.match(
+        current(() => {}, { markets: null }),
+        /role\.market\.value must be null: the candidate layer configures no market/,
+      );
+      assert.match(
+        current(() => {}, { markets: undefined }),
+        /role\.market\.value must be null: the candidate layer configures no market/,
+      );
+      const blocked = readFixture("vacancy-blocked");
+      assert.deepEqual(
+        validateVacancy(blocked.vacancy, {
+          jobDescriptionBytes: blocked.jobDescriptionBytes,
+          outcome: "blocked",
+        }),
+        [],
+      );
+    },
+  );
 
   await t.test("version 1 and a version this reader does not know are refused", () => {
     for (const version of [1, 3]) {
-      assert.match(current((vacancy) => { vacancy.schemaVersion = version; }), /schemaVersion must be one of: 2$/m);
       assert.match(
-        current((vacancy) => { vacancy.schemaVersion = version; }, { expectedSchemaVersion: 2 }),
+        current((vacancy) => {
+          vacancy.schemaVersion = version;
+        }),
+        /schemaVersion must be one of: 2$/m,
+      );
+      assert.match(
+        current(
+          (vacancy) => {
+            vacancy.schemaVersion = version;
+          },
+          { expectedSchemaVersion: 2 },
+        ),
         /schemaVersion must equal 2/,
       );
     }
@@ -381,15 +443,21 @@ test("bundle validation cannot silently skip the referenced JD bytes", () => {
 
 test("Section index enforces separated, embedded, and absent states", () => {
   const separated = readFixture("vacancy-v2-completed");
-  assert.deepEqual(validateVacancy(separated.vacancy, {
-    jobDescriptionBytes: separated.jobDescriptionBytes,
-    markets: exampleMarkets,
-  }), []);
+  assert.deepEqual(
+    validateVacancy(separated.vacancy, {
+      jobDescriptionBytes: separated.jobDescriptionBytes,
+      markets: exampleMarkets,
+    }),
+    [],
+  );
 
   const embedded = readFixture("vacancy-blocked");
-  assert.deepEqual(validateVacancy(embedded.vacancy, {
-    jobDescriptionBytes: embedded.jobDescriptionBytes,
-  }), []);
+  assert.deepEqual(
+    validateVacancy(embedded.vacancy, {
+      jobDescriptionBytes: embedded.jobDescriptionBytes,
+    }),
+    [],
+  );
 
   embedded.vacancy.sectionIndex.requirements.embeddedIn = "niceToHaves";
   assert.match(
@@ -454,11 +522,16 @@ test("shared strict-object, path, digest, and input-reference helpers are reusab
   assert.deepEqual(referenceErrors, []);
 
   const driftErrors = [];
-  validateFileReference({ ...reference, schemaVersion: 2, unknown: true }, "inputs.vacancy", driftErrors, {
-    expectedPath: "vacancy.json",
-    expectedSchemaVersion: 1,
-    contentBytes: Buffer.from("changed", "utf8"),
-  });
+  validateFileReference(
+    { ...reference, schemaVersion: 2, unknown: true },
+    "inputs.vacancy",
+    driftErrors,
+    {
+      expectedPath: "vacancy.json",
+      expectedSchemaVersion: 1,
+      contentBytes: Buffer.from("changed", "utf8"),
+    },
+  );
   assert.match(driftErrors.join("\n"), /unknown key: unknown/);
   assert.match(driftErrors.join("\n"), /schemaVersion must equal 1/);
   assert.match(driftErrors.join("\n"), /sha256 does not match/);
@@ -470,13 +543,18 @@ test("the vacancy self-check reads the markets of the workspace's layer", (t) =>
   // every vacancy of the current version that names one.
   const validatorPath = resolve(repoRoot, "tools/pipeline-artifacts/validate-vacancy.mjs");
   const current = readFixture("vacancy-v2-completed");
-  const run = (workspaceRoot) => spawnSync(process.execPath, [
-    validatorPath,
-    resolve(current.directory, "vacancy.json"),
-    resolve(current.directory, "job-description.txt"),
-    "--outcome",
-    "completed",
-  ], { encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot } });
+  const run = (workspaceRoot) =>
+    spawnSync(
+      process.execPath,
+      [
+        validatorPath,
+        resolve(current.directory, "vacancy.json"),
+        resolve(current.directory, "job-description.txt"),
+        "--outcome",
+        "completed",
+      ],
+      { encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot } },
+    );
   const withLayer = mkdtempSync(join(tmpdir(), "job-search-vacancy-cli-"));
   const withoutLayer = mkdtempSync(join(tmpdir(), "job-search-vacancy-cli-bare-"));
   t.after(() => {
@@ -498,24 +576,32 @@ test("vacancy validator CLI accepts completed fixtures and rejects invalid bundl
   const workspaceRoot = mkdtempSync(join(tmpdir(), "job-search-vacancy-cli-"));
   t.after(() => rmSync(workspaceRoot, { force: true, recursive: true }));
   seedCandidateConfig(repoRoot, workspaceRoot);
-  const validRun = spawnSync(process.execPath, [
-    validatorPath,
-    resolve(completed.directory, "vacancy.json"),
-    resolve(completed.directory, "job-description.txt"),
-    "--outcome",
-    "completed",
-  ], { encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot } });
+  const validRun = spawnSync(
+    process.execPath,
+    [
+      validatorPath,
+      resolve(completed.directory, "vacancy.json"),
+      resolve(completed.directory, "job-description.txt"),
+      "--outcome",
+      "completed",
+    ],
+    { encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot } },
+  );
   assert.equal(validRun.status, 0, validRun.stderr);
   assert.equal(JSON.parse(validRun.stdout).status, "valid");
 
   const invalid = readFixture("vacancy-invalid");
-  const invalidRun = spawnSync(process.execPath, [
-    validatorPath,
-    resolve(invalid.directory, "vacancy.json"),
-    resolve(invalid.directory, "job-description.txt"),
-    "--outcome",
-    "completed",
-  ], { encoding: "utf8" });
+  const invalidRun = spawnSync(
+    process.execPath,
+    [
+      validatorPath,
+      resolve(invalid.directory, "vacancy.json"),
+      resolve(invalid.directory, "job-description.txt"),
+      "--outcome",
+      "completed",
+    ],
+    { encoding: "utf8" },
+  );
   assert.equal(invalidRun.status, 1);
   assert.match(invalidRun.stderr, /vacancy artifact validation failed/);
   assert.doesNotMatch(invalidRun.stdout, /"status": "valid"/);

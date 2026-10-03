@@ -41,29 +41,29 @@ land where real ones are written.
 
 ## What a record holds
 
-| Field | What is in it |
-| --- | --- |
-| `schemaVersion` | Version of the record's shape; `1` today |
-| `record_id` | `lc_` and 12 hexadecimal digits; the file is named after it |
-| `recorded_at` | When the record was created |
-| `occurred_on` | The date of the correction itself, `YYYY-MM-DD` |
-| `process_id` | The process, that is, the particular letter |
-| `company_role` | The process directory's name — company and role |
-| `publication_before` | The publication whose bytes stand in `fragment_before` |
-| `publication_after` | The publication whose bytes stand in `fragment_after`, or `null` |
-| `before_index` | Index of the "before" publication in the step's history; `0` is the author's own |
-| `after_state` | `published` or `not_published` |
-| `channel` | `chat_command` — asked for in chat; `manual_file` — the file edited in place |
-| `language` | The letter's language: the default language or one the candidate layer configures, read from the layer of the workspace |
-| `fragment_before` | The fragment before the correction, verbatim |
-| `fragment_after` | The fragment after it, verbatim; an empty string means the fragment was cut |
-| `user_reason` | The user's reason verbatim, or `null` |
-| `user_reason_absent` | `in_place_edit` or `not_given` when there is no reason; otherwise `null` |
-| `classes` | Error-class codes; a list, and an empty one is normal |
-| `reader_verdict` | `flagged`, `missed` or `null` — what the blind reader said about that place |
-| `teach` | The "teach" mark; only the user sets it |
-| `origin` | `revision` — a live correction; `retrospective-2026-09` — a migrated one |
-| `source_ref` | For a migrated record, the log file the fragment was read out of; otherwise `null` |
+| Field                | What is in it                                                                                                           |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `schemaVersion`      | Version of the record's shape; `1` today                                                                                |
+| `record_id`          | `lc_` and 12 hexadecimal digits; the file is named after it                                                             |
+| `recorded_at`        | When the record was created                                                                                             |
+| `occurred_on`        | The date of the correction itself, `YYYY-MM-DD`                                                                         |
+| `process_id`         | The process, that is, the particular letter                                                                             |
+| `company_role`       | The process directory's name — company and role                                                                         |
+| `publication_before` | The publication whose bytes stand in `fragment_before`                                                                  |
+| `publication_after`  | The publication whose bytes stand in `fragment_after`, or `null`                                                        |
+| `before_index`       | Index of the "before" publication in the step's history; `0` is the author's own                                        |
+| `after_state`        | `published` or `not_published`                                                                                          |
+| `channel`            | `chat_command` — asked for in chat; `manual_file` — the file edited in place                                            |
+| `language`           | The letter's language: the default language or one the candidate layer configures, read from the layer of the workspace |
+| `fragment_before`    | The fragment before the correction, verbatim                                                                            |
+| `fragment_after`     | The fragment after it, verbatim; an empty string means the fragment was cut                                             |
+| `user_reason`        | The user's reason verbatim, or `null`                                                                                   |
+| `user_reason_absent` | `in_place_edit` or `not_given` when there is no reason; otherwise `null`                                                |
+| `classes`            | Error-class codes; a list, and an empty one is normal                                                                   |
+| `reader_verdict`     | `flagged`, `missed` or `null` — what the blind reader said about that place                                             |
+| `teach`              | The "teach" mark; only the user sets it                                                                                 |
+| `origin`             | `revision` — a live correction; `retrospective-2026-09` — a migrated one                                                |
+| `source_ref`         | For a migrated record, the log file the fragment was read out of; otherwise `null`                                      |
 
 The verdict is set by step 5 as it writes the record, with `--reader-verdict`, and taken from the
 reader's report beside the process — `output/<company-role>/letter-reader-report.md`. `missed`
@@ -150,19 +150,19 @@ of September 2026. The retrospective itself is a session log and lives in the ca
 codes belong to the engine, so their one-line definitions live here and
 `tests/letter-corrections.test.mjs` freezes this list against `CLASS_CODES` in both directions.
 
-| Code | The class |
-| --- | --- |
-| `class-1` | The company paragraph, or the opening, rests on a fact about the company as a whole |
-| `class-2` | The job description retold rather than answered |
-| `class-3` | A lever's planning wording carried into the letter as prose |
-| `class-4` | The AI paragraph: one decision, and the stories that back it |
-| `class-5` | Candidate facts inherited from the profile without being earned by the letter |
-| `class-6` | Links between sentences, and clarity on a first reading |
-| `class-7` | A gap written as a next step |
-| `class-8` | The published file edited in place |
-| `class-9` | A departure from the brief left unrecorded |
-| `class-10` | The word limit paid as an invisible cost |
-| `class-11` | Terminology, and open questions of style |
+| Code       | The class                                                                           |
+| ---------- | ----------------------------------------------------------------------------------- |
+| `class-1`  | The company paragraph, or the opening, rests on a fact about the company as a whole |
+| `class-2`  | The job description retold rather than answered                                     |
+| `class-3`  | A lever's planning wording carried into the letter as prose                         |
+| `class-4`  | The AI paragraph: one decision, and the stories that back it                        |
+| `class-5`  | Candidate facts inherited from the profile without being earned by the letter       |
+| `class-6`  | Links between sentences, and clarity on a first reading                             |
+| `class-7`  | A gap written as a next step                                                        |
+| `class-8`  | The published file edited in place                                                  |
+| `class-9`  | A departure from the brief left unrecorded                                          |
+| `class-10` | The word limit paid as an invisible cost                                            |
+| `class-11` | Terminology, and open questions of style                                            |
 
 Two caveats the retrospective left open and the corpus inherits: some rows belong to two classes at
 once, which is why the field is a list; some belong to none, which is why an empty list is a normal

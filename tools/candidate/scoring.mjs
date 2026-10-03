@@ -68,9 +68,11 @@ const PROVIDER = /^[A-Z][A-Z0-9]{1,15}$/u;
 const west = new Set(WEST_COUNTRY_CODES);
 
 function distinctCountryCodes(value) {
-  return value.length <= MAX_COUNTRIES
-    && value.every(isCountryCode)
-    && new Set(value).size === value.length;
+  return (
+    value.length <= MAX_COUNTRIES &&
+    value.every(isCountryCode) &&
+    new Set(value).size === value.length
+  );
 }
 
 /** Distinct assigned country codes; the list may be empty. */
@@ -102,10 +104,12 @@ export function acceptsCurrencyCode(value) {
 
 /** Distinct three-letter currency codes, at least one; the first is the one a comparison falls back to. */
 export function acceptsCurrencyCodes(value) {
-  return value.length > 0
-    && value.length <= MAX_CURRENCIES
-    && value.every((code) => CURRENCY.test(code))
-    && new Set(value).size === value.length;
+  return (
+    value.length > 0 &&
+    value.length <= MAX_CURRENCIES &&
+    value.every((code) => CURRENCY.test(code)) &&
+    new Set(value).size === value.length
+  );
 }
 
 export function acceptsBasis(value) {
@@ -121,21 +125,25 @@ export function acceptsRateProvider(value) {
 function acceptsStackPrices(value, isName) {
   if (value.length > 200) return false;
   const names = new Set();
-  return value.every(entry => {
+  return value.every((entry) => {
     if (entry === null || typeof entry !== "object" || Array.isArray(entry)) return false;
     if (Object.keys(entry).sort().join(",") !== "experience,name,points") return false;
     if (!isName(entry.name) || names.has(entry.name)) return false;
     names.add(entry.name);
-    return Number.isSafeInteger(entry.points) && entry.points >= 0 && entry.points <= 5
-      && ["direct", "transferable", "none", "unknown"].includes(entry.experience)
-      && (entry.points === 0 || ["direct", "transferable"].includes(entry.experience));
+    return (
+      Number.isSafeInteger(entry.points) &&
+      entry.points >= 0 &&
+      entry.points <= 5 &&
+      ["direct", "transferable", "none", "unknown"].includes(entry.experience) &&
+      (entry.points === 0 || ["direct", "transferable"].includes(entry.experience))
+    );
   });
 }
 export function acceptsLanguagePrices(value) {
-  return acceptsStackPrices(value, name => LANGUAGE_NAMES.includes(name));
+  return acceptsStackPrices(value, (name) => LANGUAGE_NAMES.includes(name));
 }
 export function acceptsFrameworkPrices(value) {
-  return acceptsStackPrices(value, name => frameworkClassFor(name) !== null);
+  return acceptsStackPrices(value, (name) => frameworkClassFor(name) !== null);
 }
 
 /** One step of the Domain Fit scale. */
@@ -149,12 +157,13 @@ export function acceptsDomainFitStep(value) {
  */
 export function isScoringInputPath(path) {
   return (
-    path.startsWith("scoring.")
-    || path.startsWith("mobility.")
-    || path.startsWith("compensation.")
-    || path.startsWith("tool_match.")
-    || path.startsWith("domain_fit.")
-  ) && path !== "mobility.self_relocation";
+    (path.startsWith("scoring.") ||
+      path.startsWith("mobility.") ||
+      path.startsWith("compensation.") ||
+      path.startsWith("tool_match.") ||
+      path.startsWith("domain_fit.")) &&
+    path !== "mobility.self_relocation"
+  );
 }
 
 /**
@@ -163,13 +172,15 @@ export function isScoringInputPath(path) {
  */
 export function candidateScoringFrom(config) {
   const { self_relocation: _selfRelocation, ...mobility } = config.mobility;
-  return JSON.parse(JSON.stringify({
-    scoring: config.scoring,
-    compensation: config.compensation,
-    domain_fit: config.domain_fit,
-    mobility,
-    tool_match: config.tool_match,
-  }));
+  return JSON.parse(
+    JSON.stringify({
+      scoring: config.scoring,
+      compensation: config.compensation,
+      domain_fit: config.domain_fit,
+      mobility,
+      tool_match: config.tool_match,
+    }),
+  );
 }
 
 /** Integer point settings, shared by the full config and scorer snapshot. */
@@ -234,28 +245,86 @@ export function acceptsPointTable(value) {
 /** Cross-field checks after all declared fields have passed type and point bounds. */
 export function validateScoringPoints(config, refuse) {
   const { m, c, s, d } = config.scoring;
-  const check = (ok, message) => { if (!ok) refuse(message); };
-  const bounded = (values, max, name) => check(values.every((v) => v <= max), `${name} points must not exceed their maximum`);
+  const check = (ok, message) => {
+    if (!ok) refuse(message);
+  };
+  const bounded = (values, max, name) =>
+    check(
+      values.every((v) => v <= max),
+      `${name} points must not exceed their maximum`,
+    );
   const ascending = (values) => values.every((v, i) => i === 0 || values[i - 1] <= v);
   check(m.max + c.max + s.max + d.max === 100, "component maxima must sum to 100");
-  bounded([m.unknown, m.sponsored, ...Object.values(m.remote), ...Object.values(m.relocation)], m.max, "mobility");
-  check(m.relocation.low <= m.relocation.middle && m.relocation.middle <= m.relocation.high, "relocation tiers must be ordered");
-  bounded([m.relocation.low, m.relocation.middle, m.relocation.high, m.relocation.unknown, m.relocation.bonus], m.relocation.max, "relocation");
-  check(m.cap_scores.length === m.cap_limits.length && m.cap_scores.at(-1) === m.max
-    && m.cap_scores.every((v, i) => v <= m.max && (i === 0 || m.cap_scores[i - 1] < v))
-    && ascending(m.cap_limits), "mobility cap must have ordered boundaries ending at the mobility maximum and nondecreasing limits");
-  bounded([c.unknown, c.local, c.start, c.target, ...c.below_floor, ...c.reference], c.max, "compensation");
+  bounded(
+    [m.unknown, m.sponsored, ...Object.values(m.remote), ...Object.values(m.relocation)],
+    m.max,
+    "mobility",
+  );
+  check(
+    m.relocation.low <= m.relocation.middle && m.relocation.middle <= m.relocation.high,
+    "relocation tiers must be ordered",
+  );
+  bounded(
+    [
+      m.relocation.low,
+      m.relocation.middle,
+      m.relocation.high,
+      m.relocation.unknown,
+      m.relocation.bonus,
+    ],
+    m.relocation.max,
+    "relocation",
+  );
+  check(
+    m.cap_scores.length === m.cap_limits.length &&
+      m.cap_scores.at(-1) === m.max &&
+      m.cap_scores.every((v, i) => v <= m.max && (i === 0 || m.cap_scores[i - 1] < v)) &&
+      ascending(m.cap_limits),
+    "mobility cap must have ordered boundaries ending at the mobility maximum and nondecreasing limits",
+  );
+  bounded(
+    [c.unknown, c.local, c.start, c.target, ...c.below_floor, ...c.reference],
+    c.max,
+    "compensation",
+  );
   check(c.start <= c.target, "compensation curve anchors must be ordered");
-  check(c.below_floor.length === 5 && c.reference.length === 5, "compensation tables must price every engine band");
-  check(ascending([...c.below_floor].reverse()) && ascending([...c.reference].reverse()), "compensation band points must be ordered");
+  check(
+    c.below_floor.length === 5 && c.reference.length === 5,
+    "compensation tables must price every engine band",
+  );
+  check(
+    ascending([...c.below_floor].reverse()) && ascending([...c.reference].reverse()),
+    "compensation band points must be ordered",
+  );
   check(c.below_floor[0] <= c.start, "below-floor points must not exceed the curve start");
-  check(s.automation.max + s.tools.max + s.seniority.max === s.max, "skill subcomponent maxima must sum to the skills maximum");
-  for (const [name, part] of Object.entries({ automation: s.automation, seniority: s.seniority, tools: s.tools })) {
+  check(
+    s.automation.max + s.tools.max + s.seniority.max === s.max,
+    "skill subcomponent maxima must sum to the skills maximum",
+  );
+  for (const [name, part] of Object.entries({
+    automation: s.automation,
+    seniority: s.seniority,
+    tools: s.tools,
+  })) {
     bounded(Object.values(part), part.max, `skills ${name}`);
   }
-  check(s.automation.limited <= s.automation.major && s.automation.major <= s.automation.primary, "automation points must be ordered");
-  check(s.seniority.lower <= s.seniority.mid && s.seniority.mid <= s.seniority.senior, "seniority points must be ordered");
+  check(
+    s.automation.limited <= s.automation.major && s.automation.major <= s.automation.primary,
+    "automation points must be ordered",
+  );
+  check(
+    s.seniority.lower <= s.seniority.mid && s.seniority.mid <= s.seniority.senior,
+    "seniority points must be ordered",
+  );
   check(s.tools.max === 10, "ToolMatch maximum must be 10 for the independent 0-10 scale");
-  check(d.steps[0] === 0 && d.steps.at(-1) === d.max && d.steps.every((v, i) => i === 0 || d.steps[i - 1] < v), "domain steps must increase from zero to the domain maximum");
-  check([d.unknown, ...Object.values(config.domain_fit)].every((v) => d.steps.includes(v)), "domain points must be declared domain steps");
+  check(
+    d.steps[0] === 0 &&
+      d.steps.at(-1) === d.max &&
+      d.steps.every((v, i) => i === 0 || d.steps[i - 1] < v),
+    "domain steps must increase from zero to the domain maximum",
+  );
+  check(
+    [d.unknown, ...Object.values(config.domain_fit)].every((v) => d.steps.includes(v)),
+    "domain points must be declared domain steps",
+  );
 }

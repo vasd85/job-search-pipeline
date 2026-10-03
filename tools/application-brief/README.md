@@ -37,16 +37,16 @@ inputs:
 
 ## Top-level responsibilities
 
-| Field | Meaning |
-| --- | --- |
-| `createdAt`, `process`, `inputs` | Current process identity and exact input-byte references |
-| `role` | Selected vacancy facts, preserving the Step 1 feasibility shape |
-| `company` | Selected Step 2 challenge, values, and hooks with research provenance |
-| `positioning` | Current application levers, rationale, angle, and AI decision |
-| `experience` | Selected profile-backed evidence, traits, and honest gaps |
-| `ats` | Exact current-JD terms with evidence-or-gap support and placements |
-| `cvPlan` | Final CV structure and machine-enforceable content decisions |
-| `coverLetterPlan` | Final selected evidence IDs and exact ATS terms for the letter |
+| Field                            | Meaning                                                               |
+| -------------------------------- | --------------------------------------------------------------------- |
+| `createdAt`, `process`, `inputs` | Current process identity and exact input-byte references              |
+| `role`                           | Selected vacancy facts, preserving the Step 1 feasibility shape       |
+| `company`                        | Selected Step 2 challenge, values, and hooks with research provenance |
+| `positioning`                    | Current application levers, rationale, angle, and AI decision         |
+| `experience`                     | Selected profile-backed evidence, traits, and honest gaps             |
+| `ats`                            | Exact current-JD terms with evidence-or-gap support and placements    |
+| `cvPlan`                         | Final CV structure and machine-enforceable content decisions          |
+| `coverLetterPlan`                | Final selected evidence IDs and exact ATS terms for the letter        |
 
 `shape-example.json` shows representative variants, including an evidence-backed keyword and a
 hard-gap keyword. It deliberately contains fewer than the required 15–25 keywords and placeholder

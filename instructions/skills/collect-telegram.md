@@ -41,7 +41,7 @@ Two untracked files in the checkout root: `telegram-sources.json` (channels, gro
 lists and exclusions) and `telegram-sweep-state.json` (per-channel cursor, per-group position, post
 fingerprints, emitted addresses). When the CLI answers `config_missing` or `state_missing`, tell the
 user which file is missing and run `node tools/telegram-collect/cli.mjs init` only on the user's word.
- `init` creates whichever file is missing and never touches an existing one.
+`init` creates whichever file is missing and never touches an existing one.
 Never run `init` on your own to get past a refusal.
 
 ## Sweep

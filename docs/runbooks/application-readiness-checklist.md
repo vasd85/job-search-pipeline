@@ -20,11 +20,11 @@ human-approval record.
 
 - [ ] The final URL is open; the vacancy is still active, not closed, archived, deleted or private.
 - [ ] `job-description.txt` contains the full JD in its original order, including headings, lists,
-  compensation and feasibility wording.
+      compensation and feasibility wording.
 - [ ] Company and role match the live source.
 - [ ] Every identity/feasibility field of `vacancy.json` is checked against the exact source
-  wording: language, market, work model, location/region, timezone, authorization, relocation,
-  employment type, contractor eligibility and salary/compensation.
+      wording: language, market, work model, location/region, timezone, authorization, relocation,
+      employment type, contractor eligibility and salary/compensation.
 - [ ] Implicit or missing facts stayed nullable/unspecified instead of being guessed.
 
 ## Step 2 — company research
@@ -32,9 +32,9 @@ human-approval record.
 - [ ] The supporting source of every load-bearing claim has been opened.
 - [ ] Every quote matches its source and carries a correct translation.
 - [ ] Scope (`company`, `team`, `role`) and the source owner/source family are checked; team
-  evidence is not raised to a company-wide fact.
+      evidence is not raised to a company-wide fact.
 - [ ] The observed date and the actual freshness are checked for compensation, leadership,
-  funding, logistics, stack and AI direction.
+      funding, logistics, stack and AI direction.
 - [ ] Unverified/inferred claims and contradictions are not presented as verified facts.
 
 ## Step 3 — candidate mapping and honesty
@@ -48,12 +48,12 @@ again by the user during this run, does not count as a breach of the item; a div
 that confirmation is a breach of the honesty floor.
 
 - [ ] Every candidate metric is checked against the canonical profile, including baseline,
-  causality and personal/team attribution.
+      causality and personal/team attribution.
 - [ ] Historical company, title and dates are unchanged.
 - [ ] Every selected claim and trait has a supporting canonical evidence pointer.
 - [ ] Every hard/adjacent gap is kept honest; a hard gap is not presented as direct experience.
 - [ ] The commercial and personal-project AI boundary is respected; personal experimentation is not
-  passed off as production experience.
+      passed off as production experience.
 - [ ] ATS keyword placements, exclusions and the chosen positioning match the vacancy and the brief.
 
 ## Step 4 — CV
@@ -61,9 +61,9 @@ that confirmation is a breach of the honesty floor.
 - [ ] The DOCX is a valid ZIP/OOXML package and opens in a supported renderer.
 - [ ] The structural/build checks passed on the exact published `cv.json` and DOCX.
 - [ ] Every rendered page has been viewed at 100%: no clipping, overlap, broken glyphs, orphaned
-  headings or illogical page splits.
+      headings or illogical page splits.
 - [ ] Header/title, chronology, metrics, gaps, ATS terms and AI wording are checked against the
-  brief and the profile.
+      brief and the profile.
 - [ ] The CV is readable, ATS-safe and carries no unplanned claims and no second variant.
 
 ## Step 5 — cover letter
@@ -73,15 +73,15 @@ that confirmation is a breach of the honesty floor.
 - [ ] Only planned evidence and keywords are used; causality and attribution are preserved.
 - [ ] The company angle is specific but does not diagnose unknown internal problems.
 - [ ] A person has read the letter in full: grammar, native phrasing, factuality, honesty and gaps
-  are checked.
+      are checked.
 
 ## Final decision
 
 - [ ] Every applicable item above is confirmed against the canonical files and visible sources.
 - [ ] Any unresolved divergence is fixed through an explicit lifecycle: a reopen of the matching
-  Step with the downstream descendants published again, or — for a targeted edit of an already
-  published Step 4/5 material — `revise-step` under the shared contract; or it is confirmed again
-  by the user as a user-confirmed deviation under
-  [the honesty floor](../../knowledge/precedence.md#0-protected-honesty-floor) — then it is
-  resolved without an edit to the material.
+      Step with the downstream descendants published again, or — for a targeted edit of an already
+      published Step 4/5 material — `revise-step` under the shared contract; or it is confirmed again
+      by the user as a user-confirmed deviation under
+      [the honesty floor](../../knowledge/precedence.md#0-protected-honesty-floor) — then it is
+      resolved without an edit to the material.
 - [ ] Exactly the current canonical CV/letter bundle checked in this review session is sent.

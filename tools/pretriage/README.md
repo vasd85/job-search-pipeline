@@ -113,7 +113,7 @@ Three properties hold by construction, and none of them needs the sessions to ta
 - **The cut reads no ledger.** Two sessions that split one file with one size compute the same
   groups whenever they do it. Cutting only the links the ledger would fetch would make the cut
   depend on the moment it was made — after one group recorded, the next session would see other
-  groups. The ledger cleans links *inside* a group, as it does in any batch; the cost is that a
+  groups. The ledger cleans links _inside_ a group, as it does in any batch; the cost is that a
   re-run over a mostly-known collection has thin groups, never a group over the budget.
 - **A group is a batch.** Its own `batch_id` — `<prefix>-<from>-<to>`, the shape the manual runs
   already used — its own directory, its own `plan.json`, its own verification range: `--from` and
@@ -182,15 +182,15 @@ forward is another sweep of those links.
 turns one into a verdict. Three verdicts, and `gone` is the narrow one — it means this stage is
 willing to end the link without the expensive lane.
 
-| observation | verdict | why |
-| --- | --- | --- |
-| never attempted | `unresolved` | a stopped batch says nothing about the posting |
-| `absent` | `unresolved` | owes one browser confirmation load before [the rubric's terminal decision codes](../../knowledge/job-match-rules.md#6-terminal-decision-codes) classify it |
-| `access_failure` | `unresolved` | a technical failure is never the vacancy's own state |
-| not `usable` | `unresolved` | a status word read out of a layout the adapter no longer recognizes |
-| `closed` | `gone` | the source's own closure statement, in a page whose checks held |
-| `private` | `unresolved` | not expired, removed or closed; [the rubric's terminal decision codes](../../knowledge/job-match-rules.md#6-terminal-decision-codes) have no row for it |
-| `active` | `live` | the expensive lane opens |
+| observation      | verdict      | why                                                                                                                                                        |
+| ---------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| never attempted  | `unresolved` | a stopped batch says nothing about the posting                                                                                                             |
+| `absent`         | `unresolved` | owes one browser confirmation load before [the rubric's terminal decision codes](../../knowledge/job-match-rules.md#6-terminal-decision-codes) classify it |
+| `access_failure` | `unresolved` | a technical failure is never the vacancy's own state                                                                                                       |
+| not `usable`     | `unresolved` | a status word read out of a layout the adapter no longer recognizes                                                                                        |
+| `closed`         | `gone`       | the source's own closure statement, in a page whose checks held                                                                                            |
+| `private`        | `unresolved` | not expired, removed or closed; [the rubric's terminal decision codes](../../knowledge/job-match-rules.md#6-terminal-decision-codes) have no row for it    |
+| `active`         | `live`       | the expensive lane opens                                                                                                                                   |
 
 Two of those rows are worth stating twice. An **`absent` record is not terminal here**:
 `instructions/skills/score-jobs.md` requires one browser confirmation load before [the rubric's
@@ -231,13 +231,13 @@ instead — as a shape the user can act on, not as a decision taken for them.
 than a claim made about it afterwards. It refuses to flatter itself in two ways that a single total
 would have hidden:
 
-- **A fetch and the expensive lane are different spends.** The adapter-layer run *is* the sweep, so
+- **A fetch and the expensive lane are different spends.** The adapter-layer run _is_ the sweep, so
   a swept-dead link was requested like every other; what it saves is the browser load, the
   extraction and the scoring. `never_fetched` is the narrower count of links that cost no request
   at all — a ledger skip, an in-batch duplicate, an unreadable link.
 - **The ledger's saving is the ledger's.** `avoided_by_ledger` is what `planBatch` removed and
   would have removed without this stage; `avoided_by_pretriage` is what this stage removed itself —
-  the in-batch duplicates and the swept-dead links. The ledger's answer is therefore read *before*
+  the in-batch duplicates and the swept-dead links. The ledger's answer is therefore read _before_
   the duplicate flag: a second spelling of a link the ledger already reports closed is the ledger's
   saving, though neither costs a request. `avoided_expensive_lane` is the total of both plus the
   unreadable links, which are nobody's saving because they were never spendable — and the rendered
@@ -281,16 +281,16 @@ company's region. The one country table read is the engine's own list of WEST co
 `3`, or `null` for a row that carries no `priority_class` at all — and the test suite writes its
 result through `recordBatch` so the agreement is proved against the real validator.
 
-| Module | Owns |
-| --- | --- |
-| [collection.mjs](collection.mjs) | the links file as a collection: the reused list reader plus the header |
-| [groups.mjs](groups.mjs) | session groups: the file-order cut, the group's slice and batch id, the directory claim |
-| [freshness.mjs](freshness.mjs) | the staleness window, the age assessment, the ordering basis |
-| [liveness.mjs](liveness.mjs) | manifest to observations, observation to verdict, the terminal `source` fragment |
-| [composition.mjs](composition.mjs) | the priority classes and the batch composition report |
-| [plan.mjs](plan.mjs) | dispositions, the freshness gate, the spend accounting |
-| [report.mjs](report.mjs) | the two rendered reports, prose in the default language with verbatim machine tokens |
-| [errors.mjs](errors.mjs) | one error type, bounded codes, and no external value in a message |
+| Module                             | Owns                                                                                    |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| [collection.mjs](collection.mjs)   | the links file as a collection: the reused list reader plus the header                  |
+| [groups.mjs](groups.mjs)           | session groups: the file-order cut, the group's slice and batch id, the directory claim |
+| [freshness.mjs](freshness.mjs)     | the staleness window, the age assessment, the ordering basis                            |
+| [liveness.mjs](liveness.mjs)       | manifest to observations, observation to verdict, the terminal `source` fragment        |
+| [composition.mjs](composition.mjs) | the priority classes and the batch composition report                                   |
+| [plan.mjs](plan.mjs)               | dispositions, the freshness gate, the spend accounting                                  |
+| [report.mjs](report.mjs)           | the two rendered reports, prose in the default language with verbatim machine tokens    |
+| [errors.mjs](errors.mjs)           | one error type, bounded codes, and no external value in a message                       |
 
 ## Limits
 

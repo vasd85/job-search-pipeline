@@ -9,11 +9,7 @@ import {
   safeExternalUrl,
 } from "../web/process-search/view-model.js";
 
-function result({
-  attention = [],
-  mode = "file-backed",
-  state = "ready",
-} = {}) {
+function result({ attention = [], mode = "file-backed", state = "ready" } = {}) {
   return {
     process: {
       mode,
@@ -50,10 +46,7 @@ test("URL-backed list state omits defaults and normalizes unknown filters", () =
     listLocation({ query: "  Example Labs  ", filter: "attention" }),
     "/?q=Example+Labs&filter=attention",
   );
-  assert.equal(
-    listLocation({ query: "", filter: "unknown" }),
-    "/",
-  );
+  assert.equal(listLocation({ query: "", filter: "unknown" }), "/");
   assert.equal(normalizeFilter("historical"), "historical");
   assert.equal(normalizeFilter("unknown"), "all");
 });
@@ -75,14 +68,8 @@ test("list filters preserve lifecycle semantics and sibling-ready processes", ()
 });
 
 test("only http and https source values can become external links", () => {
-  assert.equal(
-    safeExternalUrl("https://example.test/jobs/1"),
-    "https://example.test/jobs/1",
-  );
-  assert.equal(
-    safeExternalUrl("http://example.test/jobs/1"),
-    "http://example.test/jobs/1",
-  );
+  assert.equal(safeExternalUrl("https://example.test/jobs/1"), "https://example.test/jobs/1");
+  assert.equal(safeExternalUrl("http://example.test/jobs/1"), "http://example.test/jobs/1");
   assert.equal(safeExternalUrl("javascript:alert(1)"), null);
   assert.equal(safeExternalUrl("file:///private/secret"), null);
   assert.equal(safeExternalUrl("historical-fixture:example"), null);

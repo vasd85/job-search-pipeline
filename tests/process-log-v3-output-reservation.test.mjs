@@ -136,17 +136,22 @@ function runReservationChild(environment, processId) {
     }));
   `;
   return new Promise((resolveRun) => {
-    execFile(process.execPath, ["--input-type=module", "--eval", script], {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        ...disposableWorkspaceEnv(environment),
-        TEST_V3_PROCESS_ID: processId,
+    execFile(
+      process.execPath,
+      ["--input-type=module", "--eval", script],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          ...disposableWorkspaceEnv(environment),
+          TEST_V3_PROCESS_ID: processId,
+        },
       },
-    }, (error, stdout, stderr) => {
-      resolveRun({ code: error?.code ?? 0, stderr, stdout });
-    });
+      (error, stdout, stderr) => {
+        resolveRun({ code: error?.code ?? 0, stderr, stdout });
+      },
+    );
   });
 }
 
@@ -155,10 +160,7 @@ test("canonical output segment follows the ADR Unicode and separator algorithm",
     createCanonicalOutputSegment("  Café & QA  ", "Senior / SDET"),
     "café-qa-senior-sdet",
   );
-  assert.equal(
-    createCanonicalOutputSegment("CAFE\u0301", "QA—Automation"),
-    "café-qa-automation",
-  );
+  assert.equal(createCanonicalOutputSegment("CAFE\u0301", "QA—Automation"), "café-qa-automation");
   assert.equal(createCanonicalOutputSegment("Компания 42", "QA"), "компания-42-qa");
   assert.throws(
     () => createCanonicalOutputSegment("---", "///"),
@@ -177,8 +179,8 @@ test("reserve-output records ownership before creating the canonical directory",
   const result = reserve(environment, processId, {
     mkdirDirectory: (directory) => {
       ledgerAlreadyOwned =
-        readLogV3(environment.ledgerPath).processes[0].output_dir
-        === "output/café-labs-senior-sdet";
+        readLogV3(environment.ledgerPath).processes[0].output_dir ===
+        "output/café-labs-senior-sdet";
       mkdirSync(directory);
     },
   });
@@ -192,10 +194,7 @@ test("reserve-output records ownership before creating the canonical directory",
   assert.equal(processRecord.updated_at, reservedAt);
   assert.equal(log.updated_at, reservedAt);
   assert.equal(processRecord.steps.get_vacancy.state, "running");
-  assert.equal(
-    existsSync(join(environment.outputRoot, "café-labs-senior-sdet")),
-    true,
-  );
+  assert.equal(existsSync(join(environment.outputRoot, "café-labs-senior-sdet")), true);
 });
 
 test("an existing same-process directory is byte-idempotent", (t) => {
@@ -233,10 +232,7 @@ test("reservation selects the first suffix free across historical owners and eve
     "non-empty directory\n",
     "utf8",
   );
-  symlinkSync(
-    "missing-target",
-    join(environment.outputRoot, "example-labs-senior-sdet-4"),
-  );
+  symlinkSync("missing-target", join(environment.outputRoot, "example-labs-senior-sdet-4"));
   const processId = createReadyProcess(environment, {
     processId: "proc_output_reservation_suffix",
     sourceRef: "https://example.test/jobs/sdet-new",
@@ -245,15 +241,9 @@ test("reservation selects the first suffix free across historical owners and eve
   const result = reserve(environment, processId);
 
   assert.equal(result.output_dir, "output/example-labs-senior-sdet-5");
+  assert.equal(existsSync(join(environment.outputRoot, "example-labs-senior-sdet-5")), true);
   assert.equal(
-    existsSync(join(environment.outputRoot, "example-labs-senior-sdet-5")),
-    true,
-  );
-  assert.equal(
-    readFileSync(
-      join(environment.outputRoot, "example-labs-senior-sdet-3", "kept.txt"),
-      "utf8",
-    ),
+    readFileSync(join(environment.outputRoot, "example-labs-senior-sdet-3", "kept.txt"), "utf8"),
     "non-empty directory\n",
   );
 });
@@ -287,22 +277,19 @@ test("parallel reservations serialize suffix selection through the shared ledger
     runReservationChild(environment, firstProcessId),
     runReservationChild(environment, secondProcessId),
   ]);
-  assert.deepEqual(results.map((result) => result.code), [0, 0]);
   assert.deepEqual(
-    results.map((result) => JSON.parse(result.stdout).output_dir).sort(),
-    [
-      "output/example-labs-senior-sdet",
-      "output/example-labs-senior-sdet-2",
-    ],
+    results.map((result) => result.code),
+    [0, 0],
   );
+  assert.deepEqual(results.map((result) => JSON.parse(result.stdout).output_dir).sort(), [
+    "output/example-labs-senior-sdet",
+    "output/example-labs-senior-sdet-2",
+  ]);
   assert.deepEqual(
-    readLogV3(environment.ledgerPath).processes
-      .map((record) => record.output_dir)
+    readLogV3(environment.ledgerPath)
+      .processes.map((record) => record.output_dir)
       .sort(),
-    [
-      "output/example-labs-senior-sdet",
-      "output/example-labs-senior-sdet-2",
-    ],
+    ["output/example-labs-senior-sdet", "output/example-labs-senior-sdet-2"],
   );
 });
 
@@ -318,10 +305,7 @@ test("a missing already-reserved directory is recovered only for the same runnin
 
   assert.equal(result.status, "recovered");
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
-  assert.equal(
-    existsSync(join(environment.outputRoot, "example-labs-senior-sdet")),
-    true,
-  );
+  assert.equal(existsSync(join(environment.outputRoot, "example-labs-senior-sdet")), true);
 });
 
 test("same-process recovery rejects an equivalent unowned entry instead of adopting it", (t) => {
@@ -351,11 +335,12 @@ test("mkdir failure keeps ownership reserved and closes the active Step 1 attemp
   setupError.code = "EACCES";
 
   assert.throws(
-    () => reserve(environment, processId, {
-      mkdirDirectory: () => {
-        throw setupError;
-      },
-    }),
+    () =>
+      reserve(environment, processId, {
+        mkdirDirectory: () => {
+          throw setupError;
+        },
+      }),
     (error) => error.code === "output_setup_failed",
   );
   const log = readLogV3(environment.ledgerPath);
@@ -363,10 +348,7 @@ test("mkdir failure keeps ownership reserved and closes the active Step 1 attemp
   const step = processRecord.steps.get_vacancy;
 
   assert.equal(processRecord.output_dir, "output/example-labs-senior-sdet");
-  assert.equal(
-    existsSync(join(environment.outputRoot, "example-labs-senior-sdet")),
-    false,
-  );
+  assert.equal(existsSync(join(environment.outputRoot, "example-labs-senior-sdet")), false);
   assert.equal(step.state, "failed");
   assert.equal(step.active_attempt, null);
   assert.equal(step.finished_at, reservedAt);
@@ -398,10 +380,7 @@ test("reserve-output rejects historical targets and incomplete identity without 
   const historicalBytes = readFileSync(historicalEnvironment.ledgerPath, "utf8");
 
   assert.throws(
-    () => reserve(
-      historicalEnvironment,
-      "proc_historical_output_owner",
-    ),
+    () => reserve(historicalEnvironment, "proc_historical_output_owner"),
     (error) => error.code === "historical_process_read_only",
   );
   assert.equal(readFileSync(historicalEnvironment.ledgerPath, "utf8"), historicalBytes);
@@ -437,21 +416,19 @@ test("reservation requires explicit matching temporary workspace and output root
   const before = readFileSync(environment.ledgerPath, "utf8");
 
   assert.throws(
-    () => reserveFileBackedOutputV3(
-      environment.ledgerPath,
-      { processId },
-      {
-        outputRoot: otherEnvironment.outputRoot,
-        workspaceRoot: environment.workspaceRoot,
-      },
-    ),
+    () =>
+      reserveFileBackedOutputV3(
+        environment.ledgerPath,
+        { processId },
+        {
+          outputRoot: otherEnvironment.outputRoot,
+          workspaceRoot: environment.workspaceRoot,
+        },
+      ),
     (error) => error.code === "invalid_output_environment",
   );
   assert.throws(
-    () => reserveFileBackedOutputV3(
-      environment.ledgerPath,
-      { processId },
-    ),
+    () => reserveFileBackedOutputV3(environment.ledgerPath, { processId }),
     (error) => error.code === "invalid_output_environment",
   );
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
@@ -487,10 +464,7 @@ test("missing output root returns bootstrap_required without ledger mutation and
   assert.equal(initializeOutputRoot(environment).status, "initialized");
   const reserved = reserve(environment, processId);
   assert.equal(reserved.status, "reserved");
-  assert.equal(
-    existsSync(join(environment.workspaceRoot, reserved.output_dir)),
-    true,
-  );
+  assert.equal(existsSync(join(environment.workspaceRoot, reserved.output_dir)), true);
 });
 
 test("bootstrap restores stale recorded reservation without changing ledger bytes", (t) => {
@@ -518,8 +492,5 @@ test("bootstrap restores stale recorded reservation without changing ledger byte
   const recovered = reserve(environment, processId);
   assert.equal(recovered.status, "recovered");
   assert.equal(readFileSync(environment.ledgerPath, "utf8"), before);
-  assert.equal(
-    existsSync(join(environment.outputRoot, "example-labs-senior-sdet")),
-    true,
-  );
+  assert.equal(existsSync(join(environment.outputRoot, "example-labs-senior-sdet")), true);
 });

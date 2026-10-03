@@ -11,7 +11,15 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
-  cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -19,7 +27,13 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { printPlist } from "../tools/operational-backup.mjs";
 import {
-  BACKUP_DIRECTORY, HOOKS_DIRECTORY, INSTALL_COMMANDS, OPERATIONAL_FOLDER_NAME, defaultContext, main,
+  BACKUP_DIRECTORY,
+  HOOKS_DIRECTORY,
+  INSTALL_COMMANDS,
+  OPERATIONAL_FOLDER_NAME,
+  checkFormatterDependencies,
+  defaultContext,
+  main,
 } from "../tools/setup/machine.mjs";
 
 const repoRoot = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
@@ -59,6 +73,7 @@ import { join } from "node:path";
 const argv = process.argv.slice(2);
 appendFileSync(process.env.FAKE_NPM_LOG, JSON.stringify({ argv, cwd: process.cwd() }) + "\n");
 if (argv.includes("--prefix")) writeFileSync(join(process.cwd(), ".stand-in-dependencies"), "");
+else writeFileSync(join(process.cwd(), ".stand-in-formatter"), "");
 `;
 
 const FAKE_LAUNCHCTL = String.raw`
@@ -85,12 +100,21 @@ function sh(cwd, program, ...args) {
 
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "setup-machine-config-")));
 const gitConfig = join(scratch, "gitconfig");
-writeFileSync(gitConfig, [
-  "[user]", "\tname = Setup Probe", "\temail = probe@example.com",
-  "[init]", "\tdefaultBranch = main",
-  "[commit]", "\tgpgsign = false",
-  "[protocol \"file\"]", "\tallow = always", "",
-].join("\n"));
+writeFileSync(
+  gitConfig,
+  [
+    "[user]",
+    "\tname = Setup Probe",
+    "\temail = probe@example.com",
+    "[init]",
+    "\tdefaultBranch = main",
+    "[commit]",
+    "\tgpgsign = false",
+    '[protocol "file"]',
+    "\tallow = always",
+    "",
+  ].join("\n"),
+);
 const gitEnv = { GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: "1", PATH: process.env.PATH };
 test.after(() => rmSync(scratch, { force: true, recursive: true }));
 
@@ -98,7 +122,10 @@ test.after(() => rmSync(scratch, { force: true, recursive: true }));
  * One disposable machine. `layer` edits the private repository's files before it is committed;
  * `operational` creates the operational folder with a preflight stub answering `preflight`.
  */
-function machine(t, { layer = () => {}, operational = false, preflight = "ready", home = "home", ignore = true } = {}) {
+function machine(
+  t,
+  { layer = () => {}, operational = false, preflight = "ready", home = "home", ignore = true } = {},
+) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "setup-machine-")));
   t.after(() => rmSync(root, { force: true, recursive: true }));
   const projects = join(root, "projects");
@@ -121,9 +148,10 @@ function machine(t, { layer = () => {}, operational = false, preflight = "ready"
 
   if (operational) {
     mkdirSync(join(opsRoot, "tools"), { recursive: true });
-    const verdict = preflight === "ready"
-      ? "process.stdout.write(JSON.stringify({ status: \"ready\" }) + \"\\n\");"
-      : "process.stderr.write(JSON.stringify({ status: \"error\", error: { code: \"bootstrap_required\" } }) + \"\\n\"); process.exitCode = 1;";
+    const verdict =
+      preflight === "ready"
+        ? 'process.stdout.write(JSON.stringify({ status: "ready" }) + "\\n");'
+        : 'process.stderr.write(JSON.stringify({ status: "error", error: { code: "bootstrap_required" } }) + "\\n"); process.exitCode = 1;';
     writeFileSync(join(opsRoot, "tools", "bootstrap.mjs"), `${verdict}\n`);
   }
 
@@ -139,7 +167,12 @@ function machine(t, { layer = () => {}, operational = false, preflight = "ready"
   const context = (extraEnv = {}) => ({
     candidateRoot: join(engine, "candidate"),
     checkDependencies: (builderRoot) => {
-      if (!existsSync(join(dirname(dirname(builderRoot)), ".stand-in-dependencies"))) throw new Error("missing");
+      if (!existsSync(join(dirname(dirname(builderRoot)), ".stand-in-dependencies")))
+        throw new Error("missing");
+    },
+    checkFormatterDependencies: (engineRoot) => {
+      if (!existsSync(join(engineRoot, ".stand-in-formatter")))
+        throw new Error("missing formatter");
     },
     checkToolchain: ({ workspaceRoot }) => ({ stand_in: true, workspace_root: workspaceRoot }),
     commands: {
@@ -161,14 +194,28 @@ function machine(t, { layer = () => {}, operational = false, preflight = "ready"
     operationalRoot: opsRoot,
     uid: UID,
   });
-  const read = (path) => (existsSync(path) ? readFileSync(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line)) : []);
+  const read = (path) =>
+    existsSync(path)
+      ? readFileSync(path, "utf8")
+          .split("\n")
+          .filter(Boolean)
+          .map((line) => JSON.parse(line))
+      : [];
   const invoke = (argv, extraEnv = {}) => {
     for (const log of [logs.npm, logs.launchctl]) writeFileSync(log, "");
     let stdout = "";
     let stderr = "";
     const io = {
-      stderr: { write: (text) => { stderr += text; } },
-      stdout: { write: (text) => { stdout += text; } },
+      stderr: {
+        write: (text) => {
+          stderr += text;
+        },
+      },
+      stdout: {
+        write: (text) => {
+          stdout += text;
+        },
+      },
     };
     const code = main(argv, context(extraEnv), io);
     return {
@@ -184,7 +231,8 @@ function machine(t, { layer = () => {}, operational = false, preflight = "ready"
   return { bare, engine, home: homeRoot, invoke, opsRoot, plistPath, root, settingsPath };
 }
 
-const outcomes = (result) => Object.fromEntries(result.steps.map((step) => [step.step, step.outcome]));
+const outcomes = (result) =>
+  Object.fromEntries(result.steps.map((step) => [step.step, step.outcome]));
 
 function tree(path) {
   return existsSync(path) ? readdirSync(path, { recursive: true }).sort() : null;
@@ -195,17 +243,30 @@ test("a fresh machine: private clone, dependencies, hook path, a green check, no
   const opsBefore = tree(m.opsRoot);
   const run = m.invoke(["--private", m.bare]);
   assert.equal(run.code, 0, JSON.stringify(run.error));
-  assert.deepEqual(outcomes(run.result), { "private-clone": "done", dependencies: "done", "hooks-path": "done" });
+  assert.deepEqual(outcomes(run.result), {
+    "private-clone": "done",
+    dependencies: "done",
+    "hooks-path": "done",
+  });
   assert.ok(existsSync(join(m.engine, "candidate", ".git")));
-  assert.equal(sh(m.engine, "git", "config", "--local", "core.hooksPath").trim(), join(m.engine, HOOKS_DIRECTORY));
-  assert.deepEqual(run.npm, INSTALL_COMMANDS.map((argv) => ({ argv: [...argv], cwd: m.engine })));
+  assert.equal(
+    sh(m.engine, "git", "config", "--local", "core.hooksPath").trim(),
+    join(m.engine, HOOKS_DIRECTORY),
+  );
+  assert.deepEqual(
+    run.npm,
+    INSTALL_COMMANDS.map((argv) => ({ argv: [...argv], cwd: m.engine })),
+  );
   assert.deepEqual(run.launchctl, []);
   assert.equal(run.result.checked.layer, "ready");
   assert.equal(run.result.checked.hooks_path, true);
   assert.equal(run.result.checked.toolchain.workspace_root, m.engine);
   assert.deepEqual(readdirSync(m.home), []);
   assert.deepEqual(tree(m.opsRoot), opsBefore);
-  assert.equal(sh(m.engine, "git", "status", "--porcelain"), "?? .gitignore\n?? .stand-in-dependencies\n");
+  assert.equal(
+    sh(m.engine, "git", "status", "--porcelain"),
+    "?? .gitignore\n?? .stand-in-dependencies\n?? .stand-in-formatter\n",
+  );
 });
 
 test("a second run changes nothing: every step is skipped and no program is started", (t) => {
@@ -215,7 +276,11 @@ test("a second run changes nothing: every step is skipped and no program is star
   const head = sh(join(m.engine, "candidate"), "git", "rev-parse", "HEAD");
   const again = m.invoke([]);
   assert.equal(again.code, 0, JSON.stringify(again.error));
-  assert.deepEqual(outcomes(again.result), { "private-clone": "skipped", dependencies: "skipped", "hooks-path": "skipped" });
+  assert.deepEqual(outcomes(again.result), {
+    "private-clone": "skipped",
+    dependencies: "skipped",
+    "hooks-path": "skipped",
+  });
   assert.deepEqual(again.npm, []);
   assert.equal(readFileSync(join(m.engine, ".git", "config"), "utf8"), config);
   assert.equal(sh(join(m.engine, "candidate"), "git", "rev-parse", "HEAD"), head);
@@ -233,7 +298,9 @@ test("--operational renders both templates, registers the agent once, and runs t
     "template:backup.plist": "done",
     "launch-agent": "done",
   });
-  assert.deepEqual(JSON.parse(readFileSync(m.settingsPath, "utf8")), { sandbox: { enabled: false } });
+  assert.deepEqual(JSON.parse(readFileSync(m.settingsPath, "utf8")), {
+    sandbox: { enabled: false },
+  });
   const backupRoot = join(m.home, BACKUP_DIRECTORY);
   const expected = printPlist(
     { dest: backupRoot, script: join(m.opsRoot, "tools", "operational-backup.mjs") },
@@ -252,7 +319,10 @@ test("--operational renders both templates, registers the agent once, and runs t
   assert.equal(again.code, 0, JSON.stringify(again.error));
   assert.equal(outcomes(again.result)["launch-agent"], "skipped");
   assert.equal(outcomes(again.result)["template:backup.plist"], "skipped");
-  assert.deepEqual(again.launchctl, [["print", `gui/${UID}/${LABEL}`], ["print", `gui/${UID}/${LABEL}`]]);
+  assert.deepEqual(again.launchctl, [
+    ["print", `gui/${UID}/${LABEL}`],
+    ["print", `gui/${UID}/${LABEL}`],
+  ]);
 });
 
 test("a failed registration is retried by the next run", (t) => {
@@ -357,18 +427,19 @@ test("a private repository the engine does not ignore, or with another origin, i
 test("a target holding other content is refused and left as it was; no target is written", (t) => {
   const m = machine(t, { operational: true });
   mkdirSync(dirname(m.settingsPath), { recursive: true });
-  writeFileSync(m.settingsPath, "{\"permissions\":{}}\n");
+  writeFileSync(m.settingsPath, '{"permissions":{}}\n');
   const run = m.invoke(["--private", m.bare, "--operational"]);
   assert.equal(run.code, 1);
   assert.equal(run.error.code, "setup_machine_target_differs");
-  assert.equal(readFileSync(m.settingsPath, "utf8"), "{\"permissions\":{}}\n");
+  assert.equal(readFileSync(m.settingsPath, "utf8"), '{"permissions":{}}\n');
   assert.ok(!existsSync(m.plistPath));
   assert.deepEqual(run.launchctl, []);
 });
 
 test("a template naming an unknown placeholder, or missing, is refused before any target is written", (t) => {
   const unknown = machine(t, {
-    layer: (source) => writeFileSync(join(source, "machine", "settings.local.json"), "{\"x\": \"{{engine_root}}\"}\n"),
+    layer: (source) =>
+      writeFileSync(join(source, "machine", "settings.local.json"), '{"x": "{{engine_root}}"}\n'),
     operational: true,
   });
   const run = unknown.invoke(["--private", unknown.bare, "--operational"]);
@@ -394,7 +465,10 @@ test("the check refuses what a set-up machine has since lost", (t) => {
   assert.equal(m.invoke(["--operational"]).code, 0);
 
   writeFileSync(join(m.root, "launchctl-state.json"), "[]");
-  assert.equal(m.invoke(["--check", "--operational"]).error.code, "setup_machine_launch_agent_missing");
+  assert.equal(
+    m.invoke(["--check", "--operational"]).error.code,
+    "setup_machine_launch_agent_missing",
+  );
 
   sh(m.engine, "git", "config", "--local", "--unset", "core.hooksPath");
   assert.equal(m.invoke(["--check"]).error.code, "setup_machine_hooks_path_unset");
@@ -408,11 +482,14 @@ test("the check refuses what a set-up machine has since lost", (t) => {
 
 test("an install that fails, or a template that stops being JSON, is a refusal", (t) => {
   const m = machine(t);
-  const failing = m.invoke(["--private", m.bare], { FAKE_NPM_LOG: join(m.root, "no-such-dir", "npm.jsonl") });
+  const failing = m.invoke(["--private", m.bare], {
+    FAKE_NPM_LOG: join(m.root, "no-such-dir", "npm.jsonl"),
+  });
   assert.equal(failing.error.code, "setup_machine_install_failed");
 
   const broken = machine(t, {
-    layer: (source) => writeFileSync(join(source, "machine", "settings.local.json"), "{\"sandbox\": {{node}}}\n"),
+    layer: (source) =>
+      writeFileSync(join(source, "machine", "settings.local.json"), '{"sandbox": {{node}}}\n'),
     operational: true,
   });
   const run = broken.invoke(["--private", broken.bare, "--operational"]);
@@ -442,11 +519,43 @@ test("every path of a real run is derived from the engine root, none is typed", 
 
 test("the install commands are the workflow's own", () => {
   const workflow = readFileSync(join(repoRoot, ".github", "workflows", "ci.yml"), "utf8");
-  const installs = [...workflow.matchAll(/^ {6}- run: npm (ci\b.*)$/gmu)].map((match) => match[1].split(" "));
-  assert.deepEqual(installs, INSTALL_COMMANDS.map((argv) => [...argv]));
+  const installs = [...workflow.matchAll(/^ {6}- run: npm (ci\b.*)$/gmu)].map((match) =>
+    match[1].split(" "),
+  );
+  assert.deepEqual(
+    installs,
+    INSTALL_COMMANDS.map((argv) => [...argv]),
+  );
 });
 
 test("the refusal codes are frozen", () => {
   const found = [...new Set(SOURCE.match(/setup_machine_[a-z_]+/gu))].sort();
   assert.deepEqual(found, PINNED_CODES);
+});
+
+test("an existing builder installation still installs a missing root formatter", (t) => {
+  const m = machine(t);
+  assert.equal(m.invoke(["--private", m.bare]).code, 0);
+  rmSync(join(m.engine, ".stand-in-formatter"));
+  assert.equal(m.invoke(["--check"]).error.code, "setup_machine_install_failed");
+  const repaired = m.invoke([]);
+  assert.equal(repaired.code, 0);
+  assert.equal(outcomes(repaired.result).dependencies, "done");
+  assert.equal(repaired.result.checked.formatter_dependencies, true);
+});
+
+test("formatter dependency readiness requires the pinned installed version", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "formatter-version-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(join(root, "package.json"), '{"devDependencies":{"prettier":"3.9.9"}}');
+  mkdirSync(join(root, "node_modules/prettier"), { recursive: true });
+  writeFileSync(join(root, "node_modules/prettier/index.mjs"), "");
+  const manifest = join(root, "node_modules/prettier/package.json");
+  for (const version of ["3.9.8", "3.9.9"]) {
+    writeFileSync(manifest, JSON.stringify({ version }));
+    if (version === "3.9.9") assert.doesNotThrow(() => checkFormatterDependencies(root));
+    else assert.throws(() => checkFormatterDependencies(root));
+  }
+  rmSync(join(root, "node_modules/prettier/index.mjs"));
+  assert.throws(() => checkFormatterDependencies(root));
 });

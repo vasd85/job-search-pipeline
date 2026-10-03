@@ -64,7 +64,10 @@ function checkOutDirPath(outDir, repoRoot) {
   if (!outside) {
     const [prefix, ...rest] = inside.split(sep);
     if (!sweepDirPrefixes.includes(prefix) || rest.length === 0) {
-      fail("out_dir_invalid", "Inside the repository --out-dir must stand under telegram-sweeps/ or .rehearsal/.");
+      fail(
+        "out_dir_invalid",
+        "Inside the repository --out-dir must stand under telegram-sweeps/ or .rehearsal/.",
+      );
     }
   }
 }
@@ -96,11 +99,13 @@ function stagedOutDir(outDir, { repoRoot, mustBeAwaiting }) {
   } catch {
     fail("stage_missing", "--out-dir does not exist or holds no two-step sweep.");
   }
-  if (stats.isSymbolicLink() || !stats.isDirectory()) fail("out_dir_invalid", "--out-dir must be a real directory.");
+  if (stats.isSymbolicLink() || !stats.isDirectory())
+    fail("out_dir_invalid", "--out-dir must be a real directory.");
   if (mustBeAwaiting && existsSync(join(outDir, manifestBasename))) {
     fail("already_completed", "This sweep directory already holds a completed manifest.");
   }
-  if (!existsSync(join(outDir, stageBasename))) fail("stage_missing", "--out-dir holds no two-step sweep.");
+  if (!existsSync(join(outDir, stageBasename)))
+    fail("stage_missing", "--out-dir holds no two-step sweep.");
   return outDir;
 }
 
@@ -119,11 +124,19 @@ function readStage(outDir) {
   } catch {
     fail("stage_invalid", "The stage file of this sweep could not be read.");
   }
-  if (typeof stage !== "object" || stage === null || stage.schema_version !== stageSchemaVersion
-    || typeof stage.config?.path !== "string" || !isAbsolute(stage.config.path)
-    || typeof stage.config?.sha256 !== "string" || typeof stage.state_sha256 !== "string"
-    || typeof stage.walk !== "object" || stage.walk === null || !Array.isArray(stage.batches)
-    || !Array.isArray(stage.captures)) {
+  if (
+    typeof stage !== "object" ||
+    stage === null ||
+    stage.schema_version !== stageSchemaVersion ||
+    typeof stage.config?.path !== "string" ||
+    !isAbsolute(stage.config.path) ||
+    typeof stage.config?.sha256 !== "string" ||
+    typeof stage.state_sha256 !== "string" ||
+    typeof stage.walk !== "object" ||
+    stage.walk === null ||
+    !Array.isArray(stage.batches) ||
+    !Array.isArray(stage.captures)
+  ) {
     fail("stage_invalid", "The stage file of this sweep does not match its schema.");
   }
   return stage;
@@ -136,7 +149,10 @@ function finishSweep({ outDir, statePath, result, captures, stage, batches, answ
     .join("");
   const cardsPath = result.cards.length === 0 ? null : join(outDir, cardsBasename);
   if (cardsPath !== null) writeFileAtomic(cardsPath, cardsText);
-  const collectionText = renderCollection({ collectedAt: result.started_at, addresses: result.collection });
+  const collectionText = renderCollection({
+    collectedAt: result.started_at,
+    addresses: result.collection,
+  });
   const collectionPath = collectionText === null ? null : join(outDir, collectionBasename);
   if (collectionText !== null) writeFileAtomic(collectionPath, collectionText);
   const reportText = renderReport(result, { collectionPath, cardsPath });
@@ -150,12 +166,18 @@ function finishSweep({ outDir, statePath, result, captures, stage, batches, answ
     channels: result.channels,
     totals: sweepTotals(result),
     captures,
-    cards: cardsPath === null
-      ? null
-      : { file: cardsBasename, cards: result.cards.length, sha256: sha256Utf8(cardsText) },
-    collection: collectionText === null
-      ? null
-      : { file: collectionBasename, links: result.collection.length, sha256: sha256Utf8(collectionText) },
+    cards:
+      cardsPath === null
+        ? null
+        : { file: cardsBasename, cards: result.cards.length, sha256: sha256Utf8(cardsText) },
+    collection:
+      collectionText === null
+        ? null
+        : {
+            file: collectionBasename,
+            links: result.collection.length,
+            sha256: sha256Utf8(collectionText),
+          },
     report: { file: reportBasename, sha256: sha256Utf8(reportText) },
     stage,
     batches,
@@ -169,10 +191,25 @@ function finishSweep({ outDir, statePath, result, captures, stage, batches, answ
   writeFileAtomic(join(outDir, manifestBasename), `${JSON.stringify(manifest, null, 2)}\n`);
   writeState(statePath, result.nextState);
 
-  return { awaiting: false, result, manifest, collectionPath, cardsPath, reportPath: join(outDir, reportBasename) };
+  return {
+    awaiting: false,
+    result,
+    manifest,
+    collectionPath,
+    cardsPath,
+    reportPath: join(outDir, reportBasename),
+  };
 }
 
-export async function executeSweep({ configPath, statePath, outDir, repoRoot, now, sleep, fetchImpl }) {
+export async function executeSweep({
+  configPath,
+  statePath,
+  outDir,
+  repoRoot,
+  now,
+  sleep,
+  fetchImpl,
+}) {
   // Config and state are read before the directory is touched and before any request: a caller
   // error must cost neither a request nor a half-made sweep directory.
   const config = readConfig(configPath);
@@ -207,7 +244,13 @@ export async function executeSweep({ configPath, statePath, outDir, repoRoot, no
   const result = resolveSweep({ config, state, walk, answers: null });
   if (!result.awaiting) {
     return finishSweep({
-      outDir, statePath, result, captures, stage: null, batches: [], answersInfo: { answers: [], rejected: [], stray: 0 },
+      outDir,
+      statePath,
+      result,
+      captures,
+      stage: null,
+      batches: [],
+      answersInfo: { answers: [], rejected: [], stray: 0 },
     });
   }
 
@@ -217,7 +260,12 @@ export async function executeSweep({ configPath, statePath, outDir, repoRoot, no
   const sourceOrder = config.channels.map((source) => source.handle);
   const batches = planBatches(result.pending, config.roleWords, { sourceOrder }).map((batch) => {
     writeFileAtomic(join(batchDir, batch.file), batch.text);
-    return { file: batch.file, handle: batch.handle, sha256: sha256Utf8(batch.text), posts: batch.posts };
+    return {
+      file: batch.file,
+      handle: batch.handle,
+      sha256: sha256Utf8(batch.text),
+      posts: batch.posts,
+    };
   });
   const stage = {
     schema_version: stageSchemaVersion,
@@ -261,18 +309,27 @@ function readAnswers(outDir, batches) {
     }
     const text = readFileSync(path, "utf8");
     files.push({ file, sha256: sha256Utf8(text) });
-    const checked = checkAnswer(parseAnswerText(text), { name: batch.file.replace(/\.txt$/u, ""), posts: batch.posts });
+    const checked = checkAnswer(parseAnswerText(text), {
+      name: batch.file.replace(/\.txt$/u, ""),
+      posts: batch.posts,
+    });
     stray += checked.stray;
     for (const post of batch.posts) {
-      answers.set(`${post.handle}/${post.postId}`, { ...checked.results.get(post.post), descriptor: post, file });
+      answers.set(`${post.handle}/${post.postId}`, {
+        ...checked.results.get(post.post),
+        descriptor: post,
+        file,
+      });
     }
   }
   if (missing.length > 0) {
     fail("answers_missing", `No answer file for: ${missing.join(", ")}.`);
   }
   const rejected = existsSync(answerDir)
-    ? readdirSync(answerDir).filter((name) => name.endsWith(rejectedAnswerSuffix)).sort()
-      .map((name) => ({ file: name, sha256: fileDigest(join(answerDir, name)) }))
+    ? readdirSync(answerDir)
+        .filter((name) => name.endsWith(rejectedAnswerSuffix))
+        .sort()
+        .map((name) => ({ file: name, sha256: fileDigest(join(answerDir, name)) }))
     : [];
   return { answers, files, rejected, stray };
 }
@@ -283,7 +340,10 @@ export function executeFinalize({ outDir, statePath, repoRoot, acceptInvalid = f
   const stage = readStage(outDir);
   const config = readConfig(stage.config.path);
   if (fileDigest(stage.config.path) !== stage.config.sha256) {
-    fail("config_changed", "The sources config changed since the sweep started; start a new sweep.");
+    fail(
+      "config_changed",
+      "The sources config changed since the sweep started; start a new sweep.",
+    );
   }
   const state = readState(statePath);
   if (fileDigest(statePath) !== stage.state_sha256) {
@@ -294,7 +354,10 @@ export function executeFinalize({ outDir, statePath, repoRoot, acceptInvalid = f
   const result = resolveSweep({ config, state, walk: stage.walk, answers });
   if (result.answer_invalid.length > 0 && !acceptInvalid) {
     // The batch's answer file is named first: it is what the skill renames and re-reads.
-    const named = result.answer_invalid.map((post) => `${answers.get(`${post.handle}/${post.postId}`)?.file ?? "?"}: ${post.handle}/${post.postId} ${post.code}`);
+    const named = result.answer_invalid.map(
+      (post) =>
+        `${answers.get(`${post.handle}/${post.postId}`)?.file ?? "?"}: ${post.handle}/${post.postId} ${post.code}`,
+    );
     fail("answers_invalid", `The reader's answer was rejected for: ${named.join(", ")}.`);
   }
   const stageText = readFileSync(join(outDir, stageBasename), "utf8");
@@ -304,7 +367,12 @@ export function executeFinalize({ outDir, statePath, repoRoot, acceptInvalid = f
     result,
     captures: stage.captures,
     stage: { file: stageBasename, sha256: sha256Utf8(stageText) },
-    batches: stage.batches.map(({ file, handle, sha256, posts }) => ({ file, handle, sha256, posts: posts.length })),
+    batches: stage.batches.map(({ file, handle, sha256, posts }) => ({
+      file,
+      handle,
+      sha256,
+      posts: posts.length,
+    })),
     answersInfo: { answers: files, rejected, stray },
   });
 }
@@ -319,7 +387,10 @@ export function renderLabelBatches({ outDir, repoRoot }) {
   const stage = readStage(outDir);
   const config = readConfig(stage.config.path);
   if (fileDigest(stage.config.path) !== stage.config.sha256) {
-    fail("config_changed", "The sources config changed since the sweep started; the labels would not match the reader's batches.");
+    fail(
+      "config_changed",
+      "The sources config changed since the sweep started; the labels would not match the reader's batches.",
+    );
   }
   const labelDir = join(outDir, labelDirBasename);
   if (existsSync(labelDir) && readdirSync(labelDir).length > 0) {
@@ -328,44 +399,59 @@ export function renderLabelBatches({ outDir, repoRoot }) {
   mkdirSync(labelDir, { recursive: true });
   const state = { schema_version: 2, channels: {}, fingerprints: [], emitted_urls: {} };
   const pending = resolveSweep({ config, state, walk: stage.walk, answers: null }).pending ?? [];
-  const wanted = new Set(stage.batches.flatMap((batch) => batch.posts.map((post) => `${post.handle}/${post.postId}`)));
+  const wanted = new Set(
+    stage.batches.flatMap((batch) => batch.posts.map((post) => `${post.handle}/${post.postId}`)),
+  );
   const sourceOrder = config.channels.map((source) => source.handle);
-  const batches = planBatches(pending.filter((item) => wanted.has(`${item.handle}/${item.postId}`)), config.roleWords, { fullText: true, sourceOrder })
-    .map((batch) => {
-      writeFileAtomic(join(labelDir, batch.file), batch.text);
-      return { file: batch.file, handle: batch.handle, sha256: sha256Utf8(batch.text), posts: batch.posts };
-    });
-  writeFileAtomic(join(labelDir, "descriptors.json"), `${JSON.stringify({ schema_version: 1, batches }, null, 2)}\n`);
+  const batches = planBatches(
+    pending.filter((item) => wanted.has(`${item.handle}/${item.postId}`)),
+    config.roleWords,
+    { fullText: true, sourceOrder },
+  ).map((batch) => {
+    writeFileAtomic(join(labelDir, batch.file), batch.text);
+    return {
+      file: batch.file,
+      handle: batch.handle,
+      sha256: sha256Utf8(batch.text),
+      posts: batch.posts,
+    };
+  });
+  writeFileAtomic(
+    join(labelDir, "descriptors.json"),
+    `${JSON.stringify({ schema_version: 1, batches }, null, 2)}\n`,
+  );
   return { labelDir, batches: batches.map((batch) => ({ ...batch, posts: batch.posts.length })) };
 }
 
 /** The exit code a summary earns: 2 when a source did not complete, 0 otherwise. */
 export function exitCodeOf(summary) {
-  const incomplete = summary.rate_limited
-    || summary.channels.some((channel) => !["completed", "disabled"].includes(channel.outcome));
+  const incomplete =
+    summary.rate_limited ||
+    summary.channels.some((channel) => !["completed", "disabled"].includes(channel.outcome));
   return incomplete ? 2 : 0;
 }
 
 /** The bounded stdout summary: codes and counts - no title, no address, no contact. */
 export function summarize(run, command = "sweep") {
-  const channels = (list) => list.map((channel) => ({
-    handle: channel.handle,
-    kind: channel.kind,
-    thematic: channel.thematic,
-    outcome: channel.outcome,
-    stop: channel.stop ?? null,
-    gap: channel.gap ?? null,
-    checked: channel.checked ?? null,
-    verdict: channel.verdict?.kind ?? null,
-    pages: channel.pages ?? 0,
-    requests: channel.requests ?? 0,
-    posts_new: channel.posts_new ?? 0,
-    buckets: channel.buckets ?? null,
-    cards: channel.cards ?? 0,
-    read: channel.read ?? 0,
-    discrepancies: channel.discrepancies ?? 0,
-    addresses: channel.addresses ?? 0,
-  }));
+  const channels = (list) =>
+    list.map((channel) => ({
+      handle: channel.handle,
+      kind: channel.kind,
+      thematic: channel.thematic,
+      outcome: channel.outcome,
+      stop: channel.stop ?? null,
+      gap: channel.gap ?? null,
+      checked: channel.checked ?? null,
+      verdict: channel.verdict?.kind ?? null,
+      pages: channel.pages ?? 0,
+      requests: channel.requests ?? 0,
+      posts_new: channel.posts_new ?? 0,
+      buckets: channel.buckets ?? null,
+      cards: channel.cards ?? 0,
+      read: channel.read ?? 0,
+      discrepancies: channel.discrepancies ?? 0,
+      addresses: channel.addresses ?? 0,
+    }));
   if (run.awaiting) {
     return {
       command,
@@ -373,7 +459,11 @@ export function summarize(run, command = "sweep") {
       stage: "awaiting_answers",
       rate_limited: run.result.rate_limited,
       channels: channels(run.result.channels),
-      batches: run.batches.map((batch) => ({ file: batch.file, handle: batch.handle, posts: batch.posts.length })),
+      batches: run.batches.map((batch) => ({
+        file: batch.file,
+        handle: batch.handle,
+        posts: batch.posts.length,
+      })),
       posts_to_read: run.posts_to_read,
       batch_dir: run.batchDir,
     };

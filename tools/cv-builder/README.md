@@ -106,11 +106,11 @@ source. The notes below define the non-obvious rich-text and pagination behavior
 
 Top-level typography controls:
 
-| Field | Behavior |
-|---|---|
-| `font` | Optional; `Calibri` by default. Allowed: `Calibri`, `Arial`, `Georgia`. |
-| `bodySizePt` | Optional body size in points; `10.5` by default, minimum `10`. |
-| `nameSizePt` | Optional name size in points; `16` by default, clamped to `14`-`18`. |
+| Field        | Behavior                                                                |
+| ------------ | ----------------------------------------------------------------------- |
+| `font`       | Optional; `Calibri` by default. Allowed: `Calibri`, `Arial`, `Georgia`. |
+| `bodySizePt` | Optional body size in points; `10.5` by default, minimum `10`.          |
+| `nameSizePt` | Optional name size in points; `16` by default, clamped to `14`-`18`.    |
 
 ### Run atoms
 
@@ -133,13 +133,13 @@ scheme.
 
 ### Section types
 
-| `type`       | renders                                                         |
-|--------------|----------------------------------------------------------------|
+| `type`       | renders                                                                                                                                 |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `summary`    | one prose paragraph (positioning only — keep metrics out, [the playbook's Summary](../../knowledge/targeted-cv-playbook.md#42-summary)) |
-| `bullets`    | a bulleted list (Selected Impact, Projects, ...)               |
-| `skills`     | `Label: body` lines, label bold                                |
-| `experience` | per role: bold `Company - Title - Dates`, optional italic `stack`, then bullets |
-| `lines`      | one paragraph per line (Education, certifications)             |
+| `bullets`    | a bulleted list (Selected Impact, Projects, ...)                                                                                        |
+| `skills`     | `Label: body` lines, label bold                                                                                                         |
+| `experience` | per role: bold `Company - Title - Dates`, optional italic `stack`, then bullets                                                         |
+| `lines`      | one paragraph per line (Education, certifications)                                                                                      |
 
 ### Pagination controls
 

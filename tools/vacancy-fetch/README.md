@@ -71,16 +71,16 @@ The nonce above is illustrative; generate a fresh one per batch. `values.urls` h
 ordered references. `values.userAgent` is operator-owned configuration, not source data; it lives
 in the envelope because a header string in shell text is the habit this transport exists to break.
 
-| Flag | Default | Meaning |
-| --- | --- | --- |
-| `--input-file` | required | controlled basename of the envelope inside `JOB_PIPELINE_INPUT_ROOT` |
-| `--out-dir` | required | absolute, existing, non-symlink directory owned by the current user and not group/world-writable; refused when it already holds a manifest |
-| `--batch` | required | bounded label `[a-z0-9][a-z0-9-]{0,63}`, stamped into the manifest; one token names the batch, the ledger `batch_id` and the output directory |
-| `--delay-ms` | `2000` | pause between requests; never before the first |
-| `--timeout-ms` | `20000` | per-request timeout |
-| `--max-bytes` | `5242880` | response ceiling; a larger body is a retryable `unparseable` failure |
-| `--max-redirects` | `5` | redirect ceiling |
-| `--on-rate-limit` | `stop` | `stop` records the remaining links as unattempted; `continue` keeps going |
+| Flag              | Default   | Meaning                                                                                                                                       |
+| ----------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--input-file`    | required  | controlled basename of the envelope inside `JOB_PIPELINE_INPUT_ROOT`                                                                          |
+| `--out-dir`       | required  | absolute, existing, non-symlink directory owned by the current user and not group/world-writable; refused when it already holds a manifest    |
+| `--batch`         | required  | bounded label `[a-z0-9][a-z0-9-]{0,63}`, stamped into the manifest; one token names the batch, the ledger `batch_id` and the output directory |
+| `--delay-ms`      | `2000`    | pause between requests; never before the first                                                                                                |
+| `--timeout-ms`    | `20000`   | per-request timeout                                                                                                                           |
+| `--max-bytes`     | `5242880` | response ceiling; a larger body is a retryable `unparseable` failure                                                                          |
+| `--max-redirects` | `5`       | redirect ceiling                                                                                                                              |
+| `--on-rate-limit` | `stop`    | `stop` records the remaining links as unattempted; `continue` keeps going                                                                     |
 
 Exit codes: `2` at least one record needs the browser fallback, was left unattempted, or is a
 usable record flagged `deferred_content_suspected` and therefore owes the browser one completeness
@@ -201,10 +201,10 @@ which route does it request, and what did the response contain. It never decides
 it reports observations, and [outcome.mjs](outcome.mjs) resolves them through the single status
 table. It never fetches, never writes, never sleeps and never reads the clock.
 
-| Adapter | Serves | Notes |
-| --- | --- | --- |
-| `linkedin-guest` | LinkedIn posting references that identify exactly one job id | requests the canonical guest route already declared by `instructions/skills/get-vacancy.md`; structural checks are the requested job id present in the response and a description container found; detects the closed banner, the authwall path and LinkedIn's `999` block status |
-| `generic-html` | everything no dedicated adapter claims | semantic-container extraction (`<main>`, `<article>`, `role="main"`), page chrome dropped, shared minimum-content floor, deferred-content signal over typed JSON islands; a final URL the registry names LinkedIn on one of `linkedin-guest`'s wall paths is a wall whatever the page's language; reads no first-party status vocabulary, so `closed` and `private` are unreachable through it |
+| Adapter          | Serves                                                       | Notes                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `linkedin-guest` | LinkedIn posting references that identify exactly one job id | requests the canonical guest route already declared by `instructions/skills/get-vacancy.md`; structural checks are the requested job id present in the response and a description container found; detects the closed banner, the authwall path and LinkedIn's `999` block status                                                                                                              |
+| `generic-html`   | everything no dedicated adapter claims                       | semantic-container extraction (`<main>`, `<article>`, `role="main"`), page chrome dropped, shared minimum-content floor, deferred-content signal over typed JSON islands; a final URL the registry names LinkedIn on one of `linkedin-guest`'s wall paths is a wall whatever the page's language; reads no first-party status vocabulary, so `closed` and `private` are unreachable through it |
 
 The generic adapter is what makes an arbitrary vacancy URL scoreable. ADR 0012 leaves one branch
 of the generic fallback open for the user — whether a Step 1 run served only by the generic path
@@ -268,20 +268,20 @@ rollout comparison of 2026-08-24 measured, on the fourteen links it covered and 
 
 ## Modules
 
-| Module | Owns |
-| --- | --- |
-| [cli.mjs](cli.mjs) | argument parsing, the envelope read, exit codes, the bounded stdout summary |
-| [batch.mjs](batch.mjs) | sequential orchestration, the delay, the rate-limit policy, output-directory safety, the manifest |
-| [transport.mjs](transport.mjs) | one bounded HTTP request, the manual redirect walk, the header allowlist, decoding |
-| [adapters/](adapters) | the contract, the registry, and one module per source |
-| [html-text.mjs](html-text.mjs) | the dependency-free HTML scanner and visible-text collector |
-| [deferred-content.mjs](deferred-content.mjs) | the typed-JSON-island prose measurement and the deferred-content verdict |
-| [digest.mjs](digest.mjs) | the one SHA-256 helper the whole layer uses |
-| [normalize.mjs](normalize.mjs) | the ordered, logged normalization pass |
-| [outcome.mjs](outcome.mjs) | the ADR 0012 direct-route status table, implemented once |
-| [url-rule.mjs](url-rule.mjs) | the ADR 0012 URL rule |
-| [persist.mjs](persist.mjs) | capture rendering and re-verification |
-| [input-schema.mjs](input-schema.mjs) | the ADR 0011 envelope this CLI accepts |
+| Module                                       | Owns                                                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| [cli.mjs](cli.mjs)                           | argument parsing, the envelope read, exit codes, the bounded stdout summary                       |
+| [batch.mjs](batch.mjs)                       | sequential orchestration, the delay, the rate-limit policy, output-directory safety, the manifest |
+| [transport.mjs](transport.mjs)               | one bounded HTTP request, the manual redirect walk, the header allowlist, decoding                |
+| [adapters/](adapters)                        | the contract, the registry, and one module per source                                             |
+| [html-text.mjs](html-text.mjs)               | the dependency-free HTML scanner and visible-text collector                                       |
+| [deferred-content.mjs](deferred-content.mjs) | the typed-JSON-island prose measurement and the deferred-content verdict                          |
+| [digest.mjs](digest.mjs)                     | the one SHA-256 helper the whole layer uses                                                       |
+| [normalize.mjs](normalize.mjs)               | the ordered, logged normalization pass                                                            |
+| [outcome.mjs](outcome.mjs)                   | the ADR 0012 direct-route status table, implemented once                                          |
+| [url-rule.mjs](url-rule.mjs)                 | the ADR 0012 URL rule                                                                             |
+| [persist.mjs](persist.mjs)                   | capture rendering and re-verification                                                             |
+| [input-schema.mjs](input-schema.mjs)         | the ADR 0011 envelope this CLI accepts                                                            |
 
 `tests/vacancy-fetch.test.mjs` drives all of them offline: the transport takes `fetchImpl` as a
 parameter and every case supplies a response built in memory. No test in this repository reaches

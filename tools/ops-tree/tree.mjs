@@ -149,7 +149,13 @@ function withDefaults(context) {
 }
 
 function lastLine(text) {
-  return String(text ?? "").trim().split("\n").pop()?.slice(0, 300) ?? "";
+  return (
+    String(text ?? "")
+      .trim()
+      .split("\n")
+      .pop()
+      ?.slice(0, 300) ?? ""
+  );
 }
 
 function toPosix(path) {
@@ -219,21 +225,32 @@ function previousRoot(root) {
 // git
 
 function runGit(context, repository, args) {
-  const result = context.spawn("git", [
-    "-c", "core.fsmonitor=false",
-    "-c", "core.hooksPath=/dev/null",
-    "-c", "core.autocrlf=false",
-    "--no-pager",
-    "-C", repository,
-    ...args,
-  ], {
-    encoding: "buffer",
-    env: childEnvironment(),
-    maxBuffer: GIT_MAX_BUFFER,
-    shell: false,
-  });
+  const result = context.spawn(
+    "git",
+    [
+      "-c",
+      "core.fsmonitor=false",
+      "-c",
+      "core.hooksPath=/dev/null",
+      "-c",
+      "core.autocrlf=false",
+      "--no-pager",
+      "-C",
+      repository,
+      ...args,
+    ],
+    {
+      encoding: "buffer",
+      env: childEnvironment(),
+      maxBuffer: GIT_MAX_BUFFER,
+      shell: false,
+    },
+  );
   if (result.error || result.signal) {
-    fail("ops_tree_git_failed", `git ${args[0]} could not run (${result.error?.code ?? result.signal})`);
+    fail(
+      "ops_tree_git_failed",
+      `git ${args[0]} could not run (${result.error?.code ?? result.signal})`,
+    );
   }
   return result;
 }
@@ -248,7 +265,8 @@ function requireRepository(path, flag) {
   if (typeof path !== "string" || path.length === 0 || !isAbsolute(path)) {
     fail("ops_tree_invalid_arguments", `${flag} takes an absolute path`);
   }
-  if (!isRealDirectory(path)) fail("ops_tree_repository_missing", `${flag} is not a directory: ${path}`);
+  if (!isRealDirectory(path))
+    fail("ops_tree_repository_missing", `${flag} is not a directory: ${path}`);
   return realpathSync(path);
 }
 
@@ -258,24 +276,38 @@ export function resolveTag(context, repository, tag, pattern, flag) {
     fail("ops_tree_invalid_tag", `${flag} must look like ${pattern.source}`);
   }
   const commit = gitText(
-    context, repository,
+    context,
+    repository,
     ["rev-parse", "--verify", "--quiet", `refs/tags/${tag}^{commit}`],
-    "ops_tree_tag_missing", `${tag} is not a tag of ${repository}`,
+    "ops_tree_tag_missing",
+    `${tag} is not a tag of ${repository}`,
   );
   const tree = gitText(
-    context, repository,
+    context,
+    repository,
     ["rev-parse", "--verify", "--quiet", `${commit}^{tree}`],
-    "ops_tree_tag_missing", `${tag} has no tree in ${repository}`,
+    "ops_tree_tag_missing",
+    `${tag} has no tree in ${repository}`,
   );
-  const format = gitText(
-    context, repository, ["rev-parse", "--show-object-format"],
-    "ops_tree_git_failed", `git could not name the object format of ${repository}`,
-  ) || "sha1";
+  const format =
+    gitText(
+      context,
+      repository,
+      ["rev-parse", "--show-object-format"],
+      "ops_tree_git_failed",
+      `git could not name the object format of ${repository}`,
+    ) || "sha1";
   return { commit, format, repository, tag, tree };
 }
 
 function listTree(context, pin) {
-  const result = runGit(context, pin.repository, ["ls-tree", "-r", "-z", "--full-tree", pin.commit]);
+  const result = runGit(context, pin.repository, [
+    "ls-tree",
+    "-r",
+    "-z",
+    "--full-tree",
+    pin.commit,
+  ]);
   if (result.status !== 0) fail("ops_tree_git_failed", `git ls-tree failed for ${pin.tag}`);
   const entries = [];
   for (const record of result.stdout.toString("utf8").split("\0")) {
@@ -284,7 +316,10 @@ function listTree(context, pin) {
     const [mode, type, id] = record.slice(0, tab).split(" ");
     const path = record.slice(tab + 1);
     if (type !== "blob") {
-      fail("ops_tree_export_mismatch", `${pin.tag} carries a ${type} at ${path}; only files are exported`);
+      fail(
+        "ops_tree_export_mismatch",
+        `${pin.tag} carries a ${type} at ${path}; only files are exported`,
+      );
     }
     entries.push({ id, mode, path });
   }
@@ -309,7 +344,10 @@ function extractedEntries(directory, format) {
       if (stats.isDirectory()) {
         walk(relativePath);
       } else if (stats.isSymbolicLink()) {
-        entries.set(relativePath, { id: gitObjectId(format, Buffer.from(readlinkSync(path))), mode: "120000" });
+        entries.set(relativePath, {
+          id: gitObjectId(format, Buffer.from(readlinkSync(path))),
+          mode: "120000",
+        });
       } else if (stats.isFile()) {
         const mode = (stats.mode & 0o100) !== 0 ? "100755" : "100644";
         entries.set(relativePath, { id: gitObjectId(format, readFileSync(path)), mode });
@@ -333,7 +371,13 @@ function topSegment(path) {
 export function exportTag(context, pin, destination, excludes = []) {
   mkdirSync(destination, { recursive: true });
   const archive = `${destination}.tar`;
-  const archived = runGit(context, pin.repository, ["archive", "--format=tar", "-o", archive, pin.commit]);
+  const archived = runGit(context, pin.repository, [
+    "archive",
+    "--format=tar",
+    "-o",
+    archive,
+    pin.commit,
+  ]);
   if (archived.status !== 0) fail("ops_tree_git_failed", `git archive failed for ${pin.tag}`);
   const extracted = context.spawn("tar", ["-xf", archive, "-C", destination], {
     encoding: "utf8",
@@ -342,23 +386,30 @@ export function exportTag(context, pin, destination, excludes = []) {
   });
   rmSync(archive, { force: true });
   if (extracted.error || extracted.status !== 0) {
-    fail("ops_tree_extract_failed", `tar could not extract ${pin.tag}: ${lastLine(extracted.stderr)}`);
+    fail(
+      "ops_tree_extract_failed",
+      `tar could not extract ${pin.tag}: ${lastLine(extracted.stderr)}`,
+    );
   }
   for (const name of excludes) rmSync(join(destination, name), { force: true, recursive: true });
 
-  const expected = listTree(context, pin).filter((entry) => !excludes.includes(topSegment(entry.path)));
+  const expected = listTree(context, pin).filter(
+    (entry) => !excludes.includes(topSegment(entry.path)),
+  );
   const observed = extractedEntries(destination, pin.format);
   const expectedPaths = new Set(expected.map((entry) => entry.path));
   for (const entry of expected) {
     const actual = observed.get(entry.path);
-    if (!actual) fail("ops_tree_export_mismatch", `${pin.tag}: ${entry.path} is tracked but was not exported`);
+    if (!actual)
+      fail("ops_tree_export_mismatch", `${pin.tag}: ${entry.path} is tracked but was not exported`);
     const mode = entry.mode === "100755" ? "100755" : entry.mode === "120000" ? "120000" : "100644";
     if (actual.mode !== mode || actual.id !== entry.id) {
       fail("ops_tree_export_mismatch", `${pin.tag}: ${entry.path} differs from the tagged blob`);
     }
   }
   for (const path of observed.keys()) {
-    if (!expectedPaths.has(path)) fail("ops_tree_export_mismatch", `${pin.tag}: ${path} is not tracked by the tag`);
+    if (!expectedPaths.has(path))
+      fail("ops_tree_export_mismatch", `${pin.tag}: ${path} is not tracked by the tag`);
   }
   return [...expectedPaths].sort();
 }
@@ -395,7 +446,10 @@ export function buildImage(context, { candidatePin, enginePin, image, kind, prev
   const enginePaths = exportTag(context, enginePin, image);
   for (const path of enginePaths) requireZone(zones, path, "engine", enginePin.tag);
   const candidatePaths = exportTag(
-    context, candidatePin, join(image, CANDIDATE_DIRECTORY_NAME), zones.candidateExcludes,
+    context,
+    candidatePin,
+    join(image, CANDIDATE_DIRECTORY_NAME),
+    zones.candidateExcludes,
   );
   for (const path of candidatePaths) {
     requireZone(zones, `${CANDIDATE_DIRECTORY_NAME}/${path}`, "candidate", candidatePin.tag);
@@ -526,10 +580,16 @@ function copyStateAndBaseline(root, image) {
       }
       return sha256Hex(readFileSync(join(image, LEDGER_FILE_NAME)));
     });
-    const baseline = validateProcessLogV3Deep(logPath, { outputRoot: outputPath, workspaceRoot: root });
+    const baseline = validateProcessLogV3Deep(logPath, {
+      outputRoot: outputPath,
+      workspaceRoot: root,
+    });
     if (sha256Hex(readFileSync(logPath)) === copied) return baseline;
   }
-  fail("cutover_ledger_moving", "the process log changed while the cutover copied it, twice; retry when no session writes");
+  fail(
+    "cutover_ledger_moving",
+    "the process log changed while the cutover copied it, twice; retry when no session writes",
+  );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -570,16 +630,20 @@ function gateRefusals(gates) {
   if (gates.running.length > 0) {
     refusals.push({
       code: "cutover_step_running",
-      message: `${gates.running.length} step(s) started less than 24 hours ago: `
-        + gates.running.map((row) => `${row.process_id} ${row.step}`).join(", "),
+      message:
+        `${gates.running.length} step(s) started less than 24 hours ago: ` +
+        gates.running.map((row) => `${row.process_id} ${row.step}`).join(", "),
     });
   }
   if (gates.prepared.length > 0) {
     refusals.push({
       code: "cutover_publication_prepared",
-      message: `${gates.prepared.length} publication(s) were prepared and not finished; finish each with `
-        + "node tools/process-log.mjs reconcile-step before the cutover: "
-        + gates.prepared.map((row) => `${row.process_id} ${row.step} ${row.publication_id}`).join(", "),
+      message:
+        `${gates.prepared.length} publication(s) were prepared and not finished; finish each with ` +
+        "node tools/process-log.mjs reconcile-step before the cutover: " +
+        gates.prepared
+          .map((row) => `${row.process_id} ${row.step} ${row.publication_id}`)
+          .join(", "),
     });
   }
   if (gates.triage_locked) {
@@ -663,20 +727,28 @@ export function acquireLock(context, root) {
     fail("ops_tree_locked", `the folder's lock is unreadable; ${manual}`);
   }
   if (owner.hostname !== context.hostname()) {
-    fail("ops_tree_locked", `the folder's lock belongs to another machine (${owner.hostname}); ${manual}`);
+    fail(
+      "ops_tree_locked",
+      `the folder's lock belongs to another machine (${owner.hostname}); ${manual}`,
+    );
   }
   const acquiredAt = Date.parse(owner.acquired_at);
-  const abandoned = !context.processAlive(owner.pid)
-    || (Number.isFinite(acquiredAt) && acquiredAt < context.bootTime());
+  const abandoned =
+    !context.processAlive(owner.pid) ||
+    (Number.isFinite(acquiredAt) && acquiredAt < context.bootTime());
   if (!abandoned) {
-    fail("ops_tree_locked", `process ${owner.pid} holds the folder's lock; if ps -p ${owner.pid} is not ops-tree, ${manual}`);
+    fail(
+      "ops_tree_locked",
+      `process ${owner.pid} holds the folder's lock; if ps -p ${owner.pid} is not ops-tree, ${manual}`,
+    );
   }
   const aside = `${path}.stale-${token}`;
   context.beforeLockTakeover?.();
   try {
     renameSync(path, aside);
   } catch (error) {
-    if (error?.code === "ENOENT") fail("ops_tree_locked", "another run took over the abandoned lock first");
+    if (error?.code === "ENOENT")
+      fail("ops_tree_locked", "another run took over the abandoned lock first");
     throw error;
   }
   const moved = readFileSync(aside);
@@ -686,13 +758,17 @@ export function acquireLock(context, root) {
     try {
       linkSync(aside, path);
     } catch {
-      fail("ops_tree_locked", `the lock changed while it was taken over; it is kept at ${relative(root, aside)}`);
+      fail(
+        "ops_tree_locked",
+        `the lock changed while it was taken over; it is kept at ${relative(root, aside)}`,
+      );
     }
     rmSync(aside, { force: true });
     fail("ops_tree_locked", "another run took over the abandoned lock first");
   }
   unlinkSync(aside);
-  if (!create()) fail("ops_tree_locked", "another run took the lock while the abandoned one was cleared");
+  if (!create())
+    fail("ops_tree_locked", "another run took the lock while the abandoned one was cleared");
   return { takeover: { acquired_at: owner.acquired_at, pid: owner.pid }, token };
 }
 
@@ -748,7 +824,10 @@ function planPairs(root, { image, liveZones, imageZones, target }) {
     if (!swappable(imageZones, name)) continue;
     const liveZone = zoneOf(liveZones, name);
     if (liveZone !== "engine" && liveZone !== "candidate") {
-      fail("ops_tree_image_overlaps_state", `the incoming ${name} is ${liveZone} in the live folder`);
+      fail(
+        "ops_tree_image_overlaps_state",
+        `the incoming ${name} is ${liveZone} in the live folder`,
+      );
     }
     names.add(name);
   }
@@ -764,7 +843,10 @@ function readJournal(root) {
   try {
     journal = JSON.parse(readFileSync(journalPath(root), "utf8"));
   } catch {
-    fail("ops_tree_journal_unknown", `${SERVICE_DIRECTORY_NAME}/${JOURNAL_FILE_NAME} is not readable`);
+    fail(
+      "ops_tree_journal_unknown",
+      `${SERVICE_DIRECTORY_NAME}/${JOURNAL_FILE_NAME} is not readable`,
+    );
   }
   const pairs = Array.isArray(journal?.pairs) ? journal.pairs : [];
   if (journal?.schema !== JOURNAL_SCHEMA || journal?.schema_version !== JOURNAL_SCHEMA_VERSION) {
@@ -831,7 +913,11 @@ export function reverseJournal(root, journal) {
  * mid-swap is dropped and the run completes, so an interruption by signal leaves a whole folder,
  * never half of one. Only SIGKILL and power loss can stop it midway, and `rollback` owns those.
  */
-function swap(context, root, { image, liveManifest, newManifest, operation, progress, stamp, target }) {
+function swap(
+  context,
+  root,
+  { image, liveManifest, newManifest, operation, progress, stamp, target },
+) {
   const pairs = planPairs(root, {
     image,
     imageZones: newManifest.zones,
@@ -856,7 +942,10 @@ function swap(context, root, { image, liveManifest, newManifest, operation, prog
     if (!existsSync(journalPath(root))) rmSync(target, { force: true, recursive: true });
     throw error;
   }
-  writeFileAtomic(join(root, MANIFEST_FILE_NAME), serializeManifest({ ...liveManifest, state: "building" }));
+  writeFileAtomic(
+    join(root, MANIFEST_FILE_NAME),
+    serializeManifest({ ...liveManifest, state: "building" }),
+  );
 
   const held = [];
   const hold = () => {};
@@ -892,13 +981,18 @@ function swap(context, root, { image, liveManifest, newManifest, operation, prog
 /** Keeps the newest retained trees; an older one is removed only if it still matches itself. */
 export function pruneRetained(root, keep = RETAINED_TREES) {
   const directory = previousRoot(root);
-  const stamps = topLevelNames(directory).filter((name) => STAMP_PATTERN.test(name) && isRealDirectory(join(directory, name)));
+  const stamps = topLevelNames(directory).filter(
+    (name) => STAMP_PATTERN.test(name) && isRealDirectory(join(directory, name)),
+  );
   const removed = [];
   const kept = [];
   for (const stamp of stamps.slice(0, Math.max(0, stamps.length - keep))) {
     const tree = join(directory, stamp);
     const manifest = parseManifest(readSafely(join(tree, MANIFEST_FILE_NAME)));
-    if (manifest !== null && compareFiles(manifest.files, digestTree(tree, manifest.zones)).length === 0) {
+    if (
+      manifest !== null &&
+      compareFiles(manifest.files, digestTree(tree, manifest.zones)).length === 0
+    ) {
       rmSync(tree, { force: true, recursive: true });
       removed.push(stamp);
     } else {
@@ -966,7 +1060,10 @@ function requireNoRepositoryAround(root) {
   let current = root;
   for (;;) {
     if (lexists(join(current, ".git"))) {
-      fail("ops_tree_root_inside_repository", `${root} is inside a git repository (${join(current, ".git")})`);
+      fail(
+        "ops_tree_root_inside_repository",
+        `${root} is inside a git repository (${join(current, ".git")})`,
+      );
     }
     const parent = dirname(current);
     if (parent === current) return;
@@ -988,10 +1085,18 @@ export function exportFolder(input, suppliedContext) {
     fail("ops_tree_invalid_arguments", "--root takes an absolute path");
   }
   const enginePin = resolveTag(
-    context, requireRepository(input.engineRepo, "--engine-repo"), input.release, RELEASE_TAG_PATTERN, "--release",
+    context,
+    requireRepository(input.engineRepo, "--engine-repo"),
+    input.release,
+    RELEASE_TAG_PATTERN,
+    "--release",
   );
   const candidatePin = resolveTag(
-    context, requireRepository(input.candidateRepo, "--candidate-repo"), input.candidate, CANDIDATE_TAG_PATTERN, "--candidate",
+    context,
+    requireRepository(input.candidateRepo, "--candidate-repo"),
+    input.candidate,
+    CANDIDATE_TAG_PATTERN,
+    "--candidate",
   );
   if (lexists(input.root)) {
     if (!isRealDirectory(input.root) || readdirSync(input.root).length > 0) {
@@ -1024,7 +1129,9 @@ export function exportFolder(input, suppliedContext) {
     status: "exported",
     candidate: manifest.candidate,
     engine: manifest.engine,
-    files: Object.fromEntries(Object.entries(manifest.files).map(([zone, files]) => [zone, Object.keys(files).length])),
+    files: Object.fromEntries(
+      Object.entries(manifest.files).map(([zone, files]) => [zone, Object.keys(files).length]),
+    ),
     kind,
     root,
   };
@@ -1032,9 +1139,16 @@ export function exportFolder(input, suppliedContext) {
 
 function requireReadyFolder(root) {
   const manifest = readManifest(root);
-  if (manifest === null) fail("ops_manifest_missing", `${root} is not an operational folder: it has no ${MANIFEST_FILE_NAME}`);
+  if (manifest === null)
+    fail(
+      "ops_manifest_missing",
+      `${root} is not an operational folder: it has no ${MANIFEST_FILE_NAME}`,
+    );
   if (existsSync(journalPath(root)) || manifest.state !== "ready") {
-    fail("ops_tree_building", "a cutover or rollback of this folder did not finish; complete it with node tools/ops-tree/cli.mjs rollback");
+    fail(
+      "ops_tree_building",
+      "a cutover or rollback of this folder did not finish; complete it with node tools/ops-tree/cli.mjs rollback",
+    );
   }
   return manifest;
 }
@@ -1060,18 +1174,29 @@ export function cutoverFolder(input, suppliedContext) {
     const enginePin = resolveTag(
       context,
       requireRepository(input.engineRepo ?? liveManifest.engine.repository, "--engine-repo"),
-      input.release, RELEASE_TAG_PATTERN, "--release",
+      input.release,
+      RELEASE_TAG_PATTERN,
+      "--release",
     );
     const candidatePin = resolveTag(
       context,
-      requireRepository(input.candidateRepo ?? liveManifest.candidate.repository, "--candidate-repo"),
-      input.candidate, CANDIDATE_TAG_PATTERN, "--candidate",
+      requireRepository(
+        input.candidateRepo ?? liveManifest.candidate.repository,
+        "--candidate-repo",
+      ),
+      input.candidate,
+      CANDIDATE_TAG_PATTERN,
+      "--candidate",
     );
     const stamp = stampFor(context.now());
     image = join(stagingRoot(root), stamp);
     mkdirSync(stagingRoot(root), { recursive: true });
     const newManifest = buildImage(context, {
-      candidatePin, enginePin, image, kind: liveManifest.kind, previous: stamp,
+      candidatePin,
+      enginePin,
+      image,
+      kind: liveManifest.kind,
+      previous: stamp,
     });
     const withLedger = existsSync(join(root, LEDGER_FILE_NAME));
     let baseline = null;
@@ -1086,7 +1211,10 @@ export function cutoverFolder(input, suppliedContext) {
       engine: { from: liveManifest.engine.tag, to: enginePin.tag },
       gates,
       lock_takeover: lock.takeover,
-      override: override === null ? null : { lifted: lifted.map((refusal) => refusal.code), reason: override },
+      override:
+        override === null
+          ? null
+          : { lifted: lifted.map((refusal) => refusal.code), reason: override },
       stopped_by_swap: withLedger ? newlyReported(baseline, predicted) : [],
     };
     if (input.dryRun) {
@@ -1097,15 +1225,30 @@ export function cutoverFolder(input, suppliedContext) {
 
     const target = join(previousRoot(root), stamp);
     mkdirSync(previousRoot(root), { recursive: true });
-    swap(context, root, { image, liveManifest, newManifest, operation: "cutover", progress, stamp, target });
+    swap(context, root, {
+      image,
+      liveManifest,
+      newManifest,
+      operation: "cutover",
+      progress,
+      stamp,
+      target,
+    });
     rmSync(image, { force: true, recursive: true });
     image = null;
 
     let after = null;
     if (withLedger) {
-      const result = context.spawn(context.node, [join(root, "tools/process-log.mjs"), "validate", "--deep"], {
-        cwd: root, encoding: "utf8", env: childEnvironment(), shell: false,
-      });
+      const result = context.spawn(
+        context.node,
+        [join(root, "tools/process-log.mjs"), "validate", "--deep"],
+        {
+          cwd: root,
+          encoding: "utf8",
+          env: childEnvironment(),
+          shell: false,
+        },
+      );
       try {
         after = JSON.parse(result.stdout);
       } catch {
@@ -1124,7 +1267,12 @@ export function cutoverFolder(input, suppliedContext) {
     writeEvidence(root, stamp, evidence);
     return { status: "cut_over", ...evidence };
   } catch (error) {
-    if (image !== null && !progress.journaled && !existsSync(journalPath(root)) && existsSync(image)) {
+    if (
+      image !== null &&
+      !progress.journaled &&
+      !existsSync(journalPath(root)) &&
+      existsSync(image)
+    ) {
       rmSync(image, { force: true, recursive: true });
     } else if (image !== null && !existsSync(journalPath(root)) && existsSync(image)) {
       // A reversal ran; the image is deleted only if nothing of the folder's state is left in it.
@@ -1156,7 +1304,10 @@ export function rollbackFolder(input, suppliedContext) {
     if (existsSync(journalPath(root))) {
       const journal = readJournal(root);
       if (input.expectedStamp !== undefined && journal.stamp !== input.expectedStamp) {
-        fail("ops_tree_recovery_refused", `this copy belongs to ${input.expectedStamp}, the journal to ${journal.stamp}`);
+        fail(
+          "ops_tree_recovery_refused",
+          `this copy belongs to ${input.expectedStamp}, the journal to ${journal.stamp}`,
+        );
       }
       const keptImage = reverseJournal(root, journal);
       return {
@@ -1168,7 +1319,10 @@ export function rollbackFolder(input, suppliedContext) {
       };
     }
     if (input.expectedStamp !== undefined) {
-      fail("ops_tree_recovery_refused", "a copy of the tool may only reverse an interrupted swap, and there is none");
+      fail(
+        "ops_tree_recovery_refused",
+        "a copy of the tool may only reverse an interrupted swap, and there is none",
+      );
     }
     const liveManifest = requireReadyFolder(root);
     const stamp = input.to ?? liveManifest.previous;
@@ -1176,12 +1330,18 @@ export function rollbackFolder(input, suppliedContext) {
       fail("ops_tree_nothing_to_roll_back", "the folder names no retained tree to roll back to");
     }
     const source = join(previousRoot(root), stamp);
-    if (!isRealDirectory(source)) fail("ops_tree_nothing_to_roll_back", `no retained tree ${stamp}`);
+    if (!isRealDirectory(source))
+      fail("ops_tree_nothing_to_roll_back", `no retained tree ${stamp}`);
     const sourceManifest = parseManifest(readSafely(join(source, MANIFEST_FILE_NAME)));
-    if (sourceManifest === null) fail("ops_manifest_invalid", `the retained tree ${stamp} has no valid manifest`);
+    if (sourceManifest === null)
+      fail("ops_manifest_invalid", `the retained tree ${stamp} has no valid manifest`);
     const drift = compareFiles(sourceManifest.files, digestTree(source, sourceManifest.zones));
     if (drift.length > 0) {
-      fail("ops_tree_rollback_target_drift", `the retained tree ${stamp} no longer matches its manifest`, { drift });
+      fail(
+        "ops_tree_rollback_target_drift",
+        `the retained tree ${stamp} no longer matches its manifest`,
+        { drift },
+      );
     }
     clearStaging(root, liveManifest.zones);
     const override = readOverride(root, "rollback", input.inputFile);
@@ -1192,7 +1352,12 @@ export function rollbackFolder(input, suppliedContext) {
     const target = join(previousRoot(root), newStamp);
     const newManifest = { ...sourceManifest, previous: newStamp, state: "ready" };
     swap(context, root, {
-      image: source, liveManifest, newManifest, operation: "rollback", stamp: newStamp, target,
+      image: source,
+      liveManifest,
+      newManifest,
+      operation: "rollback",
+      stamp: newStamp,
+      target,
     });
     rmSync(join(source, MANIFEST_FILE_NAME), { force: true });
     const leftover = topLevelNames(source);
@@ -1206,7 +1371,10 @@ export function rollbackFolder(input, suppliedContext) {
       candidate: { from: liveManifest.candidate.tag, to: sourceManifest.candidate.tag },
       gates,
       lock_takeover: lock.takeover,
-      override: override === null ? null : { lifted: lifted.map((refusal) => refusal.code), reason: override },
+      override:
+        override === null
+          ? null
+          : { lifted: lifted.map((refusal) => refusal.code), reason: override },
       restored_from: stamp,
       retained: prune,
       source_leftover: leftover,

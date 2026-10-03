@@ -17,10 +17,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import {
-  checkToolchain,
-  ToolchainPreflightError,
-} from "../tools/bootstrap.mjs";
+import { checkToolchain, ToolchainPreflightError } from "../tools/bootstrap.mjs";
 import {
   checkCvBuilderDependencies,
   CvBuilderDependencyError,
@@ -133,26 +130,29 @@ test("exact Node/npm policy, both lockfiles, dependencies, tools, and renderer p
 test("Node and npm patch drift fail with distinct stable codes", (t) => {
   const fixture = createToolchainFixture(t);
   expectCode(
-    () => checkToolchain({
-      context: readyContext({ nodeVersion: "24.18.1" }),
-      workspaceRoot: fixture.workspaceRoot,
-    }),
+    () =>
+      checkToolchain({
+        context: readyContext({ nodeVersion: "24.18.1" }),
+        workspaceRoot: fixture.workspaceRoot,
+      }),
     ToolchainPreflightError,
     "unsupported_node_version",
   );
   expectCode(
-    () => checkToolchain({
-      context: readyContext({ packageManagerVersion: () => "11.16.1" }),
-      workspaceRoot: fixture.workspaceRoot,
-    }),
+    () =>
+      checkToolchain({
+        context: readyContext({ packageManagerVersion: () => "11.16.1" }),
+        workspaceRoot: fixture.workspaceRoot,
+      }),
     ToolchainPreflightError,
     "unsupported_package_manager",
   );
   expectCode(
-    () => checkToolchain({
-      context: readyContext({ packageManagerVersion: () => null }),
-      workspaceRoot: fixture.workspaceRoot,
-    }),
+    () =>
+      checkToolchain({
+        context: readyContext({ packageManagerVersion: () => null }),
+        workspaceRoot: fixture.workspaceRoot,
+      }),
     ToolchainPreflightError,
     "package_manager_missing",
   );
@@ -205,49 +205,55 @@ const TOOLCHAIN_REJECTIONS = [
   {
     code: "toolchain_policy_invalid",
     message: "packageManager must pin one exact npm version",
-    mutate: (f) => patchJson(join(f.workspaceRoot, "package.json"), (value) => {
-      value.packageManager = `npm@${NPM_VERSION.slice(0, NPM_VERSION.lastIndexOf("."))}`;
-    }),
+    mutate: (f) =>
+      patchJson(join(f.workspaceRoot, "package.json"), (value) => {
+        value.packageManager = `npm@${NPM_VERSION.slice(0, NPM_VERSION.lastIndexOf("."))}`;
+      }),
     name: "root packageManager is not one exact npm version",
   },
   {
     code: "toolchain_policy_invalid",
     message: "engines.node must pin one exact version",
-    mutate: (f) => patchJson(join(f.workspaceRoot, "package.json"), (value) => {
-      value.engines.node = `^${NODE_VERSION}`;
-    }),
+    mutate: (f) =>
+      patchJson(join(f.workspaceRoot, "package.json"), (value) => {
+        value.engines.node = `^${NODE_VERSION}`;
+      }),
     name: "root engines.node is not one exact version",
   },
   {
     code: "toolchain_policy_invalid",
     message: "root npm engine and packageManager pins differ",
-    mutate: (f) => patchJson(join(f.workspaceRoot, "package.json"), (value) => {
-      value.engines.npm = "11.16.1";
-    }),
+    mutate: (f) =>
+      patchJson(join(f.workspaceRoot, "package.json"), (value) => {
+        value.engines.npm = "11.16.1";
+      }),
     name: "root npm engine differs from packageManager",
   },
   {
     code: "toolchain_policy_invalid",
     message: "root and cv-builder toolchain pins differ",
-    mutate: (f) => patchJson(join(f.builderRoot, "package.json"), (value) => {
-      value.packageManager = "npm@11.16.1";
-    }),
+    mutate: (f) =>
+      patchJson(join(f.builderRoot, "package.json"), (value) => {
+        value.packageManager = "npm@11.16.1";
+      }),
     name: "cv-builder packageManager differs from root",
   },
   {
     code: "toolchain_policy_invalid",
     message: "root and cv-builder toolchain pins differ",
-    mutate: (f) => patchJson(join(f.builderRoot, "package.json"), (value) => {
-      value.engines.node = "22.0.0";
-    }),
+    mutate: (f) =>
+      patchJson(join(f.builderRoot, "package.json"), (value) => {
+        value.engines.node = "22.0.0";
+      }),
     name: "cv-builder engines.node differs from root",
   },
   {
     code: "toolchain_policy_invalid",
     message: "root and cv-builder toolchain pins differ",
-    mutate: (f) => patchJson(join(f.builderRoot, "package.json"), (value) => {
-      value.engines.npm = "11.16.1";
-    }),
+    mutate: (f) =>
+      patchJson(join(f.builderRoot, "package.json"), (value) => {
+        value.engines.npm = "11.16.1";
+      }),
     name: "cv-builder engines.npm differs from root",
   },
   {
@@ -328,10 +334,7 @@ test("every toolchain policy and metadata rejection names its own code and messa
   assert.equal(TOOLCHAIN_REJECTION_NAMES.length, 17);
   // Six policy statements and three metadata statements; the three repeats are
   // the disjuncts of the single root-versus-builder comparison.
-  assert.equal(
-    new Set(TOOLCHAIN_REJECTIONS.map((scenario) => scenario.message)).size,
-    15,
-  );
+  assert.equal(new Set(TOOLCHAIN_REJECTIONS.map((scenario) => scenario.message)).size, 15);
 
   const executed = [];
   for (const scenario of TOOLCHAIN_REJECTIONS) {
@@ -339,10 +342,11 @@ test("every toolchain policy and metadata rejection names its own code and messa
       const fixture = createToolchainFixture(t);
       scenario.mutate(fixture);
       assert.throws(
-        () => checkToolchain({
-          context: readyContext(),
-          workspaceRoot: fixture.workspaceRoot,
-        }),
+        () =>
+          checkToolchain({
+            context: readyContext(),
+            workspaceRoot: fixture.workspaceRoot,
+          }),
         (error) => {
           assert.equal(error instanceof ToolchainPreflightError, true, scenario.name);
           assert.equal(error.code, scenario.code, scenario.name);
@@ -361,8 +365,9 @@ test("every toolchain policy and metadata rejection names its own code and messa
 // table would go green against a stubbed toolchain.
 test("the production preflight resolves its own toolchain context", () => {
   const source = readFileSync(join(repoRoot, "tools", "bootstrap.mjs"), "utf8");
-  const calls = [...source.matchAll(/(?<!function )\bcheckToolchain\(([^)]*)\)/g)]
-    .map((match) => match[1]);
+  const calls = [...source.matchAll(/(?<!function )\bcheckToolchain\(([^)]*)\)/g)].map(
+    (match) => match[1],
+  );
   assert.deepEqual(calls, [""]);
 });
 
@@ -375,10 +380,11 @@ test("missing and drifted root or builder lockfiles fail closed", async (t) => {
       const fixture = createToolchainFixture(t);
       unlinkSync(join(fixture.workspaceRoot, relativePath));
       expectCode(
-        () => checkToolchain({
-          context: readyContext(),
-          workspaceRoot: fixture.workspaceRoot,
-        }),
+        () =>
+          checkToolchain({
+            context: readyContext(),
+            workspaceRoot: fixture.workspaceRoot,
+          }),
         label === "root" ? ToolchainPreflightError : CvBuilderDependencyError,
         "toolchain_lockfile_missing",
       );
@@ -392,10 +398,11 @@ test("missing and drifted root or builder lockfiles fail closed", async (t) => {
     lock.packages[""].engines.node = "22.0.0";
     writeJson(lockPath, lock);
     expectCode(
-      () => checkToolchain({
-        context: readyContext(),
-        workspaceRoot: fixture.workspaceRoot,
-      }),
+      () =>
+        checkToolchain({
+          context: readyContext(),
+          workspaceRoot: fixture.workspaceRoot,
+        }),
       ToolchainPreflightError,
       "toolchain_lockfile_mismatch",
     );
@@ -408,10 +415,11 @@ test("missing and drifted root or builder lockfiles fail closed", async (t) => {
     lock.packages[""].engines.node = "22.0.0";
     writeJson(lockPath, lock);
     expectCode(
-      () => checkToolchain({
-        context: readyContext(),
-        workspaceRoot: fixture.workspaceRoot,
-      }),
+      () =>
+        checkToolchain({
+          context: readyContext(),
+          workspaceRoot: fixture.workspaceRoot,
+        }),
       CvBuilderDependencyError,
       "toolchain_lockfile_mismatch",
     );
@@ -523,20 +531,21 @@ test("missing system tools and renderer fail in deterministic preflight order", 
     await t.test(missing, (t) => {
       const fixture = createToolchainFixture(t);
       expectCode(
-        () => checkToolchain({
-          context: readyContext({
-            requireCommand(command) {
-              if (command === missing) {
-                throw new ToolchainPreflightError(
-                  "required_tool_missing",
-                  `required tool is unavailable: ${command}`,
-                );
-              }
-              return `/fixture/bin/${command}`;
-            },
+        () =>
+          checkToolchain({
+            context: readyContext({
+              requireCommand(command) {
+                if (command === missing) {
+                  throw new ToolchainPreflightError(
+                    "required_tool_missing",
+                    `required tool is unavailable: ${command}`,
+                  );
+                }
+                return `/fixture/bin/${command}`;
+              },
+            }),
+            workspaceRoot: fixture.workspaceRoot,
           }),
-          workspaceRoot: fixture.workspaceRoot,
-        }),
         ToolchainPreflightError,
         "required_tool_missing",
       );
@@ -546,16 +555,17 @@ test("missing system tools and renderer fail in deterministic preflight order", 
   await t.test("renderer unavailable", (t) => {
     const fixture = createToolchainFixture(t);
     expectCode(
-      () => checkToolchain({
-        context: readyContext({
-          resolveRenderer() {
-            throw Object.assign(new Error("missing renderer"), {
-              code: "cv_renderer_no_safe_backend",
-            });
-          },
+      () =>
+        checkToolchain({
+          context: readyContext({
+            resolveRenderer() {
+              throw Object.assign(new Error("missing renderer"), {
+                code: "cv_renderer_no_safe_backend",
+              });
+            },
+          }),
+          workspaceRoot: fixture.workspaceRoot,
         }),
-        workspaceRoot: fixture.workspaceRoot,
-      }),
       ToolchainPreflightError,
       "renderer_unavailable",
     );
@@ -564,10 +574,7 @@ test("missing system tools and renderer fail in deterministic preflight order", 
 
 test("repository production shell has no package-manager execution path", () => {
   const shell = readFileSync(join(repoRoot, "tools", "cv-builder", "build.sh"), "utf8");
-  assert.doesNotMatch(
-    shell,
-    /\b(?:npm|pnpm|yarn)\s+(?:install|i|ci|add|exec)\b|\bnpx\b/,
-  );
+  assert.doesNotMatch(shell, /\b(?:npm|pnpm|yarn)\s+(?:install|i|ci|add|exec)\b|\bnpx\b/);
   assert.match(shell, /check-dependencies\.mjs/);
 });
 

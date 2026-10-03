@@ -11,12 +11,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import {
-  isAbsolute,
-  relative,
-  resolve,
-  sep,
-} from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
   allowedRunners,
   classifyProcessRecord,
@@ -91,10 +86,7 @@ import {
 } from "../pipeline-artifacts/validation.mjs";
 import { validateCompanyResearch } from "../pipeline-artifacts/validate-company-research.mjs";
 import { validateVacancy } from "../pipeline-artifacts/validate-vacancy.mjs";
-import {
-  checkOutputRoot,
-  OutputRootError,
-} from "./output-root.mjs";
+import { checkOutputRoot, OutputRootError } from "./output-root.mjs";
 
 export { fileBackedStepDependencies };
 
@@ -286,9 +278,9 @@ export const fileBackedLetterLanguageInputs = Object.freeze({
 function protectedInputContracts(stepName, language = null) {
   const languageContracts = fileBackedLetterLanguageInputs[stepName] ?? [];
   if (
-    languageContracts.length === 0
-    || !isLanguageName(language)
-    || language === DEFAULT_LANGUAGE.name
+    languageContracts.length === 0 ||
+    !isLanguageName(language) ||
+    language === DEFAULT_LANGUAGE.name
   ) {
     return fileBackedProtectedInputs[stepName];
   }
@@ -327,18 +319,22 @@ function pinnedLetterLanguage(snapshot) {
  * did: not marked stale by the release that added them, nor refused over one of those files. The
  * config is still read for the language names, and a broken one still refuses under its own code.
  */
-const layerInputKindsAddedLater = Object.freeze(new Set([
-  "candidate_config",
-  "candidate_constraints",
-  "candidate_language_constraints",
-  "candidate_language_pack",
-  "candidate_language_rules",
-  "candidate_letter_samples",
-]));
+const layerInputKindsAddedLater = Object.freeze(
+  new Set([
+    "candidate_config",
+    "candidate_constraints",
+    "candidate_language_constraints",
+    "candidate_language_pack",
+    "candidate_language_rules",
+    "candidate_letter_samples",
+  ]),
+);
 
 function snapshotPredatesLayerInputs(stepName, snapshot) {
-  return fileBackedMaterialStepNames.includes(stepName)
-    && !snapshot.some((entry) => entry.kind === "candidate_config");
+  return (
+    fileBackedMaterialStepNames.includes(stepName) &&
+    !snapshot.some((entry) => entry.kind === "candidate_config")
+  );
 }
 
 function comparableCurrentSnapshot(stepName, pinnedSnapshot, currentSnapshot) {
@@ -348,8 +344,10 @@ function comparableCurrentSnapshot(stepName, pinnedSnapshot, currentSnapshot) {
 }
 
 function snapshotStillCurrent(stepName, pinnedSnapshot, currentSnapshot) {
-  return bundleIdentity(pinnedSnapshot)
-    === bundleIdentity(comparableCurrentSnapshot(stepName, pinnedSnapshot, currentSnapshot));
+  return (
+    bundleIdentity(pinnedSnapshot) ===
+    bundleIdentity(comparableCurrentSnapshot(stepName, pinnedSnapshot, currentSnapshot))
+  );
 }
 
 export const historicalProcessMutationOperations = Object.freeze([
@@ -386,10 +384,7 @@ function activeStepWaivers(step) {
  * findings, even though it is journaled only when the publication commits.
  */
 function effectiveRevisionWaivers(step) {
-  return [
-    ...activeStepWaivers(step),
-    ...pendingAttemptWaivers(step),
-  ];
+  return [...activeStepWaivers(step), ...pendingAttemptWaivers(step)];
 }
 
 /*
@@ -410,9 +405,7 @@ function pendingAttemptWaivers(step) {
  * any other publication honours only what its own attempt carries.
  */
 function effectivePublicationWaivers(step, operation) {
-  return operation === "revise"
-    ? effectiveRevisionWaivers(step)
-    : pendingAttemptWaivers(step);
+  return operation === "revise" ? effectiveRevisionWaivers(step) : pendingAttemptWaivers(step);
 }
 
 /*
@@ -426,10 +419,12 @@ function siblingDecisionWaivers(record, stepName, briefDigest) {
   const siblingName = fileBackedMaterialStepNames.find((name) => name !== stepName);
   const sibling = record.steps[siblingName];
   return (sibling?.waivers ?? [])
-    .filter((waiver) =>
-      waiver.status === "active"
-      && waiver.subject?.kind === "decision"
-      && waiver.brief_digest === briefDigest)
+    .filter(
+      (waiver) =>
+        waiver.status === "active" &&
+        waiver.subject?.kind === "decision" &&
+        waiver.brief_digest === briefDigest,
+    )
     .map((waiver) => ({
       id: waiver.id,
       key: waiver.subject.key,
@@ -473,7 +468,10 @@ function normalizeNullableString(value) {
 }
 
 function createProcessId(startedAt, uuid) {
-  const stamp = startedAt.replace(/\.\d{3}Z$/, "Z").replaceAll("-", "").replaceAll(":", "");
+  const stamp = startedAt
+    .replace(/\.\d{3}Z$/, "Z")
+    .replaceAll("-", "")
+    .replaceAll(":", "");
   return `proc_${stamp}_${uuid.slice(0, 8)}`;
 }
 
@@ -533,35 +531,16 @@ function assertExactKeys(value, allowedKeys, code, label) {
   }
 }
 
-function normalizeDiagnosticInput(
-  value,
-  {
-    inputCode,
-    label,
-  },
-) {
-  assertExactKeys(
-    value,
-    ["code", "message", "retryable", "details"],
-    inputCode,
-    label,
-  );
-  const code = requireNonEmptyString(
-    value.code,
-    `${label}.code`,
-    inputCode,
-  );
+function normalizeDiagnosticInput(value, { inputCode, label }) {
+  assertExactKeys(value, ["code", "message", "retryable", "details"], inputCode, label);
+  const code = requireNonEmptyString(value.code, `${label}.code`, inputCode);
   if (!STABLE_DIAGNOSTIC_CODE_PATTERN.test(code)) {
     throw new ProcessLogLifecycleError(
       inputCode,
       `${label}.code must be a lowercase snake_case stable code`,
     );
   }
-  const message = requireNonEmptyString(
-    value.message,
-    `${label}.message`,
-    inputCode,
-  );
+  const message = requireNonEmptyString(value.message, `${label}.message`, inputCode);
   // The message is the explanation a reader gets; the code is the handle a machine gets. Repeating
   // the code explains nothing, and a message that is only the code used to be impossible for an
   // incidental reason - the message had to carry a Cyrillic letter and a code is ASCII by its own
@@ -573,15 +552,12 @@ function normalizeDiagnosticInput(
     );
   }
   if (typeof value.retryable !== "boolean") {
-    throw new ProcessLogLifecycleError(
-      inputCode,
-      `${label}.retryable must be a boolean`,
-    );
+    throw new ProcessLogLifecycleError(inputCode, `${label}.retryable must be a boolean`);
   }
   const details = value.details ?? [];
   if (
-    !Array.isArray(details)
-    || details.some((detail) => typeof detail !== "string" || !detail.trim())
+    !Array.isArray(details) ||
+    details.some((detail) => typeof detail !== "string" || !detail.trim())
   ) {
     throw new ProcessLogLifecycleError(
       inputCode,
@@ -615,10 +591,7 @@ function normalizeBlockerDiagnosticInput(value) {
 
 function mutationTimestamp(clock, ...minimumTimestamps) {
   const observedTimestamp = clock();
-  if (
-    typeof observedTimestamp !== "string"
-    || observedTimestamp.trim().length === 0
-  ) {
+  if (typeof observedTimestamp !== "string" || observedTimestamp.trim().length === 0) {
     throw new ProcessLogLifecycleError(
       "invalid_mutation_timestamp",
       "clock timestamp is outside the allowed causal window",
@@ -629,15 +602,11 @@ function mutationTimestamp(clock, ...minimumTimestamps) {
   validateIsoTimestamp(timestamp, "clock timestamp", errors);
   const timestampMs = Date.parse(timestamp);
   if (
-    errors.length > 0
-    || !Number.isFinite(timestampMs)
-    || timestampMs > Date.now() + PROCESS_LOG_FUTURE_SKEW_MS
-    || (
-      minimumTimestamps.some(
-        (minimumTimestamp) =>
-          minimumTimestamp !== null
-          && timestampMs < Date.parse(minimumTimestamp),
-      )
+    errors.length > 0 ||
+    !Number.isFinite(timestampMs) ||
+    timestampMs > Date.now() + PROCESS_LOG_FUTURE_SKEW_MS ||
+    minimumTimestamps.some(
+      (minimumTimestamp) => minimumTimestamp !== null && timestampMs < Date.parse(minimumTimestamp),
     )
   ) {
     throw new ProcessLogLifecycleError(
@@ -726,11 +695,11 @@ function resolveOutputEnvironment(workspaceRoot, outputRoot) {
 function directChildName(parentPath, childPath) {
   const childRelativePath = relative(parentPath, childPath);
   if (
-    !childRelativePath
-    || childRelativePath === ".."
-    || childRelativePath.startsWith(`..${sep}`)
-    || isAbsolute(childRelativePath)
-    || childRelativePath.includes(sep)
+    !childRelativePath ||
+    childRelativePath === ".." ||
+    childRelativePath.startsWith(`..${sep}`) ||
+    isAbsolute(childRelativePath) ||
+    childRelativePath.includes(sep)
   ) {
     return null;
   }
@@ -739,12 +708,12 @@ function directChildName(parentPath, childPath) {
 
 function pathIsWithin(parentPath, childPath) {
   const childRelativePath = relative(parentPath, childPath);
-  return childRelativePath === ""
-    || (
-      childRelativePath !== ".."
-      && !childRelativePath.startsWith(`..${sep}`)
-      && !isAbsolute(childRelativePath)
-    );
+  return (
+    childRelativePath === "" ||
+    (childRelativePath !== ".." &&
+      !childRelativePath.startsWith(`..${sep}`) &&
+      !isAbsolute(childRelativePath))
+  );
 }
 
 function listOutputEntries(outputPath) {
@@ -833,12 +802,7 @@ function selectedOutputDirectory(environment, record) {
   };
 }
 
-function readVerifiedFile({
-  basePath,
-  baseRealPath,
-  codePrefix,
-  relativePath,
-}) {
+function readVerifiedFile({ basePath, baseRealPath, codePrefix, relativePath }) {
   const pathSegments = relativePath.split("/");
   const filePath = resolve(basePath, ...pathSegments);
   const expectedRealPath = resolve(baseRealPath, ...pathSegments);
@@ -905,20 +869,14 @@ function bundleIdentity(entries) {
         bytes: entry.bytes,
       }))
       .sort(
-        (left, right) =>
-          left.kind.localeCompare(right.kind)
-          || left.path.localeCompare(right.path),
+        (left, right) => left.kind.localeCompare(right.kind) || left.path.localeCompare(right.path),
       ),
   );
 }
 
 function changedBundleKinds(leftEntries, rightEntries) {
-  const leftByKind = new Map(
-    leftEntries.map((entry) => [entry.kind, JSON.stringify(entry)]),
-  );
-  const rightByKind = new Map(
-    rightEntries.map((entry) => [entry.kind, JSON.stringify(entry)]),
-  );
+  const leftByKind = new Map(leftEntries.map((entry) => [entry.kind, JSON.stringify(entry)]));
+  const rightByKind = new Map(rightEntries.map((entry) => [entry.kind, JSON.stringify(entry)]));
   return [...new Set([...leftByKind.keys(), ...rightByKind.keys()])]
     .filter((kind) => leftByKind.get(kind) !== rightByKind.get(kind))
     .sort();
@@ -949,16 +907,13 @@ function canonicalSnapshot(entries) {
   return entries
     .map((entry) => structuredClone(entry))
     .sort(
-      (left, right) =>
-        left.kind.localeCompare(right.kind)
-        || left.path.localeCompare(right.path),
+      (left, right) => left.kind.localeCompare(right.kind) || left.path.localeCompare(right.path),
     );
 }
 
 function filesystemOutputKeys(outputPath) {
   return new Set(
-    listOutputEntries(outputPath).map((name) =>
-      outputDirEquivalenceKey(`output/${name}`)),
+    listOutputEntries(outputPath).map((name) => outputDirEquivalenceKey(`output/${name}`)),
   );
 }
 
@@ -976,10 +931,7 @@ function parseJsonArtifact(bytes, artifactPath) {
   const errors = [];
   const value = parseJsonBytes(bytes, artifactPath, errors);
   if (errors.length > 0) {
-    throw new ProcessLogLifecycleError(
-      "artifact_corrupt",
-      errors.join("; "),
-    );
+    throw new ProcessLogLifecycleError("artifact_corrupt", errors.join("; "));
   }
   return value;
 }
@@ -1004,18 +956,12 @@ function protectedInputEntry(environment, contract) {
   }
   if (bytes.byteLength === 0 && contract.optional) return null;
   if (bytes.byteLength === 0) {
-    throw new ProcessLogLifecycleError(
-      "input_invalid",
-      `${contract.path} must not be empty`,
-    );
+    throw new ProcessLogLifecycleError("input_invalid", `${contract.path} must not be empty`);
   }
   const utf8Errors = [];
   validateUtf8TextBytes(bytes, contract.path, utf8Errors);
   if (utf8Errors.length > 0) {
-    throw new ProcessLogLifecycleError(
-      "input_invalid",
-      utf8Errors.join("; "),
-    );
+    throw new ProcessLogLifecycleError("input_invalid", utf8Errors.join("; "));
   }
   return {
     entry: {
@@ -1037,8 +983,8 @@ function currentProtectedInputs(
   pinnedSnapshot = null,
 ) {
   const entries = [];
-  const skipsAddedKinds = pinnedSnapshot !== null
-    && snapshotPredatesLayerInputs(stepName, pinnedSnapshot);
+  const skipsAddedKinds =
+    pinnedSnapshot !== null && snapshotPredatesLayerInputs(stepName, pinnedSnapshot);
   for (const contract of protectedInputContracts(stepName, language)) {
     if (skipsAddedKinds && layerInputKindsAddedLater.has(contract.kind)) continue;
     let input = cache.get(contract.kind);
@@ -1084,10 +1030,7 @@ function verifiedArtifactBundle(
       codePrefix: "artifact",
       relativePath: artifact.path,
     });
-    if (
-      bytes.byteLength !== artifact.bytes
-      || sha256Hex(bytes) !== artifact.sha256
-    ) {
+    if (bytes.byteLength !== artifact.bytes || sha256Hex(bytes) !== artifact.sha256) {
       throw new ProcessLogLifecycleError(
         "artifact_corrupt",
         `${artifact.path} does not match its committed digest and size`,
@@ -1160,13 +1103,18 @@ function verifiedArtifactBundle(
     // ones Step 3 published from before that validation runs: an edit of the profile or of the
     // lever bank after Step 3 is a stale prerequisite, not a corrupt brief. An input the record
     // never published from — a Step 3 older than the input — is stale in the same way.
-    const currentInputs = currentProtectedInputs(environment, "map_experience", protectedInputCache);
+    const currentInputs = currentProtectedInputs(
+      environment,
+      "map_experience",
+      protectedInputCache,
+    );
     const candidateProfile = currentInputs.find((entry) => entry.kind === "candidate_profile");
     for (const kind of BRIEF_VALIDATION_INPUT_KINDS) {
       const current = currentInputs.find((entry) => entry.kind === kind);
       if (!current) continue;
-      const published = record.steps.map_experience.published_inputs
-        .find((entry) => entry.kind === kind);
+      const published = record.steps.map_experience.published_inputs.find(
+        (entry) => entry.kind === kind,
+      );
       if (!published || bundleIdentity([current]) !== bundleIdentity([published])) {
         throw new ProcessLogLifecycleError(
           "prerequisite_stale",
@@ -1185,10 +1133,8 @@ function verifiedArtifactBundle(
           vacancyBytes: vacancyBundle.files.get("vacancy")?.bytes,
           jobDescriptionBytes: vacancyBundle.files.get("job_description")?.bytes,
           companyResearchBytes: researchBundle.files.get("company_research")?.bytes,
-          candidateProfileBytes:
-            protectedInputCache.get("candidate_profile")?.bytes,
-          candidateLeversBytes:
-            protectedInputCache.get("candidate_levers")?.bytes,
+          candidateProfileBytes: protectedInputCache.get("candidate_profile")?.bytes,
+          candidateLeversBytes: protectedInputCache.get("candidate_levers")?.bytes,
           requireInputBytes: true,
         },
       );
@@ -1234,13 +1180,9 @@ function currentInputSnapshotForStep(
       language = letterLanguageOf(bundle);
     }
   }
-  entries.push(...currentProtectedInputs(
-    environment,
-    stepName,
-    protectedInputCache,
-    language,
-    pinnedSnapshot,
-  ));
+  entries.push(
+    ...currentProtectedInputs(environment, stepName, protectedInputCache, language, pinnedSnapshot),
+  );
   return canonicalSnapshot(entries);
 }
 
@@ -1256,10 +1198,7 @@ function assertCommittedStepCurrent(
   if (currentSteps.has(stepName)) return;
   const step = record.steps[stepName];
   if (step.state === "stale") {
-    throw new ProcessLogLifecycleError(
-      "prerequisite_stale",
-      `${stepName} is stale`,
-    );
+    throw new ProcessLogLifecycleError("prerequisite_stale", `${stepName} is stale`);
   }
   if (step.state !== "completed") {
     throw new ProcessLogLifecycleError(
@@ -1360,11 +1299,7 @@ function preflightFileBackedStepRecord(record, stepName, environment, pinnedSnap
 export function preflightFileBackedStepV3(
   logPath,
   input,
-  {
-    lockOptions,
-    outputRoot,
-    workspaceRoot,
-  } = {},
+  { lockOptions, outputRoot, workspaceRoot } = {},
 ) {
   assertExactKeys(
     input,
@@ -1374,10 +1309,14 @@ export function preflightFileBackedStepV3(
   );
   const stepName = requireStepName(input.stepName);
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
-  return withLogV3Lock(logPath, ({ log }) => {
-    const record = resolveFileBackedProcessV3(log, input.selector);
-    return preflightFileBackedStepRecord(record, stepName, environment);
-  }, lockOptions);
+  return withLogV3Lock(
+    logPath,
+    ({ log }) => {
+      const record = resolveFileBackedProcessV3(log, input.selector);
+      return preflightFileBackedStepRecord(record, stepName, environment);
+    },
+    lockOptions,
+  );
 }
 
 export function beginFileBackedStepV3(
@@ -1391,66 +1330,65 @@ export function beginFileBackedStepV3(
     workspaceRoot,
   } = {},
 ) {
-  assertExactKeys(
-    input,
-    ["selector", "stepName"],
-    "invalid_begin_step_input",
-    "begin-step input",
-  );
+  assertExactKeys(input, ["selector", "stepName"], "invalid_begin_step_input", "begin-step input");
   const stepName = requireStepName(input.stepName);
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
 
-  return withLogV3Lock(logPath, ({ log, write }) => {
-    const record = resolveFileBackedProcessV3(log, input.selector);
-    const step = record.steps[stepName];
-    if (step.state !== "pending") {
-      throw new ProcessLogLifecycleError(
-        "invalid_step_transition",
-        `begin-step requires ${stepName} to be pending, found ${step.state}`,
+  return withLogV3Lock(
+    logPath,
+    ({ log, write }) => {
+      const record = resolveFileBackedProcessV3(log, input.selector);
+      const step = record.steps[stepName];
+      if (step.state !== "pending") {
+        throw new ProcessLogLifecycleError(
+          "invalid_step_transition",
+          `begin-step requires ${stepName} to be pending, found ${step.state}`,
+        );
+      }
+      const preflight = preflightFileBackedStepRecord(record, stepName, environment);
+      const startedAt = recordMutationTimestamp(clock, log, record);
+      const attemptId = allocateUniqueId(
+        activeAttemptIds(log),
+        attemptIdFactory,
+        "active_attempt_id_conflict",
+        "active attempt id",
       );
-    }
-    const preflight = preflightFileBackedStepRecord(record, stepName, environment);
-    const startedAt = recordMutationTimestamp(clock, log, record);
-    const attemptId = allocateUniqueId(
-      activeAttemptIds(log),
-      attemptIdFactory,
-      "active_attempt_id_conflict",
-      "active attempt id",
-    );
 
-    step.state = "running";
-    step.attempt += 1;
-    step.started_at = startedAt;
-    step.updated_at = startedAt;
-    step.finished_at = null;
-    step.active_attempt = {
-      id: attemptId,
-      started_at: startedAt,
-      expected_revision: step.revision,
-      expected_artifacts: structuredClone(step.artifacts),
-      input_snapshot: structuredClone(preflight.input_snapshot),
-    };
-    step.publication_transaction = null;
-    step.error = null;
-    step.blocker = null;
-    touchFileBackedRecord(log, record, startedAt);
-    write(log);
+      step.state = "running";
+      step.attempt += 1;
+      step.started_at = startedAt;
+      step.updated_at = startedAt;
+      step.finished_at = null;
+      step.active_attempt = {
+        id: attemptId,
+        started_at: startedAt,
+        expected_revision: step.revision,
+        expected_artifacts: structuredClone(step.artifacts),
+        input_snapshot: structuredClone(preflight.input_snapshot),
+      };
+      step.publication_transaction = null;
+      step.error = null;
+      step.blocker = null;
+      touchFileBackedRecord(log, record, startedAt);
+      write(log);
 
-    return {
-      attempt_id: attemptId,
-      input_snapshot: structuredClone(step.active_attempt.input_snapshot),
-      process: record,
-      status: "started",
-      step_name: stepName,
-    };
-  }, lockOptions);
+      return {
+        attempt_id: attemptId,
+        input_snapshot: structuredClone(step.active_attempt.input_snapshot),
+        process: record,
+        status: "started",
+        step_name: stepName,
+      };
+    },
+    lockOptions,
+  );
 }
 
 function requireMatchingActiveAttempt(step, stepName, attemptId, operation) {
   if (
-    step.state !== "running"
-    || step.active_attempt === null
-    || step.active_attempt.id !== attemptId
+    step.state !== "running" ||
+    step.active_attempt === null ||
+    step.active_attempt.id !== attemptId
   ) {
     throw new ProcessLogLifecycleError(
       "stale_attempt",
@@ -1466,13 +1404,7 @@ function requireMatchingActiveAttempt(step, stepName, attemptId, operation) {
   return step.active_attempt;
 }
 
-function closeRunningStepAsFailed({
-  diagnostic,
-  log,
-  record,
-  stepName,
-  timestamp,
-}) {
+function closeRunningStepAsFailed({ diagnostic, log, record, stepName, timestamp }) {
   const step = record.steps[stepName];
   const activeAttempt = step.active_attempt;
   const revising = activeAttempt.operation === "revise";
@@ -1533,10 +1465,7 @@ function verifyCommittedArtifactBaseline(
     // everywhere else divergence stays corruption (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b), open point 5).
     const adopted = adoptedEntryByKind(adoptionBase, artifact.kind);
     const expected = adopted ?? artifact;
-    if (
-      bytes.byteLength !== expected.bytes
-      || sha256Hex(bytes) !== expected.sha256
-    ) {
+    if (bytes.byteLength !== expected.bytes || sha256Hex(bytes) !== expected.sha256) {
       throw new ProcessLogLifecycleError(
         "artifact_corrupt",
         `${artifact.path} does not match its committed digest and size`,
@@ -1548,10 +1477,7 @@ function verifyCommittedArtifactBaseline(
 export function failFileBackedStepV3(
   logPath,
   input,
-  {
-    clock = () => new Date().toISOString(),
-    lockOptions,
-  } = {},
+  { clock = () => new Date().toISOString(), lockOptions } = {},
 ) {
   assertExactKeys(
     input,
@@ -1560,36 +1486,36 @@ export function failFileBackedStepV3(
     "fail-step input",
   );
   const stepName = requireStepName(input.stepName);
-  const attemptId = requireNonEmptyString(
-    input.attemptId,
-    "attemptId",
-    "invalid_fail_step_input",
-  );
+  const attemptId = requireNonEmptyString(input.attemptId, "attemptId", "invalid_fail_step_input");
   const diagnostic = normalizeFailureDiagnosticInput(input.error);
 
-  return withLogV3Lock(logPath, ({ log, write }) => {
-    const record = resolveFileBackedProcessV3(log, input.selector);
-    const step = record.steps[stepName];
-    requireMatchingActiveAttempt(step, stepName, attemptId, "fail-step");
-    const revising = step.active_attempt.operation === "revise";
-    const failedAt = recordMutationTimestamp(clock, log, record);
-    closeRunningStepAsFailed({
-      diagnostic,
-      log,
-      record,
-      stepName,
-      timestamp: failedAt,
-    });
-    write(log);
-    return {
-      attempt: step.attempt,
-      error: structuredClone(step.error),
-      process: record,
-      status: revising ? "reverted" : "failed",
-      ...(revising ? { state: step.state } : {}),
-      step_name: stepName,
-    };
-  }, lockOptions);
+  return withLogV3Lock(
+    logPath,
+    ({ log, write }) => {
+      const record = resolveFileBackedProcessV3(log, input.selector);
+      const step = record.steps[stepName];
+      requireMatchingActiveAttempt(step, stepName, attemptId, "fail-step");
+      const revising = step.active_attempt.operation === "revise";
+      const failedAt = recordMutationTimestamp(clock, log, record);
+      closeRunningStepAsFailed({
+        diagnostic,
+        log,
+        record,
+        stepName,
+        timestamp: failedAt,
+      });
+      write(log);
+      return {
+        attempt: step.attempt,
+        error: structuredClone(step.error),
+        process: record,
+        status: revising ? "reverted" : "failed",
+        ...(revising ? { state: step.state } : {}),
+        step_name: stepName,
+      };
+    },
+    lockOptions,
+  );
 }
 
 export function retryFileBackedStepV3(
@@ -1604,98 +1530,97 @@ export function retryFileBackedStepV3(
     workspaceRoot,
   } = {},
 ) {
-  assertExactKeys(
-    input,
-    ["selector", "stepName"],
-    "invalid_retry_step_input",
-    "retry-step input",
-  );
+  assertExactKeys(input, ["selector", "stepName"], "invalid_retry_step_input", "retry-step input");
   const stepName = requireStepName(input.stepName);
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
 
-  return withLogV3Lock(logPath, ({ log, write }) => {
-    const record = resolveFileBackedProcessV3(log, input.selector);
-    const step = record.steps[stepName];
-    if (!["blocked", "failed"].includes(step.state)) {
-      throw new ProcessLogLifecycleError(
-        "invalid_step_transition",
-        `retry-step requires ${stepName} to be blocked or failed, found ${step.state}`,
-      );
-    }
-    const diagnostic = step.state === "blocked" ? step.blocker : step.error;
-    if (diagnostic?.retryable !== true) {
-      throw new ProcessLogLifecycleError(
-        "step_not_retryable",
-        `${stepName} diagnostic does not authorize a retry`,
-      );
-    }
-
-    const preflight = preflightFileBackedStepRecord(record, stepName, environment);
-    const startedAt = recordMutationTimestamp(clock, log, record);
-    const attemptId = allocateUniqueId(
-      activeAttemptIds(log),
-      attemptIdFactory,
-      "active_attempt_id_conflict",
-      "active attempt id",
-    );
-    // A failed adopted re-authoring must keep a lifecycle exit: retry re-enters the journaled
-    // adoption base (re-journaling freshly re-diverged bytes, archiving them, and rebinding the
-    // base to the new attempt) so the canonical slot's legitimate divergence is not corruption.
-    let adoption = null;
-    if (isMaterialStep(stepName)) {
-      const outputDirectory = selectedOutputDirectory(environment, record);
-      if (step.revision > 0) {
-        completeCommittedRevisionArchive(step, outputDirectory);
+  return withLogV3Lock(
+    logPath,
+    ({ log, write }) => {
+      const record = resolveFileBackedProcessV3(log, input.selector);
+      const step = record.steps[stepName];
+      if (!["blocked", "failed"].includes(step.state)) {
+        throw new ProcessLogLifecycleError(
+          "invalid_step_transition",
+          `retry-step requires ${stepName} to be blocked or failed, found ${step.state}`,
+        );
       }
-      if (step.adoption_base) {
-        const established = establishAdoptionBase({
-          adoptionIdFactory,
-          attemptId,
-          outputDirectory,
-          step,
-          timestamp: startedAt,
-        });
-        adoption = established.adoption;
-        if (adoption !== null) {
-          // Journal-first, like revise and reopen: the (possibly re-journaled) base lands in
-          // the ledger before any archive file is written (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
-          touchFileBackedRecord(log, record, startedAt);
-          write(log);
-          archiveAdoptedDivergence(step, outputDirectory, adoption, established.canonicalBytes);
-          adoption.phase = "archived";
+      const diagnostic = step.state === "blocked" ? step.blocker : step.error;
+      if (diagnostic?.retryable !== true) {
+        throw new ProcessLogLifecycleError(
+          "step_not_retryable",
+          `${stepName} diagnostic does not authorize a retry`,
+        );
+      }
+
+      const preflight = preflightFileBackedStepRecord(record, stepName, environment);
+      const startedAt = recordMutationTimestamp(clock, log, record);
+      const attemptId = allocateUniqueId(
+        activeAttemptIds(log),
+        attemptIdFactory,
+        "active_attempt_id_conflict",
+        "active attempt id",
+      );
+      // A failed adopted re-authoring must keep a lifecycle exit: retry re-enters the journaled
+      // adoption base (re-journaling freshly re-diverged bytes, archiving them, and rebinding the
+      // base to the new attempt) so the canonical slot's legitimate divergence is not corruption.
+      let adoption = null;
+      if (isMaterialStep(stepName)) {
+        const outputDirectory = selectedOutputDirectory(environment, record);
+        if (step.revision > 0) {
+          completeCommittedRevisionArchive(step, outputDirectory);
+        }
+        if (step.adoption_base) {
+          const established = establishAdoptionBase({
+            adoptionIdFactory,
+            attemptId,
+            outputDirectory,
+            step,
+            timestamp: startedAt,
+          });
+          adoption = established.adoption;
+          if (adoption !== null) {
+            // Journal-first, like revise and reopen: the (possibly re-journaled) base lands in
+            // the ledger before any archive file is written (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
+            touchFileBackedRecord(log, record, startedAt);
+            write(log);
+            archiveAdoptedDivergence(step, outputDirectory, adoption, established.canonicalBytes);
+            adoption.phase = "archived";
+          }
         }
       }
-    }
-    verifyCommittedArtifactBaseline(record, stepName, environment, {
-      adoptionBase: adoption,
-    });
+      verifyCommittedArtifactBaseline(record, stepName, environment, {
+        adoptionBase: adoption,
+      });
 
-    step.state = "running";
-    step.attempt += 1;
-    step.started_at = startedAt;
-    step.updated_at = startedAt;
-    step.finished_at = null;
-    step.active_attempt = {
-      id: attemptId,
-      started_at: startedAt,
-      expected_revision: step.revision,
-      expected_artifacts: structuredClone(step.artifacts),
-      input_snapshot: structuredClone(preflight.input_snapshot),
-    };
-    step.publication_transaction = null;
-    step.error = null;
-    step.blocker = null;
-    touchFileBackedRecord(log, record, startedAt);
-    write(log);
+      step.state = "running";
+      step.attempt += 1;
+      step.started_at = startedAt;
+      step.updated_at = startedAt;
+      step.finished_at = null;
+      step.active_attempt = {
+        id: attemptId,
+        started_at: startedAt,
+        expected_revision: step.revision,
+        expected_artifacts: structuredClone(step.artifacts),
+        input_snapshot: structuredClone(preflight.input_snapshot),
+      };
+      step.publication_transaction = null;
+      step.error = null;
+      step.blocker = null;
+      touchFileBackedRecord(log, record, startedAt);
+      write(log);
 
-    return {
-      attempt_id: attemptId,
-      input_snapshot: structuredClone(step.active_attempt.input_snapshot),
-      process: record,
-      status: "retried",
-      step_name: stepName,
-    };
-  }, lockOptions);
+      return {
+        attempt_id: attemptId,
+        input_snapshot: structuredClone(step.active_attempt.input_snapshot),
+        process: record,
+        status: "retried",
+        step_name: stepName,
+      };
+    },
+    lockOptions,
+  );
 }
 
 /*
@@ -1704,13 +1629,7 @@ export function retryFileBackedStepV3(
  * re-enters the same base idempotently; freshly re-diverged bytes replace it with a new base —
  * adoption is time-agnostic and journals whatever divergence it observes (docs/adr/0015-lightweight-post-review-revision.md#10-rollout-over-pre-existing-states).
  */
-function establishAdoptionBase({
-  adoptionIdFactory,
-  attemptId,
-  outputDirectory,
-  step,
-  timestamp,
-}) {
+function establishAdoptionBase({ adoptionIdFactory, attemptId, outputDirectory, step, timestamp }) {
   const { canonicalBytes, divergent } = observedAdoptionDivergence(step, outputDirectory);
   const existing = step.adoption_base ?? null;
   if (divergent.length === 0) {
@@ -1724,8 +1643,8 @@ function establishAdoptionBase({
     );
   }
   if (
-    existing
-    && adoptionEntriesIdentity(existing.entries) === adoptionEntriesIdentity(divergent)
+    existing &&
+    adoptionEntriesIdentity(existing.entries) === adoptionEntriesIdentity(divergent)
   ) {
     existing.attempt_id = attemptId;
     return { adoption: existing, canonicalBytes };
@@ -1770,110 +1689,113 @@ export function reopenFileBackedStepV3(
   }
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
 
-  return withLogV3Lock(logPath, ({ log, write }) => {
-    const record = resolveFileBackedProcessV3(log, input.selector);
-    const step = record.steps[stepName];
-    if (!["completed", "stale"].includes(step.state)) {
-      throw new ProcessLogLifecycleError(
-        "invalid_step_transition",
-        `reopen-step requires ${stepName} to be completed or stale, found ${step.state}`,
-      );
-    }
-
-    const descendantStepNames = transitiveDescendantStepNames(stepName);
-    const runningDescendants = descendantStepNames.filter(
-      (descendantStepName) =>
-        record.steps[descendantStepName].state === "running",
-    );
-    if (runningDescendants.length > 0) {
-      throw new ProcessLogLifecycleError(
-        "dependent_step_running",
-        `reopen-step cannot revise ${stepName} while descendant step(s) are running: ${runningDescendants.join(", ")}`,
-      );
-    }
-
-    const preflight = preflightFileBackedStepRecord(record, stepName, environment);
-    const startedAt = recordMutationTimestamp(clock, log, record);
-    const attemptId = allocateUniqueId(
-      activeAttemptIds(log),
-      attemptIdFactory,
-      "active_attempt_id_conflict",
-      "active attempt id",
-    );
-    let adoption = null;
-    if (isMaterialStep(stepName) && step.revision > 0) {
-      completeCommittedRevisionArchive(step, selectedOutputDirectory(environment, record));
-    }
-    if (adopt) {
-      const outputDirectory = selectedOutputDirectory(environment, record);
-      const established = establishAdoptionBase({
-        adoptionIdFactory,
-        attemptId,
-        outputDirectory,
-        step,
-        timestamp: startedAt,
-      });
-      adoption = established.adoption;
-      if (adoption !== null) {
-        // Journal first, then preserve the user's bytes: the explicit re-authoring will
-        // overwrite the canonical slot, so the divergent bytes are archived as an adopted
-        // base before the reopen proceeds (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
-        touchFileBackedRecord(log, record, startedAt);
-        write(log);
-        archiveAdoptedDivergence(step, outputDirectory, adoption, established.canonicalBytes);
-        adoption.phase = "archived";
+  return withLogV3Lock(
+    logPath,
+    ({ log, write }) => {
+      const record = resolveFileBackedProcessV3(log, input.selector);
+      const step = record.steps[stepName];
+      if (!["completed", "stale"].includes(step.state)) {
+        throw new ProcessLogLifecycleError(
+          "invalid_step_transition",
+          `reopen-step requires ${stepName} to be completed or stale, found ${step.state}`,
+        );
       }
-    }
-    verifyCommittedArtifactBaseline(record, stepName, environment, {
-      adoptionBase: adoption,
-    });
-    const invalidatedSteps = [];
 
-    for (const descendantStepName of descendantStepNames) {
-      const descendantStep = record.steps[descendantStepName];
-      if (descendantStep.state !== "completed") continue;
-      descendantStep.state = "stale";
-      descendantStep.updated_at = startedAt;
-      invalidatedSteps.push(descendantStepName);
-    }
+      const descendantStepNames = transitiveDescendantStepNames(stepName);
+      const runningDescendants = descendantStepNames.filter(
+        (descendantStepName) => record.steps[descendantStepName].state === "running",
+      );
+      if (runningDescendants.length > 0) {
+        throw new ProcessLogLifecycleError(
+          "dependent_step_running",
+          `reopen-step cannot revise ${stepName} while descendant step(s) are running: ${runningDescendants.join(", ")}`,
+        );
+      }
 
-    step.state = "running";
-    step.attempt += 1;
-    step.started_at = startedAt;
-    step.updated_at = startedAt;
-    step.finished_at = null;
-    step.active_attempt = {
-      id: attemptId,
-      started_at: startedAt,
-      expected_revision: step.revision,
-      expected_artifacts: structuredClone(step.artifacts),
-      input_snapshot: structuredClone(preflight.input_snapshot),
-    };
-    step.publication_transaction = null;
-    step.error = null;
-    step.blocker = null;
-    touchFileBackedRecord(log, record, startedAt);
-    write(log);
+      const preflight = preflightFileBackedStepRecord(record, stepName, environment);
+      const startedAt = recordMutationTimestamp(clock, log, record);
+      const attemptId = allocateUniqueId(
+        activeAttemptIds(log),
+        attemptIdFactory,
+        "active_attempt_id_conflict",
+        "active attempt id",
+      );
+      let adoption = null;
+      if (isMaterialStep(stepName) && step.revision > 0) {
+        completeCommittedRevisionArchive(step, selectedOutputDirectory(environment, record));
+      }
+      if (adopt) {
+        const outputDirectory = selectedOutputDirectory(environment, record);
+        const established = establishAdoptionBase({
+          adoptionIdFactory,
+          attemptId,
+          outputDirectory,
+          step,
+          timestamp: startedAt,
+        });
+        adoption = established.adoption;
+        if (adoption !== null) {
+          // Journal first, then preserve the user's bytes: the explicit re-authoring will
+          // overwrite the canonical slot, so the divergent bytes are archived as an adopted
+          // base before the reopen proceeds (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
+          touchFileBackedRecord(log, record, startedAt);
+          write(log);
+          archiveAdoptedDivergence(step, outputDirectory, adoption, established.canonicalBytes);
+          adoption.phase = "archived";
+        }
+      }
+      verifyCommittedArtifactBaseline(record, stepName, environment, {
+        adoptionBase: adoption,
+      });
+      const invalidatedSteps = [];
 
-    return {
-      attempt_id: attemptId,
-      ...(adoption
-        ? {
-            adoption: {
-              id: adoption.id,
-              entries: structuredClone(adoption.entries),
-              phase: adoption.phase,
-              publication_id: adoption.publication_id,
-            },
-          }
-        : {}),
-      input_snapshot: structuredClone(step.active_attempt.input_snapshot),
-      invalidated_steps: invalidatedSteps,
-      process: record,
-      status: "reopened",
-      step_name: stepName,
-    };
-  }, lockOptions);
+      for (const descendantStepName of descendantStepNames) {
+        const descendantStep = record.steps[descendantStepName];
+        if (descendantStep.state !== "completed") continue;
+        descendantStep.state = "stale";
+        descendantStep.updated_at = startedAt;
+        invalidatedSteps.push(descendantStepName);
+      }
+
+      step.state = "running";
+      step.attempt += 1;
+      step.started_at = startedAt;
+      step.updated_at = startedAt;
+      step.finished_at = null;
+      step.active_attempt = {
+        id: attemptId,
+        started_at: startedAt,
+        expected_revision: step.revision,
+        expected_artifacts: structuredClone(step.artifacts),
+        input_snapshot: structuredClone(preflight.input_snapshot),
+      };
+      step.publication_transaction = null;
+      step.error = null;
+      step.blocker = null;
+      touchFileBackedRecord(log, record, startedAt);
+      write(log);
+
+      return {
+        attempt_id: attemptId,
+        ...(adoption
+          ? {
+              adoption: {
+                id: adoption.id,
+                entries: structuredClone(adoption.entries),
+                phase: adoption.phase,
+                publication_id: adoption.publication_id,
+              },
+            }
+          : {}),
+        input_snapshot: structuredClone(step.active_attempt.input_snapshot),
+        invalidated_steps: invalidatedSteps,
+        process: record,
+        status: "reopened",
+        step_name: stepName,
+      };
+    },
+    lockOptions,
+  );
 }
 
 /*
@@ -1921,12 +1843,7 @@ function normalizeWaiverInputs(value, readLetterLimits) {
   return value.map((candidate, index) => {
     const label = `waivers[${index}]`;
     assertExactKeys(candidate, ["subject", "note"], "invalid_waiver_input", label);
-    assertExactKeys(
-      candidate.subject,
-      ["kind", "key"],
-      "invalid_waiver_input",
-      `${label}.subject`,
-    );
+    assertExactKeys(candidate.subject, ["kind", "key"], "invalid_waiver_input", `${label}.subject`);
     const kind = requireNonEmptyString(
       candidate.subject.kind,
       `${label}.subject.kind`,
@@ -1949,9 +1866,8 @@ function normalizeWaiverInputs(value, readLetterLimits) {
         `${label}.subject.key must be bounded one-line text without forbidden shapes`,
       );
     }
-    const limits = kind === "check" && key.startsWith(BODY_WORD_APPROVAL_KEY_PREFIX)
-      ? readLetterLimits()
-      : null;
+    const limits =
+      kind === "check" && key.startsWith(BODY_WORD_APPROVAL_KEY_PREFIX) ? readLetterLimits() : null;
     if (limits !== null && parseBodyWordApproval(key, limits) === null) {
       const { maximum, approvedMaximum } = limits.bodyWords;
       throw new ProcessLogLifecycleError(
@@ -1961,11 +1877,7 @@ function normalizeWaiverInputs(value, readLetterLimits) {
     }
     const normalized = { subject: { kind, key } };
     if (candidate.note !== undefined && candidate.note !== null) {
-      const note = requireNonEmptyString(
-        candidate.note,
-        `${label}.note`,
-        "invalid_waiver_input",
-      );
+      const note = requireNonEmptyString(candidate.note, `${label}.note`, "invalid_waiver_input");
       if (processLogDiagnosticProblems({ code: "waiver", message: note }, label).length > 0) {
         throw new ProcessLogLifecycleError(
           "invalid_waiver_input",
@@ -2030,9 +1942,9 @@ function assertPublishStepWaiverScope(waiverInputs, stepName, operation, readLet
   }
   const [waiver] = waiverInputs;
   if (
-    waiver.subject.kind !== "check"
-    || !waiver.subject.key.startsWith(BODY_WORD_APPROVAL_KEY_PREFIX)
-    || parseBodyWordApproval(waiver.subject.key, readLetterLimits()) === null
+    waiver.subject.kind !== "check" ||
+    !waiver.subject.key.startsWith(BODY_WORD_APPROVAL_KEY_PREFIX) ||
+    parseBodyWordApproval(waiver.subject.key, readLetterLimits()) === null
   ) {
     throw new ProcessLogLifecycleError(
       "invalid_publish_step_input",
@@ -2074,11 +1986,7 @@ export function reviseFileBackedStepV3(
       `revise-step is defined only for: ${fileBackedMaterialStepNames.join(", ")}`,
     );
   }
-  const channel = requireNonEmptyString(
-    input.channel,
-    "channel",
-    "invalid_revise_step_input",
-  );
+  const channel = requireNonEmptyString(input.channel, "channel", "invalid_revise_step_input");
   if (!fileBackedRevisionChannels.includes(channel)) {
     throw new ProcessLogLifecycleError(
       "invalid_revise_step_input",
@@ -2112,144 +2020,150 @@ export function reviseFileBackedStepV3(
     );
   }
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
-  const waiverInputs = normalizeWaiverInputs(input.waivers, () => candidateLetterLimits(environment));
+  const waiverInputs = normalizeWaiverInputs(input.waivers, () =>
+    candidateLetterLimits(environment),
+  );
 
-  return withLogV3Lock(logPath, ({ log, write }) => {
-    const record = resolveFileBackedProcessV3(log, input.selector);
-    const step = record.steps[stepName];
-    if (!["completed", "stale"].includes(step.state)) {
-      throw new ProcessLogLifecycleError(
-        "invalid_step_transition",
-        `revise-step requires ${stepName} to be completed or stale, found ${step.state}`,
-      );
-    }
-    const outputDirectory = selectedOutputDirectory(environment, record);
-    assertRevisionBriefCoherent(record, stepName, outputDirectory, step.published_inputs);
-    const briefDigest = pinnedBriefEntry(step.published_inputs).sha256;
-    completeCommittedRevisionArchive(step, outputDirectory);
-
-    const startedAt = recordMutationTimestamp(clock, log, record);
-    const attemptId = allocateUniqueId(
-      activeAttemptIds(log),
-      attemptIdFactory,
-      "active_attempt_id_conflict",
-      "active attempt id",
-    );
-
-    let adoption = null;
-    let adoptionCanonicalBytes = null;
-    if (adopt) {
-      const established = establishAdoptionBase({
-        adoptionIdFactory,
-        attemptId,
-        outputDirectory,
-        step,
-        timestamp: startedAt,
-      });
-      adoption = established.adoption;
-      adoptionCanonicalBytes = established.canonicalBytes;
-      // Before any file is touched and before the journal write: a refused scope leaves the ledger
-      // and the canonical slot exactly as they were.
-      if (channel === "docx_sync") assertDocxSyncAdoptionScope(adoption);
-      if (adoption !== null && adoption.publication_id === null) {
-        const publicationId = allocateUniqueId(
-          committedAndPreparedPublicationIds(log),
-          publicationIdFactory,
-          "publication_id_conflict",
-          "publication id",
+  return withLogV3Lock(
+    logPath,
+    ({ log, write }) => {
+      const record = resolveFileBackedProcessV3(log, input.selector);
+      const step = record.steps[stepName];
+      if (!["completed", "stale"].includes(step.state)) {
+        throw new ProcessLogLifecycleError(
+          "invalid_step_transition",
+          `revise-step requires ${stepName} to be completed or stale, found ${step.state}`,
         );
-        assertPathAbsent(
-          outputDirectory,
-          `.pipeline-tmp/${publicationId}`,
-          "publication_staging_conflict",
-        );
-        adoption.publication_id = publicationId;
       }
-    }
-    if (adoption === null) {
-      verifyCommittedArtifactBaseline(record, stepName, environment);
-    }
+      const outputDirectory = selectedOutputDirectory(environment, record);
+      assertRevisionBriefCoherent(record, stepName, outputDirectory, step.published_inputs);
+      const briefDigest = pinnedBriefEntry(step.published_inputs).sha256;
+      completeCommittedRevisionArchive(step, outputDirectory);
 
-    const pendingWaivers = attemptPendingWaivers(
-      step,
-      waiverInputs,
-      briefDigest,
-      waiverIdFactory,
-    );
-
-    const preAttemptState = step.state;
-    step.state = "running";
-    step.attempt += 1;
-    step.started_at = startedAt;
-    step.updated_at = startedAt;
-    step.finished_at = null;
-    step.active_attempt = {
-      id: attemptId,
-      started_at: startedAt,
-      expected_revision: step.revision,
-      expected_artifacts: structuredClone(step.artifacts),
-      input_snapshot: structuredClone(step.published_inputs),
-      operation: "revise",
-      channel,
-      pre_attempt_state: preAttemptState,
-      pending_waivers: pendingWaivers,
-    };
-    step.publication_transaction = null;
-    step.error = null;
-    step.blocker = null;
-    touchFileBackedRecord(log, record, startedAt);
-    // The journal write lands before any file copy, so an interrupted adoption has a defined
-    // resting state and a retry re-enters idempotently by digest match (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
-    write(log);
-
-    let stagedPaths = null;
-    if (adoption !== null) {
-      // Preserve the user's divergent bytes — every divergent kind, the never-staged cv_docx
-      // included — before any publication can overwrite them (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
-      archiveAdoptedDivergence(step, outputDirectory, adoption, adoptionCanonicalBytes);
-      stagedPaths = writeAdoptionStagingCopy(
-        step,
-        outputDirectory,
-        adoption.publication_id,
-        adoptionCanonicalBytes,
+      const startedAt = recordMutationTimestamp(clock, log, record);
+      const attemptId = allocateUniqueId(
+        activeAttemptIds(log),
+        attemptIdFactory,
+        "active_attempt_id_conflict",
+        "active attempt id",
       );
-      adoption.phase = "staged";
-      touchFileBackedRecord(log, record, startedAt);
-      write(log);
-    }
 
-    return {
-      attempt_id: attemptId,
-      ...(adoption
-        ? {
-            adoption: {
-              id: adoption.id,
-              entries: structuredClone(adoption.entries),
-              phase: adoption.phase,
-              publication_id: adoption.publication_id,
-              staged_paths: stagedPaths,
-            },
-          }
-        : {}),
-      // The exact waiver set this revision's publication will honor: journaled active waivers
-      // plus this attempt's pending ones — hand this to the builder's --revision-waivers.
-      active_waivers: effectiveRevisionWaivers(step),
-      channel,
-      input_snapshot: structuredClone(step.active_attempt.input_snapshot),
-      open_conflicts: latestCommittedOpenConflicts(step),
-      operation: "revise",
-      pending_waivers: structuredClone(pendingWaivers),
-      pre_attempt_state: preAttemptState,
-      process: record,
-      sibling_decision_waivers: siblingDecisionWaivers(
-        record,
-        stepName,
-        pinnedBriefEntry(step.published_inputs)?.sha256 ?? null,
-      ),
-      status: "revision_opened",
-      step_name: stepName,
-    };
-  }, lockOptions);
+      let adoption = null;
+      let adoptionCanonicalBytes = null;
+      if (adopt) {
+        const established = establishAdoptionBase({
+          adoptionIdFactory,
+          attemptId,
+          outputDirectory,
+          step,
+          timestamp: startedAt,
+        });
+        adoption = established.adoption;
+        adoptionCanonicalBytes = established.canonicalBytes;
+        // Before any file is touched and before the journal write: a refused scope leaves the ledger
+        // and the canonical slot exactly as they were.
+        if (channel === "docx_sync") assertDocxSyncAdoptionScope(adoption);
+        if (adoption !== null && adoption.publication_id === null) {
+          const publicationId = allocateUniqueId(
+            committedAndPreparedPublicationIds(log),
+            publicationIdFactory,
+            "publication_id_conflict",
+            "publication id",
+          );
+          assertPathAbsent(
+            outputDirectory,
+            `.pipeline-tmp/${publicationId}`,
+            "publication_staging_conflict",
+          );
+          adoption.publication_id = publicationId;
+        }
+      }
+      if (adoption === null) {
+        verifyCommittedArtifactBaseline(record, stepName, environment);
+      }
+
+      const pendingWaivers = attemptPendingWaivers(
+        step,
+        waiverInputs,
+        briefDigest,
+        waiverIdFactory,
+      );
+
+      const preAttemptState = step.state;
+      step.state = "running";
+      step.attempt += 1;
+      step.started_at = startedAt;
+      step.updated_at = startedAt;
+      step.finished_at = null;
+      step.active_attempt = {
+        id: attemptId,
+        started_at: startedAt,
+        expected_revision: step.revision,
+        expected_artifacts: structuredClone(step.artifacts),
+        input_snapshot: structuredClone(step.published_inputs),
+        operation: "revise",
+        channel,
+        pre_attempt_state: preAttemptState,
+        pending_waivers: pendingWaivers,
+      };
+      step.publication_transaction = null;
+      step.error = null;
+      step.blocker = null;
+      touchFileBackedRecord(log, record, startedAt);
+      // The journal write lands before any file copy, so an interrupted adoption has a defined
+      // resting state and a retry re-enters idempotently by digest match (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
+      write(log);
+
+      let stagedPaths = null;
+      if (adoption !== null) {
+        // Preserve the user's divergent bytes — every divergent kind, the never-staged cv_docx
+        // included — before any publication can overwrite them (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
+        archiveAdoptedDivergence(step, outputDirectory, adoption, adoptionCanonicalBytes);
+        stagedPaths = writeAdoptionStagingCopy(
+          step,
+          outputDirectory,
+          adoption.publication_id,
+          adoptionCanonicalBytes,
+        );
+        adoption.phase = "staged";
+        touchFileBackedRecord(log, record, startedAt);
+        write(log);
+      }
+
+      return {
+        attempt_id: attemptId,
+        ...(adoption
+          ? {
+              adoption: {
+                id: adoption.id,
+                entries: structuredClone(adoption.entries),
+                phase: adoption.phase,
+                publication_id: adoption.publication_id,
+                staged_paths: stagedPaths,
+              },
+            }
+          : {}),
+        // The exact waiver set this revision's publication will honor: journaled active waivers
+        // plus this attempt's pending ones — hand this to the builder's --revision-waivers.
+        active_waivers: effectiveRevisionWaivers(step),
+        channel,
+        input_snapshot: structuredClone(step.active_attempt.input_snapshot),
+        open_conflicts: latestCommittedOpenConflicts(step),
+        operation: "revise",
+        pending_waivers: structuredClone(pendingWaivers),
+        pre_attempt_state: preAttemptState,
+        process: record,
+        sibling_decision_waivers: siblingDecisionWaivers(
+          record,
+          stepName,
+          pinnedBriefEntry(step.published_inputs)?.sha256 ?? null,
+        ),
+        status: "revision_opened",
+        step_name: stepName,
+      };
+    },
+    lockOptions,
+  );
 }
 
 const FILE_BACKED_PUBLICATION_OUTCOMES = Object.freeze(["completed", "blocked"]);
@@ -2259,11 +2173,7 @@ function requirePublicationId(
   field = "publicationId",
   inputCode = "invalid_publish_step_input",
 ) {
-  const publicationId = requireNonEmptyString(
-    value,
-    field,
-    inputCode,
-  );
+  const publicationId = requireNonEmptyString(value, field, inputCode);
   if (!isValidProcessLogV3TransactionId(publicationId)) {
     throw new ProcessLogLifecycleError(
       inputCode,
@@ -2354,10 +2264,7 @@ function writeAdoptionStagingCopy(step, outputDirectory, publicationId, canonica
   for (const artifact of step.artifacts) {
     if (!adoptableTextKinds.has(artifact.kind)) continue;
     const relativePath = `${directoryRelativePath}/${artifact.path}`;
-    const { absolutePath: filePath } = outputRelativeAbsolutePath(
-      outputDirectory,
-      relativePath,
-    );
+    const { absolutePath: filePath } = outputRelativeAbsolutePath(outputDirectory, relativePath);
     try {
       writeFileSync(filePath, canonicalBytes.get(artifact.kind));
     } catch (error) {
@@ -2393,10 +2300,7 @@ function writeRevisionArchiveFiles(
   }
   for (const artifact of artifacts) {
     const relativePath = `${directoryRelativePath}/${artifact.path}`;
-    const { absolutePath: filePath } = outputRelativeAbsolutePath(
-      outputDirectory,
-      relativePath,
-    );
+    const { absolutePath: filePath } = outputRelativeAbsolutePath(outputDirectory, relativePath);
     let existing = null;
     try {
       existing = readFileSync(filePath);
@@ -2409,10 +2313,7 @@ function writeRevisionArchiveFiles(
       }
     }
     if (existing !== null) {
-      if (
-        existing.byteLength === artifact.bytes
-        && sha256Hex(existing) === artifact.sha256
-      ) {
+      if (existing.byteLength === artifact.bytes && sha256Hex(existing) === artifact.sha256) {
         continue;
       }
       // A best-effort completion pass must not wedge attempt opens on a tampered archive copy:
@@ -2429,11 +2330,7 @@ function writeRevisionArchiveFiles(
       }
     }
     const bytes = bytesByKind.get(artifact.kind);
-    if (
-      !bytes
-      || bytes.byteLength !== artifact.bytes
-      || sha256Hex(bytes) !== artifact.sha256
-    ) {
+    if (!bytes || bytes.byteLength !== artifact.bytes || sha256Hex(bytes) !== artifact.sha256) {
       throw new ProcessLogLifecycleError(
         "revision_archive_conflict",
         `${relativePath} source bytes do not match the committed digest`,
@@ -2482,22 +2379,15 @@ function completeCommittedRevisionArchive(step, outputDirectory) {
     } catch {
       continue;
     }
-    if (
-      bytes.byteLength === archived.bytes
-      && sha256Hex(bytes) === archived.sha256
-    ) {
+    if (bytes.byteLength === archived.bytes && sha256Hex(bytes) === archived.sha256) {
       bytesByKind.set(archived.kind, bytes);
       completable.push(archived);
     }
   }
   if (completable.length > 0) {
-    writeRevisionArchiveFiles(
-      outputDirectory,
-      committed.publication_id,
-      completable,
-      bytesByKind,
-      { onExistingMismatch: "skip" },
-    );
+    writeRevisionArchiveFiles(outputDirectory, committed.publication_id, completable, bytesByKind, {
+      onExistingMismatch: "skip",
+    });
   }
 }
 
@@ -2506,12 +2396,9 @@ function archiveAdoptedDivergence(step, outputDirectory, adoption, canonicalByte
     outputDirectory,
     adoption.id,
     step.artifacts
-      .filter((artifact) =>
-        adoption.entries.some((entry) => entry.kind === artifact.kind))
+      .filter((artifact) => adoption.entries.some((entry) => entry.kind === artifact.kind))
       .map((artifact) => {
-        const entry = adoption.entries.find(
-          (candidate) => candidate.kind === artifact.kind,
-        );
+        const entry = adoption.entries.find((candidate) => candidate.kind === artifact.kind);
         return { ...artifact, sha256: entry.sha256, bytes: entry.bytes };
       }),
     canonicalBytes,
@@ -2531,10 +2418,10 @@ function archiveAdoptedDivergence(step, outputDirectory, adoption, canonicalByte
 function boundedJournaledSubjectKey(key) {
   const text = String(key);
   if (
-    text.length > 0
-    && text === text.trim()
-    && Buffer.byteLength(text, "utf8") <= 256
-    && processLogDiagnosticProblems({ code: "waiver", details: [text] }, "conflict").length === 0
+    text.length > 0 &&
+    text === text.trim() &&
+    Buffer.byteLength(text, "utf8") <= 256 &&
+    processLogDiagnosticProblems({ code: "waiver", details: [text] }, "conflict").length === 0
   ) {
     return text;
   }
@@ -2630,11 +2517,11 @@ function deriveRevisionFinalState(stepName, environment, outputDirectory, snapsh
 function safeCvDocxPath(cv) {
   const fileName = cv?.fileName;
   if (
-    typeof fileName !== "string"
-    || !fileName.endsWith(".docx")
-    || fileName.startsWith(".")
-    || fileName.includes("/")
-    || fileName.includes("\\")
+    typeof fileName !== "string" ||
+    !fileName.endsWith(".docx") ||
+    fileName.startsWith(".") ||
+    fileName.includes("/") ||
+    fileName.includes("\\")
   ) {
     throw new ProcessLogLifecycleError(
       "candidate_bundle_invalid",
@@ -2682,10 +2569,7 @@ function assertCandidateCvDocxPackage(files) {
 
 function metadataForBytes(kind, path, schemaVersion, bytes) {
   if (bytes.byteLength === 0) {
-    throw new ProcessLogLifecycleError(
-      "candidate_bundle_invalid",
-      `${path} must not be empty`,
-    );
+    throw new ProcessLogLifecycleError("candidate_bundle_invalid", `${path} must not be empty`);
   }
   return {
     kind,
@@ -2756,27 +2640,19 @@ function validateArtifactBundleBytes({
   if (stepName === "get_vacancy") {
     const vacancyFile = files.get("vacancy");
     const jobDescriptionFile = files.get("job_description");
-    const vacancy = parseJsonArtifact(
-      vacancyFile.bytes,
-      vacancyFile.metadata.path,
-    );
-    errors = validateVacancy(
-      vacancy,
-      {
-        expectedProcess,
-        expectedSchemaVersion: vacancyFile.metadata.schema_version,
-        languages: candidateVacancyLanguages(environment),
-        markets: candidateVacancyMarkets(environment),
-        jobDescriptionBytes: jobDescriptionFile.bytes,
-        outcome,
-      },
-    );
+    const vacancy = parseJsonArtifact(vacancyFile.bytes, vacancyFile.metadata.path);
+    errors = validateVacancy(vacancy, {
+      expectedProcess,
+      expectedSchemaVersion: vacancyFile.metadata.schema_version,
+      languages: candidateVacancyLanguages(environment),
+      markets: candidateVacancyMarkets(environment),
+      jobDescriptionBytes: jobDescriptionFile.bytes,
+      outcome,
+    });
     if (
-      outcome === "blocked"
-      && !vacancy.ambiguities?.some(
-        (ambiguity) =>
-          ambiguity?.blocking === true
-          && ambiguity?.code === blocker?.code,
+      outcome === "blocked" &&
+      !vacancy.ambiguities?.some(
+        (ambiguity) => ambiguity?.blocking === true && ambiguity?.code === blocker?.code,
       )
     ) {
       errors.push("blocker.code must resolve to a blocking vacancy ambiguity");
@@ -2791,27 +2667,19 @@ function validateArtifactBundleBytes({
       protectedInputCache,
     );
     const researchFile = files.get("company_research");
-    const research = parseJsonArtifact(
-      researchFile.bytes,
-      researchFile.metadata.path,
-    );
-    errors = validateCompanyResearch(
-      research,
-      {
-        expectedProcess,
-        languages: candidateVacancyLanguages(environment),
-        markets: candidateVacancyMarkets(environment),
-        expectedSchemaVersion: researchFile.metadata.schema_version,
-        vacancyBytes: vacancyBundle.files.get("vacancy")?.bytes,
-        jobDescriptionBytes: vacancyBundle.files.get("job_description")?.bytes,
-        outcome,
-      },
-    );
+    const research = parseJsonArtifact(researchFile.bytes, researchFile.metadata.path);
+    errors = validateCompanyResearch(research, {
+      expectedProcess,
+      languages: candidateVacancyLanguages(environment),
+      markets: candidateVacancyMarkets(environment),
+      expectedSchemaVersion: researchFile.metadata.schema_version,
+      vacancyBytes: vacancyBundle.files.get("vacancy")?.bytes,
+      jobDescriptionBytes: vacancyBundle.files.get("job_description")?.bytes,
+      outcome,
+    });
     if (
-      outcome === "blocked"
-      && !research.verifyGate?.unrecoverableGaps?.some(
-        (gap) => gap?.code === blocker?.code,
-      )
+      outcome === "blocked" &&
+      !research.verifyGate?.unrecoverableGaps?.some((gap) => gap?.code === blocker?.code)
     ) {
       errors.push("blocker.code must resolve to a Verify Gate unrecoverable gap");
     }
@@ -2840,23 +2708,18 @@ function validateArtifactBundleBytes({
     );
     currentProtectedInputs(environment, "map_experience", protectedInputCache);
     const briefFile = files.get("application_brief");
-    errors = validateApplicationBrief(
-      parseJsonArtifact(briefFile.bytes, briefFile.metadata.path),
-      {
-        expectedProcess,
-        expectedSchemaVersion: briefFile.metadata.schema_version,
-        languages: candidateVacancyLanguages(environment),
-        markets: candidateVacancyMarkets(environment),
-        vacancyBytes: vacancyBundle.files.get("vacancy")?.bytes,
-        jobDescriptionBytes: vacancyBundle.files.get("job_description")?.bytes,
-        companyResearchBytes: researchBundle.files.get("company_research")?.bytes,
-        candidateProfileBytes:
-          protectedInputCache.get("candidate_profile")?.bytes,
-        candidateLeversBytes:
-          protectedInputCache.get("candidate_levers")?.bytes,
-        requireInputBytes: true,
-      },
-    );
+    errors = validateApplicationBrief(parseJsonArtifact(briefFile.bytes, briefFile.metadata.path), {
+      expectedProcess,
+      expectedSchemaVersion: briefFile.metadata.schema_version,
+      languages: candidateVacancyLanguages(environment),
+      markets: candidateVacancyMarkets(environment),
+      vacancyBytes: vacancyBundle.files.get("vacancy")?.bytes,
+      jobDescriptionBytes: vacancyBundle.files.get("job_description")?.bytes,
+      companyResearchBytes: researchBundle.files.get("company_research")?.bytes,
+      candidateProfileBytes: protectedInputCache.get("candidate_profile")?.bytes,
+      candidateLeversBytes: protectedInputCache.get("candidate_levers")?.bytes,
+      requireInputBytes: true,
+    });
   } else if (stepName === "generate_cv") {
     if (outcome !== "completed") {
       throw new ProcessLogLifecycleError(
@@ -2980,10 +2843,7 @@ function loadCandidatePublicationBundle({
   stepName,
   waivers = [],
 }) {
-  if (
-    outcome === "blocked"
-    && !["get_vacancy", "research_company"].includes(stepName)
-  ) {
+  if (outcome === "blocked" && !["get_vacancy", "research_company"].includes(stepName)) {
     throw new ProcessLogLifecycleError(
       "publication_outcome_unsupported",
       `${stepName} does not define a blocked artifact capture bundle`,
@@ -3089,8 +2949,8 @@ function assertAttemptWaiversApplied(activeAttempt, notices, operation) {
 function assertPublicationBaseline(step, candidateEntries, stepName) {
   const activeAttempt = step.active_attempt;
   if (
-    activeAttempt.expected_revision !== step.revision
-    || bundleIdentity(activeAttempt.expected_artifacts) !== bundleIdentity(step.artifacts)
+    activeAttempt.expected_revision !== step.revision ||
+    bundleIdentity(activeAttempt.expected_artifacts) !== bundleIdentity(step.artifacts)
   ) {
     throw new ProcessLogLifecycleError(
       "stale_writer",
@@ -3103,13 +2963,16 @@ function assertPublicationBaseline(step, candidateEntries, stepName) {
   const expectedPaths = expected.map((entry) => [entry.kind, entry.path]);
   const candidatePaths = candidate.map((entry) => [entry.kind, entry.path]);
   if (
-    JSON.stringify(expectedPaths) !== JSON.stringify(candidatePaths)
-    || expected.some((entry, index) => !fileBackedArtifactSchemaVersionMayBecome(
-      stepName,
-      entry.kind,
-      entry.schema_version,
-      candidate[index].schema_version,
-    ))
+    JSON.stringify(expectedPaths) !== JSON.stringify(candidatePaths) ||
+    expected.some(
+      (entry, index) =>
+        !fileBackedArtifactSchemaVersionMayBecome(
+          stepName,
+          entry.kind,
+          entry.schema_version,
+          candidate[index].schema_version,
+        ),
+    )
   ) {
     throw new ProcessLogLifecycleError(
       "artifact_path_revision_conflict",
@@ -3140,13 +3003,10 @@ function assertPublicationInputsCurrent(record, stepName, environment, expectedS
 
 function outputRelativeAbsolutePath(outputDirectory, relativePath) {
   const absolutePath = resolve(outputDirectory.path, ...relativePath.split("/"));
-  const expectedRealPath = resolve(
-    outputDirectory.realPath,
-    ...relativePath.split("/"),
-  );
+  const expectedRealPath = resolve(outputDirectory.realPath, ...relativePath.split("/"));
   if (
-    !pathIsWithin(outputDirectory.path, absolutePath)
-    || !pathIsWithin(outputDirectory.realPath, expectedRealPath)
+    !pathIsWithin(outputDirectory.path, absolutePath) ||
+    !pathIsWithin(outputDirectory.realPath, expectedRealPath)
   ) {
     throw new ProcessLogLifecycleError(
       "publication_path_invalid",
@@ -3167,8 +3027,7 @@ function inspectPublicationFile(outputDirectory, relativePath, metadata) {
     return {
       bytes,
       status:
-        bytes.byteLength === metadata.bytes
-        && sha256Hex(bytes) === metadata.sha256
+        bytes.byteLength === metadata.bytes && sha256Hex(bytes) === metadata.sha256
           ? "match"
           : "conflict",
     };
@@ -3198,42 +3057,27 @@ function publicationFiles(candidateBundle, oldArtifacts, publicationId) {
     kind,
     canonical_path: file.metadata.path,
     candidate_path: file.candidate_path,
-    backup_path: oldByKind.has(kind)
-      ? backupRelativePath(publicationId, kind)
-      : null,
+    backup_path: oldByKind.has(kind) ? backupRelativePath(publicationId, kind) : null,
   }));
 }
 
 function assertPublicationPathsReady(outputDirectory, transaction) {
-  const oldByKind = new Map(
-    transaction.old_artifacts.map((artifact) => [artifact.kind, artifact]),
-  );
+  const oldByKind = new Map(transaction.old_artifacts.map((artifact) => [artifact.kind, artifact]));
   for (const file of transaction.files) {
     if (file.backup_path !== null) {
-      assertPathAbsent(
-        outputDirectory,
-        file.backup_path,
-        "publication_staging_conflict",
-      );
+      assertPathAbsent(outputDirectory, file.backup_path, "publication_staging_conflict");
     }
     if (!oldByKind.has(file.kind)) {
-      assertPathAbsent(
-        outputDirectory,
-        file.canonical_path,
-        "artifact_path_collision",
-      );
+      assertPathAbsent(outputDirectory, file.canonical_path, "artifact_path_collision");
     }
   }
 }
 
 function invokePublicationFailpoint(failAt, boundary) {
-  const configuredBoundary =
-    typeof failAt === "string" ? failAt : failAt?.boundary;
+  const configuredBoundary = typeof failAt === "string" ? failAt : failAt?.boundary;
   if (configuredBoundary !== boundary) return;
   const error = new ProcessLogLifecycleError(
-    failAt?.crash === false
-      ? "simulated_publication_failure"
-      : "simulated_publication_crash",
+    failAt?.crash === false ? "simulated_publication_failure" : "simulated_publication_crash",
     `simulated publication interruption at ${boundary}`,
   );
   error.simulatedCrash = failAt?.crash !== false;
@@ -3246,10 +3090,7 @@ function renamePublicationFile(outputDirectory, fromRelativePath, toRelativePath
   renameSync(from.absolutePath, to.absolutePath);
 }
 
-function loadCanonicalPublicationBundle(
-  transaction,
-  outputDirectory,
-) {
+function loadCanonicalPublicationBundle(transaction, outputDirectory) {
   const files = new Map();
   for (const artifact of transaction.new_artifacts) {
     const bytes = readVerifiedFile({
@@ -3258,10 +3099,7 @@ function loadCanonicalPublicationBundle(
       codePrefix: "publication",
       relativePath: artifact.path,
     });
-    if (
-      bytes.byteLength !== artifact.bytes
-      || sha256Hex(bytes) !== artifact.sha256
-    ) {
+    if (bytes.byteLength !== artifact.bytes || sha256Hex(bytes) !== artifact.sha256) {
       throw new ProcessLogLifecycleError(
         "publication_bundle_invalid",
         `${artifact.path} does not match the prepared digest and size`,
@@ -3279,10 +3117,7 @@ function appendPublicationHistory(step, stepName, transaction, finishedAt, openC
     started_at: step.active_attempt.started_at,
     finished_at: finishedAt,
     input_snapshot: structuredClone(transaction.input_snapshot),
-    error_code:
-      transaction.intended_outcome === "blocked"
-        ? transaction.blocker.code
-        : null,
+    error_code: transaction.intended_outcome === "blocked" ? transaction.blocker.code : null,
     publication_id: transaction.id,
   };
   if (transaction.operation === "revise") {
@@ -3330,8 +3165,7 @@ function applyPreparedPublicationFinalization({
   const step = record.steps[stepName];
   const transaction = step.publication_transaction;
   const changedBundle =
-    bundleIdentity(transaction.old_artifacts)
-    !== bundleIdentity(transaction.new_artifacts);
+    bundleIdentity(transaction.old_artifacts) !== bundleIdentity(transaction.new_artifacts);
   step.state = finalState ?? transaction.intended_outcome;
   step.revision = changedBundle ? transaction.old_revision + 1 : transaction.old_revision;
   step.updated_at = timestamp;
@@ -3438,10 +3272,7 @@ function removeCanonicalPathForRestore(outputDirectory, relativePath) {
 }
 
 function transactionDirectoryPath(outputDirectory, publicationId) {
-  return outputRelativeAbsolutePath(
-    outputDirectory,
-    `.pipeline-tmp/${publicationId}`,
-  );
+  return outputRelativeAbsolutePath(outputDirectory, `.pipeline-tmp/${publicationId}`);
 }
 
 function removeTransactionDirectory(outputDirectory, publicationId) {
@@ -3484,14 +3315,7 @@ function removeTransactionDirectory(outputDirectory, publicationId) {
   return true;
 }
 
-function closePreparedPublicationAsFailed({
-  diagnostic,
-  log,
-  record,
-  stepName,
-  timestamp,
-  write,
-}) {
+function closePreparedPublicationAsFailed({ diagnostic, log, record, stepName, timestamp, write }) {
   closeRunningStepAsFailed({
     diagnostic,
     log,
@@ -3517,12 +3341,8 @@ function rollbackPreparedPublication({
   // Inside a journaled adoption the old-bundle proof for an adopted kind is the journaled
   // divergent digest, not the committed one (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
   const expectedOldArtifact = (oldArtifact) => {
-    const adopted = transaction.adopted_artifacts?.find(
-      (entry) => entry.kind === oldArtifact.kind,
-    );
-    return adopted
-      ? { ...oldArtifact, sha256: adopted.sha256, bytes: adopted.bytes }
-      : oldArtifact;
+    const adopted = transaction.adopted_artifacts?.find((entry) => entry.kind === oldArtifact.kind);
+    return adopted ? { ...oldArtifact, sha256: adopted.sha256, bytes: adopted.bytes } : oldArtifact;
   };
 
   if (transaction.old_revision > 0) {
@@ -3530,16 +3350,8 @@ function rollbackPreparedPublication({
     for (const committedOldArtifact of transaction.old_artifacts) {
       const oldArtifact = expectedOldArtifact(committedOldArtifact);
       const file = fileByKind.get(oldArtifact.kind);
-      const backup = inspectPublicationFile(
-        outputDirectory,
-        file.backup_path,
-        oldArtifact,
-      );
-      const canonical = inspectPublicationFile(
-        outputDirectory,
-        file.canonical_path,
-        oldArtifact,
-      );
+      const backup = inspectPublicationFile(outputDirectory, file.backup_path, oldArtifact);
+      const canonical = inspectPublicationFile(outputDirectory, file.canonical_path, oldArtifact);
       if (backup.status === "match") {
         recoverySources.set(oldArtifact.kind, "backup");
       } else if (canonical.status === "match") {
@@ -3553,17 +3365,12 @@ function rollbackPreparedPublication({
       if (recoverySources.get(oldArtifact.kind) !== "backup") continue;
       const file = fileByKind.get(oldArtifact.kind);
       removeCanonicalPathForRestore(outputDirectory, file.canonical_path);
-      renamePublicationFile(
-        outputDirectory,
-        file.backup_path,
-        file.canonical_path,
-      );
+      renamePublicationFile(outputDirectory, file.backup_path, file.canonical_path);
     }
     for (const committedOldArtifact of transaction.old_artifacts) {
       const oldArtifact = expectedOldArtifact(committedOldArtifact);
       if (
-        inspectPublicationFile(outputDirectory, oldArtifact.path, oldArtifact).status
-        !== "match"
+        inspectPublicationFile(outputDirectory, oldArtifact.path, oldArtifact).status !== "match"
       ) {
         return false;
       }
@@ -3571,16 +3378,8 @@ function rollbackPreparedPublication({
   } else {
     for (const newArtifact of transaction.new_artifacts) {
       const file = fileByKind.get(newArtifact.kind);
-      const canonical = inspectPublicationFile(
-        outputDirectory,
-        file.canonical_path,
-        newArtifact,
-      );
-      const candidate = inspectPublicationFile(
-        outputDirectory,
-        file.candidate_path,
-        newArtifact,
-      );
+      const canonical = inspectPublicationFile(outputDirectory, file.canonical_path, newArtifact);
+      const candidate = inspectPublicationFile(outputDirectory, file.candidate_path, newArtifact);
       if (canonical.status === "conflict" || candidate.status === "conflict") {
         return false;
       }
@@ -3588,8 +3387,7 @@ function rollbackPreparedPublication({
     for (const newArtifact of transaction.new_artifacts) {
       const file = fileByKind.get(newArtifact.kind);
       if (
-        inspectPublicationFile(outputDirectory, file.canonical_path, newArtifact).status
-        === "match"
+        inspectPublicationFile(outputDirectory, file.canonical_path, newArtifact).status === "match"
       ) {
         removeCanonicalPathForRestore(outputDirectory, file.canonical_path);
       }
@@ -3624,8 +3422,7 @@ function recoverPreparedPublication({
   const revising = transaction.operation === "revise";
   const completeNewBundle = transaction.new_artifacts.every(
     (artifact) =>
-      inspectPublicationFile(outputDirectory, artifact.path, artifact).status
-      === "match",
+      inspectPublicationFile(outputDirectory, artifact.path, artifact).status === "match",
   );
   let recoveryDiagnostic = {
     code: "publication_interrupted",
@@ -3638,19 +3435,9 @@ function recoverPreparedPublication({
     let ledgerCommitted = false;
     try {
       if (revising) {
-        assertRevisionBriefCoherent(
-          record,
-          stepName,
-          outputDirectory,
-          transaction.input_snapshot,
-        );
+        assertRevisionBriefCoherent(record, stepName, outputDirectory, transaction.input_snapshot);
       } else {
-        assertPublicationInputsCurrent(
-          record,
-          stepName,
-          environment,
-          transaction.input_snapshot,
-        );
+        assertPublicationInputsCurrent(record, stepName, environment, transaction.input_snapshot);
       }
       const files = loadCanonicalPublicationBundle(transaction, outputDirectory);
       const validated = validateArtifactBundleBytes({
@@ -3697,9 +3484,7 @@ function recoverPreparedPublication({
           outputDirectory,
           transaction.id,
           transaction.new_artifacts,
-          new Map(
-            [...files.entries()].map(([kind, file]) => [kind, file.bytes]),
-          ),
+          new Map([...files.entries()].map(([kind, file]) => [kind, file.bytes])),
         );
       }
       removeTransactionDirectory(outputDirectory, transaction.id);
@@ -3716,26 +3501,29 @@ function recoverPreparedPublication({
         code: ["inputs_changed", "brief_superseded", "brief_attempt_active"].includes(error.code)
           ? error.code
           : "publication_validation_failed",
-        message: error.code === "inputs_changed"
-          ? "The step inputs changed while the publication was running."
-          : ["brief_superseded", "brief_attempt_active"].includes(error.code)
-            ? "The Step 3 brief no longer matches the revision's pinned snapshot."
-            : "The prepared bundle failed revalidation during recovery.",
+        message:
+          error.code === "inputs_changed"
+            ? "The step inputs changed while the publication was running."
+            : ["brief_superseded", "brief_attempt_active"].includes(error.code)
+              ? "The Step 3 brief no longer matches the revision's pinned snapshot."
+              : "The prepared bundle failed revalidation during recovery.",
         retryable: true,
         details: [`recovery error: ${error.code ?? "invalid"}`],
       };
     }
   }
 
-  if (rollbackPreparedPublication({
-    diagnostic: recoveryDiagnostic,
-    log,
-    outputDirectory,
-    record,
-    stepName,
-    timestamp,
-    write,
-  })) {
+  if (
+    rollbackPreparedPublication({
+      diagnostic: recoveryDiagnostic,
+      log,
+      outputDirectory,
+      record,
+      stepName,
+      timestamp,
+      write,
+    })
+  ) {
     return {
       publication_id: transaction.id,
       status: "rolled_back",
@@ -3772,20 +3560,14 @@ export function publishFileBackedStepV3(
     "invalid_publish_step_input",
   );
   const publicationId = requirePublicationId(input.publicationId);
-  const outcome = requireNonEmptyString(
-    input.outcome,
-    "outcome",
-    "invalid_publish_step_input",
-  );
+  const outcome = requireNonEmptyString(input.outcome, "outcome", "invalid_publish_step_input");
   if (!FILE_BACKED_PUBLICATION_OUTCOMES.includes(outcome)) {
     throw new ProcessLogLifecycleError(
       "invalid_publish_step_input",
       `outcome must be one of: ${FILE_BACKED_PUBLICATION_OUTCOMES.join(", ")}`,
     );
   }
-  const blocker = outcome === "blocked"
-    ? normalizeBlockerDiagnosticInput(input.blocker)
-    : null;
+  const blocker = outcome === "blocked" ? normalizeBlockerDiagnosticInput(input.blocker) : null;
   if (outcome === "completed" && input.blocker !== null) {
     throw new ProcessLogLifecycleError(
       "invalid_publish_step_input",
@@ -3793,349 +3575,324 @@ export function publishFileBackedStepV3(
     );
   }
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
-  const waiverInputs = normalizeWaiverInputs(input.waivers, () => candidateLetterLimits(environment));
+  const waiverInputs = normalizeWaiverInputs(input.waivers, () =>
+    candidateLetterLimits(environment),
+  );
 
-  return withLogV3Lock(logPath, ({ log, write }) => {
-    const record = resolveFileBackedProcessV3(log, input.selector);
-    const step = record.steps[stepName];
-    const activeAttempt = requireMatchingActiveAttempt(
-      step,
-      stepName,
-      attemptId,
-      "publish-step",
-    );
-    const outputDirectory = selectedOutputDirectory(environment, record);
-    const operation = activeAttempt.operation === "revise" ? "revise" : null;
-    const adoptionBase =
-      isMaterialStep(stepName)
-      && step.adoption_base
-      && step.adoption_base.attempt_id === attemptId
-        ? step.adoption_base
-        : null;
-    if (
-      committedAndPreparedPublicationIds(log).has(publicationId)
-      && adoptionBase?.publication_id !== publicationId
-    ) {
-      throw new ProcessLogLifecycleError(
-        "publication_id_conflict",
-        `publication id is already owned: ${publicationId}`,
-      );
-    }
-    assertPublishStepWaiverScope(
-      waiverInputs,
-      stepName,
-      operation,
-      () => candidateLetterLimits(environment),
-    );
-    if (waiverInputs.length > 0) {
-      const briefEntry = pinnedBriefEntry(activeAttempt.input_snapshot);
-      if (briefEntry === null) {
+  return withLogV3Lock(
+    logPath,
+    ({ log, write }) => {
+      const record = resolveFileBackedProcessV3(log, input.selector);
+      const step = record.steps[stepName];
+      const activeAttempt = requireMatchingActiveAttempt(step, stepName, attemptId, "publish-step");
+      const outputDirectory = selectedOutputDirectory(environment, record);
+      const operation = activeAttempt.operation === "revise" ? "revise" : null;
+      const adoptionBase =
+        isMaterialStep(stepName) &&
+        step.adoption_base &&
+        step.adoption_base.attempt_id === attemptId
+          ? step.adoption_base
+          : null;
+      if (
+        committedAndPreparedPublicationIds(log).has(publicationId) &&
+        adoptionBase?.publication_id !== publicationId
+      ) {
         throw new ProcessLogLifecycleError(
-          "invalid_publish_step_input",
-          "publish-step waivers require the attempt to pin an application brief",
+          "publication_id_conflict",
+          `publication id is already owned: ${publicationId}`,
         );
       }
-      // Nothing is persisted until the transaction's journal write below, so a refusal between
-      // here and it leaves the ledger exactly as it was.
-      activeAttempt.pending_waivers = attemptPendingWaivers(
-        step,
-        waiverInputs,
-        briefEntry.sha256,
-        waiverIdFactory,
+      assertPublishStepWaiverScope(waiverInputs, stepName, operation, () =>
+        candidateLetterLimits(environment),
       );
-    }
-    const publicationWaivers = effectivePublicationWaivers(step, operation);
-    // The revalidation below reads the layer's language names and markets. A layer that cannot
-    // supply them is refused here, under its own code and before the attempt is touched: inside
-    // the block below it would close the attempt as if its inputs had changed.
-    candidateVacancyLanguages(environment);
-    candidateVacancyMarkets(environment);
-
-    try {
-      if (operation === "revise") {
-        // The brief coherence guard is re-verified under the ledger lock at publication
-        // (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#1-a-new-lifecycle-operation-revise-step-steps-45-only); live protected-input drift is deliberately not consulted.
-        assertRevisionBriefCoherent(
-          record,
-          stepName,
-          outputDirectory,
-          activeAttempt.input_snapshot,
-        );
-      } else {
-        assertPublicationInputsCurrent(
-          record,
-          stepName,
-          environment,
-          activeAttempt.input_snapshot,
-        );
-      }
-    } catch (error) {
-      const failedAt = recordMutationTimestamp(clock, log, record);
-      const revisionRefusal = operation === "revise";
-      closeRunningStepAsFailed({
-        diagnostic: revisionRefusal
-          ? {
-              code: ["brief_superseded", "brief_attempt_active"].includes(error.code)
-                ? error.code
-                : "brief_superseded",
-              message: "The Step 3 brief no longer matches the revision's pinned snapshot.",
-              retryable: false,
-              details: [`revision error: ${error.code ?? "brief_mismatch"}`],
-            }
-          : {
-              code: "inputs_changed",
-              message: "The step inputs changed after the attempt began.",
-              retryable: true,
-              details: [`preflight error: ${error.code ?? "snapshot_mismatch"}`],
-            },
-        log,
-        record,
-        stepName,
-        timestamp: failedAt,
-      });
-      write(log);
-      throw revisionRefusal
-        ? new ProcessLogLifecycleError(
-            error.code === "brief_attempt_active" ? "brief_attempt_active" : "brief_superseded",
-            `${stepName} revision rejected because the pinned brief is no longer committed`,
-          )
-        : new ProcessLogLifecycleError(
-            "inputs_changed",
-            `${stepName} publication rejected because its inputs changed`,
-          );
-    }
-    verifyCommittedArtifactBaseline(record, stepName, environment, { adoptionBase });
-
-    const candidateBundle = loadCandidatePublicationBundle({
-      blocker,
-      environment,
-      operation,
-      outcome,
-      outputDirectory,
-      publicationId,
-      record,
-      stepName,
-      waivers: publicationWaivers,
-    });
-    assertPublicationBaseline(step, candidateBundle.entries, stepName);
-    assertAttemptWaiversApplied(activeAttempt, candidateBundle.notices, operation);
-
-    const preparedAt = recordMutationTimestamp(clock, log, record);
-    const transaction = {
-      id: publicationId,
-      attempt_id: attemptId,
-      intended_outcome: outcome,
-      prepared_at: preparedAt,
-      old_revision: step.revision,
-      old_artifacts: structuredClone(step.artifacts),
-      new_artifacts: structuredClone(candidateBundle.entries),
-      input_snapshot: structuredClone(activeAttempt.input_snapshot),
-      blocker: blocker === null
-        ? null
-        : {
-            ...structuredClone(blocker),
-            at: preparedAt,
-          },
-      files: publicationFiles(candidateBundle, step.artifacts, publicationId),
-    };
-    if (operation === "revise") transaction.operation = "revise";
-    if (adoptionBase) {
-      transaction.adopted_artifacts = structuredClone(adoptionBase.entries);
-    }
-    assertPublicationPathsReady(outputDirectory, transaction);
-
-    step.publication_transaction = transaction;
-    touchFileBackedRecord(log, record, preparedAt);
-    invokePublicationFailpoint(failAt, "before_journal_write");
-    write(log);
-
-    let ledgerCommitted = false;
-    try {
-      invokePublicationFailpoint(failAt, "after_journal_write");
-      for (const file of transaction.files) {
-        if (file.backup_path === null) continue;
-        const committedOldArtifact = transaction.old_artifacts.find(
-          (artifact) => artifact.kind === file.kind,
-        );
-        // The backup phase's old-bundle proof for an adopted kind is the journaled divergent
-        // digest — the canonical slot legitimately holds the user's bytes (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
-        const adopted = transaction.adopted_artifacts?.find(
-          (entry) => entry.kind === file.kind,
-        );
-        const oldArtifact = adopted
-          ? { ...committedOldArtifact, sha256: adopted.sha256, bytes: adopted.bytes }
-          : committedOldArtifact;
-        if (
-          inspectPublicationFile(
-            outputDirectory,
-            file.canonical_path,
-            oldArtifact,
-          ).status !== "match"
-        ) {
+      if (waiverInputs.length > 0) {
+        const briefEntry = pinnedBriefEntry(activeAttempt.input_snapshot);
+        if (briefEntry === null) {
           throw new ProcessLogLifecycleError(
-            "stale_writer",
-            `${file.canonical_path} changed before backup`,
+            "invalid_publish_step_input",
+            "publish-step waivers require the attempt to pin an application brief",
           );
         }
-        renamePublicationFile(
-          outputDirectory,
-          file.canonical_path,
-          file.backup_path,
+        // Nothing is persisted until the transaction's journal write below, so a refusal between
+        // here and it leaves the ledger exactly as it was.
+        activeAttempt.pending_waivers = attemptPendingWaivers(
+          step,
+          waiverInputs,
+          briefEntry.sha256,
+          waiverIdFactory,
         );
-        invokePublicationFailpoint(failAt, `after_backup:${file.kind}`);
       }
-      for (const file of transaction.files) {
-        const newArtifact = transaction.new_artifacts.find(
-          (artifact) => artifact.kind === file.kind,
-        );
-        if (
-          inspectPublicationFile(
+      const publicationWaivers = effectivePublicationWaivers(step, operation);
+      // The revalidation below reads the layer's language names and markets. A layer that cannot
+      // supply them is refused here, under its own code and before the attempt is touched: inside
+      // the block below it would close the attempt as if its inputs had changed.
+      candidateVacancyLanguages(environment);
+      candidateVacancyMarkets(environment);
+
+      try {
+        if (operation === "revise") {
+          // The brief coherence guard is re-verified under the ledger lock at publication
+          // (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#1-a-new-lifecycle-operation-revise-step-steps-45-only); live protected-input drift is deliberately not consulted.
+          assertRevisionBriefCoherent(
+            record,
+            stepName,
             outputDirectory,
-            file.candidate_path,
-            newArtifact,
-          ).status !== "match"
-        ) {
-          throw new ProcessLogLifecycleError(
-            "candidate_bundle_invalid",
-            `${file.candidate_path} changed before publication`,
+            activeAttempt.input_snapshot,
+          );
+        } else {
+          assertPublicationInputsCurrent(
+            record,
+            stepName,
+            environment,
+            activeAttempt.input_snapshot,
           );
         }
-        renamePublicationFile(
-          outputDirectory,
-          file.candidate_path,
-          file.canonical_path,
-        );
-        invokePublicationFailpoint(failAt, `after_candidate:${file.kind}`);
+      } catch (error) {
+        const failedAt = recordMutationTimestamp(clock, log, record);
+        const revisionRefusal = operation === "revise";
+        closeRunningStepAsFailed({
+          diagnostic: revisionRefusal
+            ? {
+                code: ["brief_superseded", "brief_attempt_active"].includes(error.code)
+                  ? error.code
+                  : "brief_superseded",
+                message: "The Step 3 brief no longer matches the revision's pinned snapshot.",
+                retryable: false,
+                details: [`revision error: ${error.code ?? "brief_mismatch"}`],
+              }
+            : {
+                code: "inputs_changed",
+                message: "The step inputs changed after the attempt began.",
+                retryable: true,
+                details: [`preflight error: ${error.code ?? "snapshot_mismatch"}`],
+              },
+          log,
+          record,
+          stepName,
+          timestamp: failedAt,
+        });
+        write(log);
+        throw revisionRefusal
+          ? new ProcessLogLifecycleError(
+              error.code === "brief_attempt_active" ? "brief_attempt_active" : "brief_superseded",
+              `${stepName} revision rejected because the pinned brief is no longer committed`,
+            )
+          : new ProcessLogLifecycleError(
+              "inputs_changed",
+              `${stepName} publication rejected because its inputs changed`,
+            );
       }
+      verifyCommittedArtifactBaseline(record, stepName, environment, { adoptionBase });
 
-      invokePublicationFailpoint(failAt, "before_bundle_validation");
-      const canonicalFiles = loadCanonicalPublicationBundle(
-        transaction,
-        outputDirectory,
-      );
-      const canonicalValidation = validateArtifactBundleBytes({
-        blocker: transaction.blocker,
-        entries: transaction.new_artifacts,
+      const candidateBundle = loadCandidatePublicationBundle({
+        blocker,
         environment,
-        files: canonicalFiles,
         operation,
         outcome,
         outputDirectory,
+        publicationId,
         record,
         stepName,
         waivers: publicationWaivers,
       });
-      invokePublicationFailpoint(failAt, "after_bundle_validation");
-      if (operation === "revise") {
-        assertRevisionBriefCoherent(
-          record,
-          stepName,
-          outputDirectory,
-          transaction.input_snapshot,
-        );
-      } else {
-        assertPublicationInputsCurrent(
-          record,
-          stepName,
-          environment,
-          transaction.input_snapshot,
-        );
+      assertPublicationBaseline(step, candidateBundle.entries, stepName);
+      assertAttemptWaiversApplied(activeAttempt, candidateBundle.notices, operation);
+
+      const preparedAt = recordMutationTimestamp(clock, log, record);
+      const transaction = {
+        id: publicationId,
+        attempt_id: attemptId,
+        intended_outcome: outcome,
+        prepared_at: preparedAt,
+        old_revision: step.revision,
+        old_artifacts: structuredClone(step.artifacts),
+        new_artifacts: structuredClone(candidateBundle.entries),
+        input_snapshot: structuredClone(activeAttempt.input_snapshot),
+        blocker:
+          blocker === null
+            ? null
+            : {
+                ...structuredClone(blocker),
+                at: preparedAt,
+              },
+        files: publicationFiles(candidateBundle, step.artifacts, publicationId),
+      };
+      if (operation === "revise") transaction.operation = "revise";
+      if (adoptionBase) {
+        transaction.adopted_artifacts = structuredClone(adoptionBase.entries);
       }
-      const finalState = operation === "revise"
-        ? deriveRevisionFinalState(
+      assertPublicationPathsReady(outputDirectory, transaction);
+
+      step.publication_transaction = transaction;
+      touchFileBackedRecord(log, record, preparedAt);
+      invokePublicationFailpoint(failAt, "before_journal_write");
+      write(log);
+
+      let ledgerCommitted = false;
+      try {
+        invokePublicationFailpoint(failAt, "after_journal_write");
+        for (const file of transaction.files) {
+          if (file.backup_path === null) continue;
+          const committedOldArtifact = transaction.old_artifacts.find(
+            (artifact) => artifact.kind === file.kind,
+          );
+          // The backup phase's old-bundle proof for an adopted kind is the journaled divergent
+          // digest — the canonical slot legitimately holds the user's bytes (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#5-edit-channels-and-transports(b)).
+          const adopted = transaction.adopted_artifacts?.find((entry) => entry.kind === file.kind);
+          const oldArtifact = adopted
+            ? { ...committedOldArtifact, sha256: adopted.sha256, bytes: adopted.bytes }
+            : committedOldArtifact;
+          if (
+            inspectPublicationFile(outputDirectory, file.canonical_path, oldArtifact).status !==
+            "match"
+          ) {
+            throw new ProcessLogLifecycleError(
+              "stale_writer",
+              `${file.canonical_path} changed before backup`,
+            );
+          }
+          renamePublicationFile(outputDirectory, file.canonical_path, file.backup_path);
+          invokePublicationFailpoint(failAt, `after_backup:${file.kind}`);
+        }
+        for (const file of transaction.files) {
+          const newArtifact = transaction.new_artifacts.find(
+            (artifact) => artifact.kind === file.kind,
+          );
+          if (
+            inspectPublicationFile(outputDirectory, file.candidate_path, newArtifact).status !==
+            "match"
+          ) {
+            throw new ProcessLogLifecycleError(
+              "candidate_bundle_invalid",
+              `${file.candidate_path} changed before publication`,
+            );
+          }
+          renamePublicationFile(outputDirectory, file.candidate_path, file.canonical_path);
+          invokePublicationFailpoint(failAt, `after_candidate:${file.kind}`);
+        }
+
+        invokePublicationFailpoint(failAt, "before_bundle_validation");
+        const canonicalFiles = loadCanonicalPublicationBundle(transaction, outputDirectory);
+        const canonicalValidation = validateArtifactBundleBytes({
+          blocker: transaction.blocker,
+          entries: transaction.new_artifacts,
+          environment,
+          files: canonicalFiles,
+          operation,
+          outcome,
+          outputDirectory,
+          record,
+          stepName,
+          waivers: publicationWaivers,
+        });
+        invokePublicationFailpoint(failAt, "after_bundle_validation");
+        if (operation === "revise") {
+          assertRevisionBriefCoherent(
+            record,
             stepName,
-            environment,
             outputDirectory,
             transaction.input_snapshot,
-          )
-        : null;
-      const openConflicts = operation === "revise"
-        ? canonicalValidation.conflicts.map((conflict) => ({
-            subject: {
-              kind: conflict.subject.kind,
-              key: boundedJournaledSubjectKey(conflict.subject.key),
-            },
-            code: conflict.code,
-          }))
-        : null;
-      const finishedAt = recordMutationTimestamp(clock, log, record);
-      invokePublicationFailpoint(failAt, "before_ledger_commit");
-      finalizePreparedPublication({
-        failAt,
-        finalState,
-        log,
-        openConflicts,
-        record,
-        stepName,
-        timestamp: finishedAt,
-        write,
-      });
-      ledgerCommitted = true;
-      invokePublicationFailpoint(failAt, "after_ledger_commit");
-      if (isMaterialStep(stepName)) {
-        writeRevisionArchiveFiles(
+          );
+        } else {
+          assertPublicationInputsCurrent(record, stepName, environment, transaction.input_snapshot);
+        }
+        const finalState =
+          operation === "revise"
+            ? deriveRevisionFinalState(
+                stepName,
+                environment,
+                outputDirectory,
+                transaction.input_snapshot,
+              )
+            : null;
+        const openConflicts =
+          operation === "revise"
+            ? canonicalValidation.conflicts.map((conflict) => ({
+                subject: {
+                  kind: conflict.subject.kind,
+                  key: boundedJournaledSubjectKey(conflict.subject.key),
+                },
+                code: conflict.code,
+              }))
+            : null;
+        const finishedAt = recordMutationTimestamp(clock, log, record);
+        invokePublicationFailpoint(failAt, "before_ledger_commit");
+        finalizePreparedPublication({
+          failAt,
+          finalState,
+          log,
+          openConflicts,
+          record,
+          stepName,
+          timestamp: finishedAt,
+          write,
+        });
+        ledgerCommitted = true;
+        invokePublicationFailpoint(failAt, "after_ledger_commit");
+        if (isMaterialStep(stepName)) {
+          writeRevisionArchiveFiles(
+            outputDirectory,
+            publicationId,
+            transaction.new_artifacts,
+            new Map([...canonicalFiles.entries()].map(([kind, file]) => [kind, file.bytes])),
+          );
+        }
+        invokePublicationFailpoint(failAt, "after_archive");
+        removeTransactionDirectory(outputDirectory, publicationId);
+        invokePublicationFailpoint(failAt, "after_cleanup");
+        const journaledWaivers = (step.waivers ?? [])
+          .filter((waiver) => waiver.created_at === step.finished_at)
+          .map((waiver) => structuredClone(waiver));
+        return {
+          artifacts: structuredClone(step.artifacts),
+          ...(operation === "revise"
+            ? {
+                open_conflicts: structuredClone(openConflicts),
+                state: step.state,
+              }
+            : {}),
+          // A publication reports what it journaled and what a waiver downgraded, whether or not it
+          // was a revision: a first publication carrying the word-limit approval has both.
+          ...(operation === "revise" || journaledWaivers.length > 0
+            ? {
+                notices: structuredClone(canonicalValidation.notices),
+                waivers_recorded: journaledWaivers,
+              }
+            : {}),
+          process: record,
+          publication_id: publicationId,
+          revision: step.revision,
+          status: outcome,
+          step_name: stepName,
+        };
+      } catch (error) {
+        if (
+          error.code === "publication_ledger_write_failed" ||
+          error.simulatedCrash ||
+          ledgerCommitted
+        ) {
+          throw error;
+        }
+        const recoveredAt = recordMutationTimestamp(clock, log, record);
+        const recovery = recoverPreparedPublication({
+          environment,
+          failAt,
+          log,
           outputDirectory,
-          publicationId,
-          transaction.new_artifacts,
-          new Map(
-            [...canonicalFiles.entries()].map(([kind, file]) => [kind, file.bytes]),
-          ),
+          preferNew: false,
+          record,
+          stepName,
+          timestamp: recoveredAt,
+          write,
+        });
+        throw new ProcessLogLifecycleError(
+          "publication_failed",
+          `${stepName} publication failed and ${recovery.status} (${error.code ?? "filesystem"})`,
         );
       }
-      invokePublicationFailpoint(failAt, "after_archive");
-      removeTransactionDirectory(outputDirectory, publicationId);
-      invokePublicationFailpoint(failAt, "after_cleanup");
-      const journaledWaivers = (step.waivers ?? [])
-        .filter((waiver) => waiver.created_at === step.finished_at)
-        .map((waiver) => structuredClone(waiver));
-      return {
-        artifacts: structuredClone(step.artifacts),
-        ...(operation === "revise"
-          ? {
-              open_conflicts: structuredClone(openConflicts),
-              state: step.state,
-            }
-          : {}),
-        // A publication reports what it journaled and what a waiver downgraded, whether or not it
-        // was a revision: a first publication carrying the word-limit approval has both.
-        ...(operation === "revise" || journaledWaivers.length > 0
-          ? {
-              notices: structuredClone(canonicalValidation.notices),
-              waivers_recorded: journaledWaivers,
-            }
-          : {}),
-        process: record,
-        publication_id: publicationId,
-        revision: step.revision,
-        status: outcome,
-        step_name: stepName,
-      };
-    } catch (error) {
-      if (
-        error.code === "publication_ledger_write_failed"
-        || error.simulatedCrash
-        || ledgerCommitted
-      ) {
-        throw error;
-      }
-      const recoveredAt = recordMutationTimestamp(clock, log, record);
-      const recovery = recoverPreparedPublication({
-        environment,
-        failAt,
-        log,
-        outputDirectory,
-        preferNew: false,
-        record,
-        stepName,
-        timestamp: recoveredAt,
-        write,
-      });
-      throw new ProcessLogLifecycleError(
-        "publication_failed",
-        `${stepName} publication failed and ${recovery.status} (${error.code ?? "filesystem"})`,
-      );
-    }
-  }, lockOptions);
+    },
+    lockOptions,
+  );
 }
 
 const STAGING_MAX_DEPTH = 16;
@@ -4151,9 +3908,9 @@ function stagingFailure(code, message) {
 function boundedStagingCauseCode(error) {
   try {
     const code = error?.code;
-    return typeof code === "string"
-      && Buffer.byteLength(code, "utf8") <= processLogDiagnosticLimits.codeMaxBytes
-      && processLogUppercaseCauseCodePattern.test(code)
+    return typeof code === "string" &&
+      Buffer.byteLength(code, "utf8") <= processLogDiagnosticLimits.codeMaxBytes &&
+      processLogUppercaseCauseCodePattern.test(code)
       ? code
       : "UNKNOWN";
   } catch {
@@ -4161,11 +3918,7 @@ function boundedStagingCauseCode(error) {
   }
 }
 
-function readBoundedStagingDirectory(
-  path,
-  maximumEntries,
-  { label, overflowMessage },
-) {
+function readBoundedStagingDirectory(path, maximumEntries, { label, overflowMessage }) {
   let directory;
   try {
     directory = opendirSync(path);
@@ -4202,7 +3955,8 @@ function readBoundedStagingDirectory(
     throw stagingFailure("staging_inventory_unbounded", overflowMessage);
   }
   return entries.sort((left, right) =>
-    Buffer.compare(Buffer.from(left.name, "utf8"), Buffer.from(right.name, "utf8")));
+    Buffer.compare(Buffer.from(left.name, "utf8"), Buffer.from(right.name, "utf8")),
+  );
 }
 
 function stagingLstat(path, { allowMissing = false } = {}) {
@@ -4242,8 +3996,7 @@ function stagingStatIdentity(stats) {
 }
 
 function sameStagingIdentity(left, right) {
-  return JSON.stringify(stagingStatIdentity(left))
-    === JSON.stringify(stagingStatIdentity(right));
+  return JSON.stringify(stagingStatIdentity(left)) === JSON.stringify(stagingStatIdentity(right));
 }
 
 function inspectStagingTree(targetPath, expectedRealPath) {
@@ -4333,19 +4086,17 @@ function inspectStagingTree(targetPath, expectedRealPath) {
   walk(targetPath, "", 0);
   const finalRootStats = stagingLstat(targetPath);
   if (
-    finalRootStats.isSymbolicLink()
-    || !finalRootStats.isDirectory()
-    || !sameStagingIdentity(rootStats, finalRootStats)
-    || stagingRealpath(targetPath) !== expectedRealPath
+    finalRootStats.isSymbolicLink() ||
+    !finalRootStats.isDirectory() ||
+    !sameStagingIdentity(rootStats, finalRootStats) ||
+    stagingRealpath(targetPath) !== expectedRealPath
   ) {
     throw stagingFailure(
       "staging_inventory_changed",
       "staging root identity changed while it was inspected",
     );
   }
-  const digest = createHash("sha256")
-    .update(JSON.stringify(entries))
-    .digest("hex");
+  const digest = createHash("sha256").update(JSON.stringify(entries)).digest("hex");
   const modifiedAtMs = Number(rootStats.mtimeNs / 1_000_000n);
   return {
     ageMs: Math.max(0, Date.now() - modifiedAtMs),
@@ -4385,9 +4136,7 @@ function publicationOwnershipIndex(log) {
 }
 
 function processHasActiveAttempt(record) {
-  return fileBackedStepNames.some(
-    (stepName) => record.steps[stepName].active_attempt !== null,
-  );
+  return fileBackedStepNames.some((stepName) => record.steps[stepName].active_attempt !== null);
 }
 
 function stagingParentDirectory(outputDirectory, { allowMissing = true } = {}) {
@@ -4416,19 +4165,25 @@ function stagingAction(classification) {
 }
 
 function stagingIssue(classification) {
-  return {
-    foreign_owned: "staging_foreign_owner",
-    history_owned: "staging_history_residue",
-    invalid_entry: "staging_invalid_entry",
-    orphan: "staging_orphan",
-    prepared_recovery: "staging_prepared_recovery",
-  }[classification] ?? null;
+  return (
+    {
+      foreign_owned: "staging_foreign_owner",
+      history_owned: "staging_history_residue",
+      invalid_entry: "staging_invalid_entry",
+      orphan: "staging_orphan",
+      prepared_recovery: "staging_prepared_recovery",
+    }[classification] ?? null
+  );
 }
 
 function classifyStagingEntry(record, publicationId, ownership) {
   const owner = ownership.get(publicationId);
-  if (owner?.processId !== record.id) return owner ? "foreign_owned" :
-    processHasActiveAttempt(record) ? "active_unassigned" : "orphan";
+  if (owner?.processId !== record.id)
+    return owner
+      ? "foreign_owned"
+      : processHasActiveAttempt(record)
+        ? "active_unassigned"
+        : "orphan";
   return owner.kind === "prepared" ? "prepared_recovery" : "history_owned";
 }
 
@@ -4450,12 +4205,14 @@ function inspectStagingDirectory(record, outputDirectory, ownership) {
     return {
       health: "attention",
       issues: [error.code ?? "staging_invalid_entry"],
-      entries: [{
-        publication_id: null,
-        classification: "invalid_entry",
-        action: stagingAction("invalid_entry"),
-        inventory_health: "unsafe",
-      }],
+      entries: [
+        {
+          publication_id: null,
+          classification: "invalid_entry",
+          action: stagingAction("invalid_entry"),
+          inventory_health: "unsafe",
+        },
+      ],
     };
   }
   if (parent === null) return { health: "clear", issues: [], entries: [] };
@@ -4497,13 +4254,15 @@ function inspectStagingDirectory(record, outputDirectory, ownership) {
       classification,
       action: stagingAction(classification),
       inventory_health: snapshot === null ? "unsafe" : "safe",
-      ...(snapshot === null ? {} : {
-        age_ms: snapshot.ageMs,
-        entry_count: snapshot.entryCount,
-        max_depth: snapshot.maxDepth,
-        modified_at: snapshot.modifiedAt,
-        total_bytes: snapshot.totalBytes,
-      }),
+      ...(snapshot === null
+        ? {}
+        : {
+            age_ms: snapshot.ageMs,
+            entry_count: snapshot.entryCount,
+            max_depth: snapshot.maxDepth,
+            modified_at: snapshot.modifiedAt,
+            total_bytes: snapshot.totalBytes,
+          }),
     });
   }
   return {
@@ -4525,23 +4284,22 @@ function stagingCleanupToken(record, publicationId, snapshot) {
 }
 
 function sameStagingSnapshot(left, right) {
-  return JSON.stringify({
-    digest: left.digest,
-    rootIdentity: left.rootIdentity,
-  }) === JSON.stringify({
-    digest: right.digest,
-    rootIdentity: right.rootIdentity,
-  });
+  return (
+    JSON.stringify({
+      digest: left.digest,
+      rootIdentity: left.rootIdentity,
+    }) ===
+    JSON.stringify({
+      digest: right.digest,
+      rootIdentity: right.rootIdentity,
+    })
+  );
 }
 
 export function cleanupFileBackedStagingV3(
   logPath,
   input,
-  {
-    lockOptions,
-    outputRoot,
-    workspaceRoot,
-  } = {},
+  { lockOptions, outputRoot, workspaceRoot } = {},
 ) {
   assertExactKeys(
     input,
@@ -4561,11 +4319,8 @@ export function cleanupFileBackedStagingV3(
   );
   const confirmationToken = input.confirmationToken ?? null;
   if (
-    confirmationToken !== null
-    && (
-      typeof confirmationToken !== "string"
-      || !CLEANUP_CONFIRMATION_PATTERN.test(confirmationToken)
-    )
+    confirmationToken !== null &&
+    (typeof confirmationToken !== "string" || !CLEANUP_CONFIRMATION_PATTERN.test(confirmationToken))
   ) {
     throw new ProcessLogLifecycleError(
       "invalid_cleanup_staging_input",
@@ -4574,79 +4329,82 @@ export function cleanupFileBackedStagingV3(
   }
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
 
-  return withLogV3Lock(logPath, ({ log }) => {
-    const record = getFileBackedProcessForMutation(log, processId, "cleanup-staging");
-    const owner = publicationOwnershipIndex(log).get(publicationId);
-    if (owner) {
-      throw new ProcessLogLifecycleError(
-        owner.kind === "prepared"
-          ? "staging_cleanup_prepared_owned"
-          : "staging_cleanup_history_owned",
-        "cleanup-staging cannot remove prepared or committed recovery evidence",
-      );
-    }
-    if (processHasActiveAttempt(record)) {
-      throw new ProcessLogLifecycleError(
-        "staging_cleanup_active_attempt",
-        "cleanup-staging is forbidden while the process has an active attempt",
-      );
-    }
-    const outputDirectory = selectedOutputDirectory(environment, record);
-    const parent = stagingParentDirectory(outputDirectory, { allowMissing: false });
-    const targetPath = resolve(parent.path, publicationId);
-    const targetRealPath = resolve(parent.realPath, publicationId);
-    const snapshot = inspectStagingTree(targetPath, targetRealPath);
-    const token = stagingCleanupToken(record, publicationId, snapshot);
-    const result = {
-      process_id: record.id,
-      publication_id: publicationId,
-      age_ms: snapshot.ageMs,
-      modified_at: snapshot.modifiedAt,
-      entry_count: snapshot.entryCount,
-      max_depth: snapshot.maxDepth,
-      total_bytes: snapshot.totalBytes,
-      tree_digest: snapshot.digest,
-      confirmation_token: token,
-    };
-    if (confirmationToken === null) {
-      return { status: "review_required", ...result };
-    }
-    if (confirmationToken !== token) {
-      throw new ProcessLogLifecycleError(
-        "staging_cleanup_confirmation_mismatch",
-        "cleanup-staging confirmation no longer matches the exact inventory",
-      );
-    }
-    const repeatedSnapshot = inspectStagingTree(targetPath, targetRealPath);
-    if (!sameStagingSnapshot(snapshot, repeatedSnapshot)) {
-      throw new ProcessLogLifecycleError(
-        "staging_inventory_changed",
-        "staging inventory changed before cleanup",
-      );
-    }
-    try {
-      rmSync(targetPath, { recursive: true });
-    } catch (error) {
-      throw new ProcessLogLifecycleError(
-        "staging_cleanup_remove_failed",
-        `staging cleanup could not remove the reviewed target (${boundedStagingCauseCode(error)})`,
-      );
-    }
-    if (stagingLstat(targetPath, { allowMissing: true }) !== null) {
-      throw new ProcessLogLifecycleError(
-        "staging_cleanup_remove_failed",
-        "staging cleanup did not remove the reviewed target",
-      );
-    }
-    return { status: "cleaned", ...result };
-  }, lockOptions);
+  return withLogV3Lock(
+    logPath,
+    ({ log }) => {
+      const record = getFileBackedProcessForMutation(log, processId, "cleanup-staging");
+      const owner = publicationOwnershipIndex(log).get(publicationId);
+      if (owner) {
+        throw new ProcessLogLifecycleError(
+          owner.kind === "prepared"
+            ? "staging_cleanup_prepared_owned"
+            : "staging_cleanup_history_owned",
+          "cleanup-staging cannot remove prepared or committed recovery evidence",
+        );
+      }
+      if (processHasActiveAttempt(record)) {
+        throw new ProcessLogLifecycleError(
+          "staging_cleanup_active_attempt",
+          "cleanup-staging is forbidden while the process has an active attempt",
+        );
+      }
+      const outputDirectory = selectedOutputDirectory(environment, record);
+      const parent = stagingParentDirectory(outputDirectory, { allowMissing: false });
+      const targetPath = resolve(parent.path, publicationId);
+      const targetRealPath = resolve(parent.realPath, publicationId);
+      const snapshot = inspectStagingTree(targetPath, targetRealPath);
+      const token = stagingCleanupToken(record, publicationId, snapshot);
+      const result = {
+        process_id: record.id,
+        publication_id: publicationId,
+        age_ms: snapshot.ageMs,
+        modified_at: snapshot.modifiedAt,
+        entry_count: snapshot.entryCount,
+        max_depth: snapshot.maxDepth,
+        total_bytes: snapshot.totalBytes,
+        tree_digest: snapshot.digest,
+        confirmation_token: token,
+      };
+      if (confirmationToken === null) {
+        return { status: "review_required", ...result };
+      }
+      if (confirmationToken !== token) {
+        throw new ProcessLogLifecycleError(
+          "staging_cleanup_confirmation_mismatch",
+          "cleanup-staging confirmation no longer matches the exact inventory",
+        );
+      }
+      const repeatedSnapshot = inspectStagingTree(targetPath, targetRealPath);
+      if (!sameStagingSnapshot(snapshot, repeatedSnapshot)) {
+        throw new ProcessLogLifecycleError(
+          "staging_inventory_changed",
+          "staging inventory changed before cleanup",
+        );
+      }
+      try {
+        rmSync(targetPath, { recursive: true });
+      } catch (error) {
+        throw new ProcessLogLifecycleError(
+          "staging_cleanup_remove_failed",
+          `staging cleanup could not remove the reviewed target (${boundedStagingCauseCode(error)})`,
+        );
+      }
+      if (stagingLstat(targetPath, { allowMissing: true }) !== null) {
+        throw new ProcessLogLifecycleError(
+          "staging_cleanup_remove_failed",
+          "staging cleanup did not remove the reviewed target",
+        );
+      }
+      return { status: "cleaned", ...result };
+    },
+    lockOptions,
+  );
 }
 
 function latestCommittedAttempt(step) {
-  return [...step.attempt_history]
-    .reverse()
-    .find((attempt) => attempt.publication_id !== null)
-    ?? null;
+  return (
+    [...step.attempt_history].reverse().find((attempt) => attempt.publication_id !== null) ?? null
+  );
 }
 
 function artifactHealthFromError(error) {
@@ -4682,10 +4440,7 @@ function adoptionExplainsCanonicalBytes(step, outputDirectory) {
         codePrefix: "artifact",
         relativePath: artifact.path,
       });
-      if (
-        bytes.byteLength !== expected.bytes
-        || sha256Hex(bytes) !== expected.sha256
-      ) {
+      if (bytes.byteLength !== expected.bytes || sha256Hex(bytes) !== expected.sha256) {
         return false;
       }
     }
@@ -4704,10 +4459,7 @@ function loadDeepArtifactFiles(step, outputDirectory) {
       codePrefix: "artifact",
       relativePath: artifact.path,
     });
-    if (
-      bytes.byteLength !== artifact.bytes
-      || sha256Hex(bytes) !== artifact.sha256
-    ) {
+    if (bytes.byteLength !== artifact.bytes || sha256Hex(bytes) !== artifact.sha256) {
       throw new ProcessLogLifecycleError(
         "artifact_corrupt",
         `${artifact.path} does not match its committed digest and size`,
@@ -4718,13 +4470,7 @@ function loadDeepArtifactFiles(step, outputDirectory) {
   return files;
 }
 
-function inspectDeepStep({
-  environment,
-  outputDirectory,
-  outputHealth,
-  record,
-  stepName,
-}) {
+function inspectDeepStep({ environment, outputDirectory, outputHealth, record, stepName }) {
   const step = record.steps[stepName];
   const report = {
     name: stepName,
@@ -4776,9 +4522,7 @@ function inspectDeepStep({
           environment,
           step.published_inputs,
         ).input_snapshot;
-        if (
-          !snapshotStillCurrent(stepName, step.published_inputs, currentInputSnapshot)
-        ) {
+        if (!snapshotStillCurrent(stepName, step.published_inputs, currentInputSnapshot)) {
           report.input_health = "stale";
           addDeepIssue(report.issues, "published_inputs_stale");
           const protectedKinds = protectedInputKinds(stepName);
@@ -4800,17 +4544,18 @@ function inspectDeepStep({
       }
     } else {
       report.input_health = "unavailable";
-      addDeepIssue(report.issues, outputHealth === "missing"
-        ? "output_missing"
-        : "output_path_invalid");
+      addDeepIssue(
+        report.issues,
+        outputHealth === "missing" ? "output_missing" : "output_path_invalid",
+      );
     }
   }
 
   if (
-    step.revision > 0
-    && report.artifact_health === "current"
-    && report.input_health === "current"
-    && files !== null
+    step.revision > 0 &&
+    report.artifact_health === "current" &&
+    report.input_health === "current" &&
+    files !== null
   ) {
     try {
       const committedAttempt = latestCommittedAttempt(step);
@@ -4849,10 +4594,7 @@ function inspectDeepStep({
 
   if (isMaterialStep(stepName) && outputDirectory !== null) {
     for (const attempt of step.attempt_history) {
-      if (
-        attempt.publication_id === null
-        || !Array.isArray(attempt.archived_artifacts)
-      ) {
+      if (attempt.publication_id === null || !Array.isArray(attempt.archived_artifacts)) {
         continue;
       }
       for (const archived of attempt.archived_artifacts) {
@@ -4873,10 +4615,7 @@ function inspectDeepStep({
           );
           continue;
         }
-        if (
-          bytes.byteLength !== archived.bytes
-          || sha256Hex(bytes) !== archived.sha256
-        ) {
+        if (bytes.byteLength !== archived.bytes || sha256Hex(bytes) !== archived.sha256) {
           addDeepIssue(report.issues, "revision_archive_corrupt");
         }
       }
@@ -4929,12 +4668,13 @@ function inspectDeepFileBackedProcess(record, environment, ownership) {
       outputHealth: output.health,
       record,
       stepName,
-    }));
+    }),
+  );
   const staging = inspectStagingDirectory(record, outputDirectory, ownership);
   const hasAttention =
-    ["missing", "invalid"].includes(output.health)
-    || steps.some((step) => step.issues.length > 0)
-    || staging.health === "attention";
+    ["missing", "invalid"].includes(output.health) ||
+    steps.some((step) => step.issues.length > 0) ||
+    staging.health === "attention";
   return {
     process_id: record.id,
     mode: "file-backed",
@@ -4964,20 +4704,12 @@ function inspectProcessLogV3DeepWithEnvironment(log, environment) {
   });
   return {
     schema_version: 4,
-    health: processes.some((process) => process.health === "attention")
-      ? "attention"
-      : "current",
+    health: processes.some((process) => process.health === "attention") ? "attention" : "current",
     processes,
   };
 }
 
-export function inspectProcessLogV3Deep(
-  log,
-  {
-    outputRoot,
-    workspaceRoot,
-  } = {},
-) {
+export function inspectProcessLogV3Deep(log, { outputRoot, workspaceRoot } = {}) {
   validateLogV3(log);
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
   return inspectProcessLogV3DeepWithEnvironment(log, environment);
@@ -4985,28 +4717,24 @@ export function inspectProcessLogV3Deep(
 
 export function readProcessLogV3DeepSnapshot(
   logPath,
-  {
-    lockOptions,
-    outputRoot,
-    workspaceRoot,
-  } = {},
+  { lockOptions, outputRoot, workspaceRoot } = {},
 ) {
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
-  return withLogV3Lock(logPath, ({ log }) => ({
-    log,
-    report: inspectProcessLogV3DeepWithEnvironment(log, environment),
-  }), lockOptions);
+  return withLogV3Lock(
+    logPath,
+    ({ log }) => ({
+      log,
+      report: inspectProcessLogV3DeepWithEnvironment(log, environment),
+    }),
+    lockOptions,
+  );
 }
 
 export function validateProcessLogV3Deep(logPath, options = {}) {
   return readProcessLogV3DeepSnapshot(logPath, options).report;
 }
 
-function recoverMissingReservedOutputDirectory({
-  environment,
-  mkdirDirectory,
-  record,
-}) {
+function recoverMissingReservedOutputDirectory({ environment, mkdirDirectory, record }) {
   if (record.output_dir === null) {
     throw new ProcessLogLifecycleError(
       "output_not_reserved",
@@ -5023,9 +4751,7 @@ function recoverMissingReservedOutputDirectory({
     return false;
   }
   if (
-    fileBackedStepNames.some(
-      (candidateStepName) => record.steps[candidateStepName].revision > 0,
-    )
+    fileBackedStepNames.some((candidateStepName) => record.steps[candidateStepName].revision > 0)
   ) {
     throw new ProcessLogLifecycleError(
       "publication_recovery_conflict",
@@ -5033,12 +4759,8 @@ function recoverMissingReservedOutputDirectory({
     );
   }
   const step = record.steps.get_vacancy;
-  const recoverableRunning =
-    step.state === "running"
-    && step.active_attempt !== null;
-  const recoverableFailure =
-    step.state === "failed"
-    && step.error?.code === "output_setup_failed";
+  const recoverableRunning = step.state === "running" && step.active_attempt !== null;
+  const recoverableFailure = step.state === "failed" && step.error?.code === "output_setup_failed";
   if (!recoverableRunning && !recoverableFailure) {
     throw new ProcessLogLifecycleError(
       "invalid_step_transition",
@@ -5070,14 +4792,7 @@ function recoverMissingReservedOutputDirectory({
   return true;
 }
 
-function reconcileCompletedInputDrift({
-  clock,
-  environment,
-  log,
-  record,
-  stepName,
-  write,
-}) {
+function reconcileCompletedInputDrift({ clock, environment, log, record, stepName, write }) {
   const step = record.steps[stepName];
   if (step.state === "stale") {
     return {
@@ -5111,8 +4826,7 @@ function reconcileCompletedInputDrift({
 
   const descendantStepNames = transitiveDescendantStepNames(stepName);
   const runningDescendants = descendantStepNames.filter(
-    (descendantStepName) =>
-      record.steps[descendantStepName].state === "running",
+    (descendantStepName) => record.steps[descendantStepName].state === "running",
   );
   if (runningDescendants.length > 0) {
     throw new ProcessLogLifecycleError(
@@ -5161,29 +4875,20 @@ export function reconcileFileBackedStepV3(
     "reconcile-step input",
   );
   const stepName = requireStepName(input.stepName);
-  if (
-    !Object.hasOwn(input, "attemptId")
-    || !Object.hasOwn(input, "publicationId")
-  ) {
+  if (!Object.hasOwn(input, "attemptId") || !Object.hasOwn(input, "publicationId")) {
     throw new ProcessLogLifecycleError(
       "invalid_reconcile_step_input",
       "attemptId and publicationId must both be present, using null for non-publication reconcile",
     );
   }
-  const publicationId = input.publicationId === null
-    ? null
-    : requirePublicationId(
-        input.publicationId,
-        "publicationId",
-        "invalid_reconcile_step_input",
-      );
-  const attemptId = input.attemptId === null
-    ? null
-    : requireNonEmptyString(
-        input.attemptId,
-        "attemptId",
-        "invalid_reconcile_step_input",
-      );
+  const publicationId =
+    input.publicationId === null
+      ? null
+      : requirePublicationId(input.publicationId, "publicationId", "invalid_reconcile_step_input");
+  const attemptId =
+    input.attemptId === null
+      ? null
+      : requireNonEmptyString(input.attemptId, "attemptId", "invalid_reconcile_step_input");
   if ((attemptId === null) !== (publicationId === null)) {
     throw new ProcessLogLifecycleError(
       "invalid_reconcile_step_input",
@@ -5198,136 +4903,140 @@ export function reconcileFileBackedStepV3(
   }
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
 
-  return withLogV3Lock(logPath, ({ log, write }) => {
-    const record = resolveFileBackedProcessV3(log, input.selector);
-    const step = record.steps[stepName];
+  return withLogV3Lock(
+    logPath,
+    ({ log, write }) => {
+      const record = resolveFileBackedProcessV3(log, input.selector);
+      const step = record.steps[stepName];
 
-    if (publicationId === null) {
-      if (step.publication_transaction !== null) {
-        throw new ProcessLogLifecycleError(
-          "publication_recovery_required",
-          `${stepName} has a prepared publication that requires its publication token`,
-        );
-      }
-      if (
-        record.output_dir !== null
-        && !validateOwnedOutputDirectory(
-          environment.outputPath,
-          environment.outputRealPath,
-          record.output_dir,
-        )
-      ) {
-        if (stepName !== "get_vacancy") {
+      if (publicationId === null) {
+        if (step.publication_transaction !== null) {
           throw new ProcessLogLifecycleError(
-            "invalid_reconcile_step_input",
-            "missing output directory recovery must target get_vacancy",
+            "publication_recovery_required",
+            `${stepName} has a prepared publication that requires its publication token`,
           );
         }
-        recoverMissingReservedOutputDirectory({
+        if (
+          record.output_dir !== null &&
+          !validateOwnedOutputDirectory(
+            environment.outputPath,
+            environment.outputRealPath,
+            record.output_dir,
+          )
+        ) {
+          if (stepName !== "get_vacancy") {
+            throw new ProcessLogLifecycleError(
+              "invalid_reconcile_step_input",
+              "missing output directory recovery must target get_vacancy",
+            );
+          }
+          recoverMissingReservedOutputDirectory({
+            environment,
+            mkdirDirectory,
+            record,
+          });
+          return {
+            invalidated_steps: [],
+            process: record,
+            status: "output_recovered",
+            step_name: stepName,
+          };
+        }
+        if (record.output_dir === null) {
+          throw new ProcessLogLifecycleError(
+            "output_not_reserved",
+            `process ${record.id} has no reserved output directory`,
+          );
+        }
+        return reconcileCompletedInputDrift({
+          clock,
           environment,
-          mkdirDirectory,
+          log,
           record,
+          stepName,
+          write,
         });
+      }
+
+      const outputDirectory = selectedOutputDirectory(environment, record);
+      const transaction = step.publication_transaction;
+
+      if (transaction !== null) {
+        if (
+          transaction.id !== publicationId ||
+          attemptId === null ||
+          transaction.attempt_id !== attemptId ||
+          step.active_attempt?.id !== attemptId
+        ) {
+          throw new ProcessLogLifecycleError(
+            "stale_attempt",
+            `reconcile-step did not match the active ${stepName} publication`,
+          );
+        }
         return {
-          invalidated_steps: [],
+          ...recoverPreparedPublication({
+            environment,
+            failAt,
+            log,
+            outputDirectory,
+            preferNew: true,
+            record,
+            stepName,
+            timestamp: recordMutationTimestamp(clock, log, record),
+            write,
+          }),
           process: record,
-          status: "output_recovered",
           step_name: stepName,
         };
       }
-      if (record.output_dir === null) {
-        throw new ProcessLogLifecycleError(
-          "output_not_reserved",
-          `process ${record.id} has no reserved output directory`,
-        );
-      }
-      return reconcileCompletedInputDrift({
-        clock,
-        environment,
-        log,
-        record,
-        stepName,
-        write,
-      });
-    }
 
-    const outputDirectory = selectedOutputDirectory(environment, record);
-    const transaction = step.publication_transaction;
-
-    if (transaction !== null) {
-      if (
-        transaction.id !== publicationId
-        || attemptId === null
-        || transaction.attempt_id !== attemptId
-        || step.active_attempt?.id !== attemptId
-      ) {
+      if (step.active_attempt !== null) {
         throw new ProcessLogLifecycleError(
           "stale_attempt",
-          `reconcile-step did not match the active ${stepName} publication`,
+          `${stepName} has a different active attempt`,
         );
       }
-      return {
-        ...recoverPreparedPublication({
-          environment,
-          failAt,
-          log,
+      const lastHistory = step.attempt_history.at(-1);
+      if (lastHistory?.publication_id !== publicationId) {
+        throw new ProcessLogLifecycleError(
+          "stale_publication",
+          `${publicationId} is not the latest committed ${stepName} publication`,
+        );
+      }
+      const canonicalBytesByKind = new Map();
+      for (const artifact of step.artifacts) {
+        const inspection = inspectPublicationFile(outputDirectory, artifact.path, artifact);
+        if (inspection.status !== "match") {
+          throw new ProcessLogLifecycleError(
+            "publication_recovery_conflict",
+            `committed artifact ${artifact.path} is not healthy`,
+          );
+        }
+        canonicalBytesByKind.set(artifact.kind, inspection.bytes);
+      }
+      // Re-running finalization completes the committed-bundle archive before any removal, so the
+      // archive-then-delete ordering is idempotent across a crash window (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#6-revision-content-history). This is a
+      // completion pass: a tampered existing entry stays for deep validation to report rather than
+      // blocking the residue cleanup.
+      if (isMaterialStep(stepName) && Array.isArray(lastHistory.archived_artifacts)) {
+        writeRevisionArchiveFiles(
           outputDirectory,
-          preferNew: true,
-          record,
-          stepName,
-          timestamp: recordMutationTimestamp(clock, log, record),
-          write,
-        }),
+          publicationId,
+          lastHistory.archived_artifacts,
+          canonicalBytesByKind,
+          { onExistingMismatch: "skip" },
+        );
+      }
+      const removed = removeTransactionDirectory(outputDirectory, publicationId);
+      return {
         process: record,
+        publication_id: publicationId,
+        status: removed ? "cleaned" : "unchanged",
         step_name: stepName,
       };
-    }
-
-    if (step.active_attempt !== null) {
-      throw new ProcessLogLifecycleError(
-        "stale_attempt",
-        `${stepName} has a different active attempt`,
-      );
-    }
-    const lastHistory = step.attempt_history.at(-1);
-    if (lastHistory?.publication_id !== publicationId) {
-      throw new ProcessLogLifecycleError(
-        "stale_publication",
-        `${publicationId} is not the latest committed ${stepName} publication`,
-      );
-    }
-    const canonicalBytesByKind = new Map();
-    for (const artifact of step.artifacts) {
-      const inspection = inspectPublicationFile(outputDirectory, artifact.path, artifact);
-      if (inspection.status !== "match") {
-        throw new ProcessLogLifecycleError(
-          "publication_recovery_conflict",
-          `committed artifact ${artifact.path} is not healthy`,
-        );
-      }
-      canonicalBytesByKind.set(artifact.kind, inspection.bytes);
-    }
-    // Re-running finalization completes the committed-bundle archive before any removal, so the
-    // archive-then-delete ordering is idempotent across a crash window (ADR 0015 docs/adr/0015-lightweight-post-review-revision.md#6-revision-content-history). This is a
-    // completion pass: a tampered existing entry stays for deep validation to report rather than
-    // blocking the residue cleanup.
-    if (isMaterialStep(stepName) && Array.isArray(lastHistory.archived_artifacts)) {
-      writeRevisionArchiveFiles(
-        outputDirectory,
-        publicationId,
-        lastHistory.archived_artifacts,
-        canonicalBytesByKind,
-        { onExistingMismatch: "skip" },
-      );
-    }
-    const removed = removeTransactionDirectory(outputDirectory, publicationId);
-    return {
-      process: record,
-      publication_id: publicationId,
-      status: removed ? "cleaned" : "unchanged",
-      step_name: stepName,
-    };
-  }, lockOptions);
+    },
+    lockOptions,
+  );
 }
 
 function outputSetupFailureDetails(error) {
@@ -5390,13 +5099,8 @@ export function createCanonicalOutputSegment(companyObserved, role) {
     "invalid_output_identity",
   );
   const exactRole = requireNonEmptyString(role, "role", "invalid_output_identity");
-  const normalized = `${company}-${exactRole}`
-    .normalize("NFC")
-    .toLowerCase()
-    .normalize("NFC");
-  const segment = normalized
-    .replace(/[^\p{L}\p{N}]+/gu, "-")
-    .replace(/^-+|-+$/gu, "");
+  const normalized = `${company}-${exactRole}`.normalize("NFC").toLowerCase().normalize("NFC");
+  const segment = normalized.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/gu, "");
   if (!segment) {
     throw new ProcessLogLifecycleError(
       "invalid_output_identity",
@@ -5417,12 +5121,7 @@ export function reserveFileBackedOutputV3(
     workspaceRoot,
   } = {},
 ) {
-  assertExactKeys(
-    input,
-    ["processId"],
-    "invalid_reserve_output_input",
-    "reserve-output input",
-  );
+  assertExactKeys(input, ["processId"], "invalid_reserve_output_input", "reserve-output input");
   const processId = requireNonEmptyString(
     input.processId,
     "processId",
@@ -5436,101 +5135,105 @@ export function reserveFileBackedOutputV3(
   }
   const environment = resolveOutputEnvironment(workspaceRoot, outputRoot);
 
-  return withLogV3Lock(logPath, ({ log, write }) => {
-    const record = getFileBackedProcessForMutation(log, processId, "reserve-output");
-    const step = record.steps.get_vacancy;
+  return withLogV3Lock(
+    logPath,
+    ({ log, write }) => {
+      const record = getFileBackedProcessForMutation(log, processId, "reserve-output");
+      const step = record.steps.get_vacancy;
 
-    if (record.output_dir !== null) {
-      const existing = validateOwnedOutputDirectory(
-        environment.outputPath,
-        environment.outputRealPath,
-        record.output_dir,
-      );
-      if (existing) {
+      if (record.output_dir !== null) {
+        const existing = validateOwnedOutputDirectory(
+          environment.outputPath,
+          environment.outputRealPath,
+          record.output_dir,
+        );
+        if (existing) {
+          return {
+            status: "unchanged",
+            output_dir: record.output_dir,
+            process: record,
+          };
+        }
+        if (step.state !== "running" || step.active_attempt === null) {
+          throw new ProcessLogLifecycleError(
+            "step_not_running",
+            "get_vacancy must be running to recover a missing reserved output directory",
+          );
+        }
+        const recoveredAt = recordMutationTimestamp(clock, log, record);
+        createReservedOutputDirectory({
+          log,
+          mkdirDirectory,
+          outputDir: record.output_dir,
+          outputPath: environment.outputPath,
+          outputRealPath: environment.outputRealPath,
+          record,
+          timestamp: recoveredAt,
+          write,
+        });
         return {
-          status: "unchanged",
+          status: "recovered",
           output_dir: record.output_dir,
           process: record,
         };
       }
+
+      if (record.company_observed === null || record.role === null) {
+        throw new ProcessLogLifecycleError(
+          "output_identity_incomplete",
+          "exact company_observed and role are required before output reservation",
+        );
+      }
       if (step.state !== "running" || step.active_attempt === null) {
         throw new ProcessLogLifecycleError(
           "step_not_running",
-          "get_vacancy must be running to recover a missing reserved output directory",
+          "get_vacancy must be running before output reservation",
         );
       }
-      const recoveredAt = recordMutationTimestamp(clock, log, record);
+
+      const baseSegment = createCanonicalOutputSegment(record.company_observed, record.role);
+      const occupiedKeys = filesystemOutputKeys(environment.outputPath);
+      for (const candidate of log.processes) {
+        if (candidate.output_dir !== null) {
+          occupiedKeys.add(outputDirEquivalenceKey(candidate.output_dir));
+        }
+      }
+
+      let suffix = 1;
+      let outputDir;
+      while (true) {
+        const segment = suffix === 1 ? baseSegment : `${baseSegment}-${suffix}`;
+        const candidate = normalizeOutputDir(`output/${segment}`);
+        if (!occupiedKeys.has(outputDirEquivalenceKey(candidate))) {
+          outputDir = candidate;
+          break;
+        }
+        suffix += 1;
+      }
+
+      const reservedAt = recordMutationTimestamp(clock, log, record);
+      record.output_dir = outputDir;
+      touchFileBackedRecord(log, record, reservedAt);
+      write(log);
+
       createReservedOutputDirectory({
         log,
         mkdirDirectory,
-        outputDir: record.output_dir,
+        outputDir,
         outputPath: environment.outputPath,
         outputRealPath: environment.outputRealPath,
         record,
-        timestamp: recoveredAt,
+        timestamp: reservedAt,
         write,
       });
       return {
-        status: "recovered",
-        output_dir: record.output_dir,
+        status: "reserved",
+        output_dir: outputDir,
         process: record,
       };
-    }
-
-    if (record.company_observed === null || record.role === null) {
-      throw new ProcessLogLifecycleError(
-        "output_identity_incomplete",
-        "exact company_observed and role are required before output reservation",
-      );
-    }
-    if (step.state !== "running" || step.active_attempt === null) {
-      throw new ProcessLogLifecycleError(
-        "step_not_running",
-        "get_vacancy must be running before output reservation",
-      );
-    }
-
-    const baseSegment = createCanonicalOutputSegment(record.company_observed, record.role);
-    const occupiedKeys = filesystemOutputKeys(environment.outputPath);
-    for (const candidate of log.processes) {
-      if (candidate.output_dir !== null) {
-        occupiedKeys.add(outputDirEquivalenceKey(candidate.output_dir));
-      }
-    }
-
-    let suffix = 1;
-    let outputDir;
-    while (true) {
-      const segment = suffix === 1 ? baseSegment : `${baseSegment}-${suffix}`;
-      const candidate = normalizeOutputDir(`output/${segment}`);
-      if (!occupiedKeys.has(outputDirEquivalenceKey(candidate))) {
-        outputDir = candidate;
-        break;
-      }
-      suffix += 1;
-    }
-
-    const reservedAt = recordMutationTimestamp(clock, log, record);
-    record.output_dir = outputDir;
-    touchFileBackedRecord(log, record, reservedAt);
-    write(log);
-
-    createReservedOutputDirectory({
-      log,
-      mkdirDirectory,
-      outputDir,
-      outputPath: environment.outputPath,
-      outputRealPath: environment.outputRealPath,
-      record,
-      timestamp: reservedAt,
-      write,
-    });
-    return {
-      status: "reserved",
-      output_dir: outputDir,
-      process: record,
-    };
-  }, lockOptions);
+    },
+    lockOptions,
+  );
 }
 
 export function createPendingFileBackedStep() {
@@ -5629,9 +5332,7 @@ export function getFileBackedProcessForMutation(log, processId, operation) {
 // recomputed on every call rather than cached, because the ledger is small and a cache keyed by
 // anything other than the reference would be one more thing that can disagree with the normalizer.
 function processesWithComputedSourceKey(log, sourceKey) {
-  return log.processes.filter(
-    (record) => normalizeSourceRef(record.source_ref) === sourceKey,
-  );
+  return log.processes.filter((record) => normalizeSourceRef(record.source_ref) === sourceKey);
 }
 
 function describeLegacySourceCollision(sourceRef, matches) {
@@ -5690,8 +5391,7 @@ export function resolveFileBackedProcessV3(log, selector) {
     const outputKey = outputDirEquivalenceKey(normalizedOutputDir);
     matches = log.processes.filter(
       (record) =>
-        record.output_dir !== null
-        && outputDirEquivalenceKey(record.output_dir) === outputKey,
+        record.output_dir !== null && outputDirEquivalenceKey(record.output_dir) === outputKey,
     );
     renderedSelector = normalizedOutputDir;
   }
@@ -5703,8 +5403,8 @@ export function resolveFileBackedProcessV3(log, selector) {
     );
   }
   if (
-    selectorKey === "sourceRef"
-    && describeLegacySourceCollision(selectorValue, matches) !== null
+    selectorKey === "sourceRef" &&
+    describeLegacySourceCollision(selectorValue, matches) !== null
   ) {
     throw new ProcessLogLifecycleError(
       "process_ambiguous",
@@ -5726,21 +5426,12 @@ export function resolveFileBackedProcessV3(log, selector) {
 export function updateFileBackedProcessV3(
   logPath,
   input,
-  {
-    clock = () => new Date().toISOString(),
-    lockOptions,
-  } = {},
+  { clock = () => new Date().toISOString(), lockOptions } = {},
 ) {
   const allowedKeys = ["processId", "companyObserved", "companyHint", "role"];
   assertExactKeys(input, allowedKeys, "invalid_update_input", "update input");
-  const processId = requireNonEmptyString(
-    input.processId,
-    "processId",
-    "invalid_update_input",
-  );
-  const updateKeys = allowedKeys
-    .slice(1)
-    .filter((key) => Object.hasOwn(input, key));
+  const processId = requireNonEmptyString(input.processId, "processId", "invalid_update_input");
+  const updateKeys = allowedKeys.slice(1).filter((key) => Object.hasOwn(input, key));
   if (updateKeys.length === 0) {
     throw new ProcessLogLifecycleError(
       "invalid_update_input",
@@ -5762,62 +5453,57 @@ export function updateFileBackedProcessV3(
     role: "role",
   };
 
-  return updateLogV3Atomic(logPath, (log) => {
-    const record = getFileBackedProcessForMutation(log, processId, "update");
-    const changedKeys = updateKeys.filter(
-      (key) => record[fieldByInputKey[key]] !== updates[key],
-    );
-    if (changedKeys.length === 0) {
+  return updateLogV3Atomic(
+    logPath,
+    (log) => {
+      const record = getFileBackedProcessForMutation(log, processId, "update");
+      const changedKeys = updateKeys.filter((key) => record[fieldByInputKey[key]] !== updates[key]);
+      if (changedKeys.length === 0) {
+        return {
+          changed: false,
+          result: {
+            status: "unchanged",
+            process: record,
+          },
+        };
+      }
+      const changesPublishedIdentity = changedKeys.some(
+        (key) => key === "companyObserved" || key === "role",
+      );
+      if (changesPublishedIdentity) {
+        const step = record.steps.get_vacancy;
+        if (step.publication_transaction !== null) {
+          throw new ProcessLogLifecycleError(
+            "publication_recovery_required",
+            "get_vacancy has a prepared publication that must be reconciled",
+          );
+        }
+        if (step.state !== "running" || step.active_attempt === null) {
+          throw new ProcessLogLifecycleError(
+            "identity_update_not_authorized",
+            "companyObserved and role may change only during an active get_vacancy attempt; retry or reopen the step first",
+          );
+        }
+      }
+      for (const key of updateKeys) {
+        record[fieldByInputKey[key]] = updates[key];
+      }
+      touchFileBackedRecord(log, record, recordMutationTimestamp(clock, log, record));
       return {
-        changed: false,
         result: {
-          status: "unchanged",
+          status: "updated",
           process: record,
         },
       };
-    }
-    const changesPublishedIdentity = changedKeys.some(
-      (key) => key === "companyObserved" || key === "role",
-    );
-    if (changesPublishedIdentity) {
-      const step = record.steps.get_vacancy;
-      if (step.publication_transaction !== null) {
-        throw new ProcessLogLifecycleError(
-          "publication_recovery_required",
-          "get_vacancy has a prepared publication that must be reconciled",
-        );
-      }
-      if (step.state !== "running" || step.active_attempt === null) {
-        throw new ProcessLogLifecycleError(
-          "identity_update_not_authorized",
-          "companyObserved and role may change only during an active get_vacancy attempt; retry or reopen the step first",
-        );
-      }
-    }
-    for (const key of updateKeys) {
-      record[fieldByInputKey[key]] = updates[key];
-    }
-    touchFileBackedRecord(
-      log,
-      record,
-      recordMutationTimestamp(clock, log, record),
-    );
-    return {
-      result: {
-        status: "updated",
-        process: record,
-      },
-    };
-  }, lockOptions);
+    },
+    lockOptions,
+  );
 }
 
 export function linkFileBackedProcessCompanyV3(
   logPath,
   input,
-  {
-    clock = () => new Date().toISOString(),
-    lockOptions,
-  } = {},
+  { clock = () => new Date().toISOString(), lockOptions } = {},
 ) {
   const allowedKeys = ["processId", "companyId"];
   assertExactKeys(input, allowedKeys, "invalid_link_company_input", "link-company input");
@@ -5832,39 +5518,36 @@ export function linkFileBackedProcessCompanyV3(
     "invalid_link_company_input",
   );
 
-  return updateLogV3Atomic(logPath, (log) => {
-    const record = getFileBackedProcessForMutation(log, processId, "link-company");
-    const company = log.companies.find((candidate) => candidate.id === companyId);
-    if (!company) {
-      throw new ProcessLogLifecycleError(
-        "company_not_found",
-        `unknown company id: ${companyId}`,
-      );
-    }
-    if (record.company_id === company.id) {
+  return updateLogV3Atomic(
+    logPath,
+    (log) => {
+      const record = getFileBackedProcessForMutation(log, processId, "link-company");
+      const company = log.companies.find((candidate) => candidate.id === companyId);
+      if (!company) {
+        throw new ProcessLogLifecycleError("company_not_found", `unknown company id: ${companyId}`);
+      }
+      if (record.company_id === company.id) {
+        return {
+          changed: false,
+          result: {
+            status: "unchanged",
+            process: record,
+            company,
+          },
+        };
+      }
+      record.company_id = company.id;
+      touchFileBackedRecord(log, record, recordMutationTimestamp(clock, log, record));
       return {
-        changed: false,
         result: {
-          status: "unchanged",
+          status: "linked",
           process: record,
           company,
         },
       };
-    }
-    record.company_id = company.id;
-    touchFileBackedRecord(
-      log,
-      record,
-      recordMutationTimestamp(clock, log, record),
-    );
-    return {
-      result: {
-        status: "linked",
-        process: record,
-        company,
-      },
-    };
-  }, lockOptions);
+    },
+    lockOptions,
+  );
 }
 
 // Existence and non-self-reference are ADR 0013 row 17 — a different rule from the duplicate-group
@@ -5943,10 +5626,7 @@ function assertNoDuplicateLinkCycle(log, recordId, duplicateOf) {
 export function linkFileBackedProcessDuplicateV3(
   logPath,
   input,
-  {
-    clock = () => new Date().toISOString(),
-    lockOptions,
-  } = {},
+  { clock = () => new Date().toISOString(), lockOptions } = {},
 ) {
   const allowedKeys = ["processId", "duplicateOf"];
   assertExactKeys(input, allowedKeys, "invalid_link_duplicate_input", "link-duplicate input");
@@ -5957,51 +5637,46 @@ export function linkFileBackedProcessDuplicateV3(
   );
   const duplicateOf = normalizeNullableString(input.duplicateOf);
 
-  return updateLogV3Atomic(logPath, (log) => {
-    const record = getFileBackedProcessForMutation(log, processId, "link-duplicate");
-    let crossSourceLink = null;
-    if (duplicateOf !== null) {
-      const target = requireDuplicateTarget(log, duplicateOf, processId);
-      assertNoDuplicateLinkCycle(log, processId, duplicateOf);
-      crossSourceLink = describeCrossSourceLink(normalizeSourceRef(record.source_ref), target);
-    }
-    assertDuplicateLinkWritable(log, {
-      duplicateOf,
-      recordId: processId,
-      sourceRef: record.source_ref,
-    });
-    if (record.duplicate_of === duplicateOf) {
-      return {
-        changed: false,
-        result: {
-          status: "unchanged",
-          process: record,
-        },
+  return updateLogV3Atomic(
+    logPath,
+    (log) => {
+      const record = getFileBackedProcessForMutation(log, processId, "link-duplicate");
+      let crossSourceLink = null;
+      if (duplicateOf !== null) {
+        const target = requireDuplicateTarget(log, duplicateOf, processId);
+        assertNoDuplicateLinkCycle(log, processId, duplicateOf);
+        crossSourceLink = describeCrossSourceLink(normalizeSourceRef(record.source_ref), target);
+      }
+      assertDuplicateLinkWritable(log, {
+        duplicateOf,
+        recordId: processId,
+        sourceRef: record.source_ref,
+      });
+      if (record.duplicate_of === duplicateOf) {
+        return {
+          changed: false,
+          result: {
+            status: "unchanged",
+            process: record,
+          },
+        };
+      }
+      record.duplicate_of = duplicateOf;
+      touchFileBackedRecord(log, record, recordMutationTimestamp(clock, log, record));
+      const result = {
+        status: duplicateOf === null ? "cleared" : "linked",
+        process: record,
       };
-    }
-    record.duplicate_of = duplicateOf;
-    touchFileBackedRecord(
-      log,
-      record,
-      recordMutationTimestamp(clock, log, record),
-    );
-    const result = {
-      status: duplicateOf === null ? "cleared" : "linked",
-      process: record,
-    };
-    if (crossSourceLink !== null) result.cross_source_link = crossSourceLink;
-    return { result };
-  }, lockOptions);
+      if (crossSourceLink !== null) result.cross_source_link = crossSourceLink;
+      return { result };
+    },
+    lockOptions,
+  );
 }
 
 export function startFileBackedProcessV3(
   logPath,
-  {
-    companyHint = null,
-    duplicateOf = null,
-    runner,
-    sourceRef,
-  },
+  { companyHint = null, duplicateOf = null, runner, sourceRef },
   {
     attemptIdFactory = () => createAttemptId(randomUUID()),
     clock = () => new Date().toISOString(),
@@ -6021,76 +5696,82 @@ export function startFileBackedProcessV3(
   const normalizedDuplicateOf = normalizeNullableString(duplicateOf);
   const sourceKey = normalizeSourceRef(normalizedSourceRef);
 
-  return updateLogV3Atomic(logPath, (log) => {
-    const matches = processesWithComputedSourceKey(log, sourceKey);
-    const collisionEvidence = describeLegacySourceCollision(normalizedSourceRef, matches);
-    const collision = collisionEvidence === null
-      ? null
-      : {
-          ...collisionEvidence,
-          source_key: sourceKey,
-          requires_final_url_check: true,
-          requires_explicit_duplicate_of: normalizedDuplicateOf === null,
+  return updateLogV3Atomic(
+    logPath,
+    (log) => {
+      const matches = processesWithComputedSourceKey(log, sourceKey);
+      const collisionEvidence = describeLegacySourceCollision(normalizedSourceRef, matches);
+      const collision =
+        collisionEvidence === null
+          ? null
+          : {
+              ...collisionEvidence,
+              source_key: sourceKey,
+              requires_final_url_check: true,
+              requires_explicit_duplicate_of: normalizedDuplicateOf === null,
+            };
+      if (matches.length > 0 && normalizedDuplicateOf === null) {
+        return {
+          changed: false,
+          result: {
+            status: "duplicate",
+            source_key: sourceKey,
+            matches,
+            collision,
+          },
         };
-    if (matches.length > 0 && normalizedDuplicateOf === null) {
-      return {
-        changed: false,
-        result: {
-          status: "duplicate",
-          source_key: sourceKey,
-          matches,
-          collision,
-        },
-      };
-    }
-    let crossSourceLink = null;
-    if (normalizedDuplicateOf !== null) {
-      const target = requireDuplicateTarget(log, normalizedDuplicateOf, null);
-      assertDuplicateLinkWritable(log, {
-        duplicateOf: normalizedDuplicateOf,
-        recordId: null,
-        sourceRef: normalizedSourceRef,
-      });
-      crossSourceLink = describeCrossSourceLink(sourceKey, target);
-    }
+      }
+      let crossSourceLink = null;
+      if (normalizedDuplicateOf !== null) {
+        const target = requireDuplicateTarget(log, normalizedDuplicateOf, null);
+        assertDuplicateLinkWritable(log, {
+          duplicateOf: normalizedDuplicateOf,
+          recordId: null,
+          sourceRef: normalizedSourceRef,
+        });
+        crossSourceLink = describeCrossSourceLink(sourceKey, target);
+      }
 
-    const startedAt = mutationTimestamp(clock, log.updated_at);
-    const processIds = new Set(log.processes.map((record) => record.id));
-    const resolvedProcessIdFactory = processIdFactory
-      ?? (() => createProcessId(startedAt, randomUUID()));
-    const processId = allocateUniqueId(
-      processIds,
-      resolvedProcessIdFactory,
-      "process_id_conflict",
-      "process id",
-    );
-    const attemptId = allocateUniqueId(
-      activeAttemptIds(log),
-      attemptIdFactory,
-      "active_attempt_id_conflict",
-      "active attempt id",
-    );
-    const processRecord = createInitialFileBackedProcess({
-      attemptId,
-      companyHint: normalizedCompanyHint,
-      duplicateOf: normalizedDuplicateOf,
-      processId,
-      runner: normalizedRunner,
-      sourceRef: normalizedSourceRef,
-      startedAt,
-    });
-    log.processes.push(processRecord);
-    log.processes.sort((left, right) =>
-      Date.parse(left.started_at) - Date.parse(right.started_at)
-        || left.id.localeCompare(right.id),
-    );
-    log.updated_at = startedAt;
-    const result = {
-      status: "created",
-      process: processRecord,
-    };
-    if (collision !== null) result.collision = collision;
-    if (crossSourceLink !== null) result.cross_source_link = crossSourceLink;
-    return { result };
-  }, lockOptions);
+      const startedAt = mutationTimestamp(clock, log.updated_at);
+      const processIds = new Set(log.processes.map((record) => record.id));
+      const resolvedProcessIdFactory =
+        processIdFactory ?? (() => createProcessId(startedAt, randomUUID()));
+      const processId = allocateUniqueId(
+        processIds,
+        resolvedProcessIdFactory,
+        "process_id_conflict",
+        "process id",
+      );
+      const attemptId = allocateUniqueId(
+        activeAttemptIds(log),
+        attemptIdFactory,
+        "active_attempt_id_conflict",
+        "active attempt id",
+      );
+      const processRecord = createInitialFileBackedProcess({
+        attemptId,
+        companyHint: normalizedCompanyHint,
+        duplicateOf: normalizedDuplicateOf,
+        processId,
+        runner: normalizedRunner,
+        sourceRef: normalizedSourceRef,
+        startedAt,
+      });
+      log.processes.push(processRecord);
+      log.processes.sort(
+        (left, right) =>
+          Date.parse(left.started_at) - Date.parse(right.started_at) ||
+          left.id.localeCompare(right.id),
+      );
+      log.updated_at = startedAt;
+      const result = {
+        status: "created",
+        process: processRecord,
+      };
+      if (collision !== null) result.collision = collision;
+      if (crossSourceLink !== null) result.cross_source_link = crossSourceLink;
+      return { result };
+    },
+    lockOptions,
+  );
 }

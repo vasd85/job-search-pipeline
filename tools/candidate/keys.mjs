@@ -26,7 +26,8 @@ import { CandidateError } from "./load.mjs";
  * The reference as it appears in prose. The path must start with a letter, so a bracketed
  * placeholder is not a reference, and `candidate.config.` on its own is not one either.
  */
-export const candidateKeyReferencePattern = /candidate\.config\.([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*)/gu;
+export const candidateKeyReferencePattern =
+  /candidate\.config\.([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*)/gu;
 
 const MAX_SCANNED_FILE_BYTES = 4 * 1024 * 1024;
 
@@ -98,9 +99,13 @@ export function scanCandidateKeyReferences({ roots } = {}) {
     try {
       stats = statSync(root);
     } catch (error) {
-      fail("candidate_key_root_invalid", `key scan root is unavailable (${error?.code ?? "unknown"})`);
+      fail(
+        "candidate_key_root_invalid",
+        `key scan root is unavailable (${error?.code ?? "unknown"})`,
+      );
     }
-    if (!stats.isDirectory()) fail("candidate_key_root_invalid", "key scan root must be a directory");
+    if (!stats.isDirectory())
+      fail("candidate_key_root_invalid", "key scan root must be a directory");
     for (const path of walk(root, [])) {
       let buffer;
       try {
@@ -113,7 +118,10 @@ export function scanCandidateKeyReferences({ roots } = {}) {
         buffer = readFileSync(path);
       } catch (error) {
         if (error instanceof CandidateError) throw error;
-        fail("candidate_key_root_invalid", `key scan cannot read a file (${error?.code ?? "unknown"})`);
+        fail(
+          "candidate_key_root_invalid",
+          `key scan cannot read a file (${error?.code ?? "unknown"})`,
+        );
       }
       if (buffer.includes(0)) {
         // A NUL byte means this is not the UTF-8 prose the reference form lives in — a binary

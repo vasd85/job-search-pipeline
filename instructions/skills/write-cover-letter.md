@@ -80,11 +80,11 @@ blocked publication and never writes canonical `cover-letter.txt` directly.
 The length limits are the candidate's own values, read from `candidate/config.json` before
 drafting. The body holds from `candidate.config.letter.body_paragraphs.min` to
 `candidate.config.letter.body_paragraphs.max` paragraphs, and from
-`candidate.config.letter.body_words.min` (*the minimum*) to `candidate.config.letter.body_words.max`
-(*the maximum*) words: that is the machine contract. `candidate.config.letter.body_words.target`
-(*the target*) is the ceiling of a first publication: above it the letter has no room for the
-corrections review will ask for. `candidate.config.letter.body_words.approved_max` (*the approval
-cap*) is as far as a user's approval can move the maximum.
+`candidate.config.letter.body_words.min` (_the minimum_) to `candidate.config.letter.body_words.max`
+(_the maximum_) words: that is the machine contract. `candidate.config.letter.body_words.target`
+(_the target_) is the ceiling of a first publication: above it the letter has no room for the
+corrections review will ask for. `candidate.config.letter.body_words.approved_max` (_the approval
+cap_) is as far as a user's approval can move the maximum.
 
 The draft is written for its reader; the count is taken once the draft exists, and again after every
 rewrite.

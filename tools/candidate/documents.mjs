@@ -134,7 +134,13 @@ function outline(text) {
     const heading = fence === null ? HEADING.exec(line) : null;
     if (heading) {
       sections.push(current);
-      current = { body: [], heading: heading[2], level: heading[1].length, line: index + 1, plain: [] };
+      current = {
+        body: [],
+        heading: heading[2],
+        level: heading[1].length,
+        line: index + 1,
+        plain: [],
+      };
       return;
     }
     current.body.push(line);
@@ -156,16 +162,25 @@ function withoutQualifier(title) {
  * fence is not one.
  */
 export function candidateHeadings(text) {
-  return Object.freeze(outline(text).sections.map((section) => Object.freeze({
-    level: section.level,
-    line: section.line,
-    title: section.heading,
-  })));
+  return Object.freeze(
+    outline(text).sections.map((section) =>
+      Object.freeze({
+        level: section.level,
+        line: section.line,
+        title: section.heading,
+      }),
+    ),
+  );
 }
 
 function headingFailure(section, expected) {
-  const where = section ? `line ${section.line}: ${"#".repeat(section.level)} ${section.heading}` : "end of file";
-  fail("candidate_profile_heading_invalid", `profile heading does not match the section map at ${where}; expected ${expected}`);
+  const where = section
+    ? `line ${section.line}: ${"#".repeat(section.level)} ${section.heading}`
+    : "end of file";
+  fail(
+    "candidate_profile_heading_invalid",
+    `profile heading does not match the section map at ${where}; expected ${expected}`,
+  );
 }
 
 function describe(entry) {
@@ -233,7 +248,11 @@ function readEntries(sections, start, parent) {
     const section = sections[index];
     const expectedNumber = `${parent.number}.${found.length + 1}`;
     const prefix = `${expectedNumber}. `;
-    if (section.level !== 3 || !section.heading.startsWith(prefix) || section.heading.length === prefix.length) {
+    if (
+      section.level !== 3 ||
+      !section.heading.startsWith(prefix) ||
+      section.heading.length === prefix.length
+    ) {
       headingFailure(section, `### ${prefix}<${parent.entries}>`);
     }
     const name = section.heading.slice(prefix.length);
@@ -248,7 +267,10 @@ function readEntries(sections, start, parent) {
       // `quiet-ledger (private)` is named `quiet-ledger`. It is what the name ban on a private
       // project matches, so the qualifier, which is prose, never becomes part of it.
       entry.name = withoutQualifier(name);
-      entry.visibility = readVisibility(sections.slice(index, end), `project ${found.length + 1} of candidate/profile.md#10-personal-projects`);
+      entry.visibility = readVisibility(
+        sections.slice(index, end),
+        `project ${found.length + 1} of candidate/profile.md#10-personal-projects`,
+      );
     }
     found.push(Object.freeze(entry));
     index = end;
@@ -284,7 +306,8 @@ export function validateCandidateProfile(text) {
       index = read.next;
     }
   }
-  if (index < sections.length) headingFailure(sections[index], "no further heading after the last section of the map");
+  if (index < sections.length)
+    headingFailure(sections[index], "no further heading after the last section of the map");
   return Object.freeze({
     employers: Object.freeze(employers),
     projects: Object.freeze(projects),
@@ -318,7 +341,9 @@ function readLeverFields(section) {
 function parseLever(section, expectedId) {
   const heading = LEVER_HEADING.exec(section.heading);
   if (section.level !== 2 || !heading || Number(heading[1]) !== expectedId) {
-    leverFailure(`lever headings must run ## Lever 1, ## Lever 2, … without a gap; expected ## Lever ${expectedId} at line ${section.line}`);
+    leverFailure(
+      `lever headings must run ## Lever 1, ## Lever 2, … without a gap; expected ## Lever ${expectedId} at line ${section.line}`,
+    );
   }
   const fields = readLeverFields(section);
   const order = [...fields.keys()];
@@ -327,20 +352,30 @@ function parseLever(section, expectedId) {
     leverFailure(`${section.heading} lists its fields out of order: ${LEVER_FIELDS.join(", ")}`);
   }
   for (const name of ["Statement", "Weight", "Condition"]) {
-    if (!fields.has(name) || fields.get(name) === "") leverFailure(`${section.heading} must carry ${name}`);
+    if (!fields.has(name) || fields.get(name) === "")
+      leverFailure(`${section.heading} must carry ${name}`);
   }
   const weight = fields.get("Weight");
-  if (!/^[1-5]$/u.test(weight)) leverFailure(`${section.heading} weight must be an integer from 1 to 5`);
+  if (!/^[1-5]$/u.test(weight))
+    leverFailure(`${section.heading} weight must be an integer from 1 to 5`);
   const condition = fields.get("Condition");
   const conditional = CONDITIONAL.exec(condition);
   if (condition !== "broad" && !conditional) {
     leverFailure(`${section.heading} condition must be "broad" or "conditional — <trigger>"`);
   }
-  const properties = fields.has("Properties") ? fields.get("Properties").split(",").map((value) => value.trim()) : [];
+  const properties = fields.has("Properties")
+    ? fields
+        .get("Properties")
+        .split(",")
+        .map((value) => value.trim())
+    : [];
   if (properties.some((value) => !candidateLeverProperties.includes(value))) {
-    leverFailure(`${section.heading} properties must come from ${candidateLeverProperties.join(", ")}`);
+    leverFailure(
+      `${section.heading} properties must come from ${candidateLeverProperties.join(", ")}`,
+    );
   }
-  if (new Set(properties).size !== properties.length) leverFailure(`${section.heading} repeats a property`);
+  if (new Set(properties).size !== properties.length)
+    leverFailure(`${section.heading} repeats a property`);
   return Object.freeze({
     condition: conditional ? "conditional" : "broad",
     id: expectedId,
@@ -357,11 +392,14 @@ function parseLever(section, expectedId) {
  * headings inside a section are the candidate's own.
  */
 export function validateCandidateLevers(text) {
-  if (typeof text !== "string") fail("candidate_document_unreadable", "the lever bank must be text");
+  if (typeof text !== "string")
+    fail("candidate_document_unreadable", "the lever bank must be text");
   const { sections } = outline(text);
-  if (sections.length === 0 || sections[0].level !== 1) leverFailure("the lever bank must open with a level-one heading");
+  if (sections.length === 0 || sections[0].level !== 1)
+    leverFailure("the lever bank must open with a level-one heading");
   const top = sections.slice(1).filter((section) => section.level <= 2);
-  if (top.some((section) => section.level === 1)) leverFailure("the lever bank has one level-one heading");
+  if (top.some((section) => section.level === 1))
+    leverFailure("the lever bank has one level-one heading");
   const levers = [];
   let index = 0;
   while (index < top.length && LEVER_HEADING.test(top[index].heading)) {
@@ -369,10 +407,12 @@ export function validateCandidateLevers(text) {
     index += 1;
   }
   if (levers.length === 0) leverFailure("the lever bank must carry at least one lever");
-  if (top[index]?.heading !== "Positioning") leverFailure("## Positioning must follow the last lever");
+  if (top[index]?.heading !== "Positioning")
+    leverFailure("## Positioning must follow the last lever");
   index += 1;
   if (top[index]?.heading === "Stance") index += 1;
-  if (index < top.length) leverFailure(`unexpected section after the levers: ## ${top[index].heading}`);
+  if (index < top.length)
+    leverFailure(`unexpected section after the levers: ## ${top[index].heading}`);
   return Object.freeze({ levers: Object.freeze(levers) });
 }
 
@@ -384,14 +424,21 @@ const COVERED = /^Covered languages: (.+)$/u;
  * languages have none.
  */
 export function validateCandidateLetterSamples(text) {
-  if (typeof text !== "string") fail("candidate_document_unreadable", "the letter samples must be text");
+  if (typeof text !== "string")
+    fail("candidate_document_unreadable", "the letter samples must be text");
   const { sections } = outline(text);
   if (sections.length === 0 || sections[0].level !== 1) {
-    fail("candidate_letter_samples_invalid", "the letter samples must open with a level-one heading");
+    fail(
+      "candidate_letter_samples_invalid",
+      "the letter samples must open with a level-one heading",
+    );
   }
   const covered = sections[0].body.map((line) => COVERED.exec(line.trim())).filter(Boolean);
   if (covered.length !== 1) {
-    fail("candidate_letter_samples_invalid", "the letter samples must name their languages on one Covered languages: line");
+    fail(
+      "candidate_letter_samples_invalid",
+      "the letter samples must name their languages on one Covered languages: line",
+    );
   }
   const languages = covered[0][1].split(",").map((value) => value.trim());
   if (languages.some((value) => value === "") || new Set(languages).size !== languages.length) {
@@ -403,7 +450,9 @@ export function validateCandidateLetterSamples(text) {
   }
   return Object.freeze({
     languages: Object.freeze(languages),
-    samples: Object.freeze(samples.filter((section) => section.level === 2).map((section) => section.heading)),
+    samples: Object.freeze(
+      samples.filter((section) => section.level === 2).map((section) => section.heading),
+    ),
   });
 }
 
@@ -440,7 +489,9 @@ function parseRule(sections, ids) {
   const [head, ...below] = sections;
   const id = head.heading;
   if (!RULE_ID.test(id)) {
-    rulesFailure(`line ${head.line}: a rule heading is its id — lowercase letters, digits and hyphens, starting with a letter`);
+    rulesFailure(
+      `line ${head.line}: a rule heading is its id — lowercase letters, digits and hyphens, starting with a letter`,
+    );
   }
   if (ids.has(id)) rulesFailure(`rule ${id} appears twice`);
   ids.add(id);
@@ -463,7 +514,10 @@ function parseRule(sections, ids) {
   }
   if (new Set(scope).size !== scope.length) rulesFailure(`rule ${id} names a point twice`);
   if (fields[1][1] === "") rulesFailure(`rule ${id} must say why on its Why: line`);
-  const text = [...lines.slice(index), ...below.flatMap((section) => [section.heading, ...section.body])];
+  const text = [
+    ...lines.slice(index),
+    ...below.flatMap((section) => [section.heading, ...section.body]),
+  ];
   if (!text.some((line) => line.trim() !== "")) rulesFailure(`rule ${id} has no text`);
   return Object.freeze({ id, scope: Object.freeze(scope), why: fields[1][1] });
 }
@@ -479,10 +533,14 @@ export function validateCandidateRules(text) {
   const schemaVersion = readRulesVersion(preamble);
   // A fence left open would hide every rule below it from the check and from the count.
   if (unclosedFence) rulesFailure("a code fence is opened and never closed");
-  if (sections.length === 0 || sections[0].level !== 1) rulesFailure("the rules must carry a level-one heading after the version line");
-  if (sections.slice(1).some((section) => section.level === 1)) rulesFailure("the rules have one level-one heading");
+  if (sections.length === 0 || sections[0].level !== 1)
+    rulesFailure("the rules must carry a level-one heading after the version line");
+  if (sections.slice(1).some((section) => section.level === 1))
+    rulesFailure("the rules have one level-one heading");
   if (sections.length > 1 && sections[1].level !== 2) {
-    rulesFailure(`line ${sections[1].line}: the first heading after the title must be a rule, ## <id>`);
+    rulesFailure(
+      `line ${sections[1].line}: the first heading after the title must be a rule, ## <id>`,
+    );
   }
   const rules = [];
   const ids = new Set();

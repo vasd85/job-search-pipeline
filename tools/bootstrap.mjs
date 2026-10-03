@@ -21,11 +21,7 @@ import {
 } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import {
-  checkOutputRoot,
-  initializeOutputRoot,
-  OutputRootError,
-} from "./lib/output-root.mjs";
+import { checkOutputRoot, initializeOutputRoot, OutputRootError } from "./lib/output-root.mjs";
 import {
   checkCvBuilderDependencies,
   CvBuilderDependencyError,
@@ -90,16 +86,15 @@ function readJson(path, missingCode, label) {
 function exactNpmVersion(packageManager) {
   const match = /^npm@(\d+\.\d+\.\d+)$/.exec(packageManager ?? "");
   if (!match) {
-    toolchainFail(
-      "toolchain_policy_invalid",
-      "packageManager must pin one exact npm version",
-    );
+    toolchainFail("toolchain_policy_invalid", "packageManager must pin one exact npm version");
   }
   return match[1];
 }
 
 function commandPath(command, env = process.env) {
-  for (const entry of String(env.PATH ?? "").split(delimiter).filter(Boolean)) {
+  for (const entry of String(env.PATH ?? "")
+    .split(delimiter)
+    .filter(Boolean)) {
     const candidate = join(entry, command);
     try {
       accessSync(candidate, constants.X_OK);
@@ -125,10 +120,7 @@ function packageManagerVersion(env = process.env) {
 function requireCommand(command, env = process.env) {
   const path = commandPath(command, env);
   if (!path) {
-    toolchainFail(
-      "required_tool_missing",
-      `required tool is unavailable: ${command}`,
-    );
+    toolchainFail("required_tool_missing", `required tool is unavailable: ${command}`);
   }
   return path;
 }
@@ -145,7 +137,9 @@ function rendererContext(env = process.env, platform = process.platform) {
   return {
     env,
     platform,
-    pathEntries: String(env.PATH ?? "").split(delimiter).filter(Boolean),
+    pathEntries: String(env.PATH ?? "")
+      .split(delimiter)
+      .filter(Boolean),
     isExecutable,
     isDirectory(path) {
       try {
@@ -171,10 +165,8 @@ function defaultToolchainContext() {
     nodeVersion: process.versions.node,
     packageManagerVersion: () => packageManagerVersion(process.env),
     requireCommand: (command) => requireCommand(command, process.env),
-    resolveRenderer: () => resolveLibreOfficeBackend(
-      {},
-      rendererContext(process.env, process.platform),
-    ),
+    resolveRenderer: () =>
+      resolveLibreOfficeBackend({}, rendererContext(process.env, process.platform)),
   };
 }
 
@@ -207,13 +199,15 @@ export function checkToolchain({
     toolchainFail("toolchain_policy_invalid", "root npm engine and packageManager pins differ");
   }
   if (
-    builderPackage.packageManager !== rootPackage.packageManager
-    || builderPackage.engines?.node !== pinnedNode
-    || builderPackage.engines?.npm !== pinnedNpm
+    builderPackage.packageManager !== rootPackage.packageManager ||
+    builderPackage.engines?.node !== pinnedNode ||
+    builderPackage.engines?.npm !== pinnedNpm
   ) {
     toolchainFail("toolchain_policy_invalid", "root and cv-builder toolchain pins differ");
   }
-  if (readText(join(sourceRoot, ".nvmrc"), "toolchain_policy_invalid", ".nvmrc").trim() !== pinnedNode) {
+  if (
+    readText(join(sourceRoot, ".nvmrc"), "toolchain_policy_invalid", ".nvmrc").trim() !== pinnedNode
+  ) {
     toolchainFail("toolchain_policy_invalid", ".nvmrc and engines.node pins differ");
   }
 
@@ -277,10 +271,9 @@ export function checkToolchain({
 function environment() {
   const workspaceRoot = process.env.JOB_PIPELINE_WORKSPACE_ROOT ?? repoRoot;
   return {
-    outputRoot: process.env.JOB_PIPELINE_OUTPUT_ROOT
-      ?? resolve(workspaceRoot, "output"),
-    processLogPath: process.env.JOB_PIPELINE_PROCESS_LOG
-      ?? resolve(workspaceRoot, "process-log.json"),
+    outputRoot: process.env.JOB_PIPELINE_OUTPUT_ROOT ?? resolve(workspaceRoot, "output"),
+    processLogPath:
+      process.env.JOB_PIPELINE_PROCESS_LOG ?? resolve(workspaceRoot, "process-log.json"),
     workspaceRoot,
   };
 }
@@ -326,10 +319,7 @@ function readValidatedProcessLog(processLogPath) {
   try {
     bytes = readFileSync(processLogPath, "utf8");
   } catch {
-    processLogFail(
-      "invalid_process_log_environment",
-      "process log is not readable",
-    );
+    processLogFail("invalid_process_log_environment", "process log is not readable");
   }
   validateProcessLogBytes(bytes);
   return bytes;
@@ -337,18 +327,12 @@ function readValidatedProcessLog(processLogPath) {
 
 function requireProcessLogAccess(processLogPath, stats) {
   if ((stats.mode & 0o444) === 0 || (stats.mode & 0o222) === 0) {
-    processLogFail(
-      "invalid_process_log_environment",
-      "process log must be readable and writable",
-    );
+    processLogFail("invalid_process_log_environment", "process log must be readable and writable");
   }
   try {
     accessSync(processLogPath, constants.R_OK | constants.W_OK);
   } catch {
-    processLogFail(
-      "invalid_process_log_environment",
-      "process log must be readable and writable",
-    );
+    processLogFail("invalid_process_log_environment", "process log must be readable and writable");
   }
 }
 
@@ -360,11 +344,11 @@ function inspectCompletedProcessLogPublication(processLogPath, expectedStats) {
     processLogFileFail();
   }
   if (
-    completedStats.isSymbolicLink()
-    || !completedStats.isFile()
-    || completedStats.dev !== expectedStats.dev
-    || completedStats.ino !== expectedStats.ino
-    || completedStats.nlink !== 1
+    completedStats.isSymbolicLink() ||
+    !completedStats.isFile() ||
+    completedStats.dev !== expectedStats.dev ||
+    completedStats.ino !== expectedStats.ino ||
+    completedStats.nlink !== 1
   ) {
     processLogFileFail();
   }
@@ -376,11 +360,11 @@ function inspectCompletedProcessLogPublication(processLogPath, expectedStats) {
     processLogFileFail();
   }
   if (
-    completedStats.isSymbolicLink()
-    || !completedStats.isFile()
-    || completedStats.dev !== expectedStats.dev
-    || completedStats.ino !== expectedStats.ino
-    || completedStats.nlink !== 1
+    completedStats.isSymbolicLink() ||
+    !completedStats.isFile() ||
+    completedStats.dev !== expectedStats.dev ||
+    completedStats.ino !== expectedStats.ino ||
+    completedStats.nlink !== 1
   ) {
     processLogFileFail();
   }
@@ -394,7 +378,8 @@ function inspectCompletedProcessLogPublication(processLogPath, expectedStats) {
 
 function inspectProcessLogPublicationResidue(input, processLogPath, stats) {
   if (stats.nlink !== 2) processLogFileFail();
-  const residuePattern = /^process-log\.json\.[1-9]\d*\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tmp$/;
+  const residuePattern =
+    /^process-log\.json\.[1-9]\d*\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tmp$/;
   let names;
   try {
     names = readdirSync(input.workspaceRoot);
@@ -419,10 +404,10 @@ function inspectProcessLogPublicationResidue(input, processLogPath, stats) {
       );
     }
     if (
-      !candidate.isSymbolicLink()
-      && candidate.isFile()
-      && candidate.dev === stats.dev
-      && candidate.ino === stats.ino
+      !candidate.isSymbolicLink() &&
+      candidate.isFile() &&
+      candidate.dev === stats.dev &&
+      candidate.ino === stats.ino
     ) {
       aliases.push(path);
     }
@@ -461,25 +446,15 @@ function inspectProcessLog(
           status: "missing",
         });
       }
-      processLogFail(
-        "bootstrap_required",
-        "process log is missing; run npm run bootstrap:init",
-      );
+      processLogFail("bootstrap_required", "process log is missing; run npm run bootstrap:init");
     }
-    processLogFail(
-      "invalid_process_log_environment",
-      "process log is unavailable",
-    );
+    processLogFail("invalid_process_log_environment", "process log is unavailable");
   }
   if (stats.isSymbolicLink() || !stats.isFile()) processLogFileFail();
   requireProcessLogAccess(processLogPath, stats);
   if (stats.nlink !== 1) {
     if (publicationResidueAllowed) {
-      return inspectProcessLogPublicationResidue(
-        input,
-        processLogPath,
-        stats,
-      );
+      return inspectProcessLogPublicationResidue(input, processLogPath, stats);
     }
     processLogFileFail();
   }
@@ -511,16 +486,16 @@ function finishProcessLogPublication(input) {
     );
   }
   if (
-    finalStats.isSymbolicLink()
-    || !finalStats.isFile()
-    || finalStats.dev !== inspected.device
-    || finalStats.ino !== inspected.inode
-    || finalStats.nlink !== 2
-    || residueStats.isSymbolicLink()
-    || !residueStats.isFile()
-    || residueStats.dev !== inspected.device
-    || residueStats.ino !== inspected.inode
-    || residueStats.nlink !== 2
+    finalStats.isSymbolicLink() ||
+    !finalStats.isFile() ||
+    finalStats.dev !== inspected.device ||
+    finalStats.ino !== inspected.inode ||
+    finalStats.nlink !== 2 ||
+    residueStats.isSymbolicLink() ||
+    !residueStats.isFile() ||
+    residueStats.dev !== inspected.device ||
+    residueStats.ino !== inspected.inode ||
+    residueStats.nlink !== 2
   ) {
     processLogFileFail();
   }
@@ -537,16 +512,16 @@ function finishProcessLogPublication(input) {
     );
   }
   if (
-    finalStats.isSymbolicLink()
-    || !finalStats.isFile()
-    || finalStats.dev !== inspected.device
-    || finalStats.ino !== inspected.inode
-    || finalStats.nlink !== 2
-    || residueStats.isSymbolicLink()
-    || !residueStats.isFile()
-    || residueStats.dev !== inspected.device
-    || residueStats.ino !== inspected.inode
-    || residueStats.nlink !== 2
+    finalStats.isSymbolicLink() ||
+    !finalStats.isFile() ||
+    finalStats.dev !== inspected.device ||
+    finalStats.ino !== inspected.inode ||
+    finalStats.nlink !== 2 ||
+    residueStats.isSymbolicLink() ||
+    !residueStats.isFile() ||
+    residueStats.dev !== inspected.device ||
+    residueStats.ino !== inspected.inode ||
+    residueStats.nlink !== 2
   ) {
     processLogFileFail();
   }
@@ -554,10 +529,7 @@ function finishProcessLogPublication(input) {
     unlinkSync(inspected.residuePath);
   } catch (error) {
     if (error?.code === "ENOENT") return inspectProcessLog(input);
-    processLogFail(
-      "invalid_process_log_environment",
-      "cannot finish process log publication",
-    );
+    processLogFail("invalid_process_log_environment", "cannot finish process log publication");
   }
   return Object.freeze({
     ...inspectProcessLog(input),
@@ -656,7 +628,9 @@ function gitLines(cwd, args) {
     timeout: GIT_TIMEOUT_MS,
   });
   if (result.error || result.signal || result.status !== 0) return null;
-  return String(result.stdout ?? "").split("\n").map((line) => line.trim());
+  return String(result.stdout ?? "")
+    .split("\n")
+    .map((line) => line.trim());
 }
 
 function repositoryMarkerAbove(directory) {
@@ -690,8 +664,8 @@ function repositoryMarkerAbove(directory) {
  */
 export function candidateSeedPlacement(workspaceRoot) {
   if (
-    existsSync(join(workspaceRoot, MANIFEST_FILE_NAME))
-    || existsSync(join(workspaceRoot, SERVICE_DIRECTORY_NAME))
+    existsSync(join(workspaceRoot, MANIFEST_FILE_NAME)) ||
+    existsSync(join(workspaceRoot, SERVICE_DIRECTORY_NAME))
   ) {
     return { allowed: false, code: "candidate_seed_refused_in_operational_folder" };
   }
@@ -805,7 +779,12 @@ function prepareCandidate(input, { seed }) {
     });
   } catch (error) {
     if (!(error instanceof CandidateError)) throw error;
-    return Object.freeze({ created: seeded.created, error: error.code, path: root, status: "invalid" });
+    return Object.freeze({
+      created: seeded.created,
+      error: error.code,
+      path: root,
+      status: "invalid",
+    });
   }
 }
 
@@ -825,10 +804,7 @@ export function checkOperationalFolder(root = repoRoot) {
 }
 
 function parseMode(argv) {
-  if (
-    argv.length !== 1
-    || (argv[0] !== "--init" && argv[0] !== "--check")
-  ) {
+  if (argv.length !== 1 || (argv[0] !== "--init" && argv[0] !== "--check")) {
     throw new BootstrapCliError(
       "invalid_bootstrap_arguments",
       "use exactly one of --init or --check",
@@ -837,38 +813,50 @@ function parseMode(argv) {
   return argv[0];
 }
 
-function printResult(status, result, processLog, toolchain = null, candidate = null, opsTree = null) {
-  process.stdout.write(`${JSON.stringify({
-    status,
-    created: {
-      output_root: result.status === "initialized",
-      process_log: processLog.created,
-    },
-    recovered: {
-      process_log: processLog.recovered,
-    },
-    ...(candidate ? { candidate } : {}),
-    ...(opsTree ? { ops_tree: opsTree } : {}),
-    output_root: result.outputPath,
-    process_log: processLog.path,
-    workspace_root: result.workspacePath,
-    ...(toolchain ? { toolchain } : {}),
-  })}\n`);
+function printResult(
+  status,
+  result,
+  processLog,
+  toolchain = null,
+  candidate = null,
+  opsTree = null,
+) {
+  process.stdout.write(
+    `${JSON.stringify({
+      status,
+      created: {
+        output_root: result.status === "initialized",
+        process_log: processLog.created,
+      },
+      recovered: {
+        process_log: processLog.recovered,
+      },
+      ...(candidate ? { candidate } : {}),
+      ...(opsTree ? { ops_tree: opsTree } : {}),
+      output_root: result.outputPath,
+      process_log: processLog.path,
+      workspace_root: result.workspacePath,
+      ...(toolchain ? { toolchain } : {}),
+    })}\n`,
+  );
 }
 
 function printError(error) {
-  const known = error instanceof BootstrapCliError
-    || error instanceof CandidateError
-    || error instanceof OutputRootError
-    || error instanceof ToolchainPreflightError
-    || error instanceof CvBuilderDependencyError;
-  process.stderr.write(`${JSON.stringify({
-    status: "error",
-    error: {
-      code: known ? error.code : "bootstrap_failed",
-      message: known ? error.message : "bootstrap failed unexpectedly",
-    },
-  })}\n`);
+  const known =
+    error instanceof BootstrapCliError ||
+    error instanceof CandidateError ||
+    error instanceof OutputRootError ||
+    error instanceof ToolchainPreflightError ||
+    error instanceof CvBuilderDependencyError;
+  process.stderr.write(
+    `${JSON.stringify({
+      status: "error",
+      error: {
+        code: known ? error.code : "bootstrap_failed",
+        message: known ? error.message : "bootstrap failed unexpectedly",
+      },
+    })}\n`,
+  );
 }
 
 export function main(argv = process.argv.slice(2)) {
@@ -890,11 +878,10 @@ export function main(argv = process.argv.slice(2)) {
         processLog = inspectProcessLog(input);
       }
       const candidate = prepareCandidate(input, { seed: true });
-      const status = result.status === "initialized"
-        || processLog.created
-        || processLog.recovered
-        ? "initialized"
-        : "ready";
+      const status =
+        result.status === "initialized" || processLog.created || processLog.recovered
+          ? "initialized"
+          : "ready";
       printResult(status, result, processLog, null, candidate);
     } else {
       const opsTree = checkOperationalFolder();

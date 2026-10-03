@@ -24,7 +24,11 @@ import {
   validateCandidateLevers,
 } from "../candidate/documents.mjs";
 import { CandidateError } from "../candidate/errors.mjs";
-import { candidateLanguageNames, candidateMarkets, candidateRootForCommand } from "../candidate/load.mjs";
+import {
+  candidateLanguageNames,
+  candidateMarkets,
+  candidateRootForCommand,
+} from "../candidate/load.mjs";
 import { MARKET_SIDES, marketNames, marketSide } from "../candidate/markets.mjs";
 import {
   RESEARCH_SCHEMA_VERSIONS,
@@ -53,10 +57,25 @@ const PROJECT_DECISION_VALUES = new Set(["include", "exclude"]);
 const SUPPORT_VALUES = new Set(["evidence", "gap"]);
 const TRANSFERABLE_SUPPORT_VALUES = new Set(["evidence", "none"]);
 const TOP_LEVEL_KEYS = new Set([
-  "schemaVersion", "createdAt", "process", "inputs", "role", "company", "positioning", "experience", "ats", "cvPlan",
+  "schemaVersion",
+  "createdAt",
+  "process",
+  "inputs",
+  "role",
+  "company",
+  "positioning",
+  "experience",
+  "ats",
+  "cvPlan",
   "coverLetterPlan",
 ]);
-const CV_PLAN_KEYS = new Set(["structure", "llmWorkSignal", "headerPositioning", "projectDecision", "checks"]);
+const CV_PLAN_KEYS = new Set([
+  "structure",
+  "llmWorkSignal",
+  "headerPositioning",
+  "projectDecision",
+  "checks",
+]);
 
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -160,7 +179,9 @@ function readLeverBank(bytes, errors) {
 }
 
 function normalizeComparable(value) {
-  return typeof value === "string" ? value.toLocaleLowerCase("en-US").replace(/\s+/g, " ").trim() : "";
+  return typeof value === "string"
+    ? value.toLocaleLowerCase("en-US").replace(/\s+/g, " ").trim()
+    : "";
 }
 
 function uniqueNormalizedPlacements(value) {
@@ -186,36 +207,46 @@ function requiredAtsEvidenceCoverage(keyword, requiredEvidence) {
       ? keyword.support.evidenceIds.filter((id) => typeof id === "string" && id.trim())
       : [],
   );
-  const linkedChecks = requiredEvidence.filter((check) => (
-    Array.isArray(check?.evidenceIds)
-    && check.evidenceIds.some((evidenceId) => supportEvidenceIds.has(evidenceId))
-  ));
+  const linkedChecks = requiredEvidence.filter(
+    (check) =>
+      Array.isArray(check?.evidenceIds) &&
+      check.evidenceIds.some((evidenceId) => supportEvidenceIds.has(evidenceId)),
+  );
 
   if (keyword?.placementMode === "all") {
-    const missing = keywordPlacements.filter(({ normalized }) => !linkedChecks.some((check) => {
-      const checkPlacements = uniqueNormalizedPlacements(check?.placements);
-      if (check?.placementMode === "all") {
-        return checkPlacements.some((placement) => placement.normalized === normalized);
-      }
-      return check?.placementMode === "any"
-        && checkPlacements.length === 1
-        && checkPlacements[0].normalized === normalized;
-    }));
+    const missing = keywordPlacements.filter(
+      ({ normalized }) =>
+        !linkedChecks.some((check) => {
+          const checkPlacements = uniqueNormalizedPlacements(check?.placements);
+          if (check?.placementMode === "all") {
+            return checkPlacements.some((placement) => placement.normalized === normalized);
+          }
+          return (
+            check?.placementMode === "any" &&
+            checkPlacements.length === 1 &&
+            checkPlacements[0].normalized === normalized
+          );
+        }),
+    );
     return {
       covered: missing.length === 0 && keywordPlacements.length > 0 && linkedChecks.length > 0,
       uncovered: missing.map(({ label }) => label),
     };
   }
 
-  const covered = keyword?.placementMode === "any" && linkedChecks.some((check) => {
-    const checkPlacements = uniqueNormalizedPlacements(check?.placements);
-    if (check?.placementMode === "all") {
-      return checkPlacements.some(({ normalized }) => keywordPlacementSet.has(normalized));
-    }
-    return check?.placementMode === "any"
-      && checkPlacements.length > 0
-      && checkPlacements.every(({ normalized }) => keywordPlacementSet.has(normalized));
-  });
+  const covered =
+    keyword?.placementMode === "any" &&
+    linkedChecks.some((check) => {
+      const checkPlacements = uniqueNormalizedPlacements(check?.placements);
+      if (check?.placementMode === "all") {
+        return checkPlacements.some(({ normalized }) => keywordPlacementSet.has(normalized));
+      }
+      return (
+        check?.placementMode === "any" &&
+        checkPlacements.length > 0 &&
+        checkPlacements.every(({ normalized }) => keywordPlacementSet.has(normalized))
+      );
+    });
   return {
     covered,
     uncovered: keywordPlacements.map(({ label }) => label),
@@ -242,18 +273,12 @@ function validateResearchReferences(
   researchIndex,
   { requireClaims = true, requireSources = true } = {},
 ) {
-  const claimIds = requireUniqueStrings(
-    record.claimIds,
-    `${path}.claimIds`,
-    errors,
-    { min: requireClaims ? 1 : 0 },
-  );
-  const sourceIds = requireUniqueStrings(
-    record.sourceIds,
-    `${path}.sourceIds`,
-    errors,
-    { min: requireSources ? 1 : 0 },
-  );
+  const claimIds = requireUniqueStrings(record.claimIds, `${path}.claimIds`, errors, {
+    min: requireClaims ? 1 : 0,
+  });
+  const sourceIds = requireUniqueStrings(record.sourceIds, `${path}.sourceIds`, errors, {
+    min: requireSources ? 1 : 0,
+  });
   if (!researchIndex) return;
 
   const linkedSourceIds = new Set();
@@ -267,7 +292,9 @@ function validateResearchReferences(
   }
   for (const sourceId of sourceIds) {
     if (!researchIndex.sourcesById.has(sourceId)) {
-      errors.push(`${path}.sourceIds reference does not exist in company-research.json: ${sourceId}`);
+      errors.push(
+        `${path}.sourceIds reference does not exist in company-research.json: ${sourceId}`,
+      );
     } else if (!linkedSourceIds.has(sourceId)) {
       errors.push(`${path}.sourceIds must be supported by a linked research claim: ${sourceId}`);
     }
@@ -300,8 +327,10 @@ function indexResearch(research) {
 
 function hasPlacement(item, field, expected) {
   const target = normalizeComparable(expected);
-  return Array.isArray(item?.[field])
-    && item[field].some((placement) => normalizeComparable(placement) === target);
+  return (
+    Array.isArray(item?.[field]) &&
+    item[field].some((placement) => normalizeComparable(placement) === target)
+  );
 }
 
 /**
@@ -342,7 +371,9 @@ export function validateApplicationBrief(
   }
   for (const key of Object.keys(brief)) {
     if (key === "contentChecks") {
-      errors.push("contentChecks is obsolete in schemaVersion 3; move it to cvPlan.checks and rerun map-experience");
+      errors.push(
+        "contentChecks is obsolete in schemaVersion 3; move it to cvPlan.checks and rerun map-experience",
+      );
     } else if (!TOP_LEVEL_KEYS.has(key)) {
       errors.push(`application brief contains unknown top-level key: ${key}`);
     }
@@ -357,12 +388,12 @@ export function validateApplicationBrief(
   validateExpectedProcess(process, expectedProcess, errors);
 
   const inputs = requireObject(brief.inputs, "inputs", errors);
-  rejectUnknownKeys(
-    inputs,
-    "inputs",
-    errors,
-    ["vacancy", "jobDescription", "companyResearch", "candidateProfile"],
-  );
+  rejectUnknownKeys(inputs, "inputs", errors, [
+    "vacancy",
+    "jobDescription",
+    "companyResearch",
+    "candidateProfile",
+  ]);
   // Without the profile's bytes nothing here can tell which profile a path names, so a structural
   // check accepts any normalized path: a brief published before the profile moved stays readable
   // to a light CV revision. With the bytes the path is the layer's, and a brief that names another
@@ -374,11 +405,18 @@ export function validateApplicationBrief(
     ["jobDescription", "job-description.txt", null, jobDescriptionBytes],
     // The research version is checked below against the research bytes.
     ["companyResearch", "company-research.json", undefined, companyResearchBytes],
-    ["candidateProfile", structuralProfile ? undefined : candidateProfileSourcePath, null, candidateProfileBytes],
+    [
+      "candidateProfile",
+      structuralProfile ? undefined : candidateProfileSourcePath,
+      null,
+      candidateProfileBytes,
+    ],
   ];
   for (const [key, expectedPath, expectedSchemaVersion, contentBytes] of inputSpecs) {
     if (requireInputBytes && contentBytes === undefined) {
-      errors.push(`${expectedPath ?? key} bytes are required for application-brief bundle validation`);
+      errors.push(
+        `${expectedPath ?? key} bytes are required for application-brief bundle validation`,
+      );
     }
     validateFileReference(inputs[key], `inputs.${key}`, errors, {
       expectedPath,
@@ -386,36 +424,42 @@ export function validateApplicationBrief(
       contentBytes,
     });
   }
-  const jobDescriptionText = jobDescriptionBytes === undefined
-    ? ""
-    : validateUtf8TextBytes(jobDescriptionBytes, "job-description.txt", errors);
-  const candidateProfileText = candidateProfileBytes === undefined
-    ? ""
-    : validateUtf8TextBytes(candidateProfileBytes, candidateProfileSourcePath, errors);
+  const jobDescriptionText =
+    jobDescriptionBytes === undefined
+      ? ""
+      : validateUtf8TextBytes(jobDescriptionBytes, "job-description.txt", errors);
+  const candidateProfileText =
+    candidateProfileBytes === undefined
+      ? ""
+      : validateUtf8TextBytes(candidateProfileBytes, candidateProfileSourcePath, errors);
   const profileSourceOptions = {
-    profilePath: typeof inputs.candidateProfile?.path === "string"
-      ? inputs.candidateProfile.path
-      : candidateProfileSourcePath,
+    profilePath:
+      typeof inputs.candidateProfile?.path === "string"
+        ? inputs.candidateProfile.path
+        : candidateProfileSourcePath,
     profileText: candidateProfileText,
   };
   if (requireInputBytes && candidateLeversBytes === undefined) {
-    errors.push(`${candidateLeversSourcePath} bytes are required for application-brief bundle validation`);
+    errors.push(
+      `${candidateLeversSourcePath} bytes are required for application-brief bundle validation`,
+    );
   }
   const leverBank = readLeverBank(candidateLeversBytes, errors);
 
-  const vacancy = vacancyBytes === undefined
-    ? undefined
-    : parseJsonBytes(vacancyBytes, "vacancy.json", errors);
+  const vacancy =
+    vacancyBytes === undefined ? undefined : parseJsonBytes(vacancyBytes, "vacancy.json", errors);
   const vacancyReferenceVersion = inputs.vacancy?.schemaVersion;
   if (!VACANCY_SCHEMA_VERSIONS.includes(vacancyReferenceVersion)) {
-    errors.push(`inputs.vacancy.schemaVersion must be one of: ${VACANCY_SCHEMA_VERSIONS.join(", ")}`);
+    errors.push(
+      `inputs.vacancy.schemaVersion must be one of: ${VACANCY_SCHEMA_VERSIONS.join(", ")}`,
+    );
   } else if (
-    VACANCY_SCHEMA_VERSIONS.includes(vacancy?.schemaVersion)
-    && vacancyReferenceVersion !== vacancy.schemaVersion
+    VACANCY_SCHEMA_VERSIONS.includes(vacancy?.schemaVersion) &&
+    vacancyReferenceVersion !== vacancy.schemaVersion
   ) {
     errors.push(
-      "inputs.vacancy.schemaVersion must equal "
-      + `${vacancy.schemaVersion}, the schemaVersion of vacancy.json`,
+      "inputs.vacancy.schemaVersion must equal " +
+        `${vacancy.schemaVersion}, the schemaVersion of vacancy.json`,
     );
   }
   if (vacancy !== undefined && jobDescriptionBytes !== undefined) {
@@ -429,28 +473,25 @@ export function validateApplicationBrief(
     errors.push(...vacancyErrors.map((error) => `inputs.vacancy content: ${error}`));
   }
 
-  const research = companyResearchBytes === undefined
-    ? undefined
-    : parseJsonBytes(companyResearchBytes, "company-research.json", errors);
+  const research =
+    companyResearchBytes === undefined
+      ? undefined
+      : parseJsonBytes(companyResearchBytes, "company-research.json", errors);
   const researchReferenceVersion = inputs.companyResearch?.schemaVersion;
   if (!RESEARCH_SCHEMA_VERSIONS.includes(researchReferenceVersion)) {
     errors.push(
       `inputs.companyResearch.schemaVersion must be one of: ${RESEARCH_SCHEMA_VERSIONS.join(", ")}`,
     );
   } else if (
-    RESEARCH_SCHEMA_VERSIONS.includes(research?.schemaVersion)
-    && researchReferenceVersion !== research.schemaVersion
+    RESEARCH_SCHEMA_VERSIONS.includes(research?.schemaVersion) &&
+    researchReferenceVersion !== research.schemaVersion
   ) {
     errors.push(
-      "inputs.companyResearch.schemaVersion must equal "
-      + `${research.schemaVersion}, the schemaVersion of company-research.json`,
+      "inputs.companyResearch.schemaVersion must equal " +
+        `${research.schemaVersion}, the schemaVersion of company-research.json`,
     );
   }
-  if (
-    research !== undefined
-    && vacancyBytes !== undefined
-    && jobDescriptionBytes !== undefined
-  ) {
+  if (research !== undefined && vacancyBytes !== undefined && jobDescriptionBytes !== undefined) {
     const researchErrors = validateCompanyResearch(research, {
       vacancyBytes,
       jobDescriptionBytes,
@@ -464,12 +505,14 @@ export function validateApplicationBrief(
   const researchIndex = indexResearch(research);
 
   const role = requireObject(brief.role, "role", errors);
-  rejectUnknownKeys(
-    role,
-    "role",
-    errors,
-    ["company", "title", "ats", "vacancyLanguage", "market", "feasibility"],
-  );
+  rejectUnknownKeys(role, "role", errors, [
+    "company",
+    "title",
+    "ats",
+    "vacancyLanguage",
+    "market",
+    "feasibility",
+  ]);
   requireString(role.company, "role.company", errors);
   requireString(role.title, "role.title", errors);
   requireString(role.ats, "role.ats", errors);
@@ -484,29 +527,21 @@ export function validateApplicationBrief(
   }
   const briefMarketSide = marketSide(markets, role.market);
   const feasibility = requireObject(role.feasibility, "role.feasibility", errors);
-  rejectUnknownKeys(
-    feasibility,
-    "role.feasibility",
-    errors,
-    [
-      "workModel",
-      "locations",
-      "employmentType",
-      "timezoneOverlap",
-      "workAuthorizationResidency",
-      "relocationVisaSupport",
-      "salary",
-    ],
-  );
+  rejectUnknownKeys(feasibility, "role.feasibility", errors, [
+    "workModel",
+    "locations",
+    "employmentType",
+    "timezoneOverlap",
+    "workAuthorizationResidency",
+    "relocationVisaSupport",
+    "salary",
+  ]);
   const workModel = requireObject(feasibility.workModel, "role.feasibility.workModel", errors);
-  rejectUnknownKeys(
-    workModel,
-    "role.feasibility.workModel",
-    errors,
-    ["normalized", "sourceText"],
-  );
+  rejectUnknownKeys(workModel, "role.feasibility.workModel", errors, ["normalized", "sourceText"]);
   if (!WORK_MODE_VALUES.has(workModel.normalized)) {
-    errors.push(`role.feasibility.workModel.normalized must be one of: ${[...WORK_MODE_VALUES].join(", ")}`);
+    errors.push(
+      `role.feasibility.workModel.normalized must be one of: ${[...WORK_MODE_VALUES].join(", ")}`,
+    );
   }
   requireNullableString(workModel.sourceText, "role.feasibility.workModel.sourceText", errors);
   requireStringArray(feasibility.locations, "role.feasibility.locations", errors);
@@ -535,36 +570,31 @@ export function validateApplicationBrief(
   }
 
   const company = requireObject(brief.company, "company", errors);
-  rejectUnknownKeys(
-    company,
-    "company",
-    errors,
-    ["challengeType", "challengeEvidence", "values", "tailoringHooks"],
-  );
+  rejectUnknownKeys(company, "company", errors, [
+    "challengeType",
+    "challengeEvidence",
+    "values",
+    "tailoringHooks",
+  ]);
   requireString(company.challengeType, "company.challengeType", errors);
   const challengeEvidence = requireObject(
     company.challengeEvidence,
     "company.challengeEvidence",
     errors,
   );
-  rejectUnknownKeys(
-    challengeEvidence,
-    "company.challengeEvidence",
-    errors,
-    ["hookId", "fact", "claimIds", "sourceIds"],
-  );
+  rejectUnknownKeys(challengeEvidence, "company.challengeEvidence", errors, [
+    "hookId",
+    "fact",
+    "claimIds",
+    "sourceIds",
+  ]);
   const challengeHookId = requireString(
     challengeEvidence.hookId,
     "company.challengeEvidence.hookId",
     errors,
   );
   requireString(challengeEvidence.fact, "company.challengeEvidence.fact", errors);
-  validateResearchReferences(
-    challengeEvidence,
-    "company.challengeEvidence",
-    errors,
-    researchIndex,
-  );
+  validateResearchReferences(challengeEvidence, "company.challengeEvidence", errors, researchIndex);
   const researchChallengeHook = researchIndex?.hooksById.get(challengeHookId);
   if (researchIndex && !researchChallengeHook) {
     errors.push(`company.challengeEvidence.hookId reference does not exist: ${challengeHookId}`);
@@ -632,39 +662,54 @@ export function validateApplicationBrief(
   });
 
   const positioning = requireObject(brief.positioning, "positioning", errors);
-  rejectUnknownKeys(
-    positioning,
-    "positioning",
+  rejectUnknownKeys(positioning, "positioning", errors, [
+    "selectedLevers",
+    "angleHint",
+    "aiRegister",
+    "supportingSignals",
+  ]);
+  const selectedLevers = requireArray(
+    positioning.selectedLevers,
+    "positioning.selectedLevers",
     errors,
-    ["selectedLevers", "angleHint", "aiRegister", "supportingSignals"],
+    { min: 1, max: 2 },
   );
-  const selectedLevers = requireArray(positioning.selectedLevers, "positioning.selectedLevers", errors, { min: 1, max: 2 });
   // Levers and included supporting signals must point to executable content checks. This turns a
   // positioning choice into a downstream requirement instead of leaving it as advisory prose.
   const referencedCheckIds = [];
   selectedLevers.forEach((lever, index) => {
     const path = `positioning.selectedLevers[${index}]`;
     const item = requireObject(lever, path, errors);
-    rejectUnknownKeys(
-      item,
-      path,
-      errors,
-      ["id", "wording", "rationale", "evidenceAnchors", "cvEvidenceCheckIds"],
-    );
+    rejectUnknownKeys(item, path, errors, [
+      "id",
+      "wording",
+      "rationale",
+      "evidenceAnchors",
+      "cvEvidenceCheckIds",
+    ]);
     if (!Number.isInteger(item.id) || item.id < 1) {
       errors.push(`positioning.selectedLevers[${index}].id must be a positive integer`);
     } else if (leverBank && !leverBank.levers.some((entry) => entry.id === item.id)) {
-      errors.push(`positioning.selectedLevers[${index}].id names no lever of ${candidateLeversSourcePath}`);
+      errors.push(
+        `positioning.selectedLevers[${index}].id names no lever of ${candidateLeversSourcePath}`,
+      );
     }
     requireString(item.wording, `positioning.selectedLevers[${index}].wording`, errors);
     requireString(item.rationale, `positioning.selectedLevers[${index}].rationale`, errors);
-    requireUniqueStrings(item.evidenceAnchors, `positioning.selectedLevers[${index}].evidenceAnchors`, errors, { min: 1 });
-    referencedCheckIds.push(...requireUniqueStrings(
-      item.cvEvidenceCheckIds,
-      `positioning.selectedLevers[${index}].cvEvidenceCheckIds`,
+    requireUniqueStrings(
+      item.evidenceAnchors,
+      `positioning.selectedLevers[${index}].evidenceAnchors`,
       errors,
       { min: 1 },
-    ));
+    );
+    referencedCheckIds.push(
+      ...requireUniqueStrings(
+        item.cvEvidenceCheckIds,
+        `positioning.selectedLevers[${index}].cvEvidenceCheckIds`,
+        errors,
+        { min: 1 },
+      ),
+    );
   });
   requireString(positioning.angleHint, "positioning.angleHint", errors);
   if (!AI_REGISTER_VALUES.has(positioning.aiRegister)) {
@@ -673,94 +718,140 @@ export function validateApplicationBrief(
   // The register rules read the properties of the selected levers, which only the candidate's
   // bank knows; without its bytes they are not checked here, and bundle validation requires them.
   if (leverBank) {
-    const selectedWith = (property) => selectedLevers.some((lever) => leverBank.levers
-      .some((entry) => entry.id === lever?.id && entry.properties.includes(property)));
+    const selectedWith = (property) =>
+      selectedLevers.some((lever) =>
+        leverBank.levers.some(
+          (entry) => entry.id === lever?.id && entry.properties.includes(property),
+        ),
+      );
     if (positioning.aiRegister === "deep" && !selectedWith("ai-infrastructure")) {
-      errors.push("positioning.aiRegister deep requires a selected lever with the ai-infrastructure property");
+      errors.push(
+        "positioning.aiRegister deep requires a selected lever with the ai-infrastructure property",
+      );
     }
     if (selectedWith("ai-infrastructure") && positioning.aiRegister !== "deep") {
-      errors.push("a selected lever with the ai-infrastructure property requires positioning.aiRegister deep");
+      errors.push(
+        "a selected lever with the ai-infrastructure property requires positioning.aiRegister deep",
+      );
     }
-    if (positioning.aiRegister === "work-only" && (selectedWith("ai-practice") || selectedWith("ai-infrastructure"))) {
-      errors.push("positioning.aiRegister work-only is incompatible with a selected lever with the ai-practice or ai-infrastructure property");
+    if (
+      positioning.aiRegister === "work-only" &&
+      (selectedWith("ai-practice") || selectedWith("ai-infrastructure"))
+    ) {
+      errors.push(
+        "positioning.aiRegister work-only is incompatible with a selected lever with the ai-practice or ai-infrastructure property",
+      );
     }
   }
 
-  const supportingSignals = requireArray(positioning.supportingSignals, "positioning.supportingSignals", errors, { min: 1 });
+  const supportingSignals = requireArray(
+    positioning.supportingSignals,
+    "positioning.supportingSignals",
+    errors,
+    { min: 1 },
+  );
   const aiSignalDecisions = [];
   supportingSignals.forEach((signal, index) => {
     const path = `positioning.supportingSignals[${index}]`;
     const item = requireObject(signal, path, errors);
-    rejectUnknownKeys(
-      item,
-      path,
-      errors,
-      ["id", "topic", "decision", "evidence", "claimIds", "sourceIds", "constraints", "cvEvidenceCheckId"],
-    );
+    rejectUnknownKeys(item, path, errors, [
+      "id",
+      "topic",
+      "decision",
+      "evidence",
+      "claimIds",
+      "sourceIds",
+      "constraints",
+      "cvEvidenceCheckId",
+    ]);
     const id = requireString(item.id, `positioning.supportingSignals[${index}].id`, errors);
-    const topic = requireString(item.topic, `positioning.supportingSignals[${index}].topic`, errors);
+    const topic = requireString(
+      item.topic,
+      `positioning.supportingSignals[${index}].topic`,
+      errors,
+    );
     if (/\b(?:AI|LLM)\b/i.test(`${id} ${topic}`)) aiSignalDecisions.push(item.decision);
     if (!DECISION_VALUES.has(item.decision)) {
-      errors.push(`positioning.supportingSignals[${index}].decision must be include, exclude, or optional`);
+      errors.push(
+        `positioning.supportingSignals[${index}].decision must be include, exclude, or optional`,
+      );
     }
     requireString(item.evidence, `positioning.supportingSignals[${index}].evidence`, errors);
-    validateResearchReferences(
-      item,
-      path,
+    validateResearchReferences(item, path, errors, researchIndex, {
+      requireClaims: item.decision === "include",
+      requireSources: item.decision === "include",
+    });
+    requireUniqueStrings(
+      item.constraints,
+      `positioning.supportingSignals[${index}].constraints`,
       errors,
-      researchIndex,
-      {
-        requireClaims: item.decision === "include",
-        requireSources: item.decision === "include",
-      },
+      { min: 1 },
     );
-    requireUniqueStrings(item.constraints, `positioning.supportingSignals[${index}].constraints`, errors, { min: 1 });
     if (item.decision === "include") {
-      referencedCheckIds.push(requireString(
-        item.cvEvidenceCheckId,
-        `positioning.supportingSignals[${index}].cvEvidenceCheckId`,
-        errors,
-      ));
+      referencedCheckIds.push(
+        requireString(
+          item.cvEvidenceCheckId,
+          `positioning.supportingSignals[${index}].cvEvidenceCheckId`,
+          errors,
+        ),
+      );
     } else if (item.cvEvidenceCheckId !== undefined) {
-      errors.push(`positioning.supportingSignals[${index}].cvEvidenceCheckId is allowed only when decision is include`);
+      errors.push(
+        `positioning.supportingSignals[${index}].cvEvidenceCheckId is allowed only when decision is include`,
+      );
     }
   });
   if (!aiSignalDecisions.length) {
     // Explicitly recording exclusion is valuable: it prevents a downstream writer from silently
     // omitting a relevant signal or inventing an AI angle merely because the source chat is absent.
-    errors.push("positioning.supportingSignals must record an explicit AI/LLM include or exclude decision");
+    errors.push(
+      "positioning.supportingSignals must record an explicit AI/LLM include or exclude decision",
+    );
   } else {
     if (aiSignalDecisions.includes("optional")) {
       errors.push("AI/LLM supportingSignals decision must be include or exclude, not optional");
     }
-    if (positioning.aiRegister === "work-only" && aiSignalDecisions.some((decision) => decision !== "exclude")) {
-      errors.push("positioning.aiRegister work-only requires every role-specific AI/LLM supporting signal decision to be exclude");
+    if (
+      positioning.aiRegister === "work-only" &&
+      aiSignalDecisions.some((decision) => decision !== "exclude")
+    ) {
+      errors.push(
+        "positioning.aiRegister work-only requires every role-specific AI/LLM supporting signal decision to be exclude",
+      );
     }
-    if (positioning.aiRegister !== "work-only" && AI_REGISTER_VALUES.has(positioning.aiRegister)
-      && !aiSignalDecisions.includes("include")) {
-      errors.push(`positioning.aiRegister ${positioning.aiRegister} requires an included AI/LLM supporting signal`);
+    if (
+      positioning.aiRegister !== "work-only" &&
+      AI_REGISTER_VALUES.has(positioning.aiRegister) &&
+      !aiSignalDecisions.includes("include")
+    ) {
+      errors.push(
+        `positioning.aiRegister ${positioning.aiRegister} requires an included AI/LLM supporting signal`,
+      );
     }
   }
 
   const experience = requireObject(brief.experience, "experience", errors);
-  rejectUnknownKeys(
-    experience,
-    "experience",
+  rejectUnknownKeys(experience, "experience", errors, ["priorityEvidence", "traits", "gaps"]);
+  const evidence = requireArray(
+    experience.priorityEvidence,
+    "experience.priorityEvidence",
     errors,
-    ["priorityEvidence", "traits", "gaps"],
+    { min: 1 },
   );
-  const evidence = requireArray(experience.priorityEvidence, "experience.priorityEvidence", errors, { min: 1 });
   const evidenceIds = new Set();
   const evidenceById = new Map();
   evidence.forEach((entry, index) => {
     const path = `experience.priorityEvidence[${index}]`;
     const item = requireObject(entry, path, errors);
-    rejectUnknownKeys(
-      item,
-      path,
-      errors,
-      ["id", "priority", "category", "claim", "profileSource", "proof", "cvPlacements"],
-    );
+    rejectUnknownKeys(item, path, errors, [
+      "id",
+      "priority",
+      "category",
+      "claim",
+      "profileSource",
+      "proof",
+      "cvPlacements",
+    ]);
     const id = requireString(item.id, `${path}.id`, errors);
     if (id && evidenceIds.has(id)) errors.push(`duplicate experience.priorityEvidence id: ${id}`);
     if (id) {
@@ -770,7 +861,12 @@ export function validateApplicationBrief(
     requireString(item.priority, `${path}.priority`, errors);
     requireString(item.category, `${path}.category`, errors);
     requireString(item.claim, `${path}.claim`, errors);
-    validateProfileSource(item.profileSource, `${path}.profileSource`, errors, profileSourceOptions);
+    validateProfileSource(
+      item.profileSource,
+      `${path}.profileSource`,
+      errors,
+      profileSourceOptions,
+    );
     requireUniqueStrings(item.proof, `${path}.proof`, errors, { min: 1 });
     requireUniqueStrings(item.cvPlacements, `${path}.cvPlacements`, errors, { min: 1 });
   });
@@ -779,7 +875,9 @@ export function validateApplicationBrief(
     if (!Array.isArray(lever?.evidenceAnchors)) return;
     for (const evidenceId of lever.evidenceAnchors) {
       if (typeof evidenceId === "string" && evidenceId.trim() && !evidenceIds.has(evidenceId)) {
-        errors.push(`positioning.selectedLevers[${leverIndex}].evidenceAnchors reference does not exist: ${evidenceId}`);
+        errors.push(
+          `positioning.selectedLevers[${leverIndex}].evidenceAnchors reference does not exist: ${evidenceId}`,
+        );
       }
     }
   });
@@ -795,7 +893,12 @@ export function validateApplicationBrief(
     if (id) traitIds.add(id);
     requireString(item.trait, `${path}.trait`, errors);
     requireString(item.behavior, `${path}.behavior`, errors);
-    validateProfileSource(item.profileSource, `${path}.profileSource`, errors, profileSourceOptions);
+    validateProfileSource(
+      item.profileSource,
+      `${path}.profileSource`,
+      errors,
+      profileSourceOptions,
+    );
   });
 
   const gaps = requireArray(experience.gaps, "experience.gaps", errors);
@@ -804,12 +907,13 @@ export function validateApplicationBrief(
   gaps.forEach((gap, index) => {
     const path = `experience.gaps[${index}]`;
     const item = requireObject(gap, path, errors);
-    rejectUnknownKeys(
-      item,
-      path,
-      errors,
-      ["id", "requirement", "classification", "transferableSupport", "framing"],
-    );
+    rejectUnknownKeys(item, path, errors, [
+      "id",
+      "requirement",
+      "classification",
+      "transferableSupport",
+      "framing",
+    ]);
     const id = requireString(item.id, `${path}.id`, errors);
     if (id && gapIds.has(id)) errors.push(`duplicate experience.gaps id: ${id}`);
     if (id) {
@@ -821,12 +925,7 @@ export function validateApplicationBrief(
       errors.push(`${path}.classification must be hard, soft, or adjacent`);
     }
     const support = requireObject(item.transferableSupport, `${path}.transferableSupport`, errors);
-    rejectUnknownKeys(
-      support,
-      `${path}.transferableSupport`,
-      errors,
-      ["status", "evidenceIds"],
-    );
+    rejectUnknownKeys(support, `${path}.transferableSupport`, errors, ["status", "evidenceIds"]);
     if (!TRANSFERABLE_SUPPORT_VALUES.has(support.status)) {
       errors.push(`${path}.transferableSupport.status must be evidence or none`);
     }
@@ -841,7 +940,9 @@ export function validateApplicationBrief(
     }
     for (const evidenceId of transferableEvidenceIds) {
       if (!evidenceIds.has(evidenceId)) {
-        errors.push(`${path}.transferableSupport.evidenceIds reference does not exist: ${evidenceId}`);
+        errors.push(
+          `${path}.transferableSupport.evidenceIds reference does not exist: ${evidenceId}`,
+        );
       }
     }
     requireString(item.framing, `${path}.framing`, errors);
@@ -854,12 +955,14 @@ export function validateApplicationBrief(
   keywords.forEach((keyword, index) => {
     const path = `ats.keywords[${index}]`;
     const item = requireObject(keyword, path, errors);
-    rejectUnknownKeys(
-      item,
-      path,
-      errors,
-      ["term", "expanded", "support", "placements", "required", "placementMode"],
-    );
+    rejectUnknownKeys(item, path, errors, [
+      "term",
+      "expanded",
+      "support",
+      "placements",
+      "required",
+      "placementMode",
+    ]);
     const term = requireString(item.term, `${path}.term`, errors);
     if (term && keywordTerms.has(term)) errors.push(`duplicate ats.keywords term: ${term}`);
     if (term) keywordTerms.add(term);
@@ -872,12 +975,9 @@ export function validateApplicationBrief(
     if (!SUPPORT_VALUES.has(support.status)) {
       errors.push(`${path}.support.status must be evidence or gap`);
     }
-    const placements = requireUniqueStrings(
-      item.placements,
-      `${path}.placements`,
-      errors,
-      { min: support.status === "evidence" ? 1 : 0 },
-    );
+    const placements = requireUniqueStrings(item.placements, `${path}.placements`, errors, {
+      min: support.status === "evidence" ? 1 : 0,
+    });
     if (typeof item.required !== "boolean") errors.push(`${path}.required must be boolean`);
     if (!PLACEMENT_MODES.has(item.placementMode)) {
       errors.push(`${path}.placementMode must be any or all`);
@@ -904,22 +1004,22 @@ export function validateApplicationBrief(
       const gapId = requireString(support.gapId, `${path}.support.gapId`, errors);
       if (gapId && !gapById.has(gapId)) {
         errors.push(`${path}.support.gapId reference does not exist: ${gapId}`);
-      } else if (
-        gapId
-        && term
-        && !containsWholeTerm(gapById.get(gapId)?.requirement ?? "", term)
-      ) {
+      } else if (gapId && term && !containsWholeTerm(gapById.get(gapId)?.requirement ?? "", term)) {
         errors.push(`${path}.term must occur in the linked gap requirement`);
       }
-      if (placements.length) errors.push(`${path}.placements must be empty when support.status is gap`);
-      if (item.required === true) errors.push(`${path}.required must be false when support.status is gap`);
+      if (placements.length)
+        errors.push(`${path}.placements must be empty when support.status is gap`);
+      if (item.required === true)
+        errors.push(`${path}.required must be false when support.status is gap`);
     }
   });
 
   const cvPlan = requireObject(brief.cvPlan, "cvPlan", errors);
   for (const key of Object.keys(cvPlan)) {
     if (key === "variants") {
-      errors.push("cvPlan.variants is not supported; application-brief.json defines one targeted CV only");
+      errors.push(
+        "cvPlan.variants is not supported; application-brief.json defines one targeted CV only",
+      );
     } else if (!CV_PLAN_KEYS.has(key)) {
       errors.push(`cvPlan contains unknown key: ${key}`);
     }
@@ -928,17 +1028,23 @@ export function validateApplicationBrief(
     errors.push(`cvPlan.structure must be one of: ${[...CV_STRUCTURE_VALUES].join(", ")}`);
   }
 
-  const headerPositioning = requireObject(cvPlan.headerPositioning, "cvPlan.headerPositioning", errors);
-  rejectUnknownKeys(
-    headerPositioning,
+  const headerPositioning = requireObject(
+    cvPlan.headerPositioning,
     "cvPlan.headerPositioning",
     errors,
-    ["mode", "text", "rationale"],
   );
+  rejectUnknownKeys(headerPositioning, "cvPlan.headerPositioning", errors, [
+    "mode",
+    "text",
+    "rationale",
+  ]);
   if (!HEADER_POSITIONING_VALUES.has(headerPositioning.mode)) {
-    errors.push(`cvPlan.headerPositioning.mode must be one of: ${[...HEADER_POSITIONING_VALUES].join(", ")}`);
+    errors.push(
+      `cvPlan.headerPositioning.mode must be one of: ${[...HEADER_POSITIONING_VALUES].join(", ")}`,
+    );
   } else if (headerPositioning.mode === "omit") {
-    if (headerPositioning.text !== null) errors.push("cvPlan.headerPositioning.text must be null when mode is omit");
+    if (headerPositioning.text !== null)
+      errors.push("cvPlan.headerPositioning.text must be null when mode is omit");
   } else {
     requireString(headerPositioning.text, "cvPlan.headerPositioning.text", errors);
   }
@@ -947,18 +1053,21 @@ export function validateApplicationBrief(
     errors.push("role.market on the home market requires cvPlan.headerPositioning.mode omit");
   }
   if (briefMarketSide === MARKET_SIDES.outsideHome && headerPositioning.mode !== "explicit") {
-    errors.push("role.market outside the home market requires cvPlan.headerPositioning.mode explicit");
+    errors.push(
+      "role.market outside the home market requires cvPlan.headerPositioning.mode explicit",
+    );
   }
 
   const projectDecision = requireObject(cvPlan.projectDecision, "cvPlan.projectDecision", errors);
-  rejectUnknownKeys(
-    projectDecision,
-    "cvPlan.projectDecision",
-    errors,
-    ["decision", "projectId", "rationale"],
-  );
+  rejectUnknownKeys(projectDecision, "cvPlan.projectDecision", errors, [
+    "decision",
+    "projectId",
+    "rationale",
+  ]);
   if (!PROJECT_DECISION_VALUES.has(projectDecision.decision)) {
-    errors.push(`cvPlan.projectDecision.decision must be one of: ${[...PROJECT_DECISION_VALUES].join(", ")}`);
+    errors.push(
+      `cvPlan.projectDecision.decision must be one of: ${[...PROJECT_DECISION_VALUES].join(", ")}`,
+    );
   } else if (projectDecision.decision === "include") {
     requireString(projectDecision.projectId, "cvPlan.projectDecision.projectId", errors);
   } else if (projectDecision.projectId !== null) {
@@ -968,24 +1077,30 @@ export function validateApplicationBrief(
 
   // cvPlan.checks is the machine-enforceable editorial plan consumed by cv-builder/preflight.mjs.
   const checks = requireObject(cvPlan.checks, "cvPlan.checks", errors);
-  rejectUnknownKeys(
-    checks,
-    "cvPlan.checks",
+  rejectUnknownKeys(checks, "cvPlan.checks", errors, [
+    "requiredEvidence",
+    "forbiddenTerms",
+    "skillGroups",
+  ]);
+  const requiredEvidence = requireArray(
+    checks.requiredEvidence,
+    "cvPlan.checks.requiredEvidence",
     errors,
-    ["requiredEvidence", "forbiddenTerms", "skillGroups"],
+    { min: 1 },
   );
-  const requiredEvidence = requireArray(checks.requiredEvidence, "cvPlan.checks.requiredEvidence", errors, { min: 1 });
   const checkIds = new Set();
   const checkById = new Map();
   requiredEvidence.forEach((check, index) => {
     const path = `cvPlan.checks.requiredEvidence[${index}]`;
     const item = requireObject(check, path, errors);
-    rejectUnknownKeys(
-      item,
-      path,
-      errors,
-      ["id", "description", "evidenceIds", "anyOf", "placements", "placementMode"],
-    );
+    rejectUnknownKeys(item, path, errors, [
+      "id",
+      "description",
+      "evidenceIds",
+      "anyOf",
+      "placements",
+      "placementMode",
+    ]);
     const id = requireString(item.id, `${path}.id`, errors);
     if (id && checkIds.has(id)) errors.push(`duplicate cvPlan.checks.requiredEvidence id: ${id}`);
     if (id) {
@@ -1003,14 +1118,20 @@ export function validateApplicationBrief(
     linkedEvidenceIds.forEach((evidenceId) => {
       if (typeof evidenceId !== "string" || !evidenceId.trim()) return;
       if (seenEvidenceLinks.has(evidenceId)) {
-        errors.push(`duplicate cvPlan.checks.requiredEvidence[${index}].evidenceIds reference: ${evidenceId}`);
+        errors.push(
+          `duplicate cvPlan.checks.requiredEvidence[${index}].evidenceIds reference: ${evidenceId}`,
+        );
       }
       seenEvidenceLinks.add(evidenceId);
       if (!evidenceIds.has(evidenceId)) {
-        errors.push(`cvPlan.checks.requiredEvidence[${index}].evidenceIds reference does not exist: ${evidenceId}`);
+        errors.push(
+          `cvPlan.checks.requiredEvidence[${index}].evidenceIds reference does not exist: ${evidenceId}`,
+        );
       }
     });
-    requireStringArray(item.anyOf, `cvPlan.checks.requiredEvidence[${index}].anyOf`, errors, { min: 1 });
+    requireStringArray(item.anyOf, `cvPlan.checks.requiredEvidence[${index}].anyOf`, errors, {
+      min: 1,
+    });
     const checkPlacements = requireStringArray(
       item.placements,
       `cvPlan.checks.requiredEvidence[${index}].placements`,
@@ -1020,41 +1141,51 @@ export function validateApplicationBrief(
     if (!PLACEMENT_MODES.has(item.placementMode)) {
       errors.push(`cvPlan.checks.requiredEvidence[${index}].placementMode must be any or all`);
     } else {
-      const allowedPlacements = new Set(linkedEvidenceIds.flatMap((evidenceId) => {
-        const linkedEvidence = evidenceById.get(evidenceId);
-        return Array.isArray(linkedEvidence?.cvPlacements)
-          ? linkedEvidence.cvPlacements.map(normalizeComparable)
-          : [];
-      }));
-      const placementCoverage = checkPlacements.map((placement) => allowedPlacements.has(normalizeComparable(placement)));
+      const allowedPlacements = new Set(
+        linkedEvidenceIds.flatMap((evidenceId) => {
+          const linkedEvidence = evidenceById.get(evidenceId);
+          return Array.isArray(linkedEvidence?.cvPlacements)
+            ? linkedEvidence.cvPlacements.map(normalizeComparable)
+            : [];
+        }),
+      );
+      const placementCoverage = checkPlacements.map((placement) =>
+        allowedPlacements.has(normalizeComparable(placement)),
+      );
       if (item.placementMode === "all" && placementCoverage.some((covered) => !covered)) {
-        const unsupported = checkPlacements.filter((_, placementIndex) => !placementCoverage[placementIndex]);
-        errors.push(`cvPlan.checks.requiredEvidence[${index}].placements not allowed by linked evidence cvPlacements: ${unsupported.join(", ")}`);
+        const unsupported = checkPlacements.filter(
+          (_, placementIndex) => !placementCoverage[placementIndex],
+        );
+        errors.push(
+          `cvPlan.checks.requiredEvidence[${index}].placements not allowed by linked evidence cvPlacements: ${unsupported.join(", ")}`,
+        );
       }
       if (item.placementMode === "any" && !placementCoverage.some(Boolean)) {
-        errors.push(`cvPlan.checks.requiredEvidence[${index}].placements has no placement allowed by linked evidence cvPlacements`);
+        errors.push(
+          `cvPlan.checks.requiredEvidence[${index}].placements has no placement allowed by linked evidence cvPlacements`,
+        );
       }
     }
   });
 
   keywords.forEach((keyword, index) => {
     if (
-      keyword?.required !== true
-      || keyword?.support?.status !== "evidence"
-      || !PLACEMENT_MODES.has(keyword?.placementMode)
-      || !Array.isArray(keyword?.support?.evidenceIds)
-      || keyword.support.evidenceIds.length === 0
-      || !Array.isArray(keyword?.placements)
-      || keyword.placements.length === 0
+      keyword?.required !== true ||
+      keyword?.support?.status !== "evidence" ||
+      !PLACEMENT_MODES.has(keyword?.placementMode) ||
+      !Array.isArray(keyword?.support?.evidenceIds) ||
+      keyword.support.evidenceIds.length === 0 ||
+      !Array.isArray(keyword?.placements) ||
+      keyword.placements.length === 0
     ) {
       return;
     }
     const coverage = requiredAtsEvidenceCoverage(keyword, requiredEvidence);
     if (!coverage.covered) {
       errors.push(
-        `ats.keywords[${index}] required evidence is not covered by `
-        + `cvPlan.checks.requiredEvidence for placementMode ${keyword.placementMode}: `
-        + coverage.uncovered.join(", "),
+        `ats.keywords[${index}] required evidence is not covered by ` +
+          `cvPlan.checks.requiredEvidence for placementMode ${keyword.placementMode}: ` +
+          coverage.uncovered.join(", "),
       );
     }
   });
@@ -1062,13 +1193,12 @@ export function validateApplicationBrief(
   // Every targeted CV carries one commercially grounded LLM-work signal. The dedicated references
   // keep that invariant independent from role-specific AI positioning and cover-letter decisions.
   const llmWorkSignal = requireObject(cvPlan.llmWorkSignal, "cvPlan.llmWorkSignal", errors);
-  rejectUnknownKeys(
-    llmWorkSignal,
-    "cvPlan.llmWorkSignal",
+  rejectUnknownKeys(llmWorkSignal, "cvPlan.llmWorkSignal", errors, ["evidenceId", "checkId"]);
+  const llmEvidenceId = requireString(
+    llmWorkSignal.evidenceId,
+    "cvPlan.llmWorkSignal.evidenceId",
     errors,
-    ["evidenceId", "checkId"],
   );
-  const llmEvidenceId = requireString(llmWorkSignal.evidenceId, "cvPlan.llmWorkSignal.evidenceId", errors);
   const llmCheckId = requireString(llmWorkSignal.checkId, "cvPlan.llmWorkSignal.checkId", errors);
   if (llmEvidenceId && !evidenceIds.has(llmEvidenceId)) {
     errors.push(`cvPlan.llmWorkSignal.evidenceId reference does not exist: ${llmEvidenceId}`);
@@ -1079,10 +1209,13 @@ export function validateApplicationBrief(
   const llmCheck = checkById.get(llmCheckId);
   if (llmCheck) {
     if (!Array.isArray(llmCheck.evidenceIds) || !llmCheck.evidenceIds.includes(llmEvidenceId)) {
-      errors.push("cvPlan.llmWorkSignal.checkId must link its evidenceId in requiredEvidence.evidenceIds");
+      errors.push(
+        "cvPlan.llmWorkSignal.checkId must link its evidenceId in requiredEvidence.evidenceIds",
+      );
     }
-    const hasExperiencePlacement = Array.isArray(llmCheck.placements)
-      && llmCheck.placements.some((placement) => {
+    const hasExperiencePlacement =
+      Array.isArray(llmCheck.placements) &&
+      llmCheck.placements.some((placement) => {
         const normalized = normalizeComparable(placement);
         return normalized === "experience" || normalized.startsWith("experience:");
       });
@@ -1095,11 +1228,18 @@ export function validateApplicationBrief(
     const alternatives = Array.isArray(llmCheck.anyOf)
       ? llmCheck.anyOf.filter((term) => typeof term === "string" && term.trim())
       : [];
-    if (alternatives.length && alternatives.some((alternative) => !containsWholeTerm(alternative, "LLM"))) {
+    if (
+      alternatives.length &&
+      alternatives.some((alternative) => !containsWholeTerm(alternative, "LLM"))
+    ) {
       errors.push("every cvPlan.llmWorkSignal check anyOf alternative must explicitly contain LLM");
     }
   }
-  const forbiddenTerms = requireArray(checks.forbiddenTerms, "cvPlan.checks.forbiddenTerms", errors);
+  const forbiddenTerms = requireArray(
+    checks.forbiddenTerms,
+    "cvPlan.checks.forbiddenTerms",
+    errors,
+  );
   const forbiddenTermValues = [];
   forbiddenTerms.forEach((entry, index) => {
     const path = `cvPlan.checks.forbiddenTerms[${index}]`;
@@ -1115,8 +1255,17 @@ export function validateApplicationBrief(
     const item = requireObject(group, path, errors);
     rejectUnknownKeys(item, path, errors, ["label", "mustContain", "forbiddenLabels"]);
     requireString(item.label, `cvPlan.checks.skillGroups[${index}].label`, errors);
-    requireStringArray(item.mustContain, `cvPlan.checks.skillGroups[${index}].mustContain`, errors, { min: 1 });
-    requireStringArray(item.forbiddenLabels, `cvPlan.checks.skillGroups[${index}].forbiddenLabels`, errors);
+    requireStringArray(
+      item.mustContain,
+      `cvPlan.checks.skillGroups[${index}].mustContain`,
+      errors,
+      { min: 1 },
+    );
+    requireStringArray(
+      item.forbiddenLabels,
+      `cvPlan.checks.skillGroups[${index}].forbiddenLabels`,
+      errors,
+    );
   });
 
   const rejectPlacement = (items, field, path, placement, reason) => {
@@ -1128,32 +1277,65 @@ export function validateApplicationBrief(
   };
   if (cvPlan.structure === "chronological") {
     const reason = "when cvPlan.structure is chronological";
-    rejectPlacement(evidence, "cvPlacements", "experience.priorityEvidence", "Selected Impact", reason);
+    rejectPlacement(
+      evidence,
+      "cvPlacements",
+      "experience.priorityEvidence",
+      "Selected Impact",
+      reason,
+    );
     rejectPlacement(keywords, "placements", "ats.keywords", "Selected Impact", reason);
-    rejectPlacement(requiredEvidence, "placements", "cvPlan.checks.requiredEvidence", "Selected Impact", reason);
+    rejectPlacement(
+      requiredEvidence,
+      "placements",
+      "cvPlan.checks.requiredEvidence",
+      "Selected Impact",
+      reason,
+    );
   }
   if (projectDecision.decision === "exclude") {
     const reason = "when cvPlan.projectDecision is exclude";
     rejectPlacement(evidence, "cvPlacements", "experience.priorityEvidence", "Projects", reason);
     rejectPlacement(keywords, "placements", "ats.keywords", "Projects", reason);
-    rejectPlacement(requiredEvidence, "placements", "cvPlan.checks.requiredEvidence", "Projects", reason);
-  } else if (projectDecision.decision === "include"
-    && !requiredEvidence.some((check) => hasPlacement(check, "placements", "Projects"))) {
-    errors.push("cvPlan.projectDecision include requires at least one cvPlan.checks.requiredEvidence check targeting Projects");
+    rejectPlacement(
+      requiredEvidence,
+      "placements",
+      "cvPlan.checks.requiredEvidence",
+      "Projects",
+      reason,
+    );
+  } else if (
+    projectDecision.decision === "include" &&
+    !requiredEvidence.some((check) => hasPlacement(check, "placements", "Projects"))
+  ) {
+    errors.push(
+      "cvPlan.projectDecision include requires at least one cvPlan.checks.requiredEvidence check targeting Projects",
+    );
   }
 
   keywords.forEach((keyword, index) => {
-    if (keyword?.required && forbiddenTermValues.some((forbiddenTerm) => containsWholeTerm(keyword.term, forbiddenTerm))) {
-      errors.push(`ats.keywords[${index}].term conflicts with cvPlan.checks.forbiddenTerms: ${keyword.term}`);
+    if (
+      keyword?.required &&
+      forbiddenTermValues.some((forbiddenTerm) => containsWholeTerm(keyword.term, forbiddenTerm))
+    ) {
+      errors.push(
+        `ats.keywords[${index}].term conflicts with cvPlan.checks.forbiddenTerms: ${keyword.term}`,
+      );
     }
   });
   requiredEvidence.forEach((check, index) => {
     const alternatives = Array.isArray(check?.anyOf)
       ? check.anyOf.filter((term) => typeof term === "string" && term.trim())
       : [];
-    if (alternatives.length && alternatives.every((alternative) => forbiddenTermValues
-      .some((forbiddenTerm) => containsWholeTerm(alternative, forbiddenTerm)))) {
-      errors.push(`cvPlan.checks.requiredEvidence[${index}].anyOf is unsatisfiable because every alternative conflicts with forbiddenTerms`);
+    if (
+      alternatives.length &&
+      alternatives.every((alternative) =>
+        forbiddenTermValues.some((forbiddenTerm) => containsWholeTerm(alternative, forbiddenTerm)),
+      )
+    ) {
+      errors.push(
+        `cvPlan.checks.requiredEvidence[${index}].anyOf is unsatisfiable because every alternative conflicts with forbiddenTerms`,
+      );
     }
   });
 
@@ -1164,28 +1346,25 @@ export function validateApplicationBrief(
   }
   selectedLevers.forEach((lever, leverIndex) => {
     const anchorIds = new Set(Array.isArray(lever?.evidenceAnchors) ? lever.evidenceAnchors : []);
-    for (const checkId of Array.isArray(lever?.cvEvidenceCheckIds) ? lever.cvEvidenceCheckIds : []) {
+    for (const checkId of Array.isArray(lever?.cvEvidenceCheckIds)
+      ? lever.cvEvidenceCheckIds
+      : []) {
       const check = checkById.get(checkId);
       if (
-        check
-        && Array.isArray(check.evidenceIds)
-        && !check.evidenceIds.some((evidenceId) => anchorIds.has(evidenceId))
+        check &&
+        Array.isArray(check.evidenceIds) &&
+        !check.evidenceIds.some((evidenceId) => anchorIds.has(evidenceId))
       ) {
         errors.push(
-          `positioning.selectedLevers[${leverIndex}].cvEvidenceCheckIds ${checkId} `
-          + "must link at least one selected lever evidence anchor",
+          `positioning.selectedLevers[${leverIndex}].cvEvidenceCheckIds ${checkId} ` +
+            "must link at least one selected lever evidence anchor",
         );
       }
     }
   });
 
   const coverLetterPlan = requireObject(brief.coverLetterPlan, "coverLetterPlan", errors);
-  rejectUnknownKeys(
-    coverLetterPlan,
-    "coverLetterPlan",
-    errors,
-    ["evidenceIds", "keywordTerms"],
-  );
+  rejectUnknownKeys(coverLetterPlan, "coverLetterPlan", errors, ["evidenceIds", "keywordTerms"]);
   const coverEvidenceIds = requireStringArray(
     coverLetterPlan.evidenceIds,
     "coverLetterPlan.evidenceIds",
@@ -1194,9 +1373,11 @@ export function validateApplicationBrief(
   );
   const seenCoverEvidenceIds = new Set();
   for (const id of coverEvidenceIds.filter((value) => typeof value === "string" && value.trim())) {
-    if (seenCoverEvidenceIds.has(id)) errors.push(`duplicate coverLetterPlan.evidenceIds reference: ${id}`);
+    if (seenCoverEvidenceIds.has(id))
+      errors.push(`duplicate coverLetterPlan.evidenceIds reference: ${id}`);
     seenCoverEvidenceIds.add(id);
-    if (!evidenceIds.has(id)) errors.push(`coverLetterPlan.evidenceIds reference does not exist: ${id}`);
+    if (!evidenceIds.has(id))
+      errors.push(`coverLetterPlan.evidenceIds reference does not exist: ${id}`);
   }
 
   const coverKeywordTerms = requireStringArray(
@@ -1206,10 +1387,14 @@ export function validateApplicationBrief(
     { min: 3, max: 5 },
   );
   const seenCoverKeywordTerms = new Set();
-  for (const term of coverKeywordTerms.filter((value) => typeof value === "string" && value.trim())) {
-    if (seenCoverKeywordTerms.has(term)) errors.push(`duplicate coverLetterPlan.keywordTerms reference: ${term}`);
+  for (const term of coverKeywordTerms.filter(
+    (value) => typeof value === "string" && value.trim(),
+  )) {
+    if (seenCoverKeywordTerms.has(term))
+      errors.push(`duplicate coverLetterPlan.keywordTerms reference: ${term}`);
     seenCoverKeywordTerms.add(term);
-    if (!keywordTerms.has(term)) errors.push(`coverLetterPlan.keywordTerms exact reference does not exist: ${term}`);
+    if (!keywordTerms.has(term))
+      errors.push(`coverLetterPlan.keywordTerms exact reference does not exist: ${term}`);
   }
 
   return errors;
@@ -1218,7 +1403,8 @@ export function validateApplicationBrief(
 export function readAndValidateApplicationBrief(path, options = {}) {
   const brief = JSON.parse(readFileSync(path, "utf8"));
   const errors = validateApplicationBrief(brief, options);
-  if (errors.length) throw new Error(`application brief validation failed:\n- ${errors.join("\n- ")}`);
+  if (errors.length)
+    throw new Error(`application brief validation failed:\n- ${errors.join("\n- ")}`);
   return brief;
 }
 
@@ -1259,9 +1445,9 @@ function main() {
   const args = process.argv.slice(2);
   if (args.length !== 1 && args.length !== 6) {
     throw new Error(
-      "Usage: node tools/application-brief/validate.mjs <application-brief.json> "
-      + "[<vacancy.json> <job-description.txt> <company-research.json> <candidate-profile.md> "
-      + "<candidate-levers.md>]",
+      "Usage: node tools/application-brief/validate.mjs <application-brief.json> " +
+        "[<vacancy.json> <job-description.txt> <company-research.json> <candidate-profile.md> " +
+        "<candidate-levers.md>]",
     );
   }
   const checkoutRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -1270,20 +1456,27 @@ function main() {
     languages: candidateLanguageNames({ root: candidateRoot }),
     markets: candidateMarkets({ root: candidateRoot }),
   };
-  const brief = args.length === 1
-    ? readAndValidateApplicationBrief(args[0], options)
-    : readAndValidateApplicationBriefBundle(...args, options).brief;
-  console.log(JSON.stringify({
-    status: "valid",
-    schemaVersion: brief.schemaVersion,
-    processId: brief.process.id,
-    outputDir: brief.process.outputDir,
-    keywords: brief.ats.keywords.length,
-    selectedLevers: brief.positioning.selectedLevers.map((lever) => lever.id),
-    cvStructure: brief.cvPlan.structure,
-    llmWorkCheck: brief.cvPlan.llmWorkSignal.checkId,
-    validationMode: args.length === 1 ? "structural" : "bundle",
-  }, null, 2));
+  const brief =
+    args.length === 1
+      ? readAndValidateApplicationBrief(args[0], options)
+      : readAndValidateApplicationBriefBundle(...args, options).brief;
+  console.log(
+    JSON.stringify(
+      {
+        status: "valid",
+        schemaVersion: brief.schemaVersion,
+        processId: brief.process.id,
+        outputDir: brief.process.outputDir,
+        keywords: brief.ats.keywords.length,
+        selectedLevers: brief.positioning.selectedLevers.map((lever) => lever.id),
+        cvStructure: brief.cvPlan.structure,
+        llmWorkCheck: brief.cvPlan.llmWorkSignal.checkId,
+        validationMode: args.length === 1 ? "structural" : "bundle",
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

@@ -72,7 +72,12 @@ export function parseArguments(argv) {
   for (let index = 0; index < argv.length; index += 2) {
     const key = flags[argv[index]];
     const value = argv[index + 1];
-    if (key === undefined || value === undefined || value.startsWith("--") || parsed[key] !== null) {
+    if (
+      key === undefined ||
+      value === undefined ||
+      value.startsWith("--") ||
+      parsed[key] !== null
+    ) {
       fail("records_import_invalid_arguments", USAGE);
     }
     parsed[key] = value;
@@ -94,7 +99,10 @@ export function parseArguments(argv) {
  */
 function assertNotRehearsal(opsRoot) {
   if (existsSync(join(opsRoot, ".rehearsal"))) {
-    fail("records_import_rehearsal_root", "--ops-root is a rehearsal worktree; its records are not imported.");
+    fail(
+      "records_import_rehearsal_root",
+      "--ops-root is a rehearsal worktree; its records are not imported.",
+    );
   }
   const manifest = join(opsRoot, MANIFEST_FILE_NAME);
   if (!existsSync(manifest)) return;
@@ -102,20 +110,34 @@ function assertNotRehearsal(opsRoot) {
   try {
     kind = JSON.parse(readFileSync(manifest, "utf8"))?.kind;
   } catch {
-    fail("records_import_rehearsal_root", `${MANIFEST_FILE_NAME} of --ops-root is unreadable, so whether it is a rehearsal folder is unknown.`);
+    fail(
+      "records_import_rehearsal_root",
+      `${MANIFEST_FILE_NAME} of --ops-root is unreadable, so whether it is a rehearsal folder is unknown.`,
+    );
   }
   if (kind === "rehearsal") {
-    fail("records_import_rehearsal_root", "--ops-root is a rehearsal folder; its records are not imported.");
+    fail(
+      "records_import_rehearsal_root",
+      "--ops-root is a rehearsal folder; its records are not imported.",
+    );
   }
 }
 
 function upstreamOf(root) {
-  const branch = runGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"], { failCode: GIT_FAILED });
+  const branch = runGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"], {
+    failCode: GIT_FAILED,
+  });
   if (branch.status !== 0) return null;
   const name = branch.stdout.trim();
-  const out = mustGit(root, [
-    "for-each-ref", "--format=%(upstream:remotename)%00%(upstream:remoteref)%00%(upstream)", `refs/heads/${name}`,
-  ], { failCode: GIT_FAILED }).trim();
+  const out = mustGit(
+    root,
+    [
+      "for-each-ref",
+      "--format=%(upstream:remotename)%00%(upstream:remoteref)%00%(upstream)",
+      `refs/heads/${name}`,
+    ],
+    { failCode: GIT_FAILED },
+  ).trim();
   const [remote, ref, tracking] = out.split("\0");
   return remote && ref && tracking ? { ref, remote, tracking } : null;
 }
@@ -126,9 +148,15 @@ function upstreamOf(root) {
  * else's work, and so is a merge, which lists no paths here.
  */
 function isImportCommit(root, commit) {
-  const fields = mustGit(root, ["diff-tree", "--no-commit-id", "--no-renames", "-r", "-z", "--name-status", commit], {
-    failCode: GIT_FAILED,
-  }).split("\0").filter(Boolean);
+  const fields = mustGit(
+    root,
+    ["diff-tree", "--no-commit-id", "--no-renames", "-r", "-z", "--name-status", commit],
+    {
+      failCode: GIT_FAILED,
+    },
+  )
+    .split("\0")
+    .filter(Boolean);
   if (fields.length === 0) return false;
   for (let index = 0; index < fields.length; index += 2) {
     if (fields[index] !== "A" || !fields[index + 1]?.startsWith(`${TARGET_RECORDS}/`)) return false;
@@ -138,14 +166,18 @@ function isImportCommit(root, commit) {
 
 /** The commits of the branch its upstream does not hold, oldest first. */
 function aheadOf(root, upstream) {
-  return mustGit(root, ["rev-list", "--reverse", `${upstream.tracking}..HEAD`], { failCode: GIT_FAILED })
+  return mustGit(root, ["rev-list", "--reverse", `${upstream.tracking}..HEAD`], {
+    failCode: GIT_FAILED,
+  })
     .split("\n")
     .filter(Boolean)
     .map((sha) => ({ imported: isImportCommit(root, sha), sha }));
 }
 
 function importCommitsAhead(root, upstream) {
-  return aheadOf(root, upstream).filter((commit) => commit.imported).map((commit) => commit.sha);
+  return aheadOf(root, upstream)
+    .filter((commit) => commit.imported)
+    .map((commit) => commit.sha);
 }
 
 function pull(root, upstream) {
@@ -157,8 +189,12 @@ function pull(root, upstream) {
   } catch {
     // Naming them is a courtesy of the refusal; a missing upstream branch has nothing to name.
   }
-  const named = stranded.length > 0 ? `; import commits not on the upstream: ${stranded.join(", ")}` : "";
-  fail("records_import_pull_refused", `git pull --ff-only refused: ${lastLines(result.stderr)}${named}`);
+  const named =
+    stranded.length > 0 ? `; import commits not on the upstream: ${stranded.join(", ")}` : "";
+  fail(
+    "records_import_pull_refused",
+    `git pull --ff-only refused: ${lastLines(result.stderr)}${named}`,
+  );
 }
 
 /**
@@ -169,23 +205,37 @@ function pull(root, upstream) {
 function pushStranded(root, upstream) {
   const ahead = aheadOf(root, upstream);
   if (ahead.length === 0 || !ahead.every((commit) => commit.imported)) return false;
-  const result = runGit(root, ["push", "--quiet", upstream.remote, `${ahead.at(-1).sha}:${upstream.ref}`], {
-    failCode: GIT_FAILED,
-  });
+  const result = runGit(
+    root,
+    ["push", "--quiet", upstream.remote, `${ahead.at(-1).sha}:${upstream.ref}`],
+    {
+      failCode: GIT_FAILED,
+    },
+  );
   if (result.status !== 0) {
-    fail("records_import_push_refused", `the import commits ${ahead.map((commit) => commit.sha).join(", ")} are ahead of the upstream and their push was refused (${lastLines(result.stderr, 2)}); nothing was taken back. Run the import again.`);
+    fail(
+      "records_import_push_refused",
+      `the import commits ${ahead.map((commit) => commit.sha).join(", ")} are ahead of the upstream and their push was refused (${lastLines(result.stderr, 2)}); nothing was taken back. Run the import again.`,
+    );
   }
   return true;
 }
 
 /** Paths under the target records directory that the last commit holds; none without a commit. */
 function committedPaths(root) {
-  if (runGit(root, ["rev-parse", "--verify", "--quiet", "HEAD"], { failCode: GIT_FAILED }).status !== 0) {
+  if (
+    runGit(root, ["rev-parse", "--verify", "--quiet", "HEAD"], { failCode: GIT_FAILED }).status !==
+    0
+  ) {
     return new Set();
   }
-  const out = mustGit(root, ["ls-tree", "-r", "-z", "--name-only", "HEAD", "--", `${TARGET_RECORDS}/`], {
-    failCode: GIT_FAILED,
-  });
+  const out = mustGit(
+    root,
+    ["ls-tree", "-r", "-z", "--name-only", "HEAD", "--", `${TARGET_RECORDS}/`],
+    {
+      failCode: GIT_FAILED,
+    },
+  );
   return new Set(out.split("\0").filter(Boolean));
 }
 
@@ -227,7 +277,10 @@ export function importRecords({ candidateRoot = null, opsRoot }) {
   const root = resolve(candidateRoot ?? privateRootFor(repoRoot));
   const top = runGit(root, ["rev-parse", "--show-toplevel"], { failCode: GIT_FAILED });
   if (top.status !== 0 || !samePath(top.stdout.trim(), root)) {
-    fail("records_import_root_not_a_clone", `${root} is not the root of the private repository's clone; pass --candidate-root.`);
+    fail(
+      "records_import_root_not_a_clone",
+      `${root} is not the root of the private repository's clone; pass --candidate-root.`,
+    );
   }
 
   const languages = candidateLanguageNames({ root });
@@ -245,7 +298,9 @@ export function importRecords({ candidateRoot = null, opsRoot }) {
   }
 
   const targetDirectory = join(root, LAYER_CORPUS_DIRECTORY);
-  const present = new Map(readSide(targetDirectory, languages).map((entry) => [entry.name, entry.bytes]));
+  const present = new Map(
+    readSide(targetDirectory, languages).map((entry) => [entry.name, entry.bytes]),
+  );
   const recordsDirectory = join(targetDirectory, RECORDS_DIRECTORY);
   const imported = [];
   const alreadyPresent = [];
@@ -274,10 +329,24 @@ export function importRecords({ candidateRoot = null, opsRoot }) {
   let commit = null;
   if (toCommit.length > 0) {
     withPaths(root, ["add"], toCommit);
-    withPaths(root, ["commit", "--quiet", "--only", "-m", `research: import ${toCommit.length} letter-correction records`], toCommit);
+    withPaths(
+      root,
+      [
+        "commit",
+        "--quiet",
+        "--only",
+        "-m",
+        `research: import ${toCommit.length} letter-correction records`,
+      ],
+      toCommit,
+    );
     commit = mustGit(root, ["rev-parse", "HEAD"], { failCode: GIT_FAILED }).trim();
     if (upstream !== null) {
-      const result = runGit(root, ["push", "--quiet", upstream.remote, `${commit}:${upstream.ref}`], { failCode: GIT_FAILED });
+      const result = runGit(
+        root,
+        ["push", "--quiet", upstream.remote, `${commit}:${upstream.ref}`],
+        { failCode: GIT_FAILED },
+      );
       if (result.status !== 0) takeBack(root, commit, toCommit, result.stderr);
       pushed = true;
     }
@@ -304,28 +373,39 @@ export function importRecords({ candidateRoot = null, opsRoot }) {
 function takeBack(root, commit, paths, stderr) {
   const head = mustGit(root, ["rev-parse", "HEAD"], { failCode: GIT_FAILED }).trim();
   if (head !== commit) {
-    fail("records_import_needs_repair", `the push was refused and HEAD moved since; nothing was taken back (${lastLines(stderr, 2)}).`);
+    fail(
+      "records_import_needs_repair",
+      `the push was refused and HEAD moved since; nothing was taken back (${lastLines(stderr, 2)}).`,
+    );
   }
   mustGit(root, ["reset", "--quiet", "--soft", "HEAD~1"], { failCode: GIT_FAILED });
   withPaths(root, ["rm", "--quiet", "--cached"], paths);
   for (const path of paths) rmSync(join(root, path), { force: true });
-  fail("records_import_push_refused", `the push was refused (${lastLines(stderr, 2)}); the commit was taken back. Run the import again.`);
+  fail(
+    "records_import_push_refused",
+    `the push was refused (${lastLines(stderr, 2)}); the commit was taken back. Run the import again.`,
+  );
 }
 
 export function main(argv = process.argv.slice(2)) {
   try {
     process.stdout.write(`${JSON.stringify(importRecords(parseArguments(argv)))}\n`);
   } catch (error) {
-    const known = error instanceof LetterCorrectionError
-      || error instanceof BoardError
-      || error instanceof CandidateError;
-    process.stderr.write(`${JSON.stringify({
-      error: {
-        code: known ? error.code : "records_import_failed",
-        message: known ? error.message : `the command failed unexpectedly: ${error?.message ?? error}`,
-      },
-      status: "error",
-    })}\n`);
+    const known =
+      error instanceof LetterCorrectionError ||
+      error instanceof BoardError ||
+      error instanceof CandidateError;
+    process.stderr.write(
+      `${JSON.stringify({
+        error: {
+          code: known ? error.code : "records_import_failed",
+          message: known
+            ? error.message
+            : `the command failed unexpectedly: ${error?.message ?? error}`,
+        },
+        status: "error",
+      })}\n`,
+    );
     process.exitCode = 1;
   }
 }

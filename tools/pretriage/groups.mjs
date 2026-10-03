@@ -80,7 +80,12 @@ export function splitCollection(collection, { groupSize = null } = {}) {
     }
     const groupOf = (value) => Math.ceil(value / size);
     if (groupOf(first) !== groupOf(position)) {
-      crossGroupSpellings.push({ position, group: groupOf(position), first_position: first, first_group: groupOf(first) });
+      crossGroupSpellings.push({
+        position,
+        group: groupOf(position),
+        first_position: first,
+        first_group: groupOf(first),
+      });
     }
   });
   return { group_size: size, total, groups, cross_group_spellings: crossGroupSpellings };
@@ -96,7 +101,12 @@ export function splitCollection(collection, { groupSize = null } = {}) {
  */
 export function collectionGroup(collection, group) {
   assertCollection(collection);
-  if (group === null || typeof group !== "object" || !Number.isSafeInteger(group.from) || !Number.isSafeInteger(group.to)) {
+  if (
+    group === null ||
+    typeof group !== "object" ||
+    !Number.isSafeInteger(group.from) ||
+    !Number.isSafeInteger(group.to)
+  ) {
     fail("pretriage_invalid_group", "A group names its 1-based inclusive bounds, from and to.");
   }
   let links;
@@ -121,12 +131,20 @@ export function groupBatchId(prefix, group) {
   if (typeof prefix !== "string" || prefix.length === 0) {
     fail("pretriage_invalid_label", "The label prefix must be a non-empty string.");
   }
-  if (group === null || typeof group !== "object" || !Number.isSafeInteger(group.from) || !Number.isSafeInteger(group.to)) {
+  if (
+    group === null ||
+    typeof group !== "object" ||
+    !Number.isSafeInteger(group.from) ||
+    !Number.isSafeInteger(group.to)
+  ) {
     fail("pretriage_invalid_group", "A group names its 1-based inclusive bounds, from and to.");
   }
   const batchId = `${prefix}-${group.from}-${group.to}`;
   if (!triageBatchIdPattern.test(batchId)) {
-    fail("pretriage_invalid_label", "The label prefix does not yield a batch_id the ledger accepts.");
+    fail(
+      "pretriage_invalid_label",
+      "The label prefix does not yield a batch_id the ledger accepts.",
+    );
   }
   return batchId;
 }
@@ -157,12 +175,16 @@ export function claimGroup({ storeDir, split, labelPrefix, group = null } = {}) 
     if (error?.name === "PreTriageError") throw error;
     fail("pretriage_store_missing", "The batch store does not exist; this stage never creates it.");
   }
-  if (split === null || typeof split !== "object" || !Array.isArray(split.groups) || split.groups.length === 0) {
+  if (
+    split === null ||
+    typeof split !== "object" ||
+    !Array.isArray(split.groups) ||
+    split.groups.length === 0
+  ) {
     fail("pretriage_invalid_split", "The split must carry the groups splitCollection returned.");
   }
-  const candidates = group === null
-    ? split.groups
-    : split.groups.filter((candidate) => candidate.group === group);
+  const candidates =
+    group === null ? split.groups : split.groups.filter((candidate) => candidate.group === group);
   if (candidates.length === 0) {
     fail("pretriage_invalid_group", `The split has no group ${group}.`);
   }
@@ -174,7 +196,10 @@ export function claimGroup({ storeDir, split, labelPrefix, group = null } = {}) 
     } catch (error) {
       if (error?.code === "EEXIST") {
         if (group !== null) {
-          fail("pretriage_group_claimed", `Group ${group} is already claimed: its batch directory exists.`);
+          fail(
+            "pretriage_group_claimed",
+            `Group ${group} is already claimed: its batch directory exists.`,
+          );
         }
         continue;
       }
@@ -182,11 +207,14 @@ export function claimGroup({ storeDir, split, labelPrefix, group = null } = {}) 
       // a read-only mount, no space. Not a missing store and not a claimed group.
       fail(
         "pretriage_claim_failed",
-        `The batch directory of group ${candidate.group} could not be created `
-          + `(${error?.code ?? "unknown error"}).`,
+        `The batch directory of group ${candidate.group} could not be created ` +
+          `(${error?.code ?? "unknown error"}).`,
       );
     }
     return { ...candidate, batch_id: batchId, dir };
   }
-  fail("pretriage_no_free_group", `Every group of the split is claimed (${split.groups.length} groups).`);
+  fail(
+    "pretriage_no_free_group",
+    `Every group of the split is claimed (${split.groups.length} groups).`,
+  );
 }

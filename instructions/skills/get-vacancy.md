@@ -12,8 +12,8 @@ attempt; this skill must not call `begin-step` for a newly created process.
 
 ## Output language and responsibility
 
-Chat commentary follows the global rule ([operating contract](../operating-contract.md) → *Agent
-chat-message style*). Preserve the JD, source headings, feasibility wording, and ATS terms in their
+Chat commentary follows the global rule ([operating contract](../operating-contract.md) → _Agent
+chat-message style_). Preserve the JD, source headings, feasibility wording, and ATS terms in their
 original language. Never translate, summarize, reorder, or semantically reshape the JD.
 
 This step owns `job-description.txt` and `vacancy.json`. It records observed vacancy facts without
@@ -59,10 +59,11 @@ The shared artifact contract owns lifecycle transport and diagnostic rules.
    a key. Only the user declares it: pass the declared id to `--duplicate-of`, or record it later
    with `link-duplicate`, and withdraw a wrong one with `--clear-duplicate-of`. A resemblance you
    notice yourself is a question to the user, never a link you write.
+
 2. Fetch the full visible JD using the source recipes below. If the fetch fails, close the matching
    attempt with `fail-step` and a retryable `vacancy_fetch_failed` diagnostic, then stop without
    guessing. A source fetched through an aggregate separates a failed fetch from a posting the
-   source no longer offers, so read *Aggregate route outcomes* below before choosing the
+   source no longer offers, so read _Aggregate route outcomes_ below before choosing the
    diagnostic. When the user later supplies the missing text and explicitly asks to continue, select
    the same process and use `retry-step` to obtain a new attempt id.
 3. Detect the ATS from the source domain or page structure. Known mappings include Ashby,
@@ -90,6 +91,7 @@ The shared artifact contract owns lifecycle transport and diagnostic rules.
    description in any other language cannot be published here at all, as `completed` or as
    `blocked`, so close the attempt with `fail-step` instead of writing a supported name for a
    description that is in none of them.
+
 5. Save exact identity and maintain the company registry:
 
    Keep `process.id` as a validated machine flag. Transport `companyObserved`, `role`, and the
@@ -102,6 +104,7 @@ The shared artifact contract owns lifecycle transport and diagnostic rules.
    id; a concurrent `status: existing` result is safe to link. When several matches remain
    plausible, leave `company_id` null and report the ambiguity. Add only observed spelling variants
    and verified first-party domains; never add ATS, job-board, recruiter, or document-share domains.
+
 6. Run `reserve-output --id "<process.id>"` and use the returned path exactly. Create a fresh
    `.pipeline-tmp/<publication-id>/` under it as required by the shared contract.
 7. Write staged `job-description.txt` as the full extracted visible JD in source order and wording,
@@ -112,6 +115,7 @@ The shared artifact contract owns lifecycle transport and diagnostic rules.
    Its Section index is a thin pointer layer over the JD. It records whether responsibilities,
    requirements, and nice-to-haves are separated, embedded, or absent; separated records preserve
    the source's own headings, while embedded/absent records never invent a heading or split.
+
 8. Validate the staged bundle:
 
    ```sh
@@ -124,6 +128,7 @@ The shared artifact contract owns lifecycle transport and diagnostic rules.
    Use `--outcome blocked` only for a validator-supported blocking ambiguity. Publish the matching
    candidate bundle through `publish-step`; for a blocked market classification, pass blocker code
    `market_ambiguous` and ask only for that unresolved decision.
+
 9. Return a compact summary with process id, output directory, both artifact paths,
    validation/publication result, and any blocker. Do not paste the JD into chat.
 

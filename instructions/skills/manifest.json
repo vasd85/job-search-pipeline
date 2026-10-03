@@ -98,9 +98,7 @@
       "description": "Read one batch file of Telegram posts of a general source and answer, in one JSON object of numbers and codes, which posts carry a QA vacancy and how one applies. One tool: reading. Used by collect-telegram only.",
       "common": "instructions/agents/telegram-reader.md",
       "claude": {
-        "tools": [
-          "Read"
-        ],
+        "tools": ["Read"],
         "model": "haiku"
       }
     },
@@ -109,9 +107,7 @@
       "description": "Read one staged cover letter without its brief and report how it reads on a first reading: one phrase per paragraph, the sentences that had to be read twice, an unclear reference, a conclusion without its link and a sentence that sounds translated. One tool: reading. Used by write-cover-letter only.",
       "common": "instructions/agents/letter-reader.md",
       "claude": {
-        "tools": [
-          "Read"
-        ],
+        "tools": ["Read"],
         "model": "sonnet"
       }
     },
@@ -120,9 +116,7 @@
       "description": "The same reading of a Telegram batch as telegram-reader, by a stronger model over the full text, for the independent labelling of a measurement sample. One tool: reading. Used by the rehearsal measurement of collect-telegram only.",
       "common": "instructions/agents/telegram-reader.md",
       "claude": {
-        "tools": [
-          "Read"
-        ],
+        "tools": ["Read"],
         "model": "sonnet"
       }
     }

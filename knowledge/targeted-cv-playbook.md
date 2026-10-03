@@ -7,8 +7,7 @@ targeted CV. It does not fetch vacancy or company data, score fit, select positi
 output directory, or describe build and rendering commands. Those decisions are completed before
 CV composition or are owned by the `generate-cv` procedure.
 
-Produce exactly one CV for the application, in the language required by `generation-rules.md` rule
-20. Do not create speculative remote, relocation, chronological, or hybrid variants. The validated
+Produce exactly one CV for the application, in the language required by `generation-rules.md` rule 20. Do not create speculative remote, relocation, chronological, or hybrid variants. The validated
 application plan has already resolved those choices.
 
 ## 2. Authoritative inputs
@@ -26,23 +25,23 @@ the brief.
 
 ### 2.1 Exact application-brief field map
 
-| CV concern | Authoritative field |
-| --- | --- |
-| Company, target role, ATS, language, and market | `role.company`, `role.title`, `role.ats`, `role.vacancyLanguage`, `role.market` |
-| Work-model facts used for presentation | `role.feasibility` |
-| Product challenge and verified company-specific hooks | `company.challengeType`, `company.values`, `company.tailoringHooks` |
-| Narrative spine | `positioning.selectedLevers`, `positioning.angleHint` |
-| AI depth and permitted supporting material | `positioning.aiRegister`, `positioning.supportingSignals` |
-| Ranked candidate-evidence pool and its destinations | `experience.priorityEvidence[*]`, including `cvPlacements` |
-| Honest gap treatment | `experience.gaps` |
-| Exact ATS terms and destinations | `ats.keywords` |
-| CV structure | `cvPlan.structure` |
-| Mandatory commercial LLM experience | `cvPlan.llmWorkSignal` resolved through `cvPlan.checks.requiredEvidence` |
-| Header positioning | `cvPlan.headerPositioning` |
-| Project inclusion | `cvPlan.projectDecision` |
-| Evidence selected for the CV | `cvPlan.checks.requiredEvidence[*].evidenceIds` |
-| Machine-enforceable wording, placements, exclusions, and skill groups | `cvPlan.checks` |
-| Education credential reference date | `createdAt` |
+| CV concern                                                            | Authoritative field                                                             |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Company, target role, ATS, language, and market                       | `role.company`, `role.title`, `role.ats`, `role.vacancyLanguage`, `role.market` |
+| Work-model facts used for presentation                                | `role.feasibility`                                                              |
+| Product challenge and verified company-specific hooks                 | `company.challengeType`, `company.values`, `company.tailoringHooks`             |
+| Narrative spine                                                       | `positioning.selectedLevers`, `positioning.angleHint`                           |
+| AI depth and permitted supporting material                            | `positioning.aiRegister`, `positioning.supportingSignals`                       |
+| Ranked candidate-evidence pool and its destinations                   | `experience.priorityEvidence[*]`, including `cvPlacements`                      |
+| Honest gap treatment                                                  | `experience.gaps`                                                               |
+| Exact ATS terms and destinations                                      | `ats.keywords`                                                                  |
+| CV structure                                                          | `cvPlan.structure`                                                              |
+| Mandatory commercial LLM experience                                   | `cvPlan.llmWorkSignal` resolved through `cvPlan.checks.requiredEvidence`        |
+| Header positioning                                                    | `cvPlan.headerPositioning`                                                      |
+| Project inclusion                                                     | `cvPlan.projectDecision`                                                        |
+| Evidence selected for the CV                                          | `cvPlan.checks.requiredEvidence[*].evidenceIds`                                 |
+| Machine-enforceable wording, placements, exclusions, and skill groups | `cvPlan.checks`                                                                 |
+| Education credential reference date                                   | `createdAt`                                                                     |
 
 The profile verifies and expands facts referenced by the brief; it does not authorize changing the
 brief's application-specific priorities.

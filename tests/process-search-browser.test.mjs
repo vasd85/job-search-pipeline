@@ -1,11 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-} from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execFileSync, spawn } from "node:child_process";
@@ -82,9 +76,7 @@ function waitForJsonLine(child, label) {
     };
     const onExit = (code) => {
       cleanup();
-      rejectLine(
-        new Error(`${label} exited before ready (${code}): ${stderr.trim()}`),
-      );
+      rejectLine(new Error(`${label} exited before ready (${code}): ${stderr.trim()}`));
     };
     const cleanup = () => {
       child.stdout.off("data", onData);
@@ -105,10 +97,15 @@ function waitForJsonLine(child, label) {
 function browserProcessState(child) {
   if (!child.pid) return "<not spawned>";
   try {
-    return execFileSync("ps", [
-      "-p", String(child.pid), "-o", "pid=,ppid=,stat=,etime=,time=,comm=",
-    ], { encoding: "utf8", timeout: 1_000, maxBuffer: 8_192 }).trim().slice(-2_048)
-      || "<absent>";
+    return (
+      execFileSync("ps", ["-p", String(child.pid), "-o", "pid=,ppid=,stat=,etime=,time=,comm="], {
+        encoding: "utf8",
+        timeout: 1_000,
+        maxBuffer: 8_192,
+      })
+        .trim()
+        .slice(-2_048) || "<absent>"
+    );
   } catch (error) {
     return `<unavailable: ${error.code ?? error.status ?? "unknown"}>`;
   }
@@ -129,19 +126,25 @@ async function waitForDevTools(profilePath, child, { timeoutMs = 10_000 } = {}) 
   // Drain for the child's whole lifetime, including after DevTools becomes ready.
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", onStderr);
-  child.once("error", (error) => { spawnError = error; });
+  child.once("error", (error) => {
+    spawnError = error;
+  });
   child.once("close", () => {
     closed = true;
     child.stderr.off("data", onStderr);
   });
   const failure = (message) => {
     let executable = child.spawnfile;
-    try { executable = realpathSync(executable); } catch { /* Keep the attempted executable. */ }
+    try {
+      executable = realpathSync(executable);
+    } catch {
+      /* Keep the attempted executable. */
+    }
     return new Error(
-      `${message}; exit code: ${child.exitCode}; signal: ${child.signalCode}`
-        + `; executable: ${executable}; pid: ${child.pid ?? "<none>"}`
-        + `; process state: ${browserProcessState(child)}`
-        + `; stderr${truncated ? " (tail)" : ""}: ${stderr.trim() || "<empty>"}`,
+      `${message}; exit code: ${child.exitCode}; signal: ${child.signalCode}` +
+        `; executable: ${executable}; pid: ${child.pid ?? "<none>"}` +
+        `; process state: ${browserProcessState(child)}` +
+        `; stderr${truncated ? " (tail)" : ""}: ${stderr.trim() || "<empty>"}`,
     );
   };
   const activePortPath = join(profilePath, "DevToolsActivePort");
@@ -175,8 +178,10 @@ function startupFixture(t, source) {
 }
 
 test("browser startup reports fatal stderr and exit code", async (t) => {
-  const { profile, child } = startupFixture(t,
-    'process.stderr.write("fatal browser startup\\n"); process.exitCode = 42;');
+  const { profile, child } = startupFixture(
+    t,
+    'process.stderr.write("fatal browser startup\\n"); process.exitCode = 42;',
+  );
   await assert.rejects(waitForDevTools(profile, child), (error) => {
     assert.match(error.message, /browser exited before DevTools was ready/);
     assert.match(error.message, /exit code: 42/);
@@ -186,8 +191,10 @@ test("browser startup reports fatal stderr and exit code", async (t) => {
 });
 
 test("browser startup reports a signal instead of hiding it as a timeout", async (t) => {
-  const { profile, child } = startupFixture(t,
-    'process.stderr.write("sandbox startup failed\\n", () => process.kill(process.pid, "SIGTERM"));');
+  const { profile, child } = startupFixture(
+    t,
+    'process.stderr.write("sandbox startup failed\\n", () => process.kill(process.pid, "SIGTERM"));',
+  );
   await assert.rejects(waitForDevTools(profile, child), (error) => {
     assert.match(error.message, /browser exited before DevTools was ready/);
     assert.match(error.message, /signal: SIGTERM/);
@@ -197,8 +204,10 @@ test("browser startup reports a signal instead of hiding it as a timeout", async
 });
 
 test("browser startup drains large stderr and retains a bounded tail", async (t) => {
-  const { profile, child } = startupFixture(t,
-    'process.stderr.write("discard-this-prefix" + "x".repeat(512 * 1024) + "fatal-tail", () => { process.exitCode = 43; });');
+  const { profile, child } = startupFixture(
+    t,
+    'process.stderr.write("discard-this-prefix" + "x".repeat(512 * 1024) + "fatal-tail", () => { process.exitCode = 43; });',
+  );
   await assert.rejects(waitForDevTools(profile, child), (error) => {
     assert.match(error.message, /exit code: 43/);
     assert.match(error.message, /fatal-tail/);
@@ -209,8 +218,10 @@ test("browser startup drains large stderr and retains a bounded tail", async (t)
 });
 
 test("browser startup timeout reports stderr and the running process", async (t) => {
-  const { profile, child } = startupFixture(t,
-    'process.stderr.write("startup stalled\\n"); setInterval(() => {}, 1000);');
+  const { profile, child } = startupFixture(
+    t,
+    'process.stderr.write("startup stalled\\n"); setInterval(() => {}, 1000);',
+  );
   await assert.rejects(waitForDevTools(profile, child, { timeoutMs: 2_000 }), (error) => {
     assert.match(error.message, /browser DevTools endpoint did not become ready/);
     assert.match(error.message, /exit code: null; signal: null/);
@@ -261,11 +272,7 @@ class CdpClient {
   static connect(url) {
     return new Promise((resolveClient, rejectClient) => {
       const socket = new WebSocket(url);
-      socket.addEventListener(
-        "open",
-        () => resolveClient(new CdpClient(socket)),
-        { once: true },
-      );
+      socket.addEventListener("open", () => resolveClient(new CdpClient(socket)), { once: true });
       socket.addEventListener("error", rejectClient, { once: true });
     });
   }
@@ -341,18 +348,14 @@ async function browserBody(client) {
 }
 
 async function startFixtureServer(t) {
-  const fixtureServer = spawn(
-    process.execPath,
-    ["tests/fixtures/process-search-ui-server.mjs"],
-    {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        JOB_PIPELINE_SEARCH_PORT: "0",
-      },
-      stdio: ["ignore", "pipe", "pipe"],
+  const fixtureServer = spawn(process.execPath, ["tests/fixtures/process-search-ui-server.mjs"], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      JOB_PIPELINE_SEARCH_PORT: "0",
     },
-  );
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   t.after(() => terminateChild(fixtureServer, "fixture server"));
   return waitForJsonLine(fixtureServer, "fixture server");
 }
@@ -360,10 +363,7 @@ async function startFixtureServer(t) {
 // The first cells of the source-coverage table and every quote's translation paragraph, read from
 // the company research as the reader renders it.
 async function readResearchView(client, fixture) {
-  await navigate(
-    client,
-    `${fixture.url}/processes/${encodeURIComponent(fixture.processId)}`,
-  );
+  await navigate(client, `${fixture.url}/processes/${encodeURIComponent(fixture.processId)}`);
   await waitForText(client, "DOCX published; review required");
   await evaluate(
     client,
@@ -397,18 +397,12 @@ test(
   "browser app renders honest publication state across success, error, retry, and narrow views",
   { timeout: 45_000 },
   async (t) => {
-    const browserBin = browserCandidates.find((candidate) =>
-      existsSync(candidate));
-    assert.ok(
-      browserBin,
-      "set JOB_PIPELINE_BROWSER_BIN to a Chrome/Chromium executable",
-    );
+    const browserBin = browserCandidates.find((candidate) => existsSync(candidate));
+    assert.ok(browserBin, "set JOB_PIPELINE_BROWSER_BIN to a Chrome/Chromium executable");
 
     const fixture = await startFixtureServer(t);
 
-    const profilePath = mkdtempSync(
-      join(tmpdir(), "job-pipeline-browser-profile-"),
-    );
+    const profilePath = mkdtempSync(join(tmpdir(), "job-pipeline-browser-profile-"));
     const browser = spawn(
       browserBin,
       [
@@ -438,9 +432,7 @@ test(
     });
 
     const devToolsPort = await waitForDevTools(profilePath, browser);
-    const targets = await (
-      await fetch(`http://127.0.0.1:${devToolsPort}/json/list`)
-    ).json();
+    const targets = await (await fetch(`http://127.0.0.1:${devToolsPort}/json/list`)).json();
     const page = targets.find((target) => target.type === "page");
     assert.ok(page?.webSocketDebuggerUrl, "browser page target is required");
     const client = await CdpClient.connect(page.webSocketDebuggerUrl);
@@ -464,27 +456,18 @@ test(
     assert.match(body, /docs\/runbooks\/application-readiness-checklist\.md/);
     assert.doesNotMatch(body, /CV ready|ready to send|ready_to_send/i);
     assert.equal(
-      await evaluate(
-        client,
-        "document.documentElement.scrollWidth <= window.innerWidth",
-      ),
+      await evaluate(client, "document.documentElement.scrollWidth <= window.innerWidth"),
       true,
     );
 
-    await navigate(
-      client,
-      `${fixture.url}/processes/${encodeURIComponent(fixture.processId)}`,
-    );
+    await navigate(client, `${fixture.url}/processes/${encodeURIComponent(fixture.processId)}`);
     await waitForText(client, "DOCX published; review required");
     body = await browserBody(client);
     assert.match(body, /The files are published and intact/);
     assert.match(body, /Manual review required/);
     assert.doesNotMatch(body, /CV ready|ready to send|ready_to_send/i);
     assert.equal(
-      await evaluate(
-        client,
-        "document.documentElement.scrollWidth <= window.innerWidth",
-      ),
+      await evaluate(client, "document.documentElement.scrollWidth <= window.innerWidth"),
       true,
     );
 
@@ -561,9 +544,15 @@ test(
         "Kubernetes-based test infrastructure ownership",
       ]);
       assert.deepEqual(view.gapParagraphs, [
-        ["Never claim Cypress. Say plainly that the framework depth was built in Playwright, and describe how the typed layers, fixtures, and auth strategies carry over."],
-        ["Do not imply a manager title. Describe the shared conventions and architectural boundaries the team adopted, and keep the claim at technical ownership."],
-        ["Position the RPC interception and wallet infrastructure work as the closest real experience, and name where that boundary ends instead of stretching it."],
+        [
+          "Never claim Cypress. Say plainly that the framework depth was built in Playwright, and describe how the typed layers, fixtures, and auth strategies carry over.",
+        ],
+        [
+          "Do not imply a manager title. Describe the shared conventions and architectural boundaries the team adopted, and keep the claim at technical ownership.",
+        ],
+        [
+          "Position the RPC interception and wallet infrastructure work as the closest real experience, and name where that boundary ends instead of stretching it.",
+        ],
       ]);
       assert.deepEqual(view.gapSupportLines, [
         ["Transferable evidence deliberately not declared."],
@@ -694,10 +683,7 @@ test(
             );
             if (!settled) await delay(50);
           }
-          assert.ok(
-            settled,
-            `the reader did not finish reading ${artifact.label} at ${width}px`,
-          );
+          assert.ok(settled, `the reader did not finish reading ${artifact.label} at ${width}px`);
           const view = await evaluate(
             client,
             `(() => {
@@ -748,13 +734,13 @@ test(
           // automatic width, and surplus content lands in its scroll width rather than widening it.
           assert.ok(
             view.workspaceClientWidth <= width,
-            `the artifact workspace is wider than the viewport at ${where}: `
-              + `${view.workspaceClientWidth} > ${width}`,
+            `the artifact workspace is wider than the viewport at ${where}: ` +
+              `${view.workspaceClientWidth} > ${width}`,
           );
           assert.ok(
             view.workspaceScrollWidth <= view.workspaceClientWidth,
-            `${where} overflows the clipping box: `
-              + `${view.workspaceScrollWidth} > ${view.workspaceClientWidth}`,
+            `${where} overflows the clipping box: ` +
+              `${view.workspaceScrollWidth} > ${view.workspaceClientWidth}`,
           );
           assert.ok(
             view.readerScrollWidth <= view.readerClientWidth,
@@ -766,8 +752,8 @@ test(
             // which would leave every section exactly as clipped as before.
             assert.ok(
               view.widestSection <= view.readerClientWidth,
-              `a section is wider than the reader at ${where}: `
-                + `${view.widestSection} > ${view.readerClientWidth}`,
+              `a section is wider than the reader at ${where}: ` +
+                `${view.widestSection} > ${view.readerClientWidth}`,
             );
             assert.ok(view.wraps.length > 0, `no data table at ${where}`);
             assert.ok(
@@ -790,8 +776,8 @@ test(
               );
               assert.ok(
                 wrap.scrollWidth > wrap.clientWidth,
-                `the table wrapper does not scroll at ${where}: `
-                  + `${wrap.scrollWidth} vs ${wrap.clientWidth}`,
+                `the table wrapper does not scroll at ${where}: ` +
+                  `${wrap.scrollWidth} vs ${wrap.clientWidth}`,
               );
               assert.ok(wrap.reachable, `the table overflow is unreachable at ${where}`);
             }
@@ -827,23 +813,14 @@ test(
     await navigate(client, `${fixture.url}/?error-case=1`);
     await waitForText(client, "Could not load the processes");
     body = await browserBody(client);
-    assert.doesNotMatch(
-      body,
-      /DOCX published|The files are published and intact|CV ready/,
-    );
+    assert.doesNotMatch(body, /DOCX published|The files are published and intact|CV ready/);
     assert.equal(
-      await evaluate(
-        client,
-        "document.querySelector('.empty-state.error button')?.textContent",
-      ),
+      await evaluate(client, "document.querySelector('.empty-state.error button')?.textContent"),
       "Retry",
     );
 
     await client.send("Network.setBlockedURLs", { urls: [] });
-    await evaluate(
-      client,
-      "document.querySelector('.empty-state.error button').click()",
-    );
+    await evaluate(client, "document.querySelector('.empty-state.error button').click()");
     await waitForText(client, "DOCX published; review required");
     body = await browserBody(client);
     assert.match(body, /Manual review required/);

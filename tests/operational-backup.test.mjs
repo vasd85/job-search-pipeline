@@ -88,17 +88,24 @@ function writeUnlockedMembers(source) {
   // Present in the source and deliberately not a member: the triage ledger already holds its
   // addresses, and its page captures would outgrow the entry bound.
   mkdirSync(join(source, "telegram-sweeps", "2026-09-24-1"), { recursive: true });
-  writeFileSync(join(source, "telegram-sweeps", "2026-09-24-1", "001.page.html"), "<html></html>\n");
+  writeFileSync(
+    join(source, "telegram-sweeps", "2026-09-24-1", "001.page.html"),
+    "<html></html>\n",
+  );
 }
 
 function emptyProcessLog() {
-  return `${JSON.stringify({
-    schema_version: 4,
-    duplicate_policy: "prompt",
-    updated_at: "2026-09-01T09:00:00Z",
-    companies: [],
-    processes: [],
-  }, null, 2)}\n`;
+  return `${JSON.stringify(
+    {
+      schema_version: 4,
+      duplicate_policy: "prompt",
+      updated_at: "2026-09-01T09:00:00Z",
+      companies: [],
+      processes: [],
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 function emptyTriageLedger() {
@@ -113,14 +120,17 @@ function emptyTriageLedger() {
  * `linked` builds the other topology: a `.git` **file** holding a `gitdir:` pointer, which is what
  * every worktree in this repository except the operational one looks like.
  */
-function makeSource(root, {
-  ledger = true,
-  store = true,
-  output = true,
-  linked = false,
-  folder = linked ? null : {},
-  processLog = true,
-} = {}) {
+function makeSource(
+  root,
+  {
+    ledger = true,
+    store = true,
+    output = true,
+    linked = false,
+    folder = linked ? null : {},
+    processLog = true,
+  } = {},
+) {
   const source = join(root, "checkout");
   mkdirSync(source, { recursive: true });
   if (folder !== null) {
@@ -156,19 +166,31 @@ function makeSource(root, {
  * of the given kind and swap state. The backup reads only the kind and the state.
  */
 function writeOperationalManifest(source, { kind = "operational", state = "ready" } = {}) {
-  const pin = (tag) => ({ commit: "a".repeat(40), repository: "/fixture/repository", tag, tree: "b".repeat(40) });
-  writeFileSync(join(source, "ops-manifest.json"), `${JSON.stringify({
-    schema: "job-search-pipeline/ops-manifest",
-    schema_version: 1,
-    kind,
-    state,
-    built_at: "2026-09-24T12:00:00.000Z",
-    previous: null,
-    engine: pin("release-20260924"),
-    candidate: pin("candidate-20260924"),
-    zones: zoneTableFor(kind),
-    files: { candidate: {}, dependencies: {}, engine: {} },
-  }, null, 2)}\n`);
+  const pin = (tag) => ({
+    commit: "a".repeat(40),
+    repository: "/fixture/repository",
+    tag,
+    tree: "b".repeat(40),
+  });
+  writeFileSync(
+    join(source, "ops-manifest.json"),
+    `${JSON.stringify(
+      {
+        schema: "job-search-pipeline/ops-manifest",
+        schema_version: 1,
+        kind,
+        state,
+        built_at: "2026-09-24T12:00:00.000Z",
+        previous: null,
+        engine: pin("release-20260924"),
+        candidate: pin("candidate-20260924"),
+        zones: zoneTableFor(kind),
+        files: { candidate: {}, dependencies: {}, engine: {} },
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 function makeRoot(t) {
@@ -216,7 +238,10 @@ function memberStatus(result, id) {
 }
 
 test("the member table pairs each store with the lock its writers take", () => {
-  assert.deepEqual(MEMBERS.map((member) => [member.id, member.lock]), PINNED_MEMBERS);
+  assert.deepEqual(
+    MEMBERS.map((member) => [member.id, member.lock]),
+    PINNED_MEMBERS,
+  );
   assert.deepEqual(
     MEMBERS.filter((member) => member.required).map((member) => member.id),
     ["process-log.json"],
@@ -229,9 +254,7 @@ test("a snapshot copies the four members, excludes staging and skips an unrecord
   const source = makeSource(root);
   const dest = join(root, "backups");
 
-  const result = runIn(source, [
-    "run", "--dest", dest, "--now", "2026-09-01T11:00:00Z",
-  ]);
+  const result = runIn(source, ["run", "--dest", dest, "--now", "2026-09-01T11:00:00Z"]);
 
   assert.equal(result.status, "backed_up");
   assert.equal(result.stamp, "20260901T110000Z");
@@ -257,10 +280,9 @@ test("a snapshot copies the four members, excludes staging and skips an unrecord
     true,
   );
   assert.equal(existsSync(join(snapshot, "triage-batches", "2026-09-02-linkedin-1")), false);
-  assert.deepEqual(
-    memberStatus(result, "triage-batches").skipped_batches,
-    ["2026-09-02-linkedin-1"],
-  );
+  assert.deepEqual(memberStatus(result, "triage-batches").skipped_batches, [
+    "2026-09-02-linkedin-1",
+  ]);
 
   const manifest = JSON.parse(readFileSync(join(snapshot, MANIFEST_FILE_NAME), "utf8"));
   assert.equal(manifest.schema, MANIFEST_SCHEMA);
@@ -318,7 +340,13 @@ test("an operational folder without .git is taken by its marker, a swap still bu
   for (const state of ["ready", "building"]) {
     const root = makeRoot(t);
     const source = makeSource(root, { folder: { state } });
-    const result = runIn(source, ["run", "--dest", join(root, "backups"), "--now", "2026-09-24T11:00:00Z"]);
+    const result = runIn(source, [
+      "run",
+      "--dest",
+      join(root, "backups"),
+      "--now",
+      "2026-09-24T11:00:00Z",
+    ]);
     assert.equal(result.status, "backed_up", state);
     assert.deepEqual(result.operational_folder, { kind: "operational", state }, state);
     assert.equal(existsSync(join(result.snapshot, "process-log.json")), true, state);
@@ -327,9 +355,21 @@ test("an operational folder without .git is taken by its marker, a swap still bu
 
 test("a rehearsal folder and an unreadable marker are refused, each with its own code", (t) => {
   const cases = [
-    ["rehearsal", (source) => writeOperationalManifest(source, { kind: "rehearsal" }), "backup_root_rehearsal"],
-    ["broken manifest", (source) => writeFileSync(join(source, "ops-manifest.json"), "{ not json\n"), "backup_root_manifest_invalid"],
-    ["service directory without a manifest", (source) => mkdirSync(join(source, ".ops-tree")), "backup_root_manifest_invalid"],
+    [
+      "rehearsal",
+      (source) => writeOperationalManifest(source, { kind: "rehearsal" }),
+      "backup_root_rehearsal",
+    ],
+    [
+      "broken manifest",
+      (source) => writeFileSync(join(source, "ops-manifest.json"), "{ not json\n"),
+      "backup_root_manifest_invalid",
+    ],
+    [
+      "service directory without a manifest",
+      (source) => mkdirSync(join(source, ".ops-tree")),
+      "backup_root_manifest_invalid",
+    ],
   ];
   for (const [label, mark, code] of cases) {
     const root = makeRoot(t);
@@ -337,10 +377,13 @@ test("a rehearsal folder and an unreadable marker are refused, each with its own
     rmSync(join(source, "ops-manifest.json"));
     mark(source);
     const dest = join(root, "backups");
-    assert.throws(() => runIn(source, ["run", "--dest", dest]), (error) => {
-      assert.equal(error.code, code, label);
-      return true;
-    });
+    assert.throws(
+      () => runIn(source, ["run", "--dest", dest]),
+      (error) => {
+        assert.equal(error.code, code, label);
+        return true;
+      },
+    );
     assert.equal(existsSync(dest), false, label);
   }
 });
@@ -366,30 +409,51 @@ test("an operational folder without .git backs up when run as the scheduled job 
 
 test("the marker decides the source; unmarked checkouts refuse", (t) => {
   const cases = [
-    ["primary worktree with an operational marker", (source) => writeOperationalManifest(source), "marker"],
+    [
+      "primary worktree with an operational marker",
+      (source) => writeOperationalManifest(source),
+      "marker",
+    ],
   ];
   for (const [label, mark, identity] of cases) {
     const root = makeRoot(t);
     const source = makeSource(root, { folder: null });
     mark(source);
-    const result = runIn(source, ["run", "--dest", join(root, "backups"), "--now", "2026-09-24T11:00:00Z"]);
+    const result = runIn(source, [
+      "run",
+      "--dest",
+      join(root, "backups"),
+      "--now",
+      "2026-09-24T11:00:00Z",
+    ]);
     assert.equal(result.source_identity, identity, label);
   }
 
   const refusals = [
     ["primary worktree without a marker", () => {}, "backup_root_unmarked"],
-    ["primary worktree with a rehearsal marker", (source) => writeOperationalManifest(source, { kind: "rehearsal" }), "backup_root_rehearsal"],
-    ["directory with neither a marker nor .git", (source) => rmSync(join(source, ".git"), { recursive: true }), "backup_root_unmarked"],
+    [
+      "primary worktree with a rehearsal marker",
+      (source) => writeOperationalManifest(source, { kind: "rehearsal" }),
+      "backup_root_rehearsal",
+    ],
+    [
+      "directory with neither a marker nor .git",
+      (source) => rmSync(join(source, ".git"), { recursive: true }),
+      "backup_root_unmarked",
+    ],
   ];
   for (const [label, mark, code] of refusals) {
     const root = makeRoot(t);
     const source = makeSource(root, { folder: null });
     mark(source);
     const dest = join(root, "backups");
-    assert.throws(() => runIn(source, ["run", "--dest", dest]), (error) => {
-      assert.equal(error.code, code, label);
-      return true;
-    });
+    assert.throws(
+      () => runIn(source, ["run", "--dest", dest]),
+      (error) => {
+        assert.equal(error.code, code, label);
+        return true;
+      },
+    );
     assert.equal(existsSync(dest), false, label);
   }
 });
@@ -400,9 +464,7 @@ test("no argument can redirect the copy to another tree", (t) => {
   const entry = makeRunnableCheckout(source);
   const elsewhere = makeSource(makeRoot(t));
 
-  const child = runTool(entry, [
-    "run", "--source", elsewhere, "--dest", join(root, "backups"),
-  ]);
+  const child = runTool(entry, ["run", "--source", elsewhere, "--dest", join(root, "backups")]);
 
   assert.equal(child.status, 1);
   assert.match(errorOf(child).message, /Unknown option\(s\): --source/);
@@ -410,7 +472,12 @@ test("no argument can redirect the copy to another tree", (t) => {
 
 test("a checkout carrying no operational ledger is refused, and nothing is written", (t) => {
   const root = makeRoot(t);
-  const source = makeSource(root, { ledger: false, output: false, processLog: false, store: false });
+  const source = makeSource(root, {
+    ledger: false,
+    output: false,
+    processLog: false,
+    store: false,
+  });
   const entry = makeRunnableCheckout(source);
   const dest = join(root, "backups");
 
@@ -446,16 +513,17 @@ test("a held process log lock refuses the snapshot once its wait expires", (t) =
   // stale one after 30s. A fresh record with a live pid is therefore held, not abandoned.
   const lock = join(source, "process-log.json.lock");
   mkdirSync(lock);
-  writeFileSync(join(lock, `${"a".repeat(32)}.json`), `${JSON.stringify({
-    lock_version: 1,
-    pid: process.pid,
-    owner_token: "a".repeat(32),
-    acquired_at: new Date().toISOString(),
-  })}\n`);
+  writeFileSync(
+    join(lock, `${"a".repeat(32)}.json`),
+    `${JSON.stringify({
+      lock_version: 1,
+      pid: process.pid,
+      owner_token: "a".repeat(32),
+      acquired_at: new Date().toISOString(),
+    })}\n`,
+  );
 
-  const child = runTool(entry, [
-    "run", "--dest", dest, "--lock-timeout-ms", "150",
-  ]);
+  const child = runTool(entry, ["run", "--dest", dest, "--lock-timeout-ms", "150"]);
 
   assert.equal(child.status, 1);
   assert.equal(errorOf(child).code, "process_log_lock_timeout");
@@ -482,9 +550,7 @@ test("absent members are recorded as absent, which is today's operational shape"
   const source = makeSource(root, { ledger: false, output: false, store: false });
   const dest = join(root, "backups");
 
-  const result = runIn(source, [
-    "run", "--dest", dest, "--now", "2026-09-01T11:00:00Z",
-  ]);
+  const result = runIn(source, ["run", "--dest", dest, "--now", "2026-09-01T11:00:00Z"]);
 
   assert.equal(result.status, "backed_up");
   assert.equal(memberStatus(result, "process-log.json").status, "copied");
@@ -551,21 +617,30 @@ test("a JSON member that does not parse refuses the snapshot and leaves the olde
 test("a member of the wrong kind refuses before any of it is copied", (t) => {
   const cases = [
     ["records as a file", (source) => writeFileSync(join(source, "records"), "not a directory\n")],
-    ["telegram-sources.json as a directory", (source) => mkdirSync(join(source, "telegram-sources.json"))],
-    ["outbox as a link", (source) => {
-      mkdirSync(join(source, "elsewhere"));
-      symlinkSync(join(source, "elsewhere"), join(source, "outbox"));
-    }],
+    [
+      "telegram-sources.json as a directory",
+      (source) => mkdirSync(join(source, "telegram-sources.json")),
+    ],
+    [
+      "outbox as a link",
+      (source) => {
+        mkdirSync(join(source, "elsewhere"));
+        symlinkSync(join(source, "elsewhere"), join(source, "outbox"));
+      },
+    ],
   ];
   for (const [label, mark] of cases) {
     const root = makeRoot(t);
     const source = makeSource(root);
     mark(source);
     const dest = join(root, "backups");
-    assert.throws(() => runIn(source, ["run", "--dest", dest]), (error) => {
-      assert.equal(error.code, "backup_unsupported_entry", label);
-      return true;
-    });
+    assert.throws(
+      () => runIn(source, ["run", "--dest", dest]),
+      (error) => {
+        assert.equal(error.code, "backup_unsupported_entry", label);
+        return true;
+      },
+    );
     assert.deepEqual(readdirSync(realpathSync(dest)), [], label);
   }
 });
@@ -575,9 +650,7 @@ test("a batch store without its ledger is skipped whole rather than half-copied"
   const source = makeSource(root, { ledger: false });
   const dest = join(root, "backups");
 
-  const result = runIn(source, [
-    "run", "--dest", dest, "--now", "2026-09-01T11:00:00Z",
-  ]);
+  const result = runIn(source, ["run", "--dest", dest, "--now", "2026-09-01T11:00:00Z"]);
 
   assert.equal(memberStatus(result, "triage-ledger.json").status, "absent");
   assert.equal(memberStatus(result, "triage-batches").status, "skipped_without_ledger");
@@ -641,9 +714,7 @@ test("rotation sweeps only its own aged partial directories", (t) => {
   }
   utimesSync(young, withinThreshold, withinThreshold);
 
-  const result = runIn(source, [
-    "run", "--dest", dest, "--now", "2026-09-01T11:00:00Z",
-  ]);
+  const result = runIn(source, ["run", "--dest", dest, "--now", "2026-09-01T11:00:00Z"]);
 
   assert.deepEqual(result.rotation.removed_partials, ["20260801T110000Z.partial-424242"]);
   assert.equal(existsSync(young), true);
@@ -658,9 +729,7 @@ test("a snapshot directory that already exists is never overwritten", (t) => {
   const dest = join(root, "backups");
   mkdirSync(join(dest, "20260901T110000Z"), { recursive: true });
 
-  const child = runTool(entry, [
-    "run", "--dest", dest, "--now", "2026-09-01T11:00:00Z",
-  ]);
+  const child = runTool(entry, ["run", "--dest", dest, "--now", "2026-09-01T11:00:00Z"]);
 
   assert.equal(child.status, 1);
   assert.equal(errorOf(child).code, "backup_snapshot_exists");
@@ -673,9 +742,7 @@ test("verify names a changed file, a missing one and an added one", (t) => {
   const source = makeSource(root);
   const entry = makeRunnableCheckout(source);
   const dest = join(root, "backups");
-  const snapshot = runIn(source, [
-    "run", "--dest", dest, "--now", "2026-09-01T11:00:00Z",
-  ]).snapshot;
+  const snapshot = runIn(source, ["run", "--dest", dest, "--now", "2026-09-01T11:00:00Z"]).snapshot;
 
   writeFileSync(join(snapshot, "output", "acme-sdet", "cv.json"), '{"published":false}\n');
   rmSync(join(snapshot, "output", "acme-sdet", "cover-letter.md"));
@@ -702,7 +769,13 @@ test("the freshness check answers the only question a scheduled job cannot", (t)
   // A destination that was never created answers the liveness question rather than refusing it:
   // "there are no backups" is the finding, not a mistyped argument.
   const missing = runIn(source, [
-    "verify", "--dest", dest, "--max-age-hours", "24", "--now", "2026-09-01T11:00:00Z",
+    "verify",
+    "--dest",
+    dest,
+    "--max-age-hours",
+    "24",
+    "--now",
+    "2026-09-01T11:00:00Z",
   ]);
   assert.equal(missing.status, "empty");
   assert.equal(missing.ok, false);
@@ -710,7 +783,13 @@ test("the freshness check answers the only question a scheduled job cannot", (t)
 
   mkdirSync(dest, { recursive: true });
   const empty = runIn(source, [
-    "verify", "--dest", dest, "--max-age-hours", "24", "--now", "2026-09-01T11:00:00Z",
+    "verify",
+    "--dest",
+    dest,
+    "--max-age-hours",
+    "24",
+    "--now",
+    "2026-09-01T11:00:00Z",
   ]);
   assert.equal(empty.status, "empty");
   assert.equal(empty.ok, false);
@@ -718,13 +797,25 @@ test("the freshness check answers the only question a scheduled job cannot", (t)
   runIn(source, ["run", "--dest", dest, "--now", "2026-09-01T11:00:00Z"]);
 
   const fresh = runIn(source, [
-    "verify", "--dest", dest, "--max-age-hours", "24", "--now", "2026-09-02T10:00:00Z",
+    "verify",
+    "--dest",
+    dest,
+    "--max-age-hours",
+    "24",
+    "--now",
+    "2026-09-02T10:00:00Z",
   ]);
   assert.equal(fresh.status, "fresh");
   assert.equal(fresh.age_hours, 23);
 
   const stale = runIn(source, [
-    "verify", "--dest", dest, "--max-age-hours", "24", "--now", "2026-09-03T11:00:00Z",
+    "verify",
+    "--dest",
+    dest,
+    "--max-age-hours",
+    "24",
+    "--now",
+    "2026-09-03T11:00:00Z",
   ]);
   assert.equal(stale.status, "stale");
   assert.equal(stale.ok, false);
@@ -738,7 +829,15 @@ test("the rendered LaunchAgent names the script it schedules and escapes what it
   mkdirSync(dest, { recursive: true });
 
   const result = runIn(source, [
-    "print-plist", "--script", toolPath, "--dest", dest, "--hour", "11", "--minute", "0",
+    "print-plist",
+    "--script",
+    toolPath,
+    "--dest",
+    dest,
+    "--hour",
+    "11",
+    "--minute",
+    "0",
   ]);
 
   assert.equal(result.label, LAUNCH_AGENT_LABEL);
@@ -809,7 +908,9 @@ test("stamps are derived from the instant, not from the local clock", () => {
 test("unmarked primary checkout refuses before creating a snapshot", (t) => {
   const root = makeRoot(t);
   const source = makeSource(root, { folder: null });
-  assert.throws(() => runIn(source, ["run", "--dest", join(root, "snapshots")]), { code: "backup_root_unmarked" });
+  assert.throws(() => runIn(source, ["run", "--dest", join(root, "snapshots")]), {
+    code: "backup_root_unmarked",
+  });
   assert.equal(existsSync(join(root, "snapshots")), false);
 });
 
@@ -822,7 +923,11 @@ test("a historical research member is an explicit inventory mismatch, without re
   writeFileSync(join(snapshot, "candidate/research/note.md"), text);
   const path = join(snapshot, MANIFEST_FILE_NAME);
   const manifest = JSON.parse(readFileSync(path, "utf8"));
-  manifest.files.push({ path: "candidate/research/note.md", bytes: Buffer.byteLength(text), sha256: createHash("sha256").update(text).digest("hex") });
+  manifest.files.push({
+    path: "candidate/research/note.md",
+    bytes: Buffer.byteLength(text),
+    sha256: createHash("sha256").update(text).digest("hex"),
+  });
   writeFileSync(path, JSON.stringify(manifest));
   const before = readFileSync(path, "utf8");
   const report = runIn(source, ["verify", "--backup", snapshot]);

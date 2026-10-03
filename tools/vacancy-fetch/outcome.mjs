@@ -13,13 +13,22 @@
 import { failureRetryability, statusVocabulary } from "../job-sources/routes.mjs";
 
 export const outcomeNames = Object.freeze([
-  "active", "absent", "closed", "private", "access_failure",
+  "active",
+  "absent",
+  "closed",
+  "private",
+  "access_failure",
 ]);
 
 // The orthogonal barrier axis. Every value is retryable, because a barrier describes why a
 // fetch did not complete and never asserts that a posting is gone.
 export const accessBarriers = Object.freeze([
-  "network", "http_status", "unparseable", "authentication", "anti_bot", "rate_limit",
+  "network",
+  "http_status",
+  "unparseable",
+  "authentication",
+  "anti_bot",
+  "rate_limit",
 ]);
 
 // Transport code to barrier. Every code tools/vacancy-fetch/transport.mjs can return has a
@@ -37,9 +46,7 @@ function result(outcome, accessBarrier) {
   return Object.freeze({
     outcome,
     accessBarrier,
-    retryable: Object.hasOwn(failureRetryability, outcome)
-      ? failureRetryability[outcome]
-      : false,
+    retryable: Object.hasOwn(failureRetryability, outcome) ? failureRetryability[outcome] : false,
   });
 }
 

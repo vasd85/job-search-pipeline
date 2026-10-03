@@ -13,12 +13,12 @@ npm run setup:github -- --repo <owner>/<name> [--check]
 The declared settings live in [config/github/](../../config/github/), one file per API call, each
 file exactly the body of that call:
 
-| File | Call |
-| --- | --- |
-| `repository.json` | `PATCH repos/{repo}` — merge commits only, no auto-merge, branches deleted after merge, the merge commit titled by GitHub's default and carrying the pull request's title, no issues, wiki or discussions |
-| `fork-pr-approval.json` | `PUT repos/{repo}/actions/permissions/fork-pr-contributor-approval` — every outside contributor's workflow run waits for approval |
-| `ruleset-main.json` | a branch ruleset on the default branch: a pull request is required with no approvals and the merge-commit method only; the check `gate` of the GitHub Actions app must pass on a branch that is up to date; no deletion, no force push; nobody bypasses it |
-| `ruleset-release-tags.json` | a tag ruleset on `release-*`: a release tag cannot be deleted or moved; creating one stays open |
+| File                        | Call                                                                                                                                                                                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repository.json`           | `PATCH repos/{repo}` — merge commits only, no auto-merge, branches deleted after merge, the merge commit titled by GitHub's default and carrying the pull request's title, no issues, wiki or discussions                                                  |
+| `fork-pr-approval.json`     | `PUT repos/{repo}/actions/permissions/fork-pr-contributor-approval` — every outside contributor's workflow run waits for approval                                                                                                                          |
+| `ruleset-main.json`         | a branch ruleset on the default branch: a pull request is required with no approvals and the merge-commit method only; the check `gate` of the GitHub Actions app must pass on a branch that is up to date; no deletion, no force push; nobody bypasses it |
+| `ruleset-release-tags.json` | a tag ruleset on `release-*`: a release tag cannot be deleted or moved; creating one stays open                                                                                                                                                            |
 
 The ruleset carries no linear-history rule: that rule forbids merge commits.
 
@@ -61,16 +61,19 @@ The script does, in order, skipping whatever is already done:
   is not one;
 - clones the private repository into the engine's `candidate` directory, which the engine ignores;
   a directory already there must be a repository of its own, with the named URL as its origin;
-- installs the dependencies with the two `npm ci` commands the CI workflow uses;
+- installs the dependencies with the two `npm ci` commands the CI workflow uses; an existing
+  cv-builder installation does not skip installation of a missing or outdated root Prettier;
 - points `core.hooksPath` at this clone's `tools/git-hooks`, which installs both hooks there: the
-  pre-push guard ([tools/push-guard](../push-guard/README.md)) and the pre-commit check that
-  refuses a commit whose staged content has a whitespace error;
+  pre-push guard ([tools/push-guard](../push-guard/README.md)) and the pre-commit formatter that
+  formats the active staged snapshot, preserves unstaged edits, and then checks whitespace;
+  missing formatter dependencies or staged policy refuse the commit (see
+  [formatting](../../README.md#formatting));
 - with `--operational`: renders the templates in the `machine` directory of the private layer
   into their targets, creates the backup destination, and registers the backup LaunchAgent with
   launchd unless launchd already knows it;
-- checks the machine: the toolchain, the private layer, the hook path — and with `--operational`
-  both targets, the registered agent and the operational folder's own `npm run preflight`. The
-  run is green only when all of these are.
+- checks the machine: the toolchain, the private layer, the hook path and the pinned root
+  formatter dependency — and with `--operational` both targets, the registered agent and the
+  operational folder's own `npm run preflight`. The run is green only when all of these are.
 
 `--check` runs only the last step.
 
@@ -83,10 +86,10 @@ directory as the engine.
 The layer supplies the text; the engine fixes where each one lands. A layer cannot direct a write
 anywhere else.
 
-| Template in the layer's `machine` directory | Target |
-| --- | --- |
-| `settings.local.json` | `.claude/settings.local.json` of the operational folder |
-| `backup.plist` | `~/Library/LaunchAgents/com.job-search-pipeline.backup.plist` |
+| Template in the layer's `machine` directory | Target                                                        |
+| ------------------------------------------- | ------------------------------------------------------------- |
+| `settings.local.json`                       | `.claude/settings.local.json` of the operational folder       |
+| `backup.plist`                              | `~/Library/LaunchAgents/com.job-search-pipeline.backup.plist` |
 
 A template may name four placeholders: `{{node}}` (the running Node), `{{home}}`,
 `{{operational_root}}` and `{{backup_root}}` (`~/Backups/job-search-pipeline`). An unknown

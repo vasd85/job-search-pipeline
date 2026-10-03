@@ -190,8 +190,8 @@ export function validateRecord(record, label, { languages } = {}) {
   if (missing.length > 0 || unexpected.length > 0) {
     fail(
       "corpus_record_invalid",
-      `${where}: key set is wrong (missing ${missing.join(", ") || "none"}; `
-        + `unexpected ${unexpected.join(", ") || "none"}).`,
+      `${where}: key set is wrong (missing ${missing.join(", ") || "none"}; ` +
+        `unexpected ${unexpected.join(", ") || "none"}).`,
     );
   }
   const check = (condition, what) => {
@@ -204,8 +204,7 @@ export function validateRecord(record, label, { languages } = {}) {
     "record_id is not lc_<12 lowercase hex>",
   );
   check(
-    typeof record.recorded_at === "string"
-      && !Number.isNaN(Date.parse(record.recorded_at)),
+    typeof record.recorded_at === "string" && !Number.isNaN(Date.parse(record.recorded_at)),
     "recorded_at is not a timestamp",
   );
   check(
@@ -217,20 +216,20 @@ export function validateRecord(record, label, { languages } = {}) {
     "process_id is not a process identifier",
   );
   check(
-    typeof record.company_role === "string"
-      && record.company_role.length > 0
-      && withinBytes(record.company_role, COMPANY_ROLE_MAX_BYTES),
+    typeof record.company_role === "string" &&
+      record.company_role.length > 0 &&
+      withinBytes(record.company_role, COMPANY_ROLE_MAX_BYTES),
     "company_role is empty or too long",
   );
   check(
-    typeof record.publication_before === "string"
-      && PUBLICATION_ID_PATTERN.test(record.publication_before),
+    typeof record.publication_before === "string" &&
+      PUBLICATION_ID_PATTERN.test(record.publication_before),
     "publication_before is not a publication identifier",
   );
   check(
-    record.publication_after === null
-      || (typeof record.publication_after === "string"
-        && PUBLICATION_ID_PATTERN.test(record.publication_after)),
+    record.publication_after === null ||
+      (typeof record.publication_after === "string" &&
+        PUBLICATION_ID_PATTERN.test(record.publication_after)),
     "publication_after is neither null nor a publication identifier",
   );
   check(
@@ -259,15 +258,14 @@ export function validateRecord(record, label, { languages } = {}) {
     "fragment_before and fragment_after are identical",
   );
   check(
-    record.user_reason === null
-      || (typeof record.user_reason === "string"
-        && record.user_reason.length > 0
-        && withinBytes(record.user_reason, REASON_MAX_BYTES)),
+    record.user_reason === null ||
+      (typeof record.user_reason === "string" &&
+        record.user_reason.length > 0 &&
+        withinBytes(record.user_reason, REASON_MAX_BYTES)),
     "user_reason is neither null nor a non-empty bounded string",
   );
   check(
-    record.user_reason_absent === null
-      || REASON_ABSENCES.includes(record.user_reason_absent),
+    record.user_reason_absent === null || REASON_ABSENCES.includes(record.user_reason_absent),
     "user_reason_absent is not a known absence code",
   );
   check(
@@ -275,9 +273,9 @@ export function validateRecord(record, label, { languages } = {}) {
     "exactly one of user_reason and user_reason_absent must be set",
   );
   check(
-    Array.isArray(record.classes)
-      && record.classes.every((code) => CLASS_CODES.includes(code))
-      && new Set(record.classes).size === record.classes.length,
+    Array.isArray(record.classes) &&
+      record.classes.every((code) => CLASS_CODES.includes(code)) &&
+      new Set(record.classes).size === record.classes.length,
     "classes is not a set of known class codes",
   );
   check(
@@ -287,8 +285,8 @@ export function validateRecord(record, label, { languages } = {}) {
   check(typeof record.teach === "boolean", "teach is not a boolean");
   check(ORIGINS.includes(record.origin), "origin is not a known origin");
   check(
-    record.source_ref === null
-      || (typeof record.source_ref === "string" && SOURCE_REF_PATTERN.test(record.source_ref)),
+    record.source_ref === null ||
+      (typeof record.source_ref === "string" && SOURCE_REF_PATTERN.test(record.source_ref)),
     "source_ref is neither null nor a repository-relative path",
   );
   return record;
@@ -367,8 +365,8 @@ export function assertCorpusWritable(corpusRealPath, { spawnSync = defaultSpawnS
   if (ignored.error === undefined && ignored.status === 1) {
     fail(
       "corpus_in_public_tree",
-      "The corpus lies in a directory this repository does not ignore, so an export would ship "
-        + "the letters inside it. Write it in the run's records/ instead.",
+      "The corpus lies in a directory this repository does not ignore, so an export would ship " +
+        "the letters inside it. Write it in the run's records/ instead.",
     );
   }
   fail(
@@ -403,8 +401,8 @@ export function runCorpusDirectory(root) {
   if (!isRunRoot(root)) {
     fail(
       "corpus_no_run_root",
-      `No ${RUN_LEDGER_FILE} here, so this is not a run root; a record is written only beside `
-        + "the process log of the run that published the letter.",
+      `No ${RUN_LEDGER_FILE} here, so this is not a run root; a record is written only beside ` +
+        "the process log of the run that published the letter.",
     );
   }
   return resolve(root, RUN_CORPUS_DIRECTORY);
@@ -414,12 +412,16 @@ export function runCorpusDirectory(root) {
  * Write one record and return it. The caller owns the corpus path; this function owns the shape,
  * the identifier and the one field it always leaves empty.
  */
-export function writeRecord(corpusDirectory, fields, {
-  languages,
-  now = () => new Date(),
-  randomId = () => randomBytes(6).toString("hex"),
-  spawnSync = defaultSpawnSync,
-} = {}) {
+export function writeRecord(
+  corpusDirectory,
+  fields,
+  {
+    languages,
+    now = () => new Date(),
+    randomId = () => randomBytes(6).toString("hex"),
+    spawnSync = defaultSpawnSync,
+  } = {},
+) {
   const corpus = resolve(corpusDirectory);
   let corpusRealPath;
   try {
@@ -429,34 +431,38 @@ export function writeRecord(corpusDirectory, fields, {
   }
   assertCorpusWritable(corpusRealPath, { spawnSync });
 
-  const record = validateRecord({
-    schemaVersion: CORPUS_SCHEMA_VERSION,
-    record_id: `lc_${randomId()}`,
-    recorded_at: now().toISOString(),
-    occurred_on: fields.occurredOn,
-    process_id: fields.processId,
-    company_role: fields.companyRole,
-    publication_before: fields.publicationBefore,
-    publication_after: fields.publicationAfter,
-    before_index: fields.beforeIndex,
-    after_state: fields.afterState,
-    channel: fields.channel,
-    language: fields.language,
-    fragment_before: fields.fragmentBefore,
-    fragment_after: fields.fragmentAfter,
-    user_reason: fields.userReason,
-    user_reason_absent: fields.userReasonAbsent,
-    classes: fields.classes,
-    // The verdict is the revision's own observation: the blind reader read the version the user
-    // then corrected, and only that revision still knows what it said. Absent, it stays null, and
-    // null on a live record means no reading happened. `teach` is never filled here: a record that
-    // arrived already marked as a lesson would be the corpus teaching itself, which is the one
-    // thing it must not do, and the mark is the user's.
-    reader_verdict: fields.readerVerdict ?? null,
-    teach: false,
-    origin: fields.origin,
-    source_ref: fields.sourceRef,
-  }, undefined, { languages });
+  const record = validateRecord(
+    {
+      schemaVersion: CORPUS_SCHEMA_VERSION,
+      record_id: `lc_${randomId()}`,
+      recorded_at: now().toISOString(),
+      occurred_on: fields.occurredOn,
+      process_id: fields.processId,
+      company_role: fields.companyRole,
+      publication_before: fields.publicationBefore,
+      publication_after: fields.publicationAfter,
+      before_index: fields.beforeIndex,
+      after_state: fields.afterState,
+      channel: fields.channel,
+      language: fields.language,
+      fragment_before: fields.fragmentBefore,
+      fragment_after: fields.fragmentAfter,
+      user_reason: fields.userReason,
+      user_reason_absent: fields.userReasonAbsent,
+      classes: fields.classes,
+      // The verdict is the revision's own observation: the blind reader read the version the user
+      // then corrected, and only that revision still knows what it said. Absent, it stays null, and
+      // null on a live record means no reading happened. `teach` is never filled here: a record that
+      // arrived already marked as a lesson would be the corpus teaching itself, which is the one
+      // thing it must not do, and the mark is the user's.
+      reader_verdict: fields.readerVerdict ?? null,
+      teach: false,
+      origin: fields.origin,
+      source_ref: fields.sourceRef,
+    },
+    undefined,
+    { languages },
+  );
 
   const directory = resolve(corpusRealPath, RECORDS_DIRECTORY);
   mkdirSync(directory, { recursive: true });
@@ -569,7 +575,8 @@ export function summarize(records) {
   }
 
   const perLetter = [...letters.values()].sort((left, right) =>
-    left.processId.localeCompare(right.processId));
+    left.processId.localeCompare(right.processId),
+  );
 
   return {
     records: records.length,
@@ -578,9 +585,9 @@ export function summarize(records) {
     correctionsPerLetter: { total: records.length, mean: mean(records.length, perLetter.length) },
     inPlacePerLetter: { total: inPlace, mean: mean(inPlace, perLetter.length) },
     byClass: {
-      ...Object.fromEntries(CLASS_CODES
-        .filter((code) => byClass.has(code))
-        .map((code) => [code, byClass.get(code)])),
+      ...Object.fromEntries(
+        CLASS_CODES.filter((code) => byClass.has(code)).map((code) => [code, byClass.get(code)]),
+      ),
       unclassified,
     },
     readerVerdict: {
@@ -588,9 +595,8 @@ export function summarize(records) {
       flagged: verdictFlagged,
       // Null, not zero: "no fragment was flagged" and "no verdict has been recorded yet" are
       // different answers, and task 144 reads this field to tell them apart.
-      flaggedShare: verdictFilled === 0
-        ? null
-        : Math.round((verdictFlagged / verdictFilled) * 100) / 100,
+      flaggedShare:
+        verdictFilled === 0 ? null : Math.round((verdictFlagged / verdictFilled) * 100) / 100,
     },
   };
 }

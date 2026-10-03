@@ -11,12 +11,12 @@ a verdict; the aggregate gate uses it with the fictional layer's data-only allow
 Four classes. A class is the code a finding carries; the unit a reader acts on is the marker, and
 below that the file.
 
-| Class | What it catches | Where the markers come from |
-|-------|-----------------|------------------------------|
-| `personal_marker` | A line naming this candidate: surname, handle, employer, a country. | the candidate layer |
-| `shared_template` | A leak that is a leak whoever it belongs to: a mail address, a home directory path, a vacancy link. | this directory |
-| `private_path` | A reference to a path that does not cross the border, or one into the candidate layer. | this directory |
-| `cyrillic_prose` | A line of non-Latin script in a file where that script is prose, not data. | here; data paths from the layer |
+| Class             | What it catches                                                                                     | Where the markers come from     |
+| ----------------- | --------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `personal_marker` | A line naming this candidate: surname, handle, employer, a country.                                 | the candidate layer             |
+| `shared_template` | A leak that is a leak whoever it belongs to: a mail address, a home directory path, a vacancy link. | this directory                  |
+| `private_path`    | A reference to a path that does not cross the border, or one into the candidate layer.              | this directory                  |
+| `cyrillic_prose`  | A line of non-Latin script in a file where that script is prose, not data.                          | here; data paths from the layer |
 
 The public markers are `template.email`, `template.home-path`, `template.hh-vacancy`,
 `path.backlog`, `path.archive`, `path.research`, `path.audits`, `path.product-decisions`,

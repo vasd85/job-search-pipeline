@@ -24,7 +24,7 @@ evidence log that grew to 451 KB.
 
 Group 1 is fully integrated, including all six integration gates. The campaign succeeded, and
 its machinery then outlived its purpose: the standing rule that every behavior-changing edit
-must flow through the `R*` queue made the campaign register the only channel for *any*
+must flow through the `R*` queue made the campaign register the only channel for _any_
 development. New feature work had to be expressed as remediation rows, task status was split
 across three places (the register queue, the card's own `Status:` line, and a move between
 directories), and `knowledge/precedence.md` §1 named no owner for the concern "development tasks" at
@@ -57,9 +57,9 @@ way to track project development.
    rather than in live backlog files.
 5. **Ownership is registered.** `knowledge/precedence.md` §1 gains rows naming
    `docs/backlog/` as the owner of development-task tracking and the register of product
-   decisions as the owner of product decisions. *Amended 2026-09-23 (task 184): an accepted
+   decisions as the owner of product decisions. _Amended 2026-09-23 (task 184): an accepted
    product decision is owned by the ADR that records it; a question still under analysis governs
-   nothing until it is decided.*
+   nothing until it is decided._
 
 ## Consequences
 

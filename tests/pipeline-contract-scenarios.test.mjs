@@ -22,10 +22,12 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const exampleRoot = join(repoRoot, "candidate.example");
 const exampleLanguageNames = candidateLanguageNames({ root: exampleRoot });
 const exampleMarkets = candidateMarkets({ root: exampleRoot });
-const baseBrief = JSON.parse(readFileSync(
-  resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
-  "utf8",
-));
+const baseBrief = JSON.parse(
+  readFileSync(
+    resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
+    "utf8",
+  ),
+);
 
 function makeAiInternationalBrief() {
   const brief = structuredClone(baseBrief);
@@ -114,12 +116,15 @@ function makeNonAiGreekBrief() {
     "Skills",
     "Experience:Current Company",
   ];
-  brief.experience.priorityEvidence[0].claim = "Έχτισα ένα συντηρήσιμο πλαίσιο αυτοματισμού για την ομάδα προϊόντος.";
-  brief.experience.priorityEvidence[0].proof = ["Πέτυχα μετρήσιμο αποτέλεσμα και αξιόπιστο σήμα ανατροφοδότησης."];
+  brief.experience.priorityEvidence[0].claim =
+    "Έχτισα ένα συντηρήσιμο πλαίσιο αυτοματισμού για την ομάδα προϊόντος.";
+  brief.experience.priorityEvidence[0].proof = [
+    "Πέτυχα μετρήσιμο αποτέλεσμα και αξιόπιστο σήμα ανατροφοδότησης.",
+  ];
   brief.ats.keywords.forEach((keyword) => {
-    keyword.placements = keyword.placements.map((placement) => (
-      placement === "Selected Impact" ? "Experience:Current Company" : placement
-    ));
+    keyword.placements = keyword.placements.map((placement) =>
+      placement === "Selected Impact" ? "Experience:Current Company" : placement,
+    );
   });
   const greekTerms = ["αυτοματισμός δοκιμών", "δοκιμές API", "στρατηγική δοκιμών"];
   greekTerms.forEach((term, index) => {
@@ -127,8 +132,9 @@ function makeNonAiGreekBrief() {
     brief.ats.keywords[index + 2].expanded = term;
   });
   brief.coverLetterPlan.keywordTerms = greekTerms;
-  const primaryLeverCheck = brief.cvPlan.checks.requiredEvidence
-    .find((check) => check.id === "primary-lever-evidence");
+  const primaryLeverCheck = brief.cvPlan.checks.requiredEvidence.find(
+    (check) => check.id === "primary-lever-evidence",
+  );
   Object.assign(primaryLeverCheck, {
     description: "The selected lever is present in the first relevant Experience entry.",
     placements: ["Experience:Current Company"],
@@ -194,10 +200,7 @@ function authorCvFromBrief(brief) {
     sections.push({
       type: "bullets",
       heading: "Projects",
-      bullets: [
-        brief.cvPlan.projectDecision.projectId,
-        ...phrasesForPlacement(brief, "Projects"),
-      ],
+      bullets: [brief.cvPlan.projectDecision.projectId, ...phrasesForPlacement(brief, "Projects")],
     });
   }
 
@@ -216,9 +219,9 @@ function authorCvFromBrief(brief) {
 // Cover-letter prose is synthetic; the assertions test the persisted selection contract rather
 // than editorial style, which remains the playbook's responsibility.
 function authorCoverLetterFromBrief(brief) {
-  const evidence = brief.coverLetterPlan.evidenceIds.map((id) => (
-    brief.experience.priorityEvidence.find((entry) => entry.id === id)
-  ));
+  const evidence = brief.coverLetterPlan.evidenceIds.map((id) =>
+    brief.experience.priorityEvidence.find((entry) => entry.id === id),
+  );
   const evidenceText = evidence.map((entry) => `${entry.claim} ${entry.proof.join(" ")}`).join(" ");
   const keywordText = brief.coverLetterPlan.keywordTerms.join(", ");
   const aiEvidence = brief.positioning.supportingSignals
@@ -243,8 +246,8 @@ function authorCoverLetterFromBrief(brief) {
         "I would bring calm engineering judgment, transparent checks, and sustained attention to the quality of feedback.",
       ];
   const segmenter = new Intl.Segmenter(greek ? "el" : "en", { granularity: "word" });
-  const countWords = () => [...segmenter.segment(paragraphs.join("\n"))]
-    .filter((segment) => segment.isWordLike).length;
+  const countWords = () =>
+    [...segmenter.segment(paragraphs.join("\n"))].filter((segment) => segment.isWordLike).length;
   const filler = greek ? "ποιότητα" : "quality";
   let paragraphIndex = 0;
   while (countWords() < 240) {
@@ -252,7 +255,9 @@ function authorCoverLetterFromBrief(brief) {
     paragraphIndex = (paragraphIndex + 1) % paragraphs.length;
   }
   assert.equal(countWords(), 240, "synthetic letter must meet its exact word target");
-  const signature = exampleLetterLanguages.find((language) => language.name === brief.role.vacancyLanguage).signature;
+  const signature = exampleLetterLanguages.find(
+    (language) => language.name === brief.role.vacancyLanguage,
+  ).signature;
   return `${title}\n\n${paragraphs.join("\n\n")}\n\n${signature}\n`;
 }
 
@@ -270,8 +275,13 @@ function assertCoverLetterContract(letter, brief) {
   const firstLine = letter.split("\n", 1)[0];
   assert.ok(firstLine.length > 0);
   assert.doesNotMatch(firstLine, /^\s*(?:#|\*|-)/, "plain-text title must not use Markdown");
-  assert.ok(brief.coverLetterPlan.evidenceIds.length >= 1 && brief.coverLetterPlan.evidenceIds.length <= 2);
-  assert.ok(brief.coverLetterPlan.keywordTerms.length >= 3 && brief.coverLetterPlan.keywordTerms.length <= 5);
+  assert.ok(
+    brief.coverLetterPlan.evidenceIds.length >= 1 && brief.coverLetterPlan.evidenceIds.length <= 2,
+  );
+  assert.ok(
+    brief.coverLetterPlan.keywordTerms.length >= 3 &&
+      brief.coverLetterPlan.keywordTerms.length <= 5,
+  );
 
   for (const evidenceId of brief.coverLetterPlan.evidenceIds) {
     const evidence = brief.experience.priorityEvidence.find((entry) => entry.id === evidenceId);
@@ -282,7 +292,9 @@ function assertCoverLetterContract(letter, brief) {
     assert.ok(containsWholeTerm(letter, term), `letter omitted selected keyword ${term}`);
   }
 
-  const includedSignals = brief.positioning.supportingSignals.filter((signal) => signal.decision === "include");
+  const includedSignals = brief.positioning.supportingSignals.filter(
+    (signal) => signal.decision === "include",
+  );
   if (brief.positioning.aiRegister === "work-only") {
     assert.equal(includedSignals.length, 0);
     assert.doesNotMatch(letter, /AI-assisted/i);
@@ -295,8 +307,10 @@ function assertCoverLetterContract(letter, brief) {
 
   if (brief.role.vacancyLanguage === "Greek") {
     assert.match(letter, /\p{Script=Greek}/u);
-    const proseWithoutSelectedTerms = brief.coverLetterPlan.keywordTerms
-      .reduce((text, term) => text.replaceAll(term, ""), letter);
+    const proseWithoutSelectedTerms = brief.coverLetterPlan.keywordTerms.reduce(
+      (text, term) => text.replaceAll(term, ""),
+      letter,
+    );
     assert.doesNotMatch(
       proseWithoutSelectedTerms,
       /[A-Za-z]/,
@@ -328,10 +342,13 @@ for (const scenario of [
     });
     const cv = authorCvFromBrief(persistedBrief);
     writeFileSync(cvPath, `${JSON.stringify(cv, null, 2)}\n`);
-    assert.deepEqual(readAndRunCvPreflight(cvPath, briefPath, {
-      languages: exampleLanguageNames,
-      markets: exampleMarkets,
-    }).errors, []);
+    assert.deepEqual(
+      readAndRunCvPreflight(cvPath, briefPath, {
+        languages: exampleLanguageNames,
+        markets: exampleMarkets,
+      }).errors,
+      [],
+    );
 
     const coverLetter = authorCoverLetterFromBrief(persistedBrief);
     writeFileSync(coverLetterPath, coverLetter);
@@ -345,7 +362,14 @@ for (const scenario of [
         ? persistedBrief.cvPlan.headerPositioning.text
         : null,
     );
-    assert.doesNotMatch(JSON.stringify(cv), /\p{Script=Greek}/u, "targeted CV must remain in the default language");
-    assert.ok(containsWholeTerm(JSON.stringify(cv), "LLM"), "every targeted CV must contain commercial LLM work evidence");
+    assert.doesNotMatch(
+      JSON.stringify(cv),
+      /\p{Script=Greek}/u,
+      "targeted CV must remain in the default language",
+    );
+    assert.ok(
+      containsWholeTerm(JSON.stringify(cv), "LLM"),
+      "every targeted CV must contain commercial LLM work evidence",
+    );
   });
 }

@@ -45,38 +45,38 @@ There is no automatic migration or rescore of an existing batch.
 `schema.mjs` owns both: the version this engine reads and the table of keys with their types. Every
 value still sitting inside a rule moves into the table as its own task.
 
-| Key | Type | What it sets |
-|-----|------|--------------|
-| `letter.body_paragraphs.min`, `.max` | integer | The number of body paragraphs of a cover letter. |
-| `letter.body_words.min`, `.max` | integer | The body word count a letter is published within. |
-| `letter.body_words.target` | integer | The ceiling the letter step sets for a first publication. |
-| `letter.body_words.approved_max` | integer | How far a user's length approval can move `.max`. |
-| `cv.page_budget` | integer | The pages a CV may take; the CV builder's gate. |
-| `cv.file_name_pattern` | string | The CV's file name, with `<Company>` and `<Role>` in it once each. |
-| `languages.additional` | string[] | The configured languages beyond the default one, each with a pack (see Language packs). |
-| `languages.working` | string | The working language: the language of chat and of every private file. |
-| `letter.signature` | string | The signature of a letter in the default language. |
-| `markets.home.name`, `markets.outside_home.name` | string | The names of the two markets, as a vacancy and a brief carry them (see Markets). |
-| `markets.home.countries` | string[] | The countries whose employment or contracting makes a vacancy's market the home one. |
-| `markets.home.timezone` | string | The timezone a material names on the home market. |
-| `markets.home.working_hours` | string | The candidate's working hours in the home timezone, `HH:MM-HH:MM`; the rubric's `tz_home` reads them. |
-| `markets.outside_home.location`, `.timezone` | string | The location and the timezone a material names for every role outside the home market. |
-| `mobility.home_region` | string[] | The countries of the scorer's home region (see Scoring values). |
-| `mobility.feasible_residences` | string[] | Every country the candidate can live and work in without an employer's help. |
-| `mobility.self_relocation` | string[] | The countries the candidate moves to without sponsorship; rule 10 reads it. |
-| `mobility.excluded_destinations` | string[] | The destinations a vacancy is skipped for. |
-| `mobility.relocation_tiers.high`, `.middle`, `.low` | string[] | The relocation countries of each tier the scorer prices. |
-| `mobility.west_tier` | string | The tier of a WEST country no list names: `high`, `middle` or `low`. |
-| `mobility.west_near_subregion` | string | The WEST sub-region near the home timezone: `EU_UK` or `US_CANADA`. |
-| `compensation.floors.<path>.amount`, `.currencies`, `.basis` | integer, string[], string | The monthly floor of each engagement path that has one. |
-| `compensation.target` | integer | The target of the outside-home contractor path, in its floor's first currency. |
-| `compensation.home_currency`, `.home_rate_provider` | string | The home currency and the official rate a conversion involving it uses. |
-| `priorities.remote_company_regions` | string[] | The company regions whose remote work is priority class 1 (see Priorities). |
-| `priorities.relocation_west` | boolean | Whether every WEST country is a ranked relocation destination. |
-| `priorities.relocation_destinations` | string[] | The other ranked relocation destinations. |
-| `tool_match.languages` | record[] | Independent canonical test-language prices and experience labels (see Integer scoring settings). |
-| `tool_match.frameworks` | record[] | Independent canonical framework-name prices and experience labels. |
-| `domain_fit.<name>` | integer | Where the Domain Fit scale puts each domain the scoring rubric names: the configured integer steps (see Scoring values). |
+| Key                                                          | Type                      | What it sets                                                                                                             |
+| ------------------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `letter.body_paragraphs.min`, `.max`                         | integer                   | The number of body paragraphs of a cover letter.                                                                         |
+| `letter.body_words.min`, `.max`                              | integer                   | The body word count a letter is published within.                                                                        |
+| `letter.body_words.target`                                   | integer                   | The ceiling the letter step sets for a first publication.                                                                |
+| `letter.body_words.approved_max`                             | integer                   | How far a user's length approval can move `.max`.                                                                        |
+| `cv.page_budget`                                             | integer                   | The pages a CV may take; the CV builder's gate.                                                                          |
+| `cv.file_name_pattern`                                       | string                    | The CV's file name, with `<Company>` and `<Role>` in it once each.                                                       |
+| `languages.additional`                                       | string[]                  | The configured languages beyond the default one, each with a pack (see Language packs).                                  |
+| `languages.working`                                          | string                    | The working language: the language of chat and of every private file.                                                    |
+| `letter.signature`                                           | string                    | The signature of a letter in the default language.                                                                       |
+| `markets.home.name`, `markets.outside_home.name`             | string                    | The names of the two markets, as a vacancy and a brief carry them (see Markets).                                         |
+| `markets.home.countries`                                     | string[]                  | The countries whose employment or contracting makes a vacancy's market the home one.                                     |
+| `markets.home.timezone`                                      | string                    | The timezone a material names on the home market.                                                                        |
+| `markets.home.working_hours`                                 | string                    | The candidate's working hours in the home timezone, `HH:MM-HH:MM`; the rubric's `tz_home` reads them.                    |
+| `markets.outside_home.location`, `.timezone`                 | string                    | The location and the timezone a material names for every role outside the home market.                                   |
+| `mobility.home_region`                                       | string[]                  | The countries of the scorer's home region (see Scoring values).                                                          |
+| `mobility.feasible_residences`                               | string[]                  | Every country the candidate can live and work in without an employer's help.                                             |
+| `mobility.self_relocation`                                   | string[]                  | The countries the candidate moves to without sponsorship; rule 10 reads it.                                              |
+| `mobility.excluded_destinations`                             | string[]                  | The destinations a vacancy is skipped for.                                                                               |
+| `mobility.relocation_tiers.high`, `.middle`, `.low`          | string[]                  | The relocation countries of each tier the scorer prices.                                                                 |
+| `mobility.west_tier`                                         | string                    | The tier of a WEST country no list names: `high`, `middle` or `low`.                                                     |
+| `mobility.west_near_subregion`                               | string                    | The WEST sub-region near the home timezone: `EU_UK` or `US_CANADA`.                                                      |
+| `compensation.floors.<path>.amount`, `.currencies`, `.basis` | integer, string[], string | The monthly floor of each engagement path that has one.                                                                  |
+| `compensation.target`                                        | integer                   | The target of the outside-home contractor path, in its floor's first currency.                                           |
+| `compensation.home_currency`, `.home_rate_provider`          | string                    | The home currency and the official rate a conversion involving it uses.                                                  |
+| `priorities.remote_company_regions`                          | string[]                  | The company regions whose remote work is priority class 1 (see Priorities).                                              |
+| `priorities.relocation_west`                                 | boolean                   | Whether every WEST country is a ranked relocation destination.                                                           |
+| `priorities.relocation_destinations`                         | string[]                  | The other ranked relocation destinations.                                                                                |
+| `tool_match.languages`                                       | record[]                  | Independent canonical test-language prices and experience labels (see Integer scoring settings).                         |
+| `tool_match.frameworks`                                      | record[]                  | Independent canonical framework-name prices and experience labels.                                                       |
+| `domain_fit.<name>`                                          | integer                   | Where the Domain Fit scale puts each domain the scoring rubric names: the configured integer steps (see Scoring values). |
 
 Both directions are checked. A path the table does not declare is refused as an unknown key; a
 declared key the config omits is refused as a missing one. There are no defaults in code — the
@@ -173,11 +173,11 @@ nothing about the count.
 
 ### The three types
 
-| Type | Payload | What it means |
-|------|---------|---------------|
-| `forbid_phrases` | `phrases` | None of these may appear in the material. |
-| `prefer_terms` | `prefer`, `avoid` | None of `avoid` may appear; `prefer` is the wording to use instead. |
-| `required_spellings` | `spelling`, `instead_of` | None of `instead_of` may appear; the word is spelled `spelling`. |
+| Type                 | Payload                  | What it means                                                       |
+| -------------------- | ------------------------ | ------------------------------------------------------------------- |
+| `forbid_phrases`     | `phrases`                | None of these may appear in the material.                           |
+| `prefer_terms`       | `prefer`, `avoid`        | None of `avoid` may appear; `prefer` is the wording to use instead. |
+| `required_spellings` | `spelling`, `instead_of` | None of `instead_of` may appear; the word is spelled `spelling`.    |
 
 **Which of the last two to use:** different words are `prefer_terms`; two spellings of the same
 word are `required_spellings`. The difference is mechanical as well, so the wrong choice is
@@ -268,12 +268,12 @@ without a layer supports the default language alone.
 Each configured language has a pack, the directory `languages/<name>/` with the name exactly as the
 config spells it. Its files are a fixed set:
 
-| File | Required | What it holds |
-|------|----------|---------------|
-| `pack.json` | yes | What a letter in the language is checked by. |
-| `constraints.json` | no | Constraints for a letter in the language, in the vocabulary of `constraints.json` above. |
-| `language-rules.md` | no | The language's own writing rules: spelling, forms of address, typography. |
-| `pins.json` and `pins/<id>.txt` | no | Letters the pack's checks must accept or refuse. |
+| File                            | Required | What it holds                                                                            |
+| ------------------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `pack.json`                     | yes      | What a letter in the language is checked by.                                             |
+| `constraints.json`              | no       | Constraints for a letter in the language, in the vocabulary of `constraints.json` above. |
+| `language-rules.md`             | no       | The language's own writing rules: spelling, forms of address, typography.                |
+| `pins.json` and `pins/<id>.txt` | no       | Letters the pack's checks must accept or refuse.                                         |
 
 A file outside the set is refused; a name beginning with a dot is ignored. A configured language
 without a pack is refused as `candidate_language_pack_missing`, and a pack the config does not name
@@ -373,24 +373,24 @@ of the map is refused. Then one level-one heading, the candidate's name, and the
 this order, each heading word for word as the table writes it: a public rule links to it by an
 anchor built from the whole heading, so a fixed heading carries no qualifier of its own.
 
-| Heading | Section |
-|---------|---------|
-| `## 1.` | Contacts & Logistics |
-| `## 2.` | Role & Seniority |
-| `## 3.` | Career Target & Priorities |
-| `## 4.` | Compensation |
-| `## 5.` | Professional Identity |
-| `## 6.` | Technical Skills |
-| `### 6.1.` – `### 6.4.` | Languages; Test Automation Frameworks & Tools; CI/CD & Infrastructure; Domain Skills |
-| `### 6.5.` | AI Tooling in Engineering Workflow |
-| `#### 6.5.1.`, `#### 6.5.2.` | AI-assisted QA workflow; Agentic AI infrastructure |
-| `### 6.6.` | Other Technical Skills |
-| `## 7.` | Explicit Gaps |
-| `## 8.` | Work Approach & Team Style, with the unnumbered `###` subsections Decision-making, Communication, Values in a team, Working style, Strengths, Risk areas |
-| `## 9.` | Experience: one `### 9.<n>. <employer> - <role>` per employer |
-| `## 10.` | Personal Projects: one `### 10.<n>. <project>` per project |
-| `## 11.` | Education |
-| `## 12.` | How to Present Short Tenures and the Current Situation — may be absent |
+| Heading                      | Section                                                                                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `## 1.`                      | Contacts & Logistics                                                                                                                                     |
+| `## 2.`                      | Role & Seniority                                                                                                                                         |
+| `## 3.`                      | Career Target & Priorities                                                                                                                               |
+| `## 4.`                      | Compensation                                                                                                                                             |
+| `## 5.`                      | Professional Identity                                                                                                                                    |
+| `## 6.`                      | Technical Skills                                                                                                                                         |
+| `### 6.1.` – `### 6.4.`      | Languages; Test Automation Frameworks & Tools; CI/CD & Infrastructure; Domain Skills                                                                     |
+| `### 6.5.`                   | AI Tooling in Engineering Workflow                                                                                                                       |
+| `#### 6.5.1.`, `#### 6.5.2.` | AI-assisted QA workflow; Agentic AI infrastructure                                                                                                       |
+| `### 6.6.`                   | Other Technical Skills                                                                                                                                   |
+| `## 7.`                      | Explicit Gaps                                                                                                                                            |
+| `## 8.`                      | Work Approach & Team Style, with the unnumbered `###` subsections Decision-making, Communication, Values in a team, Working style, Strengths, Risk areas |
+| `## 9.`                      | Experience: one `### 9.<n>. <employer> - <role>` per employer                                                                                            |
+| `## 10.`                     | Personal Projects: one `### 10.<n>. <project>` per project                                                                                               |
+| `## 11.`                     | Education                                                                                                                                                |
+| `## 12.`                     | How to Present Short Tenures and the Current Situation — may be absent                                                                                   |
 
 The entries of Experience and Personal Projects are numbered from one without a gap, and headings of
 level four and deeper inside an entry are the candidate's own. Each project entry carries exactly
@@ -519,10 +519,10 @@ link to one that is not.
 Steps 3 to 5 record the digest of every layer file they read, except the live ones below, in the
 step's `published_inputs`, each under the kind `candidate_<role>` of its manifest role:
 
-| Step | Roles pinned |
-| --- | --- |
-| `map_experience` | `levers`, `profile`, `rules` |
-| `generate_cv` | `config`, `constraints`, `profile`, `rules` |
+| Step                 | Roles pinned                                                                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `map_experience`     | `levers`, `profile`, `rules`                                                                                                                                                           |
+| `generate_cv`        | `config`, `constraints`, `profile`, `rules`                                                                                                                                            |
 | `write_cover_letter` | `config`, `constraints`, `letter_samples`, `profile`, `rules`; for a letter in a configured language also that language's `language_pack`, `language_constraints` and `language_rules` |
 
 An optional file is pinned while it holds bytes: an absent or empty one has no entry, and its
@@ -605,40 +605,40 @@ counts and reasons; an unused exception fails. It never exempts a whole source f
 
 ## Entry points
 
-| Export | File | What it does |
-|--------|------|--------------|
-| `loadCandidateConfig({ root })` | `load.mjs` | Validated config of the layer at `root`; the root must exist. |
-| `inspectCandidateLayer({ root })` | `load.mjs` | `absent` or `ready` with the layer's language names; a present but broken layer, packs and manifest gaps included, still throws. |
-| `candidateScoringValues({ root })` | `load.mjs` | The scoring values the scorer input carries, read from the config alone; `null` without a layer. |
-| `candidateLanguageNames({ root })` | `load.mjs` | The default language and the configured ones, read from the config alone; the default alone without a layer. |
-| `candidateLanguages({ root })` | `load.mjs` | Every language with what a letter in it is checked by, the packs read. |
-| `candidateMarkets({ root })` | `load.mjs` | The two markets, read from the config alone; `null` without a layer. |
-| `candidatePriorities({ root })` | `load.mjs` | The priority classes as the pre-triage stage takes them, read from the config alone; `null` without a layer. |
-| `candidateRootForCommand(checkoutRoot)` | `load.mjs` | The layer a command-line entry point reads: `JOB_PIPELINE_WORKSPACE_ROOT` or its checkout. |
-| `loadCandidateDocuments({ root })` | `load.mjs` | The profile, lever bank, rules and letter samples at `root`, each checked against its form. |
-| `loadCandidateProfile({ root })` | `load.mjs` | The profile alone, checked against the section map; `null` without a layer. |
-| `validateCandidateProfile(text)` | `documents.mjs` | The profile against the section map: employers, projects with name and visibility. |
-| `validateCandidateLevers(text)` | `documents.mjs` | The lever bank against its format: each lever's fields and properties. |
-| `validateCandidateRules(text)` | `documents.mjs` | The rules against their format: each rule's id, scope and reason. |
-| `validateCandidateLetterSamples(text)` | `documents.mjs` | The covered languages and the samples. |
-| `candidateHeadings(text)` | `documents.mjs` | The headings of a markdown text, each with its whole title. |
-| `loadCandidateManifest({ path })` | `manifest.mjs` | The layer manifest, by default the tracked example's, checked against its form. |
-| `checkCandidateLayerParity({ root, manifest, languages })` | `manifest.mjs` | The layer at `root` against the manifest: its required files and declared headings. |
-| `checkCandidateLinks({ root, exampleRoot, manifest, languages })` | `manifest.mjs` | Every reference into the layer the documents a run reads make under `root`, opened on the example; every section they and the tool READMEs they name give by number, and every link to a heading that does not open. |
-| `checkCandidateLayerSections({ root, languages })` | `manifest.mjs` | The layer at `root` names a section only by a link that opens, in its profile, lever bank, rules and language rules. |
-| `candidateHeadingSlug(title)` | `manifest.mjs` | The anchor of a heading, in GitHub's form. |
-| `candidateHeadingAnchors(text)` | `manifest.mjs` | The anchors of every heading of a markdown text, a repeat numbered as GitHub numbers it. |
-| `validateCandidateConfig(value)` | `load.mjs` | The schema check on an already parsed value. |
-| `candidateConfigValue(config, path)` | `load.mjs` | The value at one declared path of a validated config. |
-| `candidateRootFor(workspaceRoot)` | `load.mjs` | `<workspaceRoot>/candidate`. |
-| `scanCandidateKeyReferences({ roots })` | `keys.mjs` | Every key the prose under `roots` names. |
-| `compareCandidateKeyCoverage({ declared, referenced })` | `keys.mjs` | The two-way difference. |
-| `loadCandidateConstraints({ root })` | `constraints.mjs` | The constraints at `root`; `absent` when the file is not there. |
-| `candidatePrivateProjectConstraints(profile)` | `constraints.mjs` | The entries a profile derives, one per private project. |
-| `candidateConstraintsFor({ root, material, engineForbidden, language })` | `constraints.mjs` | Loaded, joined by the entries the profile derives, narrowed to one material, joined by the pack of the letter's language, then checked against that material's engine list. |
-| `loadAllCandidateConstraints({ root })` | `constraints.mjs` | Every constraints file of the layer, packs included, and the derived entries, for a check. |
-| `runCandidatePins({ root })` | `pins.mjs` | Every pin of every pack through the letter gate. |
-| `candidateConstraintFindings(constraints, text, { artifact })` | `constraints.mjs` | The messages one material's text earns. |
+| Export                                                                   | File              | What it does                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------ | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadCandidateConfig({ root })`                                          | `load.mjs`        | Validated config of the layer at `root`; the root must exist.                                                                                                                                                        |
+| `inspectCandidateLayer({ root })`                                        | `load.mjs`        | `absent` or `ready` with the layer's language names; a present but broken layer, packs and manifest gaps included, still throws.                                                                                     |
+| `candidateScoringValues({ root })`                                       | `load.mjs`        | The scoring values the scorer input carries, read from the config alone; `null` without a layer.                                                                                                                     |
+| `candidateLanguageNames({ root })`                                       | `load.mjs`        | The default language and the configured ones, read from the config alone; the default alone without a layer.                                                                                                         |
+| `candidateLanguages({ root })`                                           | `load.mjs`        | Every language with what a letter in it is checked by, the packs read.                                                                                                                                               |
+| `candidateMarkets({ root })`                                             | `load.mjs`        | The two markets, read from the config alone; `null` without a layer.                                                                                                                                                 |
+| `candidatePriorities({ root })`                                          | `load.mjs`        | The priority classes as the pre-triage stage takes them, read from the config alone; `null` without a layer.                                                                                                         |
+| `candidateRootForCommand(checkoutRoot)`                                  | `load.mjs`        | The layer a command-line entry point reads: `JOB_PIPELINE_WORKSPACE_ROOT` or its checkout.                                                                                                                           |
+| `loadCandidateDocuments({ root })`                                       | `load.mjs`        | The profile, lever bank, rules and letter samples at `root`, each checked against its form.                                                                                                                          |
+| `loadCandidateProfile({ root })`                                         | `load.mjs`        | The profile alone, checked against the section map; `null` without a layer.                                                                                                                                          |
+| `validateCandidateProfile(text)`                                         | `documents.mjs`   | The profile against the section map: employers, projects with name and visibility.                                                                                                                                   |
+| `validateCandidateLevers(text)`                                          | `documents.mjs`   | The lever bank against its format: each lever's fields and properties.                                                                                                                                               |
+| `validateCandidateRules(text)`                                           | `documents.mjs`   | The rules against their format: each rule's id, scope and reason.                                                                                                                                                    |
+| `validateCandidateLetterSamples(text)`                                   | `documents.mjs`   | The covered languages and the samples.                                                                                                                                                                               |
+| `candidateHeadings(text)`                                                | `documents.mjs`   | The headings of a markdown text, each with its whole title.                                                                                                                                                          |
+| `loadCandidateManifest({ path })`                                        | `manifest.mjs`    | The layer manifest, by default the tracked example's, checked against its form.                                                                                                                                      |
+| `checkCandidateLayerParity({ root, manifest, languages })`               | `manifest.mjs`    | The layer at `root` against the manifest: its required files and declared headings.                                                                                                                                  |
+| `checkCandidateLinks({ root, exampleRoot, manifest, languages })`        | `manifest.mjs`    | Every reference into the layer the documents a run reads make under `root`, opened on the example; every section they and the tool READMEs they name give by number, and every link to a heading that does not open. |
+| `checkCandidateLayerSections({ root, languages })`                       | `manifest.mjs`    | The layer at `root` names a section only by a link that opens, in its profile, lever bank, rules and language rules.                                                                                                 |
+| `candidateHeadingSlug(title)`                                            | `manifest.mjs`    | The anchor of a heading, in GitHub's form.                                                                                                                                                                           |
+| `candidateHeadingAnchors(text)`                                          | `manifest.mjs`    | The anchors of every heading of a markdown text, a repeat numbered as GitHub numbers it.                                                                                                                             |
+| `validateCandidateConfig(value)`                                         | `load.mjs`        | The schema check on an already parsed value.                                                                                                                                                                         |
+| `candidateConfigValue(config, path)`                                     | `load.mjs`        | The value at one declared path of a validated config.                                                                                                                                                                |
+| `candidateRootFor(workspaceRoot)`                                        | `load.mjs`        | `<workspaceRoot>/candidate`.                                                                                                                                                                                         |
+| `scanCandidateKeyReferences({ roots })`                                  | `keys.mjs`        | Every key the prose under `roots` names.                                                                                                                                                                             |
+| `compareCandidateKeyCoverage({ declared, referenced })`                  | `keys.mjs`        | The two-way difference.                                                                                                                                                                                              |
+| `loadCandidateConstraints({ root })`                                     | `constraints.mjs` | The constraints at `root`; `absent` when the file is not there.                                                                                                                                                      |
+| `candidatePrivateProjectConstraints(profile)`                            | `constraints.mjs` | The entries a profile derives, one per private project.                                                                                                                                                              |
+| `candidateConstraintsFor({ root, material, engineForbidden, language })` | `constraints.mjs` | Loaded, joined by the entries the profile derives, narrowed to one material, joined by the pack of the letter's language, then checked against that material's engine list.                                          |
+| `loadAllCandidateConstraints({ root })`                                  | `constraints.mjs` | Every constraints file of the layer, packs included, and the derived entries, for a check.                                                                                                                           |
+| `runCandidatePins({ root })`                                             | `pins.mjs`        | Every pin of every pack through the letter gate.                                                                                                                                                                     |
+| `candidateConstraintFindings(constraints, text, { artifact })`           | `constraints.mjs` | The messages one material's text earns.                                                                                                                                                                              |
 
 The root is always a parameter. A loader with a default would read the operator's real candidate
 from a test, and the suite runs only on injected disposable roots. The callers that do have a

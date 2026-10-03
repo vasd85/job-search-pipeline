@@ -118,8 +118,8 @@ export const FORBIDDEN_PUNCTUATION = Object.freeze([
   { re: /–/, name: "en-dash (\\u2013) — use a single hyphen '-'" },
   { re: /--/, name: "double hyphen '--' — use a single hyphen '-'" },
   { re: /[‘’]/, name: "curly single quote — use a straight '" },
-  { re: /[“”]/, name: "curly double quote — use a straight \"" },
-  { re: /[«»]/, name: "guillemet (« ») — use a straight \"" },
+  { re: /[“”]/, name: 'curly double quote — use a straight "' },
+  { re: /[«»]/, name: 'guillemet (« ») — use a straight "' },
   { re: /…/, name: "ellipsis char (\\u2026) — use '...'" },
 ]);
 
@@ -233,12 +233,18 @@ function tagAttributes(head) {
   const name = head.match(/^<\/?([^\s/>]+)/);
   if (!name) return attributes;
   let cursor = name[0].length;
-  const isSpace = (character) => character === " " || character === "\t"
-    || character === "\n" || character === "\r";
+  const isSpace = (character) =>
+    character === " " || character === "\t" || character === "\n" || character === "\r";
   while (cursor < head.length) {
     while (cursor < head.length && isSpace(head[cursor])) cursor += 1;
     const start = cursor;
-    while (cursor < head.length && !isSpace(head[cursor]) && head[cursor] !== "=" && head[cursor] !== ">" && head[cursor] !== "/") {
+    while (
+      cursor < head.length &&
+      !isSpace(head[cursor]) &&
+      head[cursor] !== "=" &&
+      head[cursor] !== ">" &&
+      head[cursor] !== "/"
+    ) {
       cursor += 1;
     }
     if (cursor === start) break;
@@ -331,8 +337,7 @@ function localName(name, prefix) {
 }
 
 function toggledOn(properties, prefix, name) {
-  const element = childElements(properties)
-    .find((child) => localName(child.name, prefix) === name);
+  const element = childElements(properties).find((child) => localName(child.name, prefix) === name);
   if (!element) return false;
   // `render.js` emits an explicit `w:val="false"` for every unbolded bullet run, so a toggle's
   // presence is not its value.
@@ -346,8 +351,9 @@ function toggledOn(properties, prefix, name) {
  * producer that expressed the same bold through a style would otherwise block every sync.
  */
 function readRun(run, prefix, issues) {
-  const properties = childElements(run.inner)
-    .find((child) => localName(child.name, prefix) === "rPr");
+  const properties = childElements(run.inner).find(
+    (child) => localName(child.name, prefix) === "rPr",
+  );
   let text = "";
   for (const child of childElements(run.inner)) {
     const name = localName(child.name, prefix);
@@ -470,8 +476,9 @@ function readParagraph(paragraph, prefix, namespace, index) {
   if (rebindsNamespace(paragraph, namespace.declaration, namespace.uri)) {
     issues.add("unsupported_paragraph_content");
   }
-  const properties = childElements(paragraph.inner)
-    .find((child) => localName(child.name, prefix) === "pPr");
+  const properties = childElements(paragraph.inner).find(
+    (child) => localName(child.name, prefix) === "pPr",
+  );
   const bullet = properties
     ? childElements(properties.inner).some((child) => localName(child.name, prefix) === "numPr")
     : false;
@@ -532,16 +539,16 @@ export function readDocumentParagraphs(document, relationships = new Map()) {
   const prefix = namespacePrefix(document);
   const root = childElements(document)[0];
   const declaration = namespaceDeclaration(prefix);
-  const relationshipsDeclaration = [...tagAttributes(root.head)]
-    .find(([name, value]) => name.startsWith("xmlns:") && value === RELATIONSHIPS_NAMESPACE);
+  const relationshipsDeclaration = [...tagAttributes(root.head)].find(
+    ([name, value]) => name.startsWith("xmlns:") && value === RELATIONSHIPS_NAMESPACE,
+  );
   const namespace = {
     declaration,
     uri: attributeValue(root.head, declaration),
     relationshipsPrefix: relationshipsDeclaration ? relationshipsDeclaration[0].slice(6) : null,
     relationships,
   };
-  const body = childElements(root.inner)
-    .find((child) => localName(child.name, prefix) === "body");
+  const body = childElements(root.inner).find((child) => localName(child.name, prefix) === "body");
   if (!body) throw new DocxExtractionError("docx_document_unreadable", "the document has no body");
   // A body that rebinds the prefix is not the body its own name claims, and nothing below it can be
   // resolved by name at all.
@@ -602,21 +609,26 @@ export function formatPath(path) {
 }
 
 function sameFormatting(expected, observed) {
-  return expected.length === observed.length
-    && expected.every((atom, index) => atom.b === observed[index].b && atom.i === observed[index].i);
+  return (
+    expected.length === observed.length &&
+    expected.every((atom, index) => atom.b === observed[index].b && atom.i === observed[index].i)
+  );
 }
 
 // Identity, not shape: two runs can carry the same formatting sequence and split the same sentence
 // at a different word, which is an edit the source may well be able to hold.
 function sameAtoms(expected, observed) {
-  return sameFormatting(expected, observed)
-    && expected.every((atom, index) => atom.t === observed[index].t);
+  return (
+    sameFormatting(expected, observed) &&
+    expected.every((atom, index) => atom.t === observed[index].t)
+  );
 }
 
 function describeAtoms(atoms) {
-  return atoms
-    .map((atom) => `${atom.b ? "bold" : "plain"}${atom.i ? "+italic" : ""}`)
-    .join(" | ") || "empty";
+  return (
+    atoms.map((atom) => `${atom.b ? "bold" : "plain"}${atom.i ? "+italic" : ""}`).join(" | ") ||
+    "empty"
+  );
 }
 
 function describeParagraph(paragraph) {
@@ -631,9 +643,9 @@ function runFormattingFinding(slot, paragraph) {
   return {
     code: "run_formatting_changed",
     detail:
-      `the document's run structure (${describeAtoms(paragraph.atoms)}) no longer matches the `
-      + `source's (${describeAtoms(slot.atoms)}); bold and italic carry brief decisions, so this is `
-      + "applied to cv.json by hand, never inferred from the document",
+      `the document's run structure (${describeAtoms(paragraph.atoms)}) no longer matches the ` +
+      `source's (${describeAtoms(slot.atoms)}); bold and italic carry brief decisions, so this is ` +
+      "applied to cv.json by hand, never inferred from the document",
   };
 }
 
@@ -740,12 +752,12 @@ function skillSlot(path, skill) {
       // merges or reformats them leaves no separator to split on, and inventing one would move
       // text between two brief-owned fields.
       if (
-        paragraph.atoms.length !== 2
-        || !paragraph.atoms[0].b
-        || paragraph.atoms[0].i
-        || paragraph.atoms[1].b
-        || paragraph.atoms[1].i
-        || !paragraph.atoms[0].t.endsWith(": ")
+        paragraph.atoms.length !== 2 ||
+        !paragraph.atoms[0].b ||
+        paragraph.atoms[0].i ||
+        paragraph.atoms[1].b ||
+        paragraph.atoms[1].i ||
+        !paragraph.atoms[0].t.endsWith(": ")
       ) {
         return {
           finding: {
@@ -812,7 +824,10 @@ function roleSlot(path, role) {
       for (const attempt of attempts) {
         if (attempt.prefix.length + attempt.suffix.length > observed.length) continue;
         if (!observed.startsWith(attempt.prefix) || !observed.endsWith(attempt.suffix)) continue;
-        const edited = observed.slice(attempt.prefix.length, observed.length - attempt.suffix.length);
+        const edited = observed.slice(
+          attempt.prefix.length,
+          observed.length - attempt.suffix.length,
+        );
         const index = ROLE_FIELDS.indexOf(attempt.field);
         const rebuilt = values
           .map((value, position) => (position === index ? edited : value))
@@ -825,11 +840,11 @@ function roleSlot(path, role) {
         finding: {
           code: "role_heading_unparsable",
           detail:
-            "a role heading renders as `Company - Title - Dates`; this edit "
-            + (candidates.length > 1
+            "a role heading renders as `Company - Title - Dates`; this edit " +
+            (candidates.length > 1
               ? `reads as an edit of ${candidates.map((candidate) => candidate.path.at(-1)).join(" or of ")}`
-              : "moved more than one of the three fields")
-            + ", so which text belongs to which field is not recoverable",
+              : "moved more than one of the three fields") +
+            ", so which text belongs to which field is not recoverable",
         },
       };
     },
@@ -852,8 +867,8 @@ function headingSlot(path, heading) {
         finding: {
           code: "heading_case_not_invertible",
           detail:
-            "section headings render uppercased, so the source spelling cannot be recovered from "
-            + "the document; rename a section by editing cv.json directly",
+            "section headings render uppercased, so the source spelling cannot be recovered from " +
+            "the document; rename a section by editing cv.json directly",
         },
       };
     },
@@ -937,8 +952,8 @@ export function alignParagraphs(slots, paragraphs) {
   const columns = paragraphs.length;
   const table = Array.from({ length: rows + 1 }, () => new Int32Array(columns + 1));
   const matches = (slotIndex, paragraphIndex) =>
-    slots[slotIndex].bullet === paragraphs[paragraphIndex].bullet
-    && slots[slotIndex].text === paragraphs[paragraphIndex].text;
+    slots[slotIndex].bullet === paragraphs[paragraphIndex].bullet &&
+    slots[slotIndex].text === paragraphs[paragraphIndex].text;
 
   for (let slotIndex = rows - 1; slotIndex >= 0; slotIndex -= 1) {
     for (let paragraphIndex = columns - 1; paragraphIndex >= 0; paragraphIndex -= 1) {
@@ -1098,7 +1113,11 @@ function parseJsonWithSpans(text) {
         fail("expected a comma or a closing bracket");
       }
     }
-    for (const [literal, value] of [["true", true], ["false", false], ["null", null]]) {
+    for (const [literal, value] of [
+      ["true", true],
+      ["false", false],
+      ["null", null],
+    ]) {
       if (text.startsWith(literal, cursor)) {
         cursor += literal.length;
         return value;
@@ -1142,7 +1161,10 @@ function applyStringEdits(text, spans, edits, baseValue) {
     const key = formatPath(edit.path);
     const span = spans.get(key);
     if (!span) {
-      throw new DocxExtractionError("cv_json_span_missing", `cv.json has no string value at ${key}`);
+      throw new DocxExtractionError(
+        "cv_json_span_missing",
+        `cv.json has no string value at ${key}`,
+      );
     }
     if (JSON.parse(text.slice(span.start, span.end)) !== edit.before) {
       throw new DocxExtractionError(
@@ -1212,9 +1234,10 @@ function differsOnlyByScheme(expected, target, text) {
  */
 function checkLinks(slot, paragraph) {
   const location = formatPath(slot.path);
-  const expected = slot.text === paragraph.text || slot.kind === "heading"
-    ? slot.links
-    : runLinks(paragraph.atoms.map((atom) => atom.t));
+  const expected =
+    slot.text === paragraph.text || slot.kind === "heading"
+      ? slot.links
+      : runLinks(paragraph.atoms.map((atom) => atom.t));
   const findings = [];
   const notices = [];
   const accounted = new Set();
@@ -1222,9 +1245,14 @@ function checkLinks(slot, paragraph) {
   for (const observed of paragraph.links) {
     const text = paragraph.text.slice(observed.start, observed.end);
     const shown = observed.target === null ? "no external target" : JSON.stringify(observed.target);
-    const same = expected.find((link) => link.start === observed.start && link.end === observed.end);
-    if (same && observed.target !== null
-      && comparableHref(same.href) === comparableHref(observed.target)) {
+    const same = expected.find(
+      (link) => link.start === observed.start && link.end === observed.end,
+    );
+    if (
+      same &&
+      observed.target !== null &&
+      comparableHref(same.href) === comparableHref(observed.target)
+    ) {
       accounted.add(same);
       continue;
     }
@@ -1233,8 +1261,9 @@ function checkLinks(slot, paragraph) {
       notices.push({
         code: "hyperlink_not_synced",
         location,
-        detail: `the document links ${JSON.stringify(text)} to ${shown}; the rebuild links it to `
-          + `${JSON.stringify(same.href)}, the same address, so nothing is synced`,
+        detail:
+          `the document links ${JSON.stringify(text)} to ${shown}; the rebuild links it to ` +
+          `${JSON.stringify(same.href)}, the same address, so nothing is synced`,
       });
       continue;
     }
@@ -1246,20 +1275,22 @@ function checkLinks(slot, paragraph) {
       findings.push({
         code: "hyperlink_target_mismatch",
         location,
-        detail: `the document links ${JSON.stringify(text)} to ${shown}, but cv.json derives every `
-          + `link from its text and the rebuild links ${overlapping
+        detail:
+          `the document links ${JSON.stringify(text)} to ${shown}, but cv.json derives every ` +
+          `link from its text and the rebuild links ${overlapping
             .map((link) => JSON.stringify(paragraph.text.slice(link.start, link.end)))
-            .join(", ")} to ${overlapping.map((link) => JSON.stringify(link.href)).join(", ")}; `
-          + "change the text to the address the link should open, or drop the retarget",
+            .join(", ")} to ${overlapping.map((link) => JSON.stringify(link.href)).join(", ")}; ` +
+          "change the text to the address the link should open, or drop the retarget",
       });
       continue;
     }
     findings.push({
       code: "hyperlink_not_derivable",
       location,
-      detail: `the document links ${JSON.stringify(text)} to ${shown}; cv.json turns only a URL `
-        + "or an e-mail address written in the text into a link, so write the address into the text "
-        + "or drop the link",
+      detail:
+        `the document links ${JSON.stringify(text)} to ${shown}; cv.json turns only a URL ` +
+        "or an e-mail address written in the text into a link, so write the address into the text " +
+        "or drop the link",
     });
   }
 
@@ -1268,8 +1299,9 @@ function checkLinks(slot, paragraph) {
     notices.push({
       code: "hyperlink_not_synced",
       location,
-      detail: `the document does not link ${JSON.stringify(paragraph.text.slice(link.start, link.end))}; `
-        + `every address in a CV renders as a link, so the rebuild links it to ${JSON.stringify(link.href)}`,
+      detail:
+        `the document does not link ${JSON.stringify(paragraph.text.slice(link.start, link.end))}; ` +
+        `every address in a CV renders as a link, so the rebuild links it to ${JSON.stringify(link.href)}`,
     });
   }
   return { findings, notices };
@@ -1285,9 +1317,11 @@ function punctuationProblem(value) {
 // the agent's own authored text — and refusing to carry an unrelated edit of that same paragraph
 // would report the source's own history as the user's mistake.
 function characterProblem(before, after) {
-  return UNSUPPORTED_CHARACTERS.find(
-    (unsupported) => unsupported.re.test(after) && !unsupported.re.test(before),
-  ) ?? null;
+  return (
+    UNSUPPORTED_CHARACTERS.find(
+      (unsupported) => unsupported.re.test(after) && !unsupported.re.test(before),
+    ) ?? null
+  );
 }
 
 function commentCount(parts) {
@@ -1300,8 +1334,10 @@ function commentCount(parts) {
 function issueDetail(issue) {
   switch (issue) {
     case "tracked_changes":
-      return "the paragraph carries tracked changes; accept or reject them in the document first, "
-        + "because an unresolved revision is not the text the CV would claim";
+      return (
+        "the paragraph carries tracked changes; accept or reject them in the document first, " +
+        "because an unresolved revision is not the text the CV would claim"
+      );
     case "unsupported_run_content":
       return "a run holds a line break, tab, field or drawing, which the cv.json model cannot carry";
     default:
@@ -1320,7 +1356,9 @@ export function extractCvEdits(docxBytes, cvText) {
   const { value: cv, spans } = parseJsonWithSpans(cvText);
   const slots = planCvSlots(cv);
   const relationshipsPart = parts.get(MAIN_DOCUMENT_RELATIONSHIPS_PART);
-  const relationships = readRelationships(relationshipsPart ? relationshipsPart.toString("utf8") : "");
+  const relationships = readRelationships(
+    relationshipsPart ? relationshipsPart.toString("utf8") : "",
+  );
   const { paragraphs, blocks } = readDocumentParagraphs(document, relationships);
 
   const edits = [];
@@ -1339,7 +1377,8 @@ export function extractCvEdits(docxBytes, cvText) {
     unmappable.push({
       code: "document_comments_present",
       location: "word/comments.xml",
-      detail: "the document carries comments; the rebuild drops them, so read them out before it runs",
+      detail:
+        "the document carries comments; the rebuild drops them, so read them out before it runs",
     });
   }
 
@@ -1361,7 +1400,9 @@ export function extractCvEdits(docxBytes, cvText) {
     if (region.slots.length === 0) {
       // An empty paragraph with no counterpart is an editor's leftover, not content: the model has
       // nowhere to hold it and the rebuild simply will not emit it.
-      if (region.paragraphs.every((paragraph) => paragraph.text === "" && !paragraph.issues.length)) {
+      if (
+        region.paragraphs.every((paragraph) => paragraph.text === "" && !paragraph.issues.length)
+      ) {
         for (const paragraph of region.paragraphs) {
           notices.push({
             code: "empty_paragraph_ignored",
@@ -1374,8 +1415,9 @@ export function extractCvEdits(docxBytes, cvText) {
       unmappable.push({
         code: "paragraph_added",
         location: regionLocation(region),
-        detail: `${region.paragraphs.length} document paragraph(s) have no counterpart in cv.json: `
-          + region.paragraphs.map((paragraph) => JSON.stringify(paragraph.text)).join(", "),
+        detail:
+          `${region.paragraphs.length} document paragraph(s) have no counterpart in cv.json: ` +
+          region.paragraphs.map((paragraph) => JSON.stringify(paragraph.text)).join(", "),
       });
       continue;
     }
@@ -1383,18 +1425,20 @@ export function extractCvEdits(docxBytes, cvText) {
       unmappable.push({
         code: "paragraph_removed",
         location: regionLocation(region),
-        detail: `cv.json still holds ${region.slots.length} paragraph(s) the document dropped: `
-          + region.slots.map((slot) => formatPath(slot.path)).join(", "),
+        detail:
+          `cv.json still holds ${region.slots.length} paragraph(s) the document dropped: ` +
+          region.slots.map((slot) => formatPath(slot.path)).join(", "),
       });
       continue;
     }
     unmappable.push({
       code: "unmatched_region",
       location: regionLocation(region),
-      detail: `${region.slots.length} source paragraph(s) — `
-        + `${region.slots.map((slot) => formatPath(slot.path)).join(", ")} — face `
-        + `${region.paragraphs.length} document paragraph(s): `
-        + region.paragraphs.map((paragraph) => JSON.stringify(paragraph.text)).join(", "),
+      detail:
+        `${region.slots.length} source paragraph(s) — ` +
+        `${region.slots.map((slot) => formatPath(slot.path)).join(", ")} — face ` +
+        `${region.paragraphs.length} document paragraph(s): ` +
+        region.paragraphs.map((paragraph) => JSON.stringify(paragraph.text)).join(", "),
     });
   }
 
@@ -1420,18 +1464,20 @@ export function extractCvEdits(docxBytes, cvText) {
         notices.push({
           code: "formatting_not_synced",
           location: formatPath(pair.slot.path),
-          detail: `the document formats this paragraph as ${describeParagraph(pair.paragraph)} and `
-            + `the source as ${describeSlot(pair.slot)}; the text is unchanged, so nothing is `
-            + "synced",
+          detail:
+            `the document formats this paragraph as ${describeParagraph(pair.paragraph)} and ` +
+            `the source as ${describeSlot(pair.slot)}; the text is unchanged, so nothing is ` +
+            "synced",
         });
         continue;
       }
       unmappable.push({
         code: "paragraph_kind_changed",
         location: formatPath(pair.slot.path),
-        detail: `the document ${pair.paragraph.bullet ? "made this paragraph a list item" : "took this paragraph out of its list"} `
-          + "and changed its text; the cv.json model cannot carry the first, so the second is not "
-          + "applied either",
+        detail:
+          `the document ${pair.paragraph.bullet ? "made this paragraph a list item" : "took this paragraph out of its list"} ` +
+          "and changed its text; the cv.json model cannot carry the first, so the second is not " +
+          "applied either",
       });
       continue;
     }
@@ -1461,8 +1507,9 @@ export function extractCvEdits(docxBytes, cvText) {
         unmappable.push({
           code: "punctuation_forbidden",
           location: formatPath(change.path),
-          detail: `generation-rules.md rule 21 forbids ${forbidden.name}; the renderer refuses that `
-            + "text, so the edit needs keyboard-only punctuation before it can be carried over",
+          detail:
+            `generation-rules.md rule 21 forbids ${forbidden.name}; the renderer refuses that ` +
+            "text, so the edit needs keyboard-only punctuation before it can be carried over",
         });
         continue;
       }
@@ -1471,8 +1518,9 @@ export function extractCvEdits(docxBytes, cvText) {
         unmappable.push({
           code: "unsupported_characters",
           location: formatPath(change.path),
-          detail: `the edited text carries ${unsupported.name}, which is invisible or reorders what `
-            + "a reader sees; retype the fragment before it can be carried over",
+          detail:
+            `the edited text carries ${unsupported.name}, which is invisible or reorders what ` +
+            "a reader sees; retype the fragment before it can be carried over",
         });
         continue;
       }
@@ -1509,8 +1557,10 @@ export function extractCvEdits(docxBytes, cvText) {
 // ---- CLI --------------------------------------------------------------------
 
 function usage() {
-  return "Usage: node tools/cv-builder/docx-extract.mjs <edited.docx> --cv <cv.json> "
-    + "[--write <cv.json>] [--expect-sha256 <hex>] [--ignore-unmappable]";
+  return (
+    "Usage: node tools/cv-builder/docx-extract.mjs <edited.docx> --cv <cv.json> " +
+    "[--write <cv.json>] [--expect-sha256 <hex>] [--ignore-unmappable]"
+  );
 }
 
 export function parseArgs(argv) {
@@ -1557,7 +1607,10 @@ export function parseArgs(argv) {
  * directory, where the builder's freshness contract refuses the rebuild until it is cleared.
  */
 function writeCvAtomically(targetPath, contents) {
-  const temporaryPath = join(dirname(targetPath), `.cv-extract-${randomBytes(8).toString("hex")}.tmp`);
+  const temporaryPath = join(
+    dirname(targetPath),
+    `.cv-extract-${randomBytes(8).toString("hex")}.tmp`,
+  );
   try {
     writeFileSync(temporaryPath, contents, { encoding: "utf8", flag: "wx" });
     renameSync(temporaryPath, targetPath);

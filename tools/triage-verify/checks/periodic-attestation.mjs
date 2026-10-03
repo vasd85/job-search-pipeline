@@ -24,10 +24,7 @@ export const kind = "attest";
 export const attestationSchemaVersion = 1;
 
 /** The closed probe set. A third probe is a deliberate edit here and in the runbook. */
-export const requiredProbes = Object.freeze([
-  "phase0_capability_probe",
-  "transport_hypotheses",
-]);
+export const requiredProbes = Object.freeze(["phase0_capability_probe", "transport_hypotheses"]);
 
 export const attestationVerdicts = Object.freeze(["held", "changed", "failed"]);
 
@@ -57,7 +54,9 @@ export function run(context) {
   }
   if (file.error !== null || !isRecord(file.value)) {
     return {
-      findings: [{ code: "attestation_unreadable", reason: file.error ?? "attestation_shape_unexpected" }],
+      findings: [
+        { code: "attestation_unreadable", reason: file.error ?? "attestation_shape_unexpected" },
+      ],
       counts: { probes: 0 },
     };
   }

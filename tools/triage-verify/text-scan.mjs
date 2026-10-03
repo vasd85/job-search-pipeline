@@ -45,7 +45,10 @@ function isWordCharacter(character) {
  * The phrase is repository text, so this is a normalisation, not a parser hardened against input.
  */
 export function phraseTokens(phrase) {
-  return phrase.trim().split(/\s+/u).filter((token) => token.length > 0);
+  return phrase
+    .trim()
+    .split(/\s+/u)
+    .filter((token) => token.length > 0);
 }
 
 /**

@@ -7,11 +7,11 @@ decision itself is questioned, not to find out what to do.
 
 Most of this policy already has an owner, so this file is short on purpose and names them:
 
-| Question | Owner |
-| --- | --- |
-| Which parameters each version strips, and which version is computed | `sourceKeyTrackingParameters`, `currentSourceKeyPolicyVersion` in `tools/lib/process-log-core.mjs` |
-| What the cutover changed for an operator, the census reading, the whole rollback | [docs/runbooks/source-key-v2-cutover.md](../docs/runbooks/source-key-v2-cutover.md) |
-| Capture, render and fact evidence | [vacancy-capture-policy.md](vacancy-capture-policy.md) |
+| Question                                                                         | Owner                                                                                              |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Which parameters each version strips, and which version is computed              | `sourceKeyTrackingParameters`, `currentSourceKeyPolicyVersion` in `tools/lib/process-log-core.mjs` |
+| What the cutover changed for an operator, the census reading, the whole rollback | [docs/runbooks/source-key-v2-cutover.md](../docs/runbooks/source-key-v2-cutover.md)                |
+| Capture, render and fact evidence                                                | [vacancy-capture-policy.md](vacancy-capture-policy.md)                                             |
 
 Version 2 is the computed version. Read the module for the sets; a prose copy of a bounded set is a
 second spelling of one rule waiting to drift.
@@ -45,7 +45,7 @@ version. The same constraint binds any later change of the computed version, for
 canonicality is enforced on load, so a read path accepts a version before anything computes it.
 
 **Canonicality is membership, not equality.** A record is canonical when its stored key equals the
-key computed from its reference under *any* accepted policy version. The cost is named: a record
+key computed from its reference under _any_ accepted policy version. The cost is named: a record
 that kept a stale key after a cutover is accepted rather than flagged, so only the census can count
 them.
 
@@ -57,7 +57,7 @@ non-canonical could never be repaired.
 
 Both were forced by the implementation and both are load-bearing.
 
-**The duplicate-group invariant accepts a link whose two ends share the computed key *or* the stored
+**The duplicate-group invariant accepts a link whose two ends share the computed key _or_ the stored
 key.** Sharing the stored key means the two were one group under the version that wrote the link.
 The requirement itself is untouched — an unlinked duplicate is still an error. The clause is wider
 than the case that forces it, and its bound is stated by construction: it decides something only

@@ -75,7 +75,7 @@ keys can never acquire the same version 2 key:
 
 - **a group can split, and never merge.** No process that is distinct today can become
   indistinguishable tomorrow;
-- so no `duplicate_of` link is ever *required* by the change, and the group invariant "records
+- so no `duplicate_of` link is ever _required_ by the change, and the group invariant "records
   sharing a key must be linked" can only become easier to satisfy;
 - so the migration has no ordering hazard in which two records must be linked before the key changes.
 
@@ -103,7 +103,7 @@ The derived design avoids the event entirely, because `source_ref` is immutable 
 pure functions of it:
 
 - **canonicality becomes membership.** A record is canonical when its stored `source_key` equals the
-  key computed from its `source_ref` under *any* accepted policy version, instead of equalling the
+  key computed from its `source_ref` under _any_ accepted policy version, instead of equalling the
   key computed under one.
 - **duplicate lookup stops reading the stored key.** It compares the version 2 key computed from
   `source_ref` on both sides, which is exactly what the epic asked for when it required the lookup to
@@ -192,64 +192,64 @@ affected has a row. Rows this ADR does not touch say so explicitly rather than b
 
 ### Source-key policy
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 1 | Version 1 normalization | The only policy; strips `utm_*` plus eight named parameters | Frozen as version 1 and kept computable forever, because stored keys must stay explainable | `R2-01B` |
-| 2 | Version 2 generic policy | Does not exist | Strips `utm_*` plus `alternatechannel`, `hhtmfrom`, `trackingid`, `trk`; preserves `query`, `refid`, `source`, `tab` | `R2-01B` |
-| 3 | Refinement | Not applicable — one policy | Version 2 strips a strict subset, so a group can split and never merge. Binding on any later rule | `R2-01B` |
-| 4 | Host-specific rules | Do not exist | Specified, not built: they belong to the source registry, whose lock no row in this chain holds. **Uncontained.** Constrained only by row 3 | none today |
-| 5 | The version marker | No version exists | Derived from the immutable reference; never a stored field | `R2-01B` |
-| 6 | Which version the module computes | Version 1, implicitly | Version 1, explicitly and by a named constant, until `R2-01C` moves it | `R2-01C` |
-| 7 | Non-URL references | Returned verbatim | Unchanged under both versions, verified for the imported grammar and for a plain scheme reference | `R2-01B` |
-| 8 | Fragment, host case, trailing slash, parameter order | Normalized as described | Not applicable — identical in both versions, deliberately, so the only difference between them is the strip set | `R2-01B` |
+|   # | Item                                                 | Today                                                       | Under this ADR                                                                                                                              | Owner      |
+| --: | ---------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+|   1 | Version 1 normalization                              | The only policy; strips `utm_*` plus eight named parameters | Frozen as version 1 and kept computable forever, because stored keys must stay explainable                                                  | `R2-01B`   |
+|   2 | Version 2 generic policy                             | Does not exist                                              | Strips `utm_*` plus `alternatechannel`, `hhtmfrom`, `trackingid`, `trk`; preserves `query`, `refid`, `source`, `tab`                        | `R2-01B`   |
+|   3 | Refinement                                           | Not applicable — one policy                                 | Version 2 strips a strict subset, so a group can split and never merge. Binding on any later rule                                           | `R2-01B`   |
+|   4 | Host-specific rules                                  | Do not exist                                                | Specified, not built: they belong to the source registry, whose lock no row in this chain holds. **Uncontained.** Constrained only by row 3 | none today |
+|   5 | The version marker                                   | No version exists                                           | Derived from the immutable reference; never a stored field                                                                                  | `R2-01B`   |
+|   6 | Which version the module computes                    | Version 1, implicitly                                       | Version 1, explicitly and by a named constant, until `R2-01C` moves it                                                                      | `R2-01C`   |
+|   7 | Non-URL references                                   | Returned verbatim                                           | Unchanged under both versions, verified for the imported grammar and for a plain scheme reference                                           | `R2-01B`   |
+|   8 | Fragment, host case, trailing slash, parameter order | Normalized as described                                     | Not applicable — identical in both versions, deliberately, so the only difference between them is the strip set                             | `R2-01B`   |
 
 ### Ledger schema and stored records
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 9 | Ledger schema v3 | Current and enforced | Unchanged. The derived design adds no field and needs no number | `R2-01C` |
-| 10 | Closed per-record key sets | An unknown key is rejected, not ignored | Not applicable — unchanged, and named as the reason a stored version field is a schema event | `R2-01C` |
-| 11 | `source_key` field | Stores the version 1 key | Keeps storing whatever version was current when the record was written; never rewritten in place | `R2-01C` |
-| 12 | `source_ref` immutability | Current | Not applicable — unchanged, and relied on: it is what makes the version derivable | none |
-| 13 | On-load canonicality, v3 validator | Strict equality with the single policy | Becomes membership in the set of keys the accepted versions produce from the reference | `R2-01C` |
-| 14 | On-load canonicality, legacy v1/v2 validator | Strict equality | Same change, for the same reason: the migrator reads old shapes through it | `R2-01C` |
-| 15 | Duplicate group invariant, v3 | Records sharing a key must be linked by `duplicate_of` | Moves to the computed key. Refinement means it can only become easier to satisfy | `R2-01C` |
-| 16 | Duplicate group invariant, legacy | Same rule on the old shape | Same change | `R2-01C` |
-| 17 | `duplicate_of` existence and non-self-reference | Enforced on load | Not applicable — unchanged | none |
+|   # | Item                                            | Today                                                  | Under this ADR                                                                                   | Owner    |
+| --: | ----------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ | -------- |
+|   9 | Ledger schema v3                                | Current and enforced                                   | Unchanged. The derived design adds no field and needs no number                                  | `R2-01C` |
+|  10 | Closed per-record key sets                      | An unknown key is rejected, not ignored                | Not applicable — unchanged, and named as the reason a stored version field is a schema event     | `R2-01C` |
+|  11 | `source_key` field                              | Stores the version 1 key                               | Keeps storing whatever version was current when the record was written; never rewritten in place | `R2-01C` |
+|  12 | `source_ref` immutability                       | Current                                                | Not applicable — unchanged, and relied on: it is what makes the version derivable                | none     |
+|  13 | On-load canonicality, v3 validator              | Strict equality with the single policy                 | Becomes membership in the set of keys the accepted versions produce from the reference           | `R2-01C` |
+|  14 | On-load canonicality, legacy v1/v2 validator    | Strict equality                                        | Same change, for the same reason: the migrator reads old shapes through it                       | `R2-01C` |
+|  15 | Duplicate group invariant, v3                   | Records sharing a key must be linked by `duplicate_of` | Moves to the computed key. Refinement means it can only become easier to satisfy                 | `R2-01C` |
+|  16 | Duplicate group invariant, legacy               | Same rule on the old shape                             | Same change                                                                                      | `R2-01C` |
+|  17 | `duplicate_of` existence and non-self-reference | Enforced on load                                       | Not applicable — unchanged                                                                       | none     |
 
 ### Identity consumers
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 18 | Key computation when a process starts | Writes the current policy's key | Unchanged in shape; the version it computes is the one row 6 names | `R2-01C` |
-| 19 | Duplicate lookup when a process starts | Filters on the stored key | Compares the version 2 key computed from each reference, and stops reading the stored key | `R2-01C` |
-| 20 | `--duplicate-of` must reference a record with the same key | Enforced | Named as the one place a split is user-visible: after a split, a link to a predecessor whose key changed is refused. This ADR does not widen it; the cross-source duplicate question already has its own record and is not decided here | `R2-01C` |
-| 21 | `--source-ref` selector resolution | Resolves on the stored key, fail-closed on an ambiguous match | Resolves on the computed key, and stays fail-closed. The fail-safe direction is not traded for convenience | `R2-01C` |
-| 22 | `R1-03C` legacy collision containment | Integrated, read-only, reports rather than migrates | Not applicable — unchanged and not contradicted. It keeps reading the version 1 set, because it explains keys that version 1 produced | `R2-01B` |
-| 23 | `report-source-collisions` payload and exit `2` | Frozen by two equality pins | Not applicable — untouched. The census is a separate command | `R2-01B` |
-| 24 | Output directory ownership | Derived from company and role; uniqueness checked per directory | Not applicable — independent of the source key. Stated rather than left silent, because a total matrix must say so | none |
-| 25 | Ledger-to-vacancy identity cross-check | Compares the recorded reference with the published bundle | Not applicable — it reads the reference, not the key | none |
+|   # | Item                                                       | Today                                                           | Under this ADR                                                                                                                                                                                                                          | Owner    |
+| --: | ---------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+|  18 | Key computation when a process starts                      | Writes the current policy's key                                 | Unchanged in shape; the version it computes is the one row 6 names                                                                                                                                                                      | `R2-01C` |
+|  19 | Duplicate lookup when a process starts                     | Filters on the stored key                                       | Compares the version 2 key computed from each reference, and stops reading the stored key                                                                                                                                               | `R2-01C` |
+|  20 | `--duplicate-of` must reference a record with the same key | Enforced                                                        | Named as the one place a split is user-visible: after a split, a link to a predecessor whose key changed is refused. This ADR does not widen it; the cross-source duplicate question already has its own record and is not decided here | `R2-01C` |
+|  21 | `--source-ref` selector resolution                         | Resolves on the stored key, fail-closed on an ambiguous match   | Resolves on the computed key, and stays fail-closed. The fail-safe direction is not traded for convenience                                                                                                                              | `R2-01C` |
+|  22 | `R1-03C` legacy collision containment                      | Integrated, read-only, reports rather than migrates             | Not applicable — unchanged and not contradicted. It keeps reading the version 1 set, because it explains keys that version 1 produced                                                                                                   | `R2-01B` |
+|  23 | `report-source-collisions` payload and exit `2`            | Frozen by two equality pins                                     | Not applicable — untouched. The census is a separate command                                                                                                                                                                            | `R2-01B` |
+|  24 | Output directory ownership                                 | Derived from company and role; uniqueness checked per directory | Not applicable — independent of the source key. Stated rather than left silent, because a total matrix must say so                                                                                                                      | none     |
+|  25 | Ledger-to-vacancy identity cross-check                     | Compares the recorded reference with the published bundle       | Not applicable — it reads the reference, not the key                                                                                                                                                                                    | none     |
 
 ### Historical records
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 26 | Imported historical references are URLs | ADR 0012 row 35 says the imported grammar is not a URL and does not pass through normalization | **Corrected here.** The synthetic grammar is only the third fallback, behind a hard-coded first-party URL and a URL extracted from the message text, so most imported records do pass through normalization | `R2-01B` |
-| 27 | Historical canonicality is enforced on load | Enforced through the shared field validator | Unchanged as an enforcement point, and named as the reason the membership check must cover historical records too. They are immutable, so a corpus made non-canonical could never be repaired | `R2-01C` |
-| 28 | Historical `duplicate_of` chains | Built by the importer on the version 1 key | Never rewritten. A chain whose members separate under version 2 is reported by the census and left alone | `R2-01C` |
-| 29 | Historical records are read-only and cannot be resumed | Enforced | Not applicable — unchanged | none |
-| 30 | The `claude-ai-web` fallback grammar | Returned verbatim, because its scheme is not `http(s)` rather than because it fails to parse | Not applicable — unchanged under both versions, and verified as such | `R2-01B` |
-| 31 | The historical importer writes keys and rewrites `duplicate_of` | It computes keys with the same normalizer and builds duplicate chains itself | Not applicable — its write path refuses a v3 ledger with `historical_import_write_unsupported_schema_v3`, and a dry run stops earlier still, so it cannot contradict row 28. Named because a reader of row 28 would otherwise have to rediscover why | none |
+|   # | Item                                                            | Today                                                                                          | Under this ADR                                                                                                                                                                                                                                       | Owner    |
+| --: | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+|  26 | Imported historical references are URLs                         | ADR 0012 row 35 says the imported grammar is not a URL and does not pass through normalization | **Corrected here.** The synthetic grammar is only the third fallback, behind a hard-coded first-party URL and a URL extracted from the message text, so most imported records do pass through normalization                                          | `R2-01B` |
+|  27 | Historical canonicality is enforced on load                     | Enforced through the shared field validator                                                    | Unchanged as an enforcement point, and named as the reason the membership check must cover historical records too. They are immutable, so a corpus made non-canonical could never be repaired                                                        | `R2-01C` |
+|  28 | Historical `duplicate_of` chains                                | Built by the importer on the version 1 key                                                     | Never rewritten. A chain whose members separate under version 2 is reported by the census and left alone                                                                                                                                             | `R2-01C` |
+|  29 | Historical records are read-only and cannot be resumed          | Enforced                                                                                       | Not applicable — unchanged                                                                                                                                                                                                                           | none     |
+|  30 | The `claude-ai-web` fallback grammar                            | Returned verbatim, because its scheme is not `http(s)` rather than because it fails to parse   | Not applicable — unchanged under both versions, and verified as such                                                                                                                                                                                 | `R2-01B` |
+|  31 | The historical importer writes keys and rewrites `duplicate_of` | It computes keys with the same normalizer and builds duplicate chains itself                   | Not applicable — its write path refuses a v3 ledger with `historical_import_write_unsupported_schema_v3`, and a dry run stops earlier still, so it cannot contradict row 28. Named because a reader of row 28 would otherwise have to rediscover why | none     |
 
 ### Reports, migration and rollback
 
-| # | Item | Today | Under this ADR | Owner |
-| ---: | --- | --- | --- | --- |
-| 32 | Census of a policy change | Does not exist; the containment report cannot answer it, because it only speaks about groups of two or more | New read-only command, exit `0` on a successful read | `R2-01B` |
-| 33 | Migration tooling | Does not exist | Not built here. `R2-01B` decides; `R2-01C` builds, with the ordering of the section above as its contract | `R2-01C` |
-| 34 | Rollback | Not applicable | Ledger backup and restore, with a stated precondition. **Not** a release revert: see below | `R2-01C` |
-| 35 | Public reader and web UI | Renders the reference and the duplicate link, with no notion of a key version | **Uncontained.** A split changes what "duplicate of" means to a reader, and no row in this chain holds that lock | none today |
-| 36 | Triage and decision traces | Normalize input separately from the ledger | Not applicable — the scorer owns whether a key version reaches a trace | `R2-05A` |
+|   # | Item                       | Today                                                                                                       | Under this ADR                                                                                                   | Owner      |
+| --: | -------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------- |
+|  32 | Census of a policy change  | Does not exist; the containment report cannot answer it, because it only speaks about groups of two or more | New read-only command, exit `0` on a successful read                                                             | `R2-01B`   |
+|  33 | Migration tooling          | Does not exist                                                                                              | Not built here. `R2-01B` decides; `R2-01C` builds, with the ordering of the section above as its contract        | `R2-01C`   |
+|  34 | Rollback                   | Not applicable                                                                                              | Ledger backup and restore, with a stated precondition. **Not** a release revert: see below                       | `R2-01C`   |
+|  35 | Public reader and web UI   | Renders the reference and the duplicate link, with no notion of a key version                               | **Uncontained.** A split changes what "duplicate of" means to a reader, and no row in this chain holds that lock | none today |
+|  36 | Triage and decision traces | Normalize input separately from the ledger                                                                  | Not applicable — the scorer owns whether a key version reaches a trace                                           | `R2-05A`   |
 
 ## Cutover and rollback
 
@@ -303,22 +303,22 @@ that cannot act. Whoever picks it up inherits row 3 as a hard constraint.
 
 ## Verification owners
 
-| Guarantee | Verified by |
-| --- | --- |
-| Version 1 behaviour is byte-identical to what it was before this record | `R2-01B`, by the untouched `R1-03C` equality pins and by the existing normalization tests |
-| Version 2 preserves exactly `query`, `refid`, `source`, `tab` | `R2-01B`, by a three-anchor pin binding this document, a frozen literal and the module export |
-| Version 2 is a refinement, so no merge is possible | `R2-01B`, over a structured reference corpus, and by the census reporting merges it can then be shown never to find |
-| The census sees a lone record whose key changes | `R2-01B`, as the case the containment report provably misses |
-| The census names the links the projection breaks, and only those | `R2-01B`, including a link that already crossed two stored keys and must not be reported |
-| The merge leg is a detector rather than an always-empty field | `R2-01B`, by a coarsening projection and by a mixed-version ledger, since version 2 cannot produce one |
-| The census writes nothing | `R2-01B`, twice: the input object is unchanged in memory, and the ledger bytes are unchanged around the command |
-| A stored version field is refused by the current reader | `R2-01B`, as a pinned negative, so the schema-event claim above is measured rather than asserted |
-| The containment report's payload and exit contract are unchanged | `R2-01B`, by the pins `R1-03C` already froze |
-| Canonicality becomes membership without accepting a key from a third policy | `R2-01C` |
-| The ledger still loads at every step of the ordering | `R2-01C` |
-| Rollback restores a loadable ledger | `R2-01C`, including the case where a process was started after the backup |
-| A host-specific rule preserves refinement | **Uncontained** — no row in this chain holds the registry lock |
-| A split is presented honestly to a reader | **Uncontained** — no row in this chain holds the web lock |
+| Guarantee                                                                   | Verified by                                                                                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Version 1 behaviour is byte-identical to what it was before this record     | `R2-01B`, by the untouched `R1-03C` equality pins and by the existing normalization tests                           |
+| Version 2 preserves exactly `query`, `refid`, `source`, `tab`               | `R2-01B`, by a three-anchor pin binding this document, a frozen literal and the module export                       |
+| Version 2 is a refinement, so no merge is possible                          | `R2-01B`, over a structured reference corpus, and by the census reporting merges it can then be shown never to find |
+| The census sees a lone record whose key changes                             | `R2-01B`, as the case the containment report provably misses                                                        |
+| The census names the links the projection breaks, and only those            | `R2-01B`, including a link that already crossed two stored keys and must not be reported                            |
+| The merge leg is a detector rather than an always-empty field               | `R2-01B`, by a coarsening projection and by a mixed-version ledger, since version 2 cannot produce one              |
+| The census writes nothing                                                   | `R2-01B`, twice: the input object is unchanged in memory, and the ledger bytes are unchanged around the command     |
+| A stored version field is refused by the current reader                     | `R2-01B`, as a pinned negative, so the schema-event claim above is measured rather than asserted                    |
+| The containment report's payload and exit contract are unchanged            | `R2-01B`, by the pins `R1-03C` already froze                                                                        |
+| Canonicality becomes membership without accepting a key from a third policy | `R2-01C`                                                                                                            |
+| The ledger still loads at every step of the ordering                        | `R2-01C`                                                                                                            |
+| Rollback restores a loadable ledger                                         | `R2-01C`, including the case where a process was started after the backup                                           |
+| A host-specific rule preserves refinement                                   | **Uncontained** — no row in this chain holds the registry lock                                                      |
+| A split is presented honestly to a reader                                   | **Uncontained** — no row in this chain holds the web lock                                                           |
 
 ## Rejected alternatives
 
@@ -412,7 +412,7 @@ Two things the implementation had to decide, because the matrix cell did not say
 - **The duplicate-group invariant needed one clause the row does not name.** Row 15 says the
   invariant moves to the computed key and adds that refinement can only make it easier to satisfy.
   That is true of the requirement to link and false of the check as written: the check exempts a
-  group's first record and requires every other member to name a member of *its own* group, so a
+  group's first record and requires every other member to name a member of _its own_ group, so a
   group that shrinks can leave a non-first member pointing at a record that stayed outside. Such
   links exist in ledgers that are valid today — they are exactly the broken links the census
   reports — and for a historical group they could never be repaired, because those records are
@@ -431,7 +431,7 @@ Two things the implementation had to decide, because the matrix cell did not say
   the field — writes a link only where the reader would otherwise refuse the group, and never
   rewrites a chain that already satisfies it.
 - **The `R1-03C` witness comparison had to be pinned to version 1 explicitly.** It compared the
-  *current* version's keys, which was version 1 when row 22 was written. Left alone, the containment
+  _current_ version's keys, which was version 1 when row 22 was written. Left alone, the containment
   report would have gone silent about the collisions it exists to explain the moment the computed
   version moved, since two references differing only in `query` stop sharing a version 2 key while
   the stored key that groups them does not move at all. Its payload and exit contract are unchanged.
@@ -462,7 +462,7 @@ Three things the widening deliberately does not touch.
 - **Rows 15-16 are unchanged, and the writers stay strictly inside them.** Each writer asks only the
   first half of the reader's question: a record sharing its computed key with an earlier record must
   name a member of that computed group; a record alone in its group, or first in it, may name any
-  existing process. So the clause above — a link accepted because its two ends share the *stored*
+  existing process. So the clause above — a link accepted because its two ends share the _stored_
   key — is still never written by a writer, only read in ledgers a policy split already produced.
   The paragraph on the census consequence keeps its premise for the same reason it had it: the
   writers produce acyclic links. `start` still cannot close a loop, because it allocates a fresh id,

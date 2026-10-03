@@ -52,7 +52,8 @@ const ZERO = /^0+$/u;
 
 function git(cwd, args, failCode = "push_guard_git_failed") {
   const result = runGit(cwd, args, { failCode });
-  if (result.status !== 0) fail(failCode, `git ${args[0]} failed: ${result.stderr.trim().split("\n").pop()}`);
+  if (result.status !== 0)
+    fail(failCode, `git ${args[0]} failed: ${result.stderr.trim().split("\n").pop()}`);
   return result.stdout;
 }
 
@@ -60,7 +61,10 @@ function git(cwd, args, failCode = "push_guard_git_failed") {
 export function assembleGuard(checkout) {
   const layerRoot = privateRootFor(checkout);
   if (!existsSync(join(layerRoot, CANDIDATE_MARKERS_FILE))) {
-    fail("push_guard_layer_missing", `no ${CANDIDATE_MARKERS_FILE} in the private repository beside this clone.`);
+    fail(
+      "push_guard_layer_missing",
+      `no ${CANDIDATE_MARKERS_FILE} in the private repository beside this clone.`,
+    );
   }
   const layer = loadCandidateMarkers({ root: layerRoot });
   return {
@@ -77,12 +81,17 @@ export function assembleGuard(checkout) {
  * would otherwise leave unread.
  */
 function markersFor(guard, path) {
-  const allowed = new Set(guard.allow.filter((entry) => coversPath(entry.path, path)).map((entry) => entry.marker));
+  const allowed = new Set(
+    guard.allow.filter((entry) => coversPath(entry.path, path)).map((entry) => entry.marker),
+  );
   const isData = guard.cyrillicData.some((entry) => coversPath(entry, path));
   const source = isMarkerSource(path);
-  return guard.markers.filter((marker) => !allowed.has(marker.id)
-    && !(isData && marker.class === "cyrillic_prose")
-    && !(source && !guard.personal.has(marker.id)));
+  return guard.markers.filter(
+    (marker) =>
+      !allowed.has(marker.id) &&
+      !(isData && marker.class === "cyrillic_prose") &&
+      !(source && !guard.personal.has(marker.id)),
+  );
 }
 
 /**
@@ -140,7 +149,10 @@ function scan(markers, text, textAllow = []) {
 
 function commitsToScan(checkout, remote, localSha, remoteSha) {
   const args = ["rev-list", "--reverse", localSha, "--not", `--remotes=${remote}`];
-  if (!ZERO.test(remoteSha) && runGit(checkout, ["cat-file", "-e", `${remoteSha}^{commit}`]).status === 0) {
+  if (
+    !ZERO.test(remoteSha) &&
+    runGit(checkout, ["cat-file", "-e", `${remoteSha}^{commit}`]).status === 0
+  ) {
     args.push(remoteSha);
   }
   return git(checkout, args).split("\n").filter(Boolean);
@@ -149,13 +161,17 @@ function commitsToScan(checkout, remote, localSha, remoteSha) {
 export function guardPush({ checkout, remote, refs }) {
   const hooksPath = runGit(checkout, ["config", "--get", "core.hooksPath"]).stdout.trim();
   if (!isAbsolute(hooksPath)) {
-    fail("push_guard_hooks_path_not_absolute", "core.hooksPath must be an absolute path to tools/git-hooks.");
+    fail(
+      "push_guard_hooks_path_not_absolute",
+      "core.hooksPath must be an absolute path to tools/git-hooks.",
+    );
   }
   const guard = assembleGuard(checkout);
   const empty = git(checkout, ["hash-object", "-t", "tree", "--stdin"]).trim();
   const findings = [];
   const note = (where, list) => {
-    for (const finding of list) findings.push({ ...where, line: finding.line, marker: finding.marker });
+    for (const finding of list)
+      findings.push({ ...where, line: finding.line, marker: finding.marker });
   };
 
   for (const { localRef, localSha, remoteRef, remoteSha } of refs) {
@@ -167,23 +183,46 @@ export function guardPush({ checkout, remote, refs }) {
       // guard leaves alone on a commit.
       const tag = git(checkout, ["cat-file", "tag", localSha]);
       const message = tag.includes("\n\n") ? tag.slice(tag.indexOf("\n\n") + 2) : "";
-      note({ where: `tag ${localSha.slice(0, 12)} message` }, scan(guard.markers, message, PUBLIC_TEXT_ALLOWANCES));
+      note(
+        { where: `tag ${localSha.slice(0, 12)} message` },
+        scan(guard.markers, message, PUBLIC_TEXT_ALLOWANCES),
+      );
       tip = git(checkout, ["rev-parse", `${localSha}^{commit}`]).trim();
     }
     for (const commit of commitsToScan(checkout, remote, tip, remoteSha)) {
       const at = commit.slice(0, 12);
-      note({ where: `commit ${at} message` }, scan(guard.markers, git(checkout, ["log", "-1", "--format=%B", commit]), PUBLIC_TEXT_ALLOWANCES));
+      note(
+        { where: `commit ${at} message` },
+        scan(
+          guard.markers,
+          git(checkout, ["log", "-1", "--format=%B", commit]),
+          PUBLIC_TEXT_ALLOWANCES,
+        ),
+      );
       const parent = runGit(checkout, ["rev-parse", "--verify", "--quiet", `${commit}^1`]);
       const base = parent.status === 0 ? parent.stdout.trim() : empty;
       const diff = git(checkout, [
-        "-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv",
-        "--no-renames", "--unified=0", base, commit,
+        "-c",
+        "core.quotePath=false",
+        "diff",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--no-renames",
+        "--unified=0",
+        base,
+        commit,
       ]);
       for (const [path, lines] of addedLines(diff)) {
         const markers = markersFor(guard, path);
         note({ commit: at, path, where: "file name" }, scan(markers, path));
         for (const finding of scan(markers, lines.map((entry) => entry.text).join("\n"))) {
-          findings.push({ commit: at, line: lines[finding.line - 1].line, marker: finding.marker, path });
+          findings.push({
+            commit: at,
+            line: lines[finding.line - 1].line,
+            marker: finding.marker,
+            path,
+          });
         }
       }
     }
@@ -192,33 +231,46 @@ export function guardPush({ checkout, remote, refs }) {
 }
 
 export function parseRefs(stdin) {
-  return stdin.split("\n").filter((line) => line.trim().length > 0).map((line) => {
-    const [localRef, localSha, remoteRef, remoteSha] = line.trim().split(" ");
-    if (!remoteSha) fail("push_guard_input_invalid", "a pre-push line has four fields.");
-    return { localRef, localSha, remoteRef, remoteSha };
-  });
+  return stdin
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map((line) => {
+      const [localRef, localSha, remoteRef, remoteSha] = line.trim().split(" ");
+      if (!remoteSha) fail("push_guard_input_invalid", "a pre-push line has four fields.");
+      return { localRef, localSha, remoteRef, remoteSha };
+    });
 }
 
 export function main(argv = process.argv.slice(2), { cwd = process.cwd(), stdin = null } = {}) {
   try {
     const remote = argv[0];
-    if (!remote) fail("push_guard_input_invalid", "git passes the remote's name as the first argument.");
+    if (!remote)
+      fail("push_guard_input_invalid", "git passes the remote's name as the first argument.");
     const refs = parseRefs(stdin ?? readFileSync(0, "utf8"));
     const findings = guardPush({ checkout: cwd, remote, refs });
     if (findings.length > 0) {
       process.stderr.write(`${JSON.stringify({ findings, status: "refused" })}\n`);
-      process.stderr.write("pre-push: personal or private content in the push; nothing was sent.\n");
+      process.stderr.write(
+        "pre-push: personal or private content in the push; nothing was sent.\n",
+      );
       process.exitCode = 1;
     }
   } catch (error) {
-    const known = error instanceof PushGuardError || error instanceof BoardError || error instanceof PublishabilityError;
-    process.stderr.write(`${JSON.stringify({
-      error: {
-        code: known ? error.code : "push_guard_failed",
-        message: known ? error.message : `the guard failed unexpectedly: ${error?.message ?? error}`,
-      },
-      status: "error",
-    })}\n`);
+    const known =
+      error instanceof PushGuardError ||
+      error instanceof BoardError ||
+      error instanceof PublishabilityError;
+    process.stderr.write(
+      `${JSON.stringify({
+        error: {
+          code: known ? error.code : "push_guard_failed",
+          message: known
+            ? error.message
+            : `the guard failed unexpectedly: ${error?.message ?? error}`,
+        },
+        status: "error",
+      })}\n`,
+    );
     process.stderr.write("pre-push: the guard could not run; nothing was sent.\n");
     process.exitCode = 1;
   }

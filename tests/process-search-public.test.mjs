@@ -5,10 +5,7 @@ import {
   buildPublicProcessList,
   derivePublicLifecycle,
 } from "../tools/lib/process-search-public.mjs";
-import {
-  createRunningPublicationStep,
-  createValidV3Log,
-} from "./fixtures/process-log-v3.mjs";
+import { createRunningPublicationStep, createValidV3Log } from "./fixtures/process-log-v3.mjs";
 
 const stateByCode = Object.freeze({
   P: "pending",
@@ -95,13 +92,9 @@ function healthStep(name, step) {
 
 function lifecycleFixture(cvCode = "P", letterCode = "P") {
   const log = createValidV3Log();
-  const process = log.processes.find((record) =>
-    record.artifact_mode === "file-backed");
+  const process = log.processes.find((record) => record.artifact_mode === "file-backed");
   process.steps.generate_cv = generationStep(cvCode, "generate_cv");
-  process.steps.write_cover_letter = generationStep(
-    letterCode,
-    "write_cover_letter",
-  );
+  process.steps.write_cover_letter = generationStep(letterCode, "write_cover_letter");
   const health = {
     process_id: process.id,
     mode: "file-backed",
@@ -110,8 +103,7 @@ function lifecycleFixture(cvCode = "P", letterCode = "P") {
       health: "current",
       code: null,
     },
-    steps: Object.entries(process.steps).map(([name, step]) =>
-      healthStep(name, step)),
+    steps: Object.entries(process.steps).map(([name, step]) => healthStep(name, step)),
   };
   return { health, process };
 }
@@ -145,15 +137,17 @@ function completedCvStep(process) {
     artifacts,
     active_attempt: null,
     publication_transaction: null,
-    attempt_history: [{
-      attempt: 1,
-      outcome: "completed",
-      started_at: "2026-07-23T11:30:00.000Z",
-      finished_at: "2026-07-23T11:40:00.000Z",
-      input_snapshot: structuredClone(inputs),
-      error_code: null,
-      publication_id: "publication_public_dto_cv",
-    }],
+    attempt_history: [
+      {
+        attempt: 1,
+        outcome: "completed",
+        started_at: "2026-07-23T11:30:00.000Z",
+        finished_at: "2026-07-23T11:40:00.000Z",
+        input_snapshot: structuredClone(inputs),
+        error_code: null,
+        publication_id: "publication_public_dto_cv",
+      },
+    ],
     error: null,
     blocker: null,
   };
@@ -161,8 +155,7 @@ function completedCvStep(process) {
 
 function publicDtoFixture() {
   const log = createValidV3Log();
-  const process = log.processes.find((record) =>
-    record.artifact_mode === "file-backed");
+  const process = log.processes.find((record) => record.artifact_mode === "file-backed");
   process.steps.generate_cv = completedCvStep(process);
   const report = {
     schema_version: 4,
@@ -182,8 +175,7 @@ function publicDtoFixture() {
         mode: "file-backed",
         health: "current",
         output: { health: "current", code: null },
-        steps: Object.entries(record.steps).map(([name, step]) =>
-          healthStep(name, step)),
+        steps: Object.entries(record.steps).map(([name, step]) => healthStep(name, step)),
       };
     }),
   };
@@ -194,10 +186,7 @@ test("derived lifecycle implements the complete generation-sibling truth table",
   for (const cvCode of Object.keys(stateByCode)) {
     for (const letterCode of Object.keys(stateByCode)) {
       const fixture = lifecycleFixture(cvCode, letterCode);
-      const lifecycle = derivePublicLifecycle(
-        fixture.process,
-        fixture.health,
-      );
+      const lifecycle = derivePublicLifecycle(fixture.process, fixture.health);
       assert.equal(
         lifecycle.state,
         expectedSiblingAggregate[cvCode][letterCode],
@@ -209,27 +198,19 @@ test("derived lifecycle implements the complete generation-sibling truth table",
 
 test("artifact health takes precedence over lifecycle completion", () => {
   const corrupt = lifecycleFixture("C", "C");
-  const corruptStep = corrupt.health.steps.find((step) =>
-    step.name === "generate_cv");
+  const corruptStep = corrupt.health.steps.find((step) => step.name === "generate_cv");
   corruptStep.artifact_health = "corrupt";
   corruptStep.issues = ["artifact_corrupt"];
-  const corruptLifecycle = derivePublicLifecycle(
-    corrupt.process,
-    corrupt.health,
-  );
+  const corruptLifecycle = derivePublicLifecycle(corrupt.process, corrupt.health);
   assert.equal(corruptLifecycle.state, "corrupt");
   assert.equal(corruptLifecycle.has_corrupt, true);
   assert.ok(corruptLifecycle.attention_steps.includes("generate_cv"));
 
   const missing = lifecycleFixture("C", "C");
-  const missingStep = missing.health.steps.find((step) =>
-    step.name === "write_cover_letter");
+  const missingStep = missing.health.steps.find((step) => step.name === "write_cover_letter");
   missingStep.artifact_health = "missing";
   missingStep.issues = ["artifact_missing"];
-  const missingLifecycle = derivePublicLifecycle(
-    missing.process,
-    missing.health,
-  );
+  const missingLifecycle = derivePublicLifecycle(missing.process, missing.health);
   assert.equal(missingLifecycle.state, "missing");
   assert.equal(missingLifecycle.has_missing, true);
   assert.notEqual(missingLifecycle.state, "complete");
@@ -238,27 +219,17 @@ test("artifact health takes precedence over lifecycle completion", () => {
 test("both generation siblings are actionable after a current Step 3", () => {
   const fixture = lifecycleFixture("P", "P");
   const lifecycle = derivePublicLifecycle(fixture.process, fixture.health);
-  assert.deepEqual(lifecycle.actionable_steps, [
-    "generate_cv",
-    "write_cover_letter",
-  ]);
+  assert.deepEqual(lifecycle.actionable_steps, ["generate_cv", "write_cover_letter"]);
 
   const failedCv = lifecycleFixture("F", "P");
-  const failedLifecycle = derivePublicLifecycle(
-    failedCv.process,
-    failedCv.health,
-  );
-  assert.deepEqual(failedLifecycle.actionable_steps, [
-    "generate_cv",
-    "write_cover_letter",
-  ]);
+  const failedLifecycle = derivePublicLifecycle(failedCv.process, failedCv.health);
+  assert.deepEqual(failedLifecycle.actionable_steps, ["generate_cv", "write_cover_letter"]);
   assert.ok(failedLifecycle.attention_steps.includes("generate_cv"));
 });
 
 test("dynamic committed-input unavailability cannot derive complete", () => {
   const fixture = lifecycleFixture("C", "C");
-  const mapHealth = fixture.health.steps.find((step) =>
-    step.name === "map_experience");
+  const mapHealth = fixture.health.steps.find((step) => step.name === "map_experience");
   mapHealth.input_health = "unavailable";
   mapHealth.issues = ["input_invalid"];
   const lifecycle = derivePublicLifecycle(fixture.process, fixture.health);
@@ -284,37 +255,25 @@ test("has_cv requires a healthy committed source and DOCX pair", () => {
       bytes: 20,
     },
   ];
-  assert.equal(
-    derivePublicLifecycle(fixture.process, fixture.health).has_cv,
-    true,
-  );
-  fixture.health.steps.find((step) =>
-    step.name === "generate_cv").artifact_health = "corrupt";
-  assert.equal(
-    derivePublicLifecycle(fixture.process, fixture.health).has_cv,
-    false,
-  );
+  assert.equal(derivePublicLifecycle(fixture.process, fixture.health).has_cv, true);
+  fixture.health.steps.find((step) => step.name === "generate_cv").artifact_health = "corrupt";
+  assert.equal(derivePublicLifecycle(fixture.process, fixture.health).has_cv, false);
 });
 
 test("manual review is derived from current publication, never historical or mutable state", () => {
   const fixture = lifecycleFixture("P", "P");
-  assert.equal(
-    derivePublicLifecycle(fixture.process, fixture.health)
-      .manual_review_required,
-    true,
-  );
+  assert.equal(derivePublicLifecycle(fixture.process, fixture.health).manual_review_required, true);
 
   for (const step of Object.values(fixture.process.steps)) {
     step.state = "pending";
     step.revision = 0;
     step.artifacts = [];
   }
-  fixture.health.steps = Object.entries(fixture.process.steps).map(
-    ([name, step]) => healthStep(name, step),
+  fixture.health.steps = Object.entries(fixture.process.steps).map(([name, step]) =>
+    healthStep(name, step),
   );
   assert.equal(
-    derivePublicLifecycle(fixture.process, fixture.health)
-      .manual_review_required,
+    derivePublicLifecycle(fixture.process, fixture.health).manual_review_required,
     false,
   );
 });
@@ -326,10 +285,8 @@ test("public DTOs expose only derived review state and the detail DOCX-path exce
     report: fixture.report,
     query: "",
   });
-  const listProcess = list.results.find((result) =>
-    result.process.id === fixture.process.id);
-  const historicalProcess = list.results.find((result) =>
-    result.process.mode === "historical");
+  const listProcess = list.results.find((result) => result.process.id === fixture.process.id);
+  const historicalProcess = list.results.find((result) => result.process.mode === "historical");
   assert.equal(listProcess.process.has_cv, true);
   assert.equal(listProcess.process.manual_review_required, true);
   assert.equal(historicalProcess.process.manual_review_required, false);
@@ -370,8 +327,7 @@ test("public DTOs expose only derived review state and the detail DOCX-path exce
   assert.deepEqual(detail.cv, {
     status: "published",
     preview_available: false,
-    docx_path:
-      "output/example-labs-senior-sdet/Candidate_Name_Public_DTO.docx",
+    docx_path: "output/example-labs-senior-sdet/Candidate_Name_Public_DTO.docx",
   });
   const detailText = JSON.stringify(detail);
   assert.doesNotMatch(detailText, /cv\.json|8{64}|9{64}/);
@@ -394,8 +350,7 @@ test("public DTOs expose only derived review state and the detail DOCX-path exce
     ].sort(),
   );
   assert.equal(
-    detail.artifacts.some((artifact) =>
-      ["cv_source", "cv_docx"].includes(artifact.kind)),
+    detail.artifacts.some((artifact) => ["cv_source", "cv_docx"].includes(artifact.kind)),
     false,
   );
 });
@@ -403,10 +358,10 @@ test("public DTOs expose only derived review state and the detail DOCX-path exce
 test("prepared publication journals and staging names never enter public DTOs", () => {
   const fixture = publicDtoFixture();
   fixture.process.steps.generate_cv = createRunningPublicationStep();
-  const processHealth = fixture.report.processes.find((process) =>
-    process.process_id === fixture.process.id);
-  const generationHealth = processHealth.steps.find((step) =>
-    step.name === "generate_cv");
+  const processHealth = fixture.report.processes.find(
+    (process) => process.process_id === fixture.process.id,
+  );
+  const generationHealth = processHealth.steps.find((step) => step.name === "generate_cv");
   generationHealth.state = "running";
   generationHealth.artifact_health = "recovery_required";
   generationHealth.input_health = "not_published";
@@ -429,8 +384,8 @@ test("prepared publication journals and staging names never enter public DTOs", 
   assert.equal(detail.lifecycle.manual_review_required, true);
   assert.notEqual(detail.cv?.status, "ready");
   assert.ok(
-    detail.steps.find((step) => step.name === "generate_cv").issues.includes(
-      "publication_recovery_required",
-    ),
+    detail.steps
+      .find((step) => step.name === "generate_cv")
+      .issues.includes("publication_recovery_required"),
   );
 });

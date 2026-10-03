@@ -1,9 +1,21 @@
 {
   "schema_version": 4,
   "channels": [
-    { "handle": "example_qa_jobs", "note": "fictional: a thematic QA channel, cards and full texts" },
-    { "handle": "example_general_jobs", "thematic": false, "note": "fictional: a general channel, read by the reader stage" },
-    { "handle": "example_quiet_jobs", "thematic": false, "enabled": false, "note": "fictional: a general channel switched off" }
+    {
+      "handle": "example_qa_jobs",
+      "note": "fictional: a thematic QA channel, cards and full texts"
+    },
+    {
+      "handle": "example_general_jobs",
+      "thematic": false,
+      "note": "fictional: a general channel, read by the reader stage"
+    },
+    {
+      "handle": "example_quiet_jobs",
+      "thematic": false,
+      "enabled": false,
+      "note": "fictional: a general channel switched off"
+    }
   ],
   "exclusions": [],
   "role_words": ["QA", "AQA", "SQA", "SDET", "test*", "quality", "automation"],

@@ -16,8 +16,11 @@ export function readManifestRecords(batch) {
   // Version 1 and version 2 differ only in the block naming the batch and in the transport's
   // promotion state, and this reader consumes neither: it takes `records` and `startedAt`. A batch
   // captured before the promotion stays verifiable for exactly that reason.
-  if (!KNOWN_SCHEMA_VERSIONS.has(value.schemaVersion) || value.tool !== "vacancy-fetch"
-    || !Array.isArray(value.records)) {
+  if (
+    !KNOWN_SCHEMA_VERSIONS.has(value.schemaVersion) ||
+    value.tool !== "vacancy-fetch" ||
+    !Array.isArray(value.records)
+  ) {
     return { records: null, problem: "manifest_unrecognized", startedAt: null };
   }
   const byIndex = new Map();

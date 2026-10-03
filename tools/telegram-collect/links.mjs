@@ -40,8 +40,21 @@ const telegramHosts = Object.freeze(["t.me", "telegram.dog", "telegram.me"]);
 
 // First path segments of t.me that are routes, not user names, though they match the name pattern.
 const telegramRoutes = Object.freeze([
-  "addemoji", "addlist", "addstickers", "addtheme", "boost", "confirmphone", "contact", "giftcode",
-  "invoice", "joinchat", "login", "proxy", "setlanguage", "share", "socks",
+  "addemoji",
+  "addlist",
+  "addstickers",
+  "addtheme",
+  "boost",
+  "confirmphone",
+  "contact",
+  "giftcode",
+  "invoice",
+  "joinchat",
+  "login",
+  "proxy",
+  "setlanguage",
+  "share",
+  "socks",
 ]);
 
 // Social self-promotion. Matched by hostname suffix, so a subdomain is covered and a lookalike
@@ -69,10 +82,12 @@ function matchesHost(host, domain) {
 }
 
 function isLocalOrLiteralHost(host) {
-  return host === "localhost"
-    || host.endsWith(".localhost")
-    || host.startsWith("[")
-    || /^\d{1,3}(?:\.\d{1,3}){3}$/u.test(host);
+  return (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.startsWith("[") ||
+    /^\d{1,3}(?:\.\d{1,3}){3}$/u.test(host)
+  );
 }
 
 function pathKey(url) {
@@ -82,9 +97,9 @@ function pathKey(url) {
 function telegramLink(url) {
   const segments = url.pathname.split("/").filter((segment) => segment.length > 0);
   if (
-    segments.length === 1
-    && handlePattern.test(segments[0])
-    && !telegramRoutes.includes(segments[0].toLowerCase())
+    segments.length === 1 &&
+    handlePattern.test(segments[0]) &&
+    !telegramRoutes.includes(segments[0].toLowerCase())
   ) {
     return { type: "tg", name: segments[0] };
   }
@@ -116,7 +131,15 @@ function webLink(url) {
   } catch {
     return { type: "unusable", reason: "normalizer_refused", host };
   }
-  return { type: "url", url: clean, key, host, path: url.pathname, query: url.search, pathKey: pathKey(url) };
+  return {
+    type: "url",
+    url: clean,
+    key,
+    host,
+    path: url.pathname,
+    query: url.search,
+    pathKey: pathKey(url),
+  };
 }
 
 /** One raw href to `{ type, ... }` or `{ skipped }`. */
@@ -141,17 +164,24 @@ function readHref(href) {
 /** Telegram turns `ASP.NET` and `Node.js` in a requirements list into links to those "sites". */
 function isAutolink(entry) {
   const text = entry.anchorText.trim().toLowerCase().replace(/\/+$/u, "");
-  return !text.includes("://")
-    && text === entry.host
-    && (entry.path === "/" || entry.path === "")
-    && entry.query === "";
+  return (
+    !text.includes("://") &&
+    text === entry.host &&
+    (entry.path === "/" || entry.path === "") &&
+    entry.query === ""
+  );
 }
 
 function isExcluded(entry, exclusions) {
   // The config lower-cases a rule, so the path is compared without case as well.
   const path = entry.path.toLowerCase();
-  return exclusions.some((rule) => matchesHost(entry.host, rule.host)
-    && (rule.pathPrefix === null || path === rule.pathPrefix || path.startsWith(`${rule.pathPrefix}/`)));
+  return exclusions.some(
+    (rule) =>
+      matchesHost(entry.host, rule.host) &&
+      (rule.pathPrefix === null ||
+        path === rule.pathPrefix ||
+        path.startsWith(`${rule.pathPrefix}/`)),
+  );
 }
 
 /**
@@ -170,12 +200,20 @@ export function linksOf(post, { exclusions = [] } = {}) {
   // A preview card is born from a link in the text and repeats it. Its address is compared by host
   // and path only: on live pages the text address keeps a tracking query the card has dropped.
   const textPaths = new Set(
-    entries.filter((entry) => entry.type === "url" && entry.container !== "preview").map((entry) => entry.pathKey),
+    entries
+      .filter((entry) => entry.type === "url" && entry.container !== "preview")
+      .map((entry) => entry.pathKey),
   );
   return entries.map((entry) => {
     if (entry.type !== "url") return entry;
     if (entry.container === "preview" && textPaths.has(entry.pathKey)) {
-      return { container: entry.container, lineIndex: null, anchorText: "", marks: [], skipped: "preview_folded" };
+      return {
+        container: entry.container,
+        lineIndex: null,
+        anchorText: "",
+        marks: [],
+        skipped: "preview_folded",
+      };
     }
     const marks = [];
     if (socialHosts.some((domain) => matchesHost(entry.host, domain))) marks.push("social");
@@ -199,21 +237,23 @@ export function boilerplateOf(walked) {
   for (const { post, entries } of walked) {
     const text = normalizedText(post);
     if (text.length === 0) continue;
-    for (const key of new Set(entries.filter((entry) => entry.type === "url").map((entry) => entry.key))) {
+    for (const key of new Set(
+      entries.filter((entry) => entry.type === "url").map((entry) => entry.key),
+    )) {
       if (!textsPerKey.has(key)) textsPerKey.set(key, new Set());
       textsPerKey.get(key).add(text);
     }
   }
   const floor = Math.max(BOILERPLATE_MIN_POSTS, walked.length * BOILERPLATE_MIN_SHARE);
   return new Map(
-    [...textsPerKey]
-      .map(([key, texts]) => [key, texts.size])
-      .filter(([, posts]) => posts >= floor),
+    [...textsPerKey].map(([key, texts]) => [key, texts.size]).filter(([, posts]) => posts >= floor),
   );
 }
 
 export function markBoilerplate(entries, boilerplateKeys) {
-  return entries.map((entry) => (entry.type === "url" && boilerplateKeys.has(entry.key)
-    ? { ...entry, marks: [...entry.marks, "boilerplate"] }
-    : entry));
+  return entries.map((entry) =>
+    entry.type === "url" && boilerplateKeys.has(entry.key)
+      ? { ...entry, marks: [...entry.marks, "boilerplate"] }
+      : entry,
+  );
 }

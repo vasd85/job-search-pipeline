@@ -268,7 +268,7 @@ export function vacancyIdentity(value) {
   const url = new URL(normalized);
   const detected = detectJobSource(normalized);
   const source = detected?.id ?? "url";
-  const jobId = source === "linkedin" ? linkedInJobId(url) ?? normalized : normalized;
+  const jobId = source === "linkedin" ? (linkedInJobId(url) ?? normalized) : normalized;
   return { source, jobId, url: normalized, key: `${source}:${jobId}` };
 }
 
@@ -363,8 +363,8 @@ export function validateLedger(raw) {
   if (raw.schema_version !== triageLedgerSchemaVersion) {
     fail(
       "triage_ledger_schema_version",
-      `The ledger declares schema_version ${String(raw.schema_version)}; this build reads `
-        + `${triageLedgerSchemaVersion}.`,
+      `The ledger declares schema_version ${String(raw.schema_version)}; this build reads ` +
+        `${triageLedgerSchemaVersion}.`,
     );
   }
   if (!Array.isArray(raw.batches) || !Array.isArray(raw.entries)) {
@@ -482,8 +482,8 @@ function acquireLock(path) {
   }
   fail(
     "triage_ledger_locked",
-    `${lockPath} is held by another writer. Inspect it before removing it by hand; this tool `
-      + "never removes a lock it did not create.",
+    `${lockPath} is held by another writer. Inspect it before removing it by hand; this tool ` +
+      "never removes a lock it did not create.",
   );
 }
 
@@ -616,8 +616,8 @@ export function validateBatchRecord(raw) {
   if (raw.schema_version !== triageBatchRecordSchemaVersion) {
     fail(
       "triage_ledger_record_schema_version",
-      `The batch record declares schema_version ${String(raw.schema_version)}; this build reads `
-        + `${triageBatchRecordSchemaVersion}.`,
+      `The batch record declares schema_version ${String(raw.schema_version)}; this build reads ` +
+        `${triageBatchRecordSchemaVersion}.`,
     );
   }
   const label = "The batch record";
@@ -719,8 +719,8 @@ function resolveArchiveTarget(batch, options) {
   if (!isRecord(options) || !Object.hasOwn(options, "artifactsDir")) {
     fail(
       "triage_ledger_record_undeclared",
-      "recordBatch needs its history declared: pass {artifactsDir: <absolute batch directory>} to "
-        + "archive this batch, or {artifactsDir: null} to state that this write keeps none.",
+      "recordBatch needs its history declared: pass {artifactsDir: <absolute batch directory>} to " +
+        "archive this batch, or {artifactsDir: null} to state that this write keeps none.",
     );
   }
   assertExactKeys(options, ["artifactsDir"], [], "triage_ledger_record_undeclared", "The options");
@@ -737,8 +737,8 @@ function resolveArchiveTarget(batch, options) {
   if (!Object.hasOwn(batch, "policy_id")) {
     fail(
       "triage_ledger_record_missing_policy",
-      "An archived batch records the policy its decisions were taken under: batch.policy_id is "
-        + "required whenever artifactsDir names a directory.",
+      "An archived batch records the policy its decisions were taken under: batch.policy_id is " +
+        "required whenever artifactsDir names a directory.",
     );
   }
   return target;
@@ -761,13 +761,15 @@ function persistBatchRecord(artifactsDir, record) {
   } catch (error) {
     if (error?.code === "EEXIST") {
       const existing = readBatchRecord(artifactsDir);
-      if (existing.entries_digest !== record.entries_digest
-        || existing.batch_id !== record.batch_id) {
+      if (
+        existing.entries_digest !== record.entries_digest ||
+        existing.batch_id !== record.batch_id
+      ) {
         fail(
           "triage_ledger_record_conflict",
-          `${recordPath} already records different entries. Replaying the same batch is allowed; `
-            + "a different one belongs in its own batch directory under its own batch_id, or the "
-            + "record would stop describing the batch it is named for.",
+          `${recordPath} already records different entries. Replaying the same batch is allowed; ` +
+            "a different one belongs in its own batch directory under its own batch_id, or the " +
+            "record would stop describing the batch it is named for.",
         );
       }
       return { path: recordPath, written: false };
@@ -775,8 +777,8 @@ function persistBatchRecord(artifactsDir, record) {
     if (error?.code === "ENOENT") {
       fail(
         "triage_ledger_record_dir_missing",
-        `${artifactsDir} does not exist. The batch's own directory is where its record belongs; `
-          + "this tool never creates it, because a directory it invented would hold no batch.",
+        `${artifactsDir} does not exist. The batch's own directory is where its record belongs; ` +
+          "this tool never creates it, because a directory it invented would hold no batch.",
       );
     }
     fail(
@@ -818,8 +820,8 @@ function tracedKeys(artifactsDir) {
     if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
       fail(
         "triage_ledger_record_dir_missing",
-        `${artifactsDir} does not exist. The batch's own directory is where its record belongs; `
-          + "this tool never creates it, because a directory it invented would hold no batch.",
+        `${artifactsDir} does not exist. The batch's own directory is where its record belongs; ` +
+          "this tool never creates it, because a directory it invented would hold no batch.",
       );
     }
     throw error;
@@ -869,9 +871,9 @@ function persistedRecordState(artifactsDir, batchId, entriesDigest) {
   if (existing.entries_digest !== entriesDigest || existing.batch_id !== batchId) {
     fail(
       "triage_ledger_record_conflict",
-      `${recordPath} already records different entries. Replaying the same batch is allowed; `
-        + "a different one belongs in its own batch directory under its own batch_id, or the "
-        + "record would stop describing the batch it is named for.",
+      `${recordPath} already records different entries. Replaying the same batch is allowed; ` +
+        "a different one belongs in its own batch directory under its own batch_id, or the " +
+        "record would stop describing the batch it is named for.",
     );
   }
   return "matching";
@@ -901,10 +903,10 @@ function readBatchPlan(artifactsDir) {
     if (error?.code === "ENOENT") {
       fail(
         "triage_ledger_plan_undeclared",
-        `${planPath} does not exist. A recorded batch names the plan it ran on: the planBatch `
-          + "result written into its directory before its first fetch, which is what the record "
-          + "write checks its rows against. Without it a row another session wrote in between "
-          + "would be replaced silently.",
+        `${planPath} does not exist. A recorded batch names the plan it ran on: the planBatch ` +
+          "result written into its directory before its first fetch, which is what the record " +
+          "write checks its rows against. Without it a row another session wrote in between " +
+          "would be replaced silently.",
       );
     }
     fail(
@@ -923,7 +925,8 @@ function readBatchPlan(artifactsDir) {
   }
   const byKey = new Map();
   for (const item of parsed.items) {
-    if (!isRecord(item) || typeof item.link !== "string" || typeof item.action !== "string") continue;
+    if (!isRecord(item) || typeof item.link !== "string" || typeof item.action !== "string")
+      continue;
     let key;
     try {
       // Trimmed as `tools/triage-verify/plan.mjs#readPlan` trims it, so the two readers of this file
@@ -970,12 +973,13 @@ function assertRowsUnmovedSincePlan(planByKey, entries, ledgerEntries) {
       if (known !== undefined) moved.push(entry.key);
       continue;
     }
-    const unmoved = known !== undefined
-      && known.status === item.status
-      && known.decision === item.decision
-      && sameFlags(known.flags, item.flags)
-      && known.last_checked === item.last_checked
-      && (Object.hasOwn(known, "policy_id")
+    const unmoved =
+      known !== undefined &&
+      known.status === item.status &&
+      known.decision === item.decision &&
+      sameFlags(known.flags, item.flags) &&
+      known.last_checked === item.last_checked &&
+      (Object.hasOwn(known, "policy_id")
         ? known.policy_id === item.policy_id
         : !Object.hasOwn(item, "policy_id"));
     if (!unmoved) moved.push(entry.key);
@@ -983,18 +987,18 @@ function assertRowsUnmovedSincePlan(planByKey, entries, ledgerEntries) {
   if (unplanned.length > 0) {
     fail(
       "triage_ledger_entry_unplanned",
-      `${unplanned.length} of ${entries.length} entries are not in the batch's plan: `
-        + `${unplanned.sort().join(", ")}. A batch records only links it planned; a link outside `
-        + "the plan belongs to another batch.",
+      `${unplanned.length} of ${entries.length} entries are not in the batch's plan: ` +
+        `${unplanned.sort().join(", ")}. A batch records only links it planned; a link outside ` +
+        "the plan belongs to another batch.",
     );
   }
   if (moved.length > 0) {
     fail(
       "triage_ledger_concurrent_observation",
-      `${moved.length} of ${entries.length} entries replace a row another batch wrote after this `
-        + `batch planned: ${moved.sort().join(", ")}. The row stays with the batch that recorded `
-        + "first; drop these entries and record again — their traces stay in this batch's "
-        + "directory as what it observed.",
+      `${moved.length} of ${entries.length} entries replace a row another batch wrote after this ` +
+        `batch planned: ${moved.sort().join(", ")}. The row stays with the batch that recorded ` +
+        "first; drop these entries and record again — their traces stay in this batch's " +
+        "directory as what it observed.",
     );
   }
 }
@@ -1032,9 +1036,9 @@ export function recordBatch(path, batch, options) {
     if (previous !== undefined && previous.entries_digest !== entriesDigest) {
       fail(
         "triage_ledger_batch_id_reused",
-        `Batch ${batch.batch_id} is already recorded with different entries. Replaying the same `
-          + "batch is allowed; recording a different one needs its own batch_id, or the batch "
-          + "record would stop describing the rows that carry its id.",
+        `Batch ${batch.batch_id} is already recorded with different entries. Replaying the same ` +
+          "batch is allowed; recording a different one needs its own batch_id, or the batch " +
+          "record would stop describing the rows that carry its id.",
       );
     }
     // One entry per published trace. A replay of a batch this ledger already holds is exempt: it
@@ -1046,9 +1050,9 @@ export function recordBatch(path, batch, options) {
       if (untraced.length > 0) {
         fail(
           "triage_ledger_entry_without_trace",
-          `${untraced.length} of ${entries.length} entries have no Decision Trace under `
-            + `${join(archiveDir, triageBatchTracesDirName)}. A batch records one entry per trace `
-            + "it published; a link its plan withheld gets no entry and its row stays as it is.",
+          `${untraced.length} of ${entries.length} entries have no Decision Trace under ` +
+            `${join(archiveDir, triageBatchTracesDirName)}. A batch records one entry per trace ` +
+            "it published; a link its plan withheld gets no entry and its row stays as it is.",
         );
       }
     }
@@ -1066,14 +1070,17 @@ export function recordBatch(path, batch, options) {
     // After the reuse guard and before the ledger write, in that order: a batch this ledger
     // already knows under different entries is refused before anything reaches the store, and a
     // record that fails to persist stops the ledger write with it.
-    const archived = archiveDir === null ? null : persistBatchRecord(archiveDir, {
-      schema_version: triageBatchRecordSchemaVersion,
-      batch_id: batch.batch_id,
-      observed_at: batch.observed_at,
-      policy_id: batch.policy_id,
-      entries_digest: entriesDigest,
-      entries,
-    });
+    const archived =
+      archiveDir === null
+        ? null
+        : persistBatchRecord(archiveDir, {
+            schema_version: triageBatchRecordSchemaVersion,
+            batch_id: batch.batch_id,
+            observed_at: batch.observed_at,
+            policy_id: batch.policy_id,
+            entries_digest: entriesDigest,
+            entries,
+          });
     const byKey = new Map(ledger.entries.map((entry) => [entry.key, entry]));
     const added = [];
     const updated = [];
@@ -1097,16 +1104,19 @@ export function recordBatch(path, batch, options) {
       byKey.set(entry.key, {
         ...entry,
         ...carried,
-        first_seen: parseInstant(known.first_seen) <= parseInstant(entry.first_seen)
-          ? known.first_seen
-          : entry.first_seen,
-        last_checked: parseInstant(known.last_checked) >= parseInstant(entry.last_checked)
-          ? known.last_checked
-          : entry.last_checked,
+        first_seen:
+          parseInstant(known.first_seen) <= parseInstant(entry.first_seen)
+            ? known.first_seen
+            : entry.first_seen,
+        last_checked:
+          parseInstant(known.last_checked) >= parseInstant(entry.last_checked)
+            ? known.last_checked
+            : entry.last_checked,
       });
     }
     const nextEntries = [...byKey.values()].sort((left, right) =>
-      left.key.localeCompare(right.key));
+      left.key.localeCompare(right.key),
+    );
     const batchRecord = {
       batch_id: batch.batch_id,
       recorded_at: batch.observed_at,
@@ -1117,9 +1127,11 @@ export function recordBatch(path, batch, options) {
     const batches = [
       ...ledger.batches.filter((known) => known.batch_id !== batch.batch_id),
       batchRecord,
-    ].sort((left, right) =>
-      parseInstant(left.recorded_at) - parseInstant(right.recorded_at)
-      || left.batch_id.localeCompare(right.batch_id));
+    ].sort(
+      (left, right) =>
+        parseInstant(left.recorded_at) - parseInstant(right.recorded_at) ||
+        left.batch_id.localeCompare(right.batch_id),
+    );
     return {
       ledger: { ...ledger, batches, entries: nextEntries },
       result: {
@@ -1129,9 +1141,7 @@ export function recordBatch(path, batch, options) {
         ledger_entries: nextEntries.length,
         // An operator-owned path and two booleans: where this batch's history went, and whether
         // this call wrote it or found a replay's record already there. No vacancy value.
-        record: archived === null
-          ? null
-          : { path: archived.path, written: archived.written },
+        record: archived === null ? null : { path: archived.path, written: archived.written },
       },
     };
   });
@@ -1199,16 +1209,18 @@ export function planBatch(ledger, links, { asOf } = {}) {
     }
     return { ...shared, action: "skip_known", reason: "already triaged" };
   });
-  const counts = Object.fromEntries(triagePlanActions.map((action) => [
-    action,
-    items.filter((item) => item.action === action).length,
-  ]));
+  const counts = Object.fromEntries(
+    triagePlanActions.map((action) => [
+      action,
+      items.filter((item) => item.action === action).length,
+    ]),
+  );
   return {
     as_of: asOf,
     links_in: links.length,
     counts: { ...counts, invalid: items.filter((item) => item.action === null).length },
-    fetch: items.filter((item) =>
-      item.action === "fetch_new" || item.action === "retry_blocked").length,
+    fetch: items.filter((item) => item.action === "fetch_new" || item.action === "retry_blocked")
+      .length,
     items,
   };
 }
@@ -1246,10 +1258,12 @@ export function reviewLedger(ledger, { asOf } = {}) {
       fast_lane: entries.some((entry) => entry.priority_class === 1),
       entries: entries.sort((left, right) => left.key.localeCompare(right.key)),
     }))
-    .sort((left, right) =>
-      Number(right.fast_lane) - Number(left.fast_lane)
-      || right.count - left.count
-      || left.flag.localeCompare(right.flag));
+    .sort(
+      (left, right) =>
+        Number(right.fast_lane) - Number(left.fast_lane) ||
+        right.count - left.count ||
+        left.flag.localeCompare(right.flag),
+    );
   return {
     as_of: asOf,
     totals: {

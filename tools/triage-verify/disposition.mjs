@@ -88,8 +88,12 @@ export function validateDispositions(raw, knownFamilies) {
       problems.push({ code: "disposition_unknown_value", position });
       return;
     }
-    if ("note" in entry
-      && (typeof entry.note !== "string" || entry.note.length === 0 || entry.note.length > MAX_NOTE_CHARS)) {
+    if (
+      "note" in entry &&
+      (typeof entry.note !== "string" ||
+        entry.note.length === 0 ||
+        entry.note.length > MAX_NOTE_CHARS)
+    ) {
       problems.push({ code: "disposition_invalid", position, reason: "note" });
       return;
     }

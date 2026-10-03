@@ -49,11 +49,11 @@ export const kind = "assert";
  * pins that every shipped family has a row, so the fallback cannot become the quiet default.
  */
 export const familyClaimRules = Object.freeze({
-  residence: (offer) => offer?.residenceRestriction === "compatible"
-    || offer?.residenceRestriction === "incompatible",
-  contract: (offer) => (offer?.contractorEligibility !== undefined
-    && offer.contractorEligibility !== "unknown")
-    || (offer?.engagementPath ?? null) !== null,
+  residence: (offer) =>
+    offer?.residenceRestriction === "compatible" || offer?.residenceRestriction === "incompatible",
+  contract: (offer) =>
+    (offer?.contractorEligibility !== undefined && offer.contractorEligibility !== "unknown") ||
+    (offer?.engagementPath ?? null) !== null,
   work_format: (offer) => offer?.workFormat !== undefined && offer.workFormat !== "Unknown",
 });
 
@@ -166,9 +166,14 @@ export function run(context) {
           };
           local.phraseIds.add(phrase.id);
           if (!outside) local.outside = false;
-          if (!spans.some((span) => span.start <= occurrence.start
-            && occurrence.end <= span.end
-            && claims(span, phrase.family, record.input))) {
+          if (
+            !spans.some(
+              (span) =>
+                span.start <= occurrence.start &&
+                occurrence.end <= span.end &&
+                claims(span, phrase.family, record.input),
+            )
+          ) {
             local.claimed = false;
           }
           inThisBody.set(key, local);

@@ -68,15 +68,7 @@ function addSyntheticEvidence(brief, id, cvPlacements) {
   brief.experience.priorityEvidence.push(evidence);
 }
 
-function addSyntheticCheck(
-  brief,
-  {
-    id,
-    evidenceIds,
-    placements,
-    placementMode,
-  },
-) {
+function addSyntheticCheck(brief, { id, evidenceIds, placements, placementMode }) {
   brief.cvPlan.checks.requiredEvidence.push({
     id,
     description: `Synthetic executable check ${id}.`,
@@ -110,19 +102,27 @@ test("complete schemaVersion 4 fixture is bundle-valid and separate from the abs
 test("a brief names one of the layer's two markets and follows its side", async (t) => {
   const markets = exampleMarkets;
   const fixture = (name) => resolve(repoRoot, "tools/pipeline-artifacts/fixtures", name);
-  const v4Path = resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json");
+  const v4Path = resolve(
+    repoRoot,
+    "tools/application-brief/fixtures/application-brief.v4.valid.json",
+  );
   const v4 = () => JSON.parse(readFileSync(v4Path, "utf8"));
   const v2Inputs = {
     ...inputBytes,
     vacancyBytes: readFileSync(fixture("vacancy-v2-completed/vacancy.json")),
     jobDescriptionBytes: readFileSync(fixture("vacancy-v2-completed/job-description.txt")),
-    companyResearchBytes: readFileSync(fixture("research-v2-over-vacancy-v2/company-research.json")),
+    companyResearchBytes: readFileSync(
+      fixture("research-v2-over-vacancy-v2/company-research.json"),
+    ),
   };
 
   await t.test("the fixture is bundle-valid over the version 2 vacancy and its research", () => {
     assert.equal(v4().schemaVersion, 4);
     assert.deepEqual(validateApplicationBrief(v4(), { ...v2Inputs, markets }), []);
-    assert.deepEqual(validateApplicationBrief(v4(), { ...v2Inputs, markets, expectedSchemaVersion: 4 }), []);
+    assert.deepEqual(
+      validateApplicationBrief(v4(), { ...v2Inputs, markets, expectedSchemaVersion: 4 }),
+      [],
+    );
     const bundle = readAndValidateApplicationBriefBundle(
       v4Path,
       fixture("vacancy-v2-completed/vacancy.json"),
@@ -137,7 +137,10 @@ test("a brief names one of the layer's two markets and follows its side", async 
     for (const version of [1, 2, 3]) {
       const older = v4();
       older.schemaVersion = version;
-      for (const options of [{ ...v2Inputs, markets }, { ...v2Inputs, markets, expectedSchemaVersion: version }]) {
+      for (const options of [
+        { ...v2Inputs, markets },
+        { ...v2Inputs, markets, expectedSchemaVersion: version },
+      ]) {
         assert.match(
           validateApplicationBrief(older, options).join("\n"),
           new RegExp(`schemaVersion ${version} is unsupported; rerun map-experience`),
@@ -156,28 +159,35 @@ test("a brief names one of the layer's two markets and follows its side", async 
     home.cvPlan.headerPositioning = { mode: "omit", text: null, rationale: "Home market." };
     assert.deepEqual(validateApplicationBrief(home, { markets }), []);
     const outside = v4();
-    outside.cvPlan.headerPositioning = { mode: "omit", text: null, rationale: "Synthetic inconsistent decision." };
+    outside.cvPlan.headerPositioning = {
+      mode: "omit",
+      text: null,
+      rationale: "Synthetic inconsistent decision.",
+    };
     assert.match(
       validateApplicationBrief(outside, { markets }).join("\n"),
       /role\.market outside the home market requires cvPlan\.headerPositioning\.mode explicit/,
     );
   });
 
-  await t.test("a name the layer does not configure is refused, and without markets every name is", () => {
-    for (const value of ["elsewhere", "foreign-market"]) {
-      const brief = v4();
-      brief.role.market = value;
+  await t.test(
+    "a name the layer does not configure is refused, and without markets every name is",
+    () => {
+      for (const value of ["elsewhere", "foreign-market"]) {
+        const brief = v4();
+        brief.role.market = value;
+        assert.match(
+          validateApplicationBrief(brief, { markets }).join("\n"),
+          /role\.market must be one of: domestic, international/,
+          value,
+        );
+      }
       assert.match(
-        validateApplicationBrief(brief, { markets }).join("\n"),
-        /role\.market must be one of: domestic, international/,
-        value,
+        validateApplicationBrief(v4(), { markets: undefined }).join("\n"),
+        /role\.market must name a configured market: the candidate layer configures none/,
       );
-    }
-    assert.match(
-      validateApplicationBrief(v4(), { markets: undefined }).join("\n"),
-      /role\.market must name a configured market: the candidate layer configures none/,
-    );
-  });
+    },
+  );
 
   await t.test("the vacancy reference names the current version of the vacancy", () => {
     for (const version of [1, 3]) {
@@ -205,10 +215,15 @@ test("a brief names one of the layer's two markets and follows its side", async 
 test("the brief self-check reads the markets of the workspace's layer", (t) => {
   // The options this command builds are invisible to the static pin on callers, so its reading of
   // the markets is held here.
-  const run = (workspaceRoot) => spawnSync(process.execPath, [
-    resolve(repoRoot, "tools/application-brief/validate.mjs"),
-    resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
-  ], { encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot } });
+  const run = (workspaceRoot) =>
+    spawnSync(
+      process.execPath,
+      [
+        resolve(repoRoot, "tools/application-brief/validate.mjs"),
+        resolve(repoRoot, "tools/application-brief/fixtures/application-brief.v4.valid.json"),
+      ],
+      { encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: workspaceRoot } },
+    );
   const withLayer = mkdtempSync(join(tmpdir(), "job-search-brief-cli-"));
   const withoutLayer = mkdtempSync(join(tmpdir(), "job-search-brief-cli-bare-"));
   t.after(() => {
@@ -314,16 +329,17 @@ test("hard-gap keywords require an honest gap reference and no placement", () =>
   const brief = makeValidBrief();
   // Index the pushed gap instead of assuming it is the first one: the canonical fixture carries
   // its own gaps, so a hardcoded [0] would mutate fixture data and pass for the wrong reason.
-  const gapIndex = brief.experience.gaps.push({
-    id: "gap-synthetic-unsupported",
-    requirement: "Synthetic unsupported requirement",
-    classification: "hard",
-    transferableSupport: {
-      status: "none",
-      evidenceIds: [],
-    },
-    framing: "Do not claim this requirement as met.",
-  }) - 1;
+  const gapIndex =
+    brief.experience.gaps.push({
+      id: "gap-synthetic-unsupported",
+      requirement: "Synthetic unsupported requirement",
+      classification: "hard",
+      transferableSupport: {
+        status: "none",
+        evidenceIds: [],
+      },
+      framing: "Do not claim this requirement as met.",
+    }) - 1;
   brief.ats.keywords[8] = {
     term: "Synthetic unsupported requirement",
     expanded: null,
@@ -353,12 +369,13 @@ test("hard-gap keywords require an honest gap reference and no placement", () =>
 
 test("gap transferable support is evidence-backed or explicitly absent", () => {
   const missingSupport = makeValidBrief();
-  const missingSupportIndex = missingSupport.experience.gaps.push({
-    id: "gap-01",
-    requirement: "A synthetic adjacent requirement",
-    classification: "adjacent",
-    framing: "Use only transferable evidence.",
-  }) - 1;
+  const missingSupportIndex =
+    missingSupport.experience.gaps.push({
+      id: "gap-01",
+      requirement: "A synthetic adjacent requirement",
+      classification: "adjacent",
+      framing: "Use only transferable evidence.",
+    }) - 1;
   assert.match(
     validateApplicationBrief(missingSupport).join("\n"),
     new RegExp(`gaps\\[${missingSupportIndex}\\]\\.transferableSupport must be an object`),
@@ -612,7 +629,8 @@ test("the brief refuses a vacancy language outside the layer's set on its own", 
       brief.role.vacancyLanguage = value;
       assert.equal(
         validateApplicationBrief(brief, { languages }).some((error) =>
-          error.startsWith("role.vacancyLanguage must be one of")),
+          error.startsWith("role.vacancyLanguage must be one of"),
+        ),
         false,
       );
     }
@@ -621,7 +639,9 @@ test("the brief refuses a vacancy language outside the layer's set on its own", 
   await t.test("without the layer's set only the default language is accepted", () => {
     const brief = makeValidBrief();
     brief.role.vacancyLanguage = "Greek";
-    assert.ok(validateApplicationBrief(brief).includes("role.vacancyLanguage must be one of: English"));
+    assert.ok(
+      validateApplicationBrief(brief).includes("role.vacancyLanguage must be one of: English"),
+    );
   });
 });
 
@@ -675,14 +695,16 @@ test("schemaVersion 4 requires every downstream decision block", async (t) => {
 
 test("application brief requires an explicit AI decision compatible with aiRegister", () => {
   const missingDecision = makeValidBrief();
-  missingDecision.positioning.supportingSignals = [{
-    id: "test-data",
-    topic: "Test data",
-    decision: "include",
-    evidence: "A relevant evidence anchor.",
-    constraints: ["Do not overclaim ownership."],
-    cvEvidenceCheckId: "primary-lever-evidence",
-  }];
+  missingDecision.positioning.supportingSignals = [
+    {
+      id: "test-data",
+      topic: "Test data",
+      decision: "include",
+      evidence: "A relevant evidence anchor.",
+      constraints: ["Do not overclaim ownership."],
+      cvEvidenceCheckId: "primary-lever-evidence",
+    },
+  ];
   assert.match(validateApplicationBrief(missingDecision).join("\n"), /explicit AI\/LLM/);
 
   const includedAi = makeValidBrief();
@@ -698,12 +720,18 @@ test("application brief requires an explicit AI decision compatible with aiRegis
 test("supporting-signal evidence checks exist only for included signals", () => {
   const missingIncludedCheck = makeValidBrief();
   delete missingIncludedCheck.positioning.supportingSignals[0].cvEvidenceCheckId;
-  assert.match(validateApplicationBrief(missingIncludedCheck).join("\n"), /cvEvidenceCheckId must be a non-empty string/);
+  assert.match(
+    validateApplicationBrief(missingIncludedCheck).join("\n"),
+    /cvEvidenceCheckId must be a non-empty string/,
+  );
 
   const excludedSignal = makeValidBrief();
   excludedSignal.positioning.aiRegister = "work-only";
   excludedSignal.positioning.supportingSignals[0].decision = "exclude";
-  assert.match(validateApplicationBrief(excludedSignal).join("\n"), /cvEvidenceCheckId is allowed only when decision is include/);
+  assert.match(
+    validateApplicationBrief(excludedSignal).join("\n"),
+    /cvEvidenceCheckId is allowed only when decision is include/,
+  );
 
   const optionalSignal = makeValidBrief();
   optionalSignal.positioning.supportingSignals.push({
@@ -714,7 +742,10 @@ test("supporting-signal evidence checks exist only for included signals", () => 
     constraints: ["Use only when space permits."],
     cvEvidenceCheckId: "primary-lever-evidence",
   });
-  assert.match(validateApplicationBrief(optionalSignal).join("\n"), /cvEvidenceCheckId is allowed only when decision is include/);
+  assert.match(
+    validateApplicationBrief(optionalSignal).join("\n"),
+    /cvEvidenceCheckId is allowed only when decision is include/,
+  );
 });
 
 // The register rules read the properties of the selected levers from the candidate's bank. The
@@ -757,7 +788,10 @@ test("the work-only register cannot select a lever with an AI property, and a nu
     return validateApplicationBrief(brief, withBank).join("\n");
   };
   for (const leverId of [3, 5]) {
-    assert.match(workOnly(leverId), /work-only is incompatible with a selected lever with the ai-practice or ai-infrastructure property/);
+    assert.match(
+      workOnly(leverId),
+      /work-only is incompatible with a selected lever with the ai-practice or ai-infrastructure property/,
+    );
   }
   // Lever 2 of this bank carries no AI property, so work-only may select it.
   assert.equal(workOnly(2), "");
@@ -766,10 +800,16 @@ test("the work-only register cannot select a lever with an AI property, and a nu
 test("a lever id is checked against the candidate's bank, and structurally only as a positive integer", () => {
   const brief = makeValidBrief();
   brief.positioning.selectedLevers[0].id = 9;
-  assert.match(validateApplicationBrief(brief, withBank).join("\n"), /selectedLevers\[0\]\.id names no lever of candidate\/levers\.md/);
+  assert.match(
+    validateApplicationBrief(brief, withBank).join("\n"),
+    /selectedLevers\[0\]\.id names no lever of candidate\/levers\.md/,
+  );
   assert.deepEqual(validateApplicationBrief(brief), []);
   brief.positioning.selectedLevers[0].id = 0;
-  assert.match(validateApplicationBrief(brief).join("\n"), /selectedLevers\[0\]\.id must be a positive integer/);
+  assert.match(
+    validateApplicationBrief(brief).join("\n"),
+    /selectedLevers\[0\]\.id must be a positive integer/,
+  );
 
   // Bundle validation needs the bank, and a bank that breaks its own form is reported as such.
   const { candidateLeversBytes, ...withoutBank } = inputBytes;
@@ -778,7 +818,9 @@ test("a lever id is checked against the candidate's bank, and structurally only 
     /candidate\/levers\.md bytes are required for application-brief bundle validation/,
   );
   assert.match(
-    validateApplicationBrief(makeValidBrief(), { candidateLeversBytes: Buffer.from("# Levers\n\n## Positioning\n") }).join("\n"),
+    validateApplicationBrief(makeValidBrief(), {
+      candidateLeversBytes: Buffer.from("# Levers\n\n## Positioning\n"),
+    }).join("\n"),
     /^candidate\/levers\.md: /mu,
   );
 });
@@ -804,17 +846,22 @@ test("a brief published from an earlier profile path stays structurally valid an
   );
 });
 
-
 test("application brief rejects dangling CV evidence-check references", () => {
   const leverBrief = makeValidBrief();
   leverBrief.positioning.selectedLevers[0].cvEvidenceCheckIds = ["missing-lever-check"];
-  assert.match(validateApplicationBrief(leverBrief).join("\n"), /does not exist: missing-lever-check/);
+  assert.match(
+    validateApplicationBrief(leverBrief).join("\n"),
+    /does not exist: missing-lever-check/,
+  );
 
   const signalBrief = makeValidBrief();
   signalBrief.positioning.aiRegister = "broad";
   signalBrief.positioning.supportingSignals[0].decision = "include";
   signalBrief.positioning.supportingSignals[0].cvEvidenceCheckId = "missing-signal-check";
-  assert.match(validateApplicationBrief(signalBrief).join("\n"), /does not exist: missing-signal-check/);
+  assert.match(
+    validateApplicationBrief(signalBrief).join("\n"),
+    /does not exist: missing-signal-check/,
+  );
 
   const disconnectedLever = makeValidBrief();
   disconnectedLever.cvPlan.checks.requiredEvidence[0].evidenceIds = ["evidence-llm-work"];
@@ -828,41 +875,68 @@ test("application brief rejects dangling CV evidence-check references", () => {
 test("required evidence checks link to canonical priority evidence", () => {
   const missingLinks = makeValidBrief();
   delete missingLinks.cvPlan.checks.requiredEvidence[0].evidenceIds;
-  assert.match(validateApplicationBrief(missingLinks).join("\n"), /requiredEvidence\[0\]\.evidenceIds must be an array/);
+  assert.match(
+    validateApplicationBrief(missingLinks).join("\n"),
+    /requiredEvidence\[0\]\.evidenceIds must be an array/,
+  );
 
   const danglingLink = makeValidBrief();
   danglingLink.cvPlan.checks.requiredEvidence[0].evidenceIds = ["missing-evidence"];
-  assert.match(validateApplicationBrief(danglingLink).join("\n"), /evidenceIds reference does not exist: missing-evidence/);
+  assert.match(
+    validateApplicationBrief(danglingLink).join("\n"),
+    /evidenceIds reference does not exist: missing-evidence/,
+  );
 });
 
 test("every CV has a linked commercial LLM work signal in Experience", () => {
   const missingSignal = makeValidBrief();
   delete missingSignal.cvPlan.llmWorkSignal;
-  assert.match(validateApplicationBrief(missingSignal).join("\n"), /cvPlan\.llmWorkSignal must be an object/);
+  assert.match(
+    validateApplicationBrief(missingSignal).join("\n"),
+    /cvPlan\.llmWorkSignal must be an object/,
+  );
 
   const danglingEvidence = makeValidBrief();
   danglingEvidence.cvPlan.llmWorkSignal.evidenceId = "missing-llm-evidence";
-  assert.match(validateApplicationBrief(danglingEvidence).join("\n"), /llmWorkSignal\.evidenceId reference does not exist/);
+  assert.match(
+    validateApplicationBrief(danglingEvidence).join("\n"),
+    /llmWorkSignal\.evidenceId reference does not exist/,
+  );
 
   const danglingCheck = makeValidBrief();
   danglingCheck.cvPlan.llmWorkSignal.checkId = "missing-llm-check";
-  assert.match(validateApplicationBrief(danglingCheck).join("\n"), /llmWorkSignal\.checkId reference does not exist/);
+  assert.match(
+    validateApplicationBrief(danglingCheck).join("\n"),
+    /llmWorkSignal\.checkId reference does not exist/,
+  );
 
   const unlinkedEvidence = makeValidBrief();
   unlinkedEvidence.cvPlan.llmWorkSignal.evidenceId = "evidence-framework";
-  assert.match(validateApplicationBrief(unlinkedEvidence).join("\n"), /checkId must link its evidenceId/);
+  assert.match(
+    validateApplicationBrief(unlinkedEvidence).join("\n"),
+    /checkId must link its evidenceId/,
+  );
 
   const noExperience = makeValidBrief();
   noExperience.cvPlan.checks.requiredEvidence[1].placements = ["Skills"];
-  assert.match(validateApplicationBrief(noExperience).join("\n"), /llmWorkSignal check must target an Experience placement/);
+  assert.match(
+    validateApplicationBrief(noExperience).join("\n"),
+    /llmWorkSignal check must target an Experience placement/,
+  );
 
   const flexiblePlacement = makeValidBrief();
   flexiblePlacement.cvPlan.checks.requiredEvidence[1].placementMode = "any";
-  assert.match(validateApplicationBrief(flexiblePlacement).join("\n"), /llmWorkSignal check must use placementMode all/);
+  assert.match(
+    validateApplicationBrief(flexiblePlacement).join("\n"),
+    /llmWorkSignal check must use placementMode all/,
+  );
 
   const vagueWording = makeValidBrief();
   vagueWording.cvPlan.checks.requiredEvidence[1].anyOf = ["AI-assisted workflow"];
-  assert.match(validateApplicationBrief(vagueWording).join("\n"), /anyOf alternative must explicitly contain LLM/);
+  assert.match(
+    validateApplicationBrief(vagueWording).join("\n"),
+    /anyOf alternative must explicitly contain LLM/,
+  );
 });
 
 test("CV plan conditionals are validated", () => {
@@ -872,7 +946,10 @@ test("CV plan conditionals are validated", () => {
     text: null,
     rationale: "The target market requires an explicit work-model note.",
   };
-  assert.match(validateApplicationBrief(headerBrief).join("\n"), /headerPositioning\.text must be a non-empty string/);
+  assert.match(
+    validateApplicationBrief(headerBrief).join("\n"),
+    /headerPositioning\.text must be a non-empty string/,
+  );
 
   const projectBrief = makeValidBrief();
   projectBrief.cvPlan.projectDecision = {
@@ -880,7 +957,10 @@ test("CV plan conditionals are validated", () => {
     projectId: null,
     rationale: "The role values this project evidence.",
   };
-  assert.match(validateApplicationBrief(projectBrief).join("\n"), /projectDecision\.projectId must be a non-empty string/);
+  assert.match(
+    validateApplicationBrief(projectBrief).join("\n"),
+    /projectDecision\.projectId must be a non-empty string/,
+  );
 });
 
 test("market and header-positioning decisions stay consistent", () => {
@@ -890,11 +970,17 @@ test("market and header-positioning decisions stay consistent", () => {
     text: null,
     rationale: "Synthetic inconsistent decision.",
   };
-  assert.match(validateApplicationBrief(foreignBrief).join("\n"), /outside the home market requires.*mode explicit/);
+  assert.match(
+    validateApplicationBrief(foreignBrief).join("\n"),
+    /outside the home market requires.*mode explicit/,
+  );
 
   const homeBrief = makeValidBrief();
   homeBrief.role.market = exampleMarkets.home.name;
-  assert.match(validateApplicationBrief(homeBrief).join("\n"), /on the home market requires.*mode omit/);
+  assert.match(
+    validateApplicationBrief(homeBrief).join("\n"),
+    /on the home market requires.*mode omit/,
+  );
 });
 
 test("included projects require a linked required-evidence check in Projects", () => {
@@ -905,13 +991,19 @@ test("included projects require a linked required-evidence check in Projects", (
     rationale: "The project is relevant to the synthetic role.",
   };
   brief.experience.priorityEvidence[0].cvPlacements.push("Projects");
-  assert.match(validateApplicationBrief(brief).join("\n"), /projectDecision include requires at least one.*targeting Projects/);
+  assert.match(
+    validateApplicationBrief(brief).join("\n"),
+    /projectDecision include requires at least one.*targeting Projects/,
+  );
 });
 
 test("required-evidence placements must be allowed by linked evidence", () => {
   const allBrief = makeValidBrief();
   allBrief.cvPlan.checks.requiredEvidence[0].placements = ["Selected Impact", "Education"];
-  assert.match(validateApplicationBrief(allBrief).join("\n"), /placements not allowed by linked evidence cvPlacements: Education/);
+  assert.match(
+    validateApplicationBrief(allBrief).join("\n"),
+    /placements not allowed by linked evidence cvPlacements: Education/,
+  );
 
   const anyBrief = makeValidBrief();
   anyBrief.cvPlan.checks.requiredEvidence[0].placementMode = "any";
@@ -919,15 +1011,24 @@ test("required-evidence placements must be allowed by linked evidence", () => {
   assert.deepEqual(validateApplicationBrief(anyBrief), []);
 
   anyBrief.cvPlan.checks.requiredEvidence[0].placements = ["Education", "Header"];
-  assert.match(validateApplicationBrief(anyBrief).join("\n"), /placements has no placement allowed by linked evidence/);
+  assert.match(
+    validateApplicationBrief(anyBrief).join("\n"),
+    /placements has no placement allowed by linked evidence/,
+  );
 });
 
 test("chronological plans reject Selected Impact placements and multiple variants", () => {
   const brief = makeValidBrief();
   brief.cvPlan.structure = "chronological";
   let errors = validateApplicationBrief(brief).join("\n");
-  assert.match(errors, /experience\.priorityEvidence\[0\]\.cvPlacements cannot target Selected Impact/);
-  assert.match(errors, /cvPlan\.checks\.requiredEvidence\[0\]\.placements cannot target Selected Impact/);
+  assert.match(
+    errors,
+    /experience\.priorityEvidence\[0\]\.cvPlacements cannot target Selected Impact/,
+  );
+  assert.match(
+    errors,
+    /cvPlan\.checks\.requiredEvidence\[0\]\.placements cannot target Selected Impact/,
+  );
 
   brief.experience.priorityEvidence[0].cvPlacements = ["Experience:<company>"];
   brief.cvPlan.checks.requiredEvidence[0].placements = ["Experience:<company>"];
@@ -957,94 +1058,331 @@ test("required content cannot conflict with forbidden terms", () => {
     term: "  typescript  ",
     reason: "Synthetic contradiction.",
   });
-  assert.match(validateApplicationBrief(keywordBrief).join("\n"), /ats\.keywords\[0\]\.term conflicts/);
+  assert.match(
+    validateApplicationBrief(keywordBrief).join("\n"),
+    /ats\.keywords\[0\]\.term conflicts/,
+  );
 
   const compoundKeywordBrief = makeValidBrief();
   compoundKeywordBrief.ats.keywords[0].term = "AI-assisted";
   compoundKeywordBrief.coverLetterPlan.keywordTerms[0] = "AI-assisted";
-  compoundKeywordBrief.cvPlan.checks.forbiddenTerms.push({ term: "AI", reason: "Synthetic contradiction." });
-  assert.match(validateApplicationBrief(compoundKeywordBrief).join("\n"), /ats\.keywords\[0\]\.term conflicts/);
+  compoundKeywordBrief.cvPlan.checks.forbiddenTerms.push({
+    term: "AI",
+    reason: "Synthetic contradiction.",
+  });
+  assert.match(
+    validateApplicationBrief(compoundKeywordBrief).join("\n"),
+    /ats\.keywords\[0\]\.term conflicts/,
+  );
 
   const evidenceBrief = makeValidBrief();
-  evidenceBrief.cvPlan.checks.forbiddenTerms.push({ term: "AI", reason: "Synthetic contradiction." });
-  evidenceBrief.cvPlan.checks.requiredEvidence[1].anyOf = ["AI-powered LLM", "AI-assisted LLM workflow"];
-  assert.match(validateApplicationBrief(evidenceBrief).join("\n"), /requiredEvidence\[1\]\.anyOf is unsatisfiable/);
+  evidenceBrief.cvPlan.checks.forbiddenTerms.push({
+    term: "AI",
+    reason: "Synthetic contradiction.",
+  });
+  evidenceBrief.cvPlan.checks.requiredEvidence[1].anyOf = [
+    "AI-powered LLM",
+    "AI-assisted LLM workflow",
+  ];
+  assert.match(
+    validateApplicationBrief(evidenceBrief).join("\n"),
+    /requiredEvidence\[1\]\.anyOf is unsatisfiable/,
+  );
 
   evidenceBrief.cvPlan.checks.requiredEvidence[1].anyOf.push("LLM with human review");
-  assert.doesNotMatch(validateApplicationBrief(evidenceBrief).join("\n"), /requiredEvidence\[1\]\.anyOf is unsatisfiable/);
+  assert.doesNotMatch(
+    validateApplicationBrief(evidenceBrief).join("\n"),
+    /requiredEvidence\[1\]\.anyOf is unsatisfiable/,
+  );
 });
 
 test("cover-letter plan references canonical evidence IDs and exact ATS terms", () => {
   const evidenceBrief = makeValidBrief();
   evidenceBrief.coverLetterPlan.evidenceIds = ["missing-evidence"];
-  assert.match(validateApplicationBrief(evidenceBrief).join("\n"), /evidenceIds reference does not exist: missing-evidence/);
+  assert.match(
+    validateApplicationBrief(evidenceBrief).join("\n"),
+    /evidenceIds reference does not exist: missing-evidence/,
+  );
 
   const keywordBrief = makeValidBrief();
   keywordBrief.coverLetterPlan.keywordTerms[0] = "Keyword-1";
-  assert.match(validateApplicationBrief(keywordBrief).join("\n"), /exact reference does not exist: Keyword-1/);
+  assert.match(
+    validateApplicationBrief(keywordBrief).join("\n"),
+    /exact reference does not exist: Keyword-1/,
+  );
 });
 
 test("legacy top-level contentChecks cannot coexist with cvPlan.checks", () => {
   const brief = makeValidBrief();
   brief.contentChecks = structuredClone(brief.cvPlan.checks);
-  assert.match(validateApplicationBrief(brief).join("\n"), /contentChecks is obsolete.*cvPlan\.checks/);
+  assert.match(
+    validateApplicationBrief(brief).join("\n"),
+    /contentChecks is obsolete.*cvPlan\.checks/,
+  );
 });
 
 test("schemaVersion 4 rejects unknown keys throughout decision containers", async (t) => {
   const cases = [
-    ["cvPlans", (brief) => { brief.cvPlans = {}; }, /unknown top-level key: cvPlans/],
-    ["top-level alternatives", (brief) => { brief.alternatives = []; }, /unknown top-level key: alternatives/],
-    ["unknown top-level key", (brief) => { brief.unexpected = true; }, /unknown top-level key: unexpected/],
-    ["process", (brief) => { brief.process.unexpected = true; }, /process contains unknown key: unexpected/],
-    ["inputs", (brief) => { brief.inputs.unexpected = true; }, /inputs contains unknown key: unexpected/],
-    ["input reference", (brief) => { brief.inputs.vacancy.unexpected = true; }, /inputs\.vacancy contains unknown key: unexpected/],
-    ["role", (brief) => { brief.role.unexpected = true; }, /role contains unknown key: unexpected/],
-    ["feasibility", (brief) => { brief.role.feasibility.unexpected = true; }, /role\.feasibility contains unknown key: unexpected/],
-    ["work model", (brief) => { brief.role.feasibility.workModel.unexpected = true; }, /workModel contains unknown key: unexpected/],
-    ["company", (brief) => { brief.company.unexpected = true; }, /company contains unknown key: unexpected/],
-    ["challenge evidence", (brief) => { brief.company.challengeEvidence.unexpected = true; }, /challengeEvidence contains unknown key: unexpected/],
-    ["company value", (brief) => { brief.company.values[0].unexpected = true; }, /company\.values\[0\] contains unknown key: unexpected/],
-    ["company hook", (brief) => { brief.company.tailoringHooks[0].unexpected = true; }, /tailoringHooks\[0\] contains unknown key: unexpected/],
-    ["positioning", (brief) => { brief.positioning.unexpected = true; }, /positioning contains unknown key: unexpected/],
-    ["selected lever", (brief) => { brief.positioning.selectedLevers[0].unexpected = true; }, /selectedLevers\[0\] contains unknown key: unexpected/],
-    ["supporting signal", (brief) => { brief.positioning.supportingSignals[0].unexpected = true; }, /supportingSignals\[0\] contains unknown key: unexpected/],
-    ["experience", (brief) => { brief.experience.unexpected = true; }, /experience contains unknown key: unexpected/],
-    ["priority evidence", (brief) => { brief.experience.priorityEvidence[0].unexpected = true; }, /priorityEvidence\[0\] contains unknown key: unexpected/],
-    ["profile pointer", (brief) => { brief.experience.traits[0].profileSource.unexpected = true; }, /profileSource contains unknown key: unexpected/],
-    ["trait", (brief) => { brief.experience.traits[0].unexpected = true; }, /experience\.traits\[0\] contains unknown key: unexpected/],
-    ["gap", (brief) => {
-      const index = brief.experience.gaps.push({
-        id: "gap-01",
-        requirement: "Synthetic requirement",
-        classification: "hard",
-        transferableSupport: { status: "none", evidenceIds: [] },
-        framing: "Do not claim it.",
-        unexpected: true,
-      }) - 1;
-      return new RegExp(`experience\\.gaps\\[${index}\\] contains unknown key: unexpected`);
-    }, null],
-    ["gap support", (brief) => {
-      brief.experience.gaps.push({
-        id: "gap-01",
-        requirement: "Synthetic requirement",
-        classification: "hard",
-        transferableSupport: { status: "none", evidenceIds: [], unexpected: true },
-        framing: "Do not claim it.",
-      });
-    }, /transferableSupport contains unknown key: unexpected/],
-    ["ATS", (brief) => { brief.ats.unexpected = true; }, /ats contains unknown key: unexpected/],
-    ["keyword", (brief) => { brief.ats.keywords[0].unexpected = true; }, /ats\.keywords\[0\] contains unknown key: unexpected/],
-    ["keyword support", (brief) => { brief.ats.keywords[0].support.unexpected = true; }, /support contains unknown key: unexpected/],
-    ["cvPlan alternatives", (brief) => { brief.cvPlan.alternatives = []; }, /cvPlan contains unknown key: alternatives/],
-    ["unknown cvPlan key", (brief) => { brief.cvPlan.unexpected = true; }, /cvPlan contains unknown key: unexpected/],
-    ["header positioning", (brief) => { brief.cvPlan.headerPositioning.unexpected = true; }, /headerPositioning contains unknown key: unexpected/],
-    ["project decision", (brief) => { brief.cvPlan.projectDecision.unexpected = true; }, /projectDecision contains unknown key: unexpected/],
-    ["CV checks", (brief) => { brief.cvPlan.checks.unexpected = true; }, /cvPlan\.checks contains unknown key: unexpected/],
-    ["required evidence check", (brief) => { brief.cvPlan.checks.requiredEvidence[0].unexpected = true; }, /requiredEvidence\[0\] contains unknown key: unexpected/],
-    ["forbidden term", (brief) => { brief.cvPlan.checks.forbiddenTerms[0].unexpected = true; }, /forbiddenTerms\[0\] contains unknown key: unexpected/],
-    ["skill group", (brief) => { brief.cvPlan.checks.skillGroups[0].unexpected = true; }, /skillGroups\[0\] contains unknown key: unexpected/],
-    ["LLM work signal", (brief) => { brief.cvPlan.llmWorkSignal.unexpected = true; }, /llmWorkSignal contains unknown key: unexpected/],
-    ["cover-letter plan", (brief) => { brief.coverLetterPlan.unexpected = true; }, /coverLetterPlan contains unknown key: unexpected/],
+    [
+      "cvPlans",
+      (brief) => {
+        brief.cvPlans = {};
+      },
+      /unknown top-level key: cvPlans/,
+    ],
+    [
+      "top-level alternatives",
+      (brief) => {
+        brief.alternatives = [];
+      },
+      /unknown top-level key: alternatives/,
+    ],
+    [
+      "unknown top-level key",
+      (brief) => {
+        brief.unexpected = true;
+      },
+      /unknown top-level key: unexpected/,
+    ],
+    [
+      "process",
+      (brief) => {
+        brief.process.unexpected = true;
+      },
+      /process contains unknown key: unexpected/,
+    ],
+    [
+      "inputs",
+      (brief) => {
+        brief.inputs.unexpected = true;
+      },
+      /inputs contains unknown key: unexpected/,
+    ],
+    [
+      "input reference",
+      (brief) => {
+        brief.inputs.vacancy.unexpected = true;
+      },
+      /inputs\.vacancy contains unknown key: unexpected/,
+    ],
+    [
+      "role",
+      (brief) => {
+        brief.role.unexpected = true;
+      },
+      /role contains unknown key: unexpected/,
+    ],
+    [
+      "feasibility",
+      (brief) => {
+        brief.role.feasibility.unexpected = true;
+      },
+      /role\.feasibility contains unknown key: unexpected/,
+    ],
+    [
+      "work model",
+      (brief) => {
+        brief.role.feasibility.workModel.unexpected = true;
+      },
+      /workModel contains unknown key: unexpected/,
+    ],
+    [
+      "company",
+      (brief) => {
+        brief.company.unexpected = true;
+      },
+      /company contains unknown key: unexpected/,
+    ],
+    [
+      "challenge evidence",
+      (brief) => {
+        brief.company.challengeEvidence.unexpected = true;
+      },
+      /challengeEvidence contains unknown key: unexpected/,
+    ],
+    [
+      "company value",
+      (brief) => {
+        brief.company.values[0].unexpected = true;
+      },
+      /company\.values\[0\] contains unknown key: unexpected/,
+    ],
+    [
+      "company hook",
+      (brief) => {
+        brief.company.tailoringHooks[0].unexpected = true;
+      },
+      /tailoringHooks\[0\] contains unknown key: unexpected/,
+    ],
+    [
+      "positioning",
+      (brief) => {
+        brief.positioning.unexpected = true;
+      },
+      /positioning contains unknown key: unexpected/,
+    ],
+    [
+      "selected lever",
+      (brief) => {
+        brief.positioning.selectedLevers[0].unexpected = true;
+      },
+      /selectedLevers\[0\] contains unknown key: unexpected/,
+    ],
+    [
+      "supporting signal",
+      (brief) => {
+        brief.positioning.supportingSignals[0].unexpected = true;
+      },
+      /supportingSignals\[0\] contains unknown key: unexpected/,
+    ],
+    [
+      "experience",
+      (brief) => {
+        brief.experience.unexpected = true;
+      },
+      /experience contains unknown key: unexpected/,
+    ],
+    [
+      "priority evidence",
+      (brief) => {
+        brief.experience.priorityEvidence[0].unexpected = true;
+      },
+      /priorityEvidence\[0\] contains unknown key: unexpected/,
+    ],
+    [
+      "profile pointer",
+      (brief) => {
+        brief.experience.traits[0].profileSource.unexpected = true;
+      },
+      /profileSource contains unknown key: unexpected/,
+    ],
+    [
+      "trait",
+      (brief) => {
+        brief.experience.traits[0].unexpected = true;
+      },
+      /experience\.traits\[0\] contains unknown key: unexpected/,
+    ],
+    [
+      "gap",
+      (brief) => {
+        const index =
+          brief.experience.gaps.push({
+            id: "gap-01",
+            requirement: "Synthetic requirement",
+            classification: "hard",
+            transferableSupport: { status: "none", evidenceIds: [] },
+            framing: "Do not claim it.",
+            unexpected: true,
+          }) - 1;
+        return new RegExp(`experience\\.gaps\\[${index}\\] contains unknown key: unexpected`);
+      },
+      null,
+    ],
+    [
+      "gap support",
+      (brief) => {
+        brief.experience.gaps.push({
+          id: "gap-01",
+          requirement: "Synthetic requirement",
+          classification: "hard",
+          transferableSupport: { status: "none", evidenceIds: [], unexpected: true },
+          framing: "Do not claim it.",
+        });
+      },
+      /transferableSupport contains unknown key: unexpected/,
+    ],
+    [
+      "ATS",
+      (brief) => {
+        brief.ats.unexpected = true;
+      },
+      /ats contains unknown key: unexpected/,
+    ],
+    [
+      "keyword",
+      (brief) => {
+        brief.ats.keywords[0].unexpected = true;
+      },
+      /ats\.keywords\[0\] contains unknown key: unexpected/,
+    ],
+    [
+      "keyword support",
+      (brief) => {
+        brief.ats.keywords[0].support.unexpected = true;
+      },
+      /support contains unknown key: unexpected/,
+    ],
+    [
+      "cvPlan alternatives",
+      (brief) => {
+        brief.cvPlan.alternatives = [];
+      },
+      /cvPlan contains unknown key: alternatives/,
+    ],
+    [
+      "unknown cvPlan key",
+      (brief) => {
+        brief.cvPlan.unexpected = true;
+      },
+      /cvPlan contains unknown key: unexpected/,
+    ],
+    [
+      "header positioning",
+      (brief) => {
+        brief.cvPlan.headerPositioning.unexpected = true;
+      },
+      /headerPositioning contains unknown key: unexpected/,
+    ],
+    [
+      "project decision",
+      (brief) => {
+        brief.cvPlan.projectDecision.unexpected = true;
+      },
+      /projectDecision contains unknown key: unexpected/,
+    ],
+    [
+      "CV checks",
+      (brief) => {
+        brief.cvPlan.checks.unexpected = true;
+      },
+      /cvPlan\.checks contains unknown key: unexpected/,
+    ],
+    [
+      "required evidence check",
+      (brief) => {
+        brief.cvPlan.checks.requiredEvidence[0].unexpected = true;
+      },
+      /requiredEvidence\[0\] contains unknown key: unexpected/,
+    ],
+    [
+      "forbidden term",
+      (brief) => {
+        brief.cvPlan.checks.forbiddenTerms[0].unexpected = true;
+      },
+      /forbiddenTerms\[0\] contains unknown key: unexpected/,
+    ],
+    [
+      "skill group",
+      (brief) => {
+        brief.cvPlan.checks.skillGroups[0].unexpected = true;
+      },
+      /skillGroups\[0\] contains unknown key: unexpected/,
+    ],
+    [
+      "LLM work signal",
+      (brief) => {
+        brief.cvPlan.llmWorkSignal.unexpected = true;
+      },
+      /llmWorkSignal contains unknown key: unexpected/,
+    ],
+    [
+      "cover-letter plan",
+      (brief) => {
+        brief.coverLetterPlan.unexpected = true;
+      },
+      /coverLetterPlan contains unknown key: unexpected/,
+    ],
   ];
 
   // A mutation that appends to a contract array cannot pin an index the fixture owns, so it

@@ -3,7 +3,11 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { candidateLanguageNames, candidateMarkets, candidateRootForCommand } from "../candidate/load.mjs";
+import {
+  candidateLanguageNames,
+  candidateMarkets,
+  candidateRootForCommand,
+} from "../candidate/load.mjs";
 import { MARKET_SIDES } from "../candidate/markets.mjs";
 import {
   parseJsonBytes,
@@ -122,22 +126,17 @@ function validateCoverage(value, companyVariants, market, errors) {
 
   rows.forEach((entry, index) => {
     const path = `sourceCoverage[${index}]`;
-    const row = validateStrictObject(
-      entry,
-      path,
-      errors,
-      [
-        "category",
-        "status",
-        "sourceIds",
-        "openedPrimaryUrls",
-        "queries",
-        "nameVariants",
-        "fallbackAttempted",
-        "confidence",
-        "details",
-      ],
-    );
+    const row = validateStrictObject(entry, path, errors, [
+      "category",
+      "status",
+      "sourceIds",
+      "openedPrimaryUrls",
+      "queries",
+      "nameVariants",
+      "fallbackAttempted",
+      "confidence",
+      "details",
+    ]);
     validateEnum(row.category, `${path}.category`, errors, RESEARCH_CATEGORIES);
     let storesCategory = false;
     if (RESEARCH_CATEGORIES.includes(row.category)) {
@@ -149,7 +148,11 @@ function validateCoverage(value, companyVariants, market, errors) {
     }
     validateEnum(row.status, `${path}.status`, errors, COVERAGE_STATUSES);
     const sourceIds = validateStringArray(row.sourceIds, `${path}.sourceIds`, errors);
-    const openedUrls = validateStringArray(row.openedPrimaryUrls, `${path}.openedPrimaryUrls`, errors);
+    const openedUrls = validateStringArray(
+      row.openedPrimaryUrls,
+      `${path}.openedPrimaryUrls`,
+      errors,
+    );
     openedUrls.forEach((url, urlIndex) => {
       validateHttpUrl(url, `${path}.openedPrimaryUrls[${urlIndex}]`, errors);
     });
@@ -161,7 +164,9 @@ function validateCoverage(value, companyVariants, market, errors) {
     validateUniqueStrings(nameVariants, `${path}.nameVariants`, errors);
     for (const nameVariant of nameVariants) {
       if (!companyVariants.has(nameVariant)) {
-        errors.push(`${path}.nameVariants reference is missing from companyNameVariants: ${nameVariant}`);
+        errors.push(
+          `${path}.nameVariants reference is missing from companyNameVariants: ${nameVariant}`,
+        );
       }
     }
     validateNullableString(row.fallbackAttempted, `${path}.fallbackAttempted`, errors);
@@ -169,18 +174,24 @@ function validateCoverage(value, companyVariants, market, errors) {
     validateString(row.details, `${path}.details`, errors);
 
     if (row.status === "checked") {
-      if (!sourceIds.length) errors.push(`${path}.sourceIds must contain primary sources when checked`);
-      if (!openedUrls.length) errors.push(`${path}.openedPrimaryUrls must contain primary URLs when checked`);
-      if (row.fallbackAttempted !== null) errors.push(`${path}.fallbackAttempted must be null when checked`);
+      if (!sourceIds.length)
+        errors.push(`${path}.sourceIds must contain primary sources when checked`);
+      if (!openedUrls.length)
+        errors.push(`${path}.openedPrimaryUrls must contain primary URLs when checked`);
+      if (row.fallbackAttempted !== null)
+        errors.push(`${path}.fallbackAttempted must be null when checked`);
       if (row.confidence === "not-applicable") {
         errors.push(`${path}.confidence cannot be not-applicable when checked`);
       }
     } else if (row.status === "not-found") {
       requireEmpty(sourceIds, `${path}.sourceIds`, row.status, errors);
       requireEmpty(openedUrls, `${path}.openedPrimaryUrls`, row.status, errors);
-      if (!queries.length) errors.push(`${path}.queries must document exact searches when not-found`);
-      if (!nameVariants.length) errors.push(`${path}.nameVariants must document searched names when not-found`);
-      if (row.fallbackAttempted !== null) errors.push(`${path}.fallbackAttempted must be null when not-found`);
+      if (!queries.length)
+        errors.push(`${path}.queries must document exact searches when not-found`);
+      if (!nameVariants.length)
+        errors.push(`${path}.nameVariants must document searched names when not-found`);
+      if (row.fallbackAttempted !== null)
+        errors.push(`${path}.fallbackAttempted must be null when not-found`);
       if (row.confidence === "not-applicable") {
         errors.push(`${path}.confidence cannot be not-applicable when not-found`);
       }
@@ -188,8 +199,10 @@ function validateCoverage(value, companyVariants, market, errors) {
       requireEmpty(sourceIds, `${path}.sourceIds`, row.status, errors);
       requireEmpty(openedUrls, `${path}.openedPrimaryUrls`, row.status, errors);
       if (!queries.length) errors.push(`${path}.queries must document the blocked discovery route`);
-      if (!nameVariants.length) errors.push(`${path}.nameVariants must document names tried when blocked`);
-      if (row.fallbackAttempted === null) errors.push(`${path}.fallbackAttempted is required when blocked`);
+      if (!nameVariants.length)
+        errors.push(`${path}.nameVariants must document names tried when blocked`);
+      if (row.fallbackAttempted === null)
+        errors.push(`${path}.fallbackAttempted is required when blocked`);
       if (row.confidence === "not-applicable") {
         errors.push(`${path}.confidence cannot be not-applicable when blocked`);
       }
@@ -198,12 +211,15 @@ function validateCoverage(value, companyVariants, market, errors) {
       requireEmpty(openedUrls, `${path}.openedPrimaryUrls`, row.status, errors);
       requireEmpty(queries, `${path}.queries`, row.status, errors);
       requireEmpty(nameVariants, `${path}.nameVariants`, row.status, errors);
-      if (row.fallbackAttempted !== null) errors.push(`${path}.fallbackAttempted must be null when n/a`);
+      if (row.fallbackAttempted !== null)
+        errors.push(`${path}.fallbackAttempted must be null when n/a`);
       if (row.confidence !== "not-applicable") {
         errors.push(`${path}.confidence must be not-applicable when n/a`);
       }
       if (row.category !== "contractor_payment_logistics" || market.side !== MARKET_SIDES.home) {
-        errors.push(`${path}.status n/a is allowed only for contractor_payment_logistics on the home market`);
+        errors.push(
+          `${path}.status n/a is allowed only for contractor_payment_logistics on the home market`,
+        );
       }
     }
     if (storesCategory) {
@@ -244,13 +260,24 @@ function validateSources(value, coverageByCategory, errors) {
 
   entries.forEach((entry, index) => {
     const path = `sources[${index}]`;
-    const source = validateStrictObject(
-      entry,
-      path,
+    const source = validateStrictObject(entry, path, errors, [
+      "id",
+      "category",
+      "url",
+      "title",
+      "owner",
+      "observedAt",
+      "sourceType",
+      "quotes",
+      "notes",
+    ]);
+    const id = validateIdentifier(
+      source.id,
+      `${path}.id`,
       errors,
-      ["id", "category", "url", "title", "owner", "observedAt", "sourceType", "quotes", "notes"],
+      /^S\d{2,}$/,
+      "an id such as S01",
     );
-    const id = validateIdentifier(source.id, `${path}.id`, errors, /^S\d{2,}$/, "an id such as S01");
     if (id && sourcesById.has(id)) errors.push(`duplicate source id: ${id}`);
     if (id && !sourcesById.has(id)) sourcesById.set(id, source);
     validateEnum(source.category, `${path}.category`, errors, RESEARCH_CATEGORIES);
@@ -267,12 +294,10 @@ function validateSources(value, coverageByCategory, errors) {
     const quotes = validateArray(source.quotes, `${path}.quotes`, errors);
     quotes.forEach((entryQuote, quoteIndex) => {
       const quotePath = `${path}.quotes[${quoteIndex}]`;
-      const quote = validateStrictObject(
-        entryQuote,
-        quotePath,
-        errors,
-        ["original", "translation"],
-      );
+      const quote = validateStrictObject(entryQuote, quotePath, errors, [
+        "original",
+        "translation",
+      ]);
       validateString(quote.original, `${quotePath}.original`, errors);
       validateString(quote.translation, `${quotePath}.translation`, errors);
     });
@@ -305,7 +330,9 @@ function validateSources(value, coverageByCategory, errors) {
     );
     for (const url of coverageUrls) {
       if (!expectedUrls.has(url)) {
-        errors.push(`sourceCoverage.${category}.openedPrimaryUrls has no matching source record: ${url}`);
+        errors.push(
+          `sourceCoverage.${category}.openedPrimaryUrls has no matching source record: ${url}`,
+        );
       }
     }
     if (category === "stated_values") {
@@ -313,14 +340,17 @@ function validateSources(value, coverageByCategory, errors) {
         const quotes = sourcesById.get(sourceId)?.quotes;
         return Array.isArray(quotes) && quotes.length > 0;
       });
-      if (!hasQuote) errors.push("checked stated_values coverage requires an original quote and its translation");
+      if (!hasQuote)
+        errors.push(
+          "checked stated_values coverage requires an original quote and its translation",
+        );
     }
     if (category === "other_vacancies" && coverageSourceIds.length < 2) {
       errors.push("checked other_vacancies coverage requires at least two primary board sources");
     }
     if (
-      category === "employee_profiles"
-      && (coverageSourceIds.length < 2 || coverageSourceIds.length > 4)
+      category === "employee_profiles" &&
+      (coverageSourceIds.length < 2 || coverageSourceIds.length > 4)
     ) {
       errors.push("checked employee_profiles coverage requires two to four current profiles");
     }
@@ -329,18 +359,15 @@ function validateSources(value, coverageByCategory, errors) {
   return sourcesById;
 }
 
-function validateClaim(
-  entry,
-  path,
-  errors,
-  state,
-) {
-  const claim = validateStrictObject(
-    entry,
-    path,
-    errors,
-    ["id", "text", "evidenceStatus", "sourceIds", "inferenceBasis", "scope"],
-  );
+function validateClaim(entry, path, errors, state) {
+  const claim = validateStrictObject(entry, path, errors, [
+    "id",
+    "text",
+    "evidenceStatus",
+    "sourceIds",
+    "inferenceBasis",
+    "scope",
+  ]);
   const id = validateIdentifier(claim.id, `${path}.id`, errors, /^C\d{2,}$/, "an id such as C01");
   if (id && state.claimsById.has(id)) errors.push(`duplicate claim id: ${id}`);
   if (id && !state.claimsById.has(id)) state.claimsById.set(id, claim);
@@ -356,8 +383,8 @@ function validateClaim(
     if (!source) {
       errors.push(`${path}.sourceIds reference does not exist: ${sourceId}`);
     } else if (
-      claim.evidenceStatus === "verified"
-      && state.coverageByCategory.get(source.category)?.status !== "checked"
+      claim.evidenceStatus === "verified" &&
+      state.coverageByCategory.get(source.category)?.status !== "checked"
     ) {
       errors.push(`${path} verified claim must resolve to a checked primary source: ${sourceId}`);
     }
@@ -384,25 +411,23 @@ function validateAnalysis(value, coverageByCategory, sourcesById, errors) {
 
   for (const blockName of ANALYSIS_BLOCKS) {
     const path = `analysis.${blockName}`;
-    const allowedKeys = blockName === "aiLiteracyEvidence"
-      ? ["summary", "classification", "claims"]
-      : ["summary", "claims"];
+    const allowedKeys =
+      blockName === "aiLiteracyEvidence"
+        ? ["summary", "classification", "claims"]
+        : ["summary", "claims"];
     const block = validateStrictObject(analysis[blockName], path, errors, allowedKeys);
     validateString(block.summary, `${path}.summary`, errors);
     if (blockName === "aiLiteracyEvidence") {
       validateEnum(block.classification, `${path}.classification`, errors, AI_CLASSIFICATIONS);
     }
     const claims = validateArray(block.claims, `${path}.claims`, errors);
-    const validatedClaims = claims.map((claim, index) => validateClaim(
-      claim,
-      `${path}.claims[${index}]`,
-      errors,
-      state,
-    ));
+    const validatedClaims = claims.map((claim, index) =>
+      validateClaim(claim, `${path}.claims[${index}]`, errors, state),
+    );
     if (
-      blockName === "aiLiteracyEvidence"
-      && block.classification !== "unknown"
-      && !validatedClaims.some((claim) => claim.evidenceStatus === "verified")
+      blockName === "aiLiteracyEvidence" &&
+      block.classification !== "unknown" &&
+      !validatedClaims.some((claim) => claim.evidenceStatus === "verified")
     ) {
       errors.push(`${path}.classification ${block.classification} requires a verified claim`);
     }
@@ -423,12 +448,13 @@ function validateTailoringHooks(value, claimsById, sourcesById, errors) {
   const hookIds = new Set();
   hooks.forEach((entry, index) => {
     const path = `tailoringHooks[${index}]`;
-    const hook = validateStrictObject(
-      entry,
-      path,
-      errors,
-      ["id", "challengeType", "fact", "claimIds", "sourceIds"],
-    );
+    const hook = validateStrictObject(entry, path, errors, [
+      "id",
+      "challengeType",
+      "fact",
+      "claimIds",
+      "sourceIds",
+    ]);
     const id = validateIdentifier(hook.id, `${path}.id`, errors, /^H\d{2,}$/, "an id such as H01");
     if (id && hookIds.has(id)) errors.push(`duplicate tailoring hook id: ${id}`);
     if (id) hookIds.add(id);
@@ -464,13 +490,18 @@ function validateOpenQuestions(value, errors) {
   let priorWeight = -1;
   questions.forEach((entry, index) => {
     const path = `openQuestions[${index}]`;
-    const question = validateStrictObject(
-      entry,
-      path,
+    const question = validateStrictObject(entry, path, errors, [
+      "id",
+      "decisionWeight",
+      "question",
+    ]);
+    const id = validateIdentifier(
+      question.id,
+      `${path}.id`,
       errors,
-      ["id", "decisionWeight", "question"],
+      /^Q\d{2,}$/,
+      "an id such as Q01",
     );
-    const id = validateIdentifier(question.id, `${path}.id`, errors, /^Q\d{2,}$/, "an id such as Q01");
     if (id && questionIds.has(id)) errors.push(`duplicate open question id: ${id}`);
     if (id) questionIds.add(id);
     validateEnum(question.decisionWeight, `${path}.decisionWeight`, errors, DECISION_WEIGHTS);
@@ -484,12 +515,11 @@ function validateOpenQuestions(value, errors) {
 }
 
 function validateVerifyGate(value, errors) {
-  const gate = validateStrictObject(
-    value,
-    "verifyGate",
-    errors,
-    ["status", "checkedInvariants", "unrecoverableGaps"],
-  );
+  const gate = validateStrictObject(value, "verifyGate", errors, [
+    "status",
+    "checkedInvariants",
+    "unrecoverableGaps",
+  ]);
   validateEnum(gate.status, "verifyGate.status", errors, GATE_STATUSES);
   const invariants = validateArray(gate.checkedInvariants, "verifyGate.checkedInvariants", errors);
   const invariantStates = new Map();
@@ -538,11 +568,14 @@ function validateVerifyGate(value, errors) {
 
   const blockedInvariants = [...invariantStates.values()].filter((status) => status === "blocked");
   if (gate.status === "pass") {
-    if (blockedInvariants.length) errors.push("verifyGate.status pass requires every invariant to pass");
+    if (blockedInvariants.length)
+      errors.push("verifyGate.status pass requires every invariant to pass");
     if (gaps.length) errors.push("verifyGate.unrecoverableGaps must be empty when status is pass");
   } else if (gate.status === "blocked") {
-    if (!blockedInvariants.length) errors.push("verifyGate.status blocked requires a blocked invariant");
-    if (!gaps.length) errors.push("verifyGate.status blocked requires at least one unrecoverable gap");
+    if (!blockedInvariants.length)
+      errors.push("verifyGate.status blocked requires a blocked invariant");
+    if (!gaps.length)
+      errors.push("verifyGate.status blocked requires at least one unrecoverable gap");
   }
   return gate;
 }
@@ -560,24 +593,19 @@ export function validateCompanyResearch(
   } = {},
 ) {
   const errors = [];
-  const root = validateStrictObject(
-    research,
-    "companyResearch",
-    errors,
-    [
-      "schemaVersion",
-      "createdAt",
-      "process",
-      "inputs",
-      "companyNameVariants",
-      "sourceCoverage",
-      "sources",
-      "analysis",
-      "tailoringHooks",
-      "openQuestions",
-      "verifyGate",
-    ],
-  );
+  const root = validateStrictObject(research, "companyResearch", errors, [
+    "schemaVersion",
+    "createdAt",
+    "process",
+    "inputs",
+    "companyNameVariants",
+    "sourceCoverage",
+    "sources",
+    "analysis",
+    "tailoringHooks",
+    "openQuestions",
+    "verifyGate",
+  ]);
   if (!RESEARCH_SCHEMA_VERSIONS.includes(root.schemaVersion)) {
     errors.push(`schemaVersion must be one of: ${RESEARCH_SCHEMA_VERSIONS.join(", ")}`);
   } else if (expectedSchemaVersion !== undefined && root.schemaVersion !== expectedSchemaVersion) {
@@ -585,19 +613,19 @@ export function validateCompanyResearch(
   }
   validateIsoTimestamp(root.createdAt, "createdAt", errors);
 
-  const process = validateStrictObject(
-    root.process,
-    "process",
-    errors,
-    ["id", "sourceRef", "outputDir"],
-  );
+  const process = validateStrictObject(root.process, "process", errors, [
+    "id",
+    "sourceRef",
+    "outputDir",
+  ]);
   validateString(process.id, "process.id", errors);
   validateString(process.sourceRef, "process.sourceRef", errors);
   validateOutputDir(process.outputDir, "process.outputDir", errors);
   validateExpectedProcess(process, expectedProcess, errors);
 
   const inputs = validateStrictObject(root.inputs, "inputs", errors, ["vacancy", "jobDescription"]);
-  if (vacancyBytes === undefined) errors.push("vacancy.json bytes are required for bundle validation");
+  if (vacancyBytes === undefined)
+    errors.push("vacancy.json bytes are required for bundle validation");
   if (jobDescriptionBytes === undefined) {
     errors.push("job-description.txt bytes are required for bundle validation");
   }
@@ -613,19 +641,20 @@ export function validateCompanyResearch(
     contentBytes: jobDescriptionBytes,
   });
 
-  const parsedVacancy = vacancyBytes === undefined
-    ? undefined
-    : parseJsonBytes(vacancyBytes, "vacancy.json", errors);
+  const parsedVacancy =
+    vacancyBytes === undefined ? undefined : parseJsonBytes(vacancyBytes, "vacancy.json", errors);
   const referenceVersion = inputs.vacancy?.schemaVersion;
   if (!VACANCY_SCHEMA_VERSIONS.includes(referenceVersion)) {
-    errors.push(`inputs.vacancy.schemaVersion must be one of: ${VACANCY_SCHEMA_VERSIONS.join(", ")}`);
+    errors.push(
+      `inputs.vacancy.schemaVersion must be one of: ${VACANCY_SCHEMA_VERSIONS.join(", ")}`,
+    );
   } else if (
-    VACANCY_SCHEMA_VERSIONS.includes(parsedVacancy?.schemaVersion)
-    && referenceVersion !== parsedVacancy.schemaVersion
+    VACANCY_SCHEMA_VERSIONS.includes(parsedVacancy?.schemaVersion) &&
+    referenceVersion !== parsedVacancy.schemaVersion
   ) {
     errors.push(
-      "inputs.vacancy.schemaVersion must equal "
-      + `${parsedVacancy.schemaVersion}, the schemaVersion of vacancy.json`,
+      "inputs.vacancy.schemaVersion must equal " +
+        `${parsedVacancy.schemaVersion}, the schemaVersion of vacancy.json`,
     );
   }
   if (parsedVacancy !== undefined) {
@@ -646,14 +675,12 @@ export function validateCompanyResearch(
     errors,
     { min: 1 },
   );
-  const companyVariantSet = validateUniqueStrings(
-    companyVariants,
-    "companyNameVariants",
-    errors,
-  );
+  const companyVariantSet = validateUniqueStrings(companyVariants, "companyNameVariants", errors);
   const observedCompany = parsedVacancy?.role?.company;
   if (observedCompany && !companyVariantSet.has(observedCompany)) {
-    errors.push(`companyNameVariants must include the observed vacancy company: ${observedCompany}`);
+    errors.push(
+      `companyNameVariants must include the observed vacancy company: ${observedCompany}`,
+    );
   }
 
   const coverageByCategory = validateCoverage(
@@ -712,9 +739,9 @@ function main() {
   }
   if (args.length !== 3 || (outcomeIndex !== -1 && outcome === undefined)) {
     throw new Error(
-      "Usage: node tools/pipeline-artifacts/validate-company-research.mjs "
-      + "<company-research.json> <vacancy.json> <job-description.txt> "
-      + "[--outcome completed|blocked]",
+      "Usage: node tools/pipeline-artifacts/validate-company-research.mjs " +
+        "<company-research.json> <vacancy.json> <job-description.txt> " +
+        "[--outcome completed|blocked]",
     );
   }
 
@@ -722,27 +749,32 @@ function main() {
   const candidateRoot = candidateRootForCommand(checkoutRoot);
   const languages = candidateLanguageNames({ root: candidateRoot });
   const markets = candidateMarkets({ root: candidateRoot });
-  const { research } = readAndValidateCompanyResearchBundle(
-    args[0],
-    args[1],
-    args[2],
-    { languages, markets, outcome },
-  );
+  const { research } = readAndValidateCompanyResearchBundle(args[0], args[1], args[2], {
+    languages,
+    markets,
+    outcome,
+  });
   const coverageCounts = Object.fromEntries(
     COVERAGE_STATUSES.map((status) => [
       status,
       research.sourceCoverage.filter((row) => row.status === status).length,
     ]),
   );
-  console.log(JSON.stringify({
-    status: "valid",
-    schemaVersion: research.schemaVersion,
-    processId: research.process.id,
-    outputDir: research.process.outputDir,
-    outcome: outcome ?? "capture",
-    verifyGate: research.verifyGate.status,
-    coverage: coverageCounts,
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        status: "valid",
+        schemaVersion: research.schemaVersion,
+        processId: research.process.id,
+        outputDir: research.process.outputDir,
+        outcome: outcome ?? "capture",
+        verifyGate: research.verifyGate.status,
+        coverage: coverageCounts,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

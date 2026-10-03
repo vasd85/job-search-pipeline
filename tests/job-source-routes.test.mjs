@@ -63,9 +63,7 @@ const fixtureManifest = Object.freeze([
     sha256: "96f49ca0d98313c87737ef598ed4621fd66a9c117fcc2555a7796f06bc0d19e8",
     synthetic: true,
     sourceId: "ashby",
-    expectations: Object.freeze([
-      Object.freeze({ postingId: ASHBY_TARGET, outcome: "active" }),
-    ]),
+    expectations: Object.freeze([Object.freeze({ postingId: ASHBY_TARGET, outcome: "active" })]),
   }),
   Object.freeze({
     caseId: "ashby_board_no_compensation",
@@ -74,9 +72,7 @@ const fixtureManifest = Object.freeze([
     sha256: "50716ee88b1f25575a645899a625435d81b1740775eccf9503a24494191de9a0",
     synthetic: true,
     sourceId: "ashby",
-    expectations: Object.freeze([
-      Object.freeze({ postingId: ASHBY_TARGET, outcome: "active" }),
-    ]),
+    expectations: Object.freeze([Object.freeze({ postingId: ASHBY_TARGET, outcome: "active" })]),
   }),
   Object.freeze({
     caseId: "ashby_board_target_absent",
@@ -97,9 +93,7 @@ const fixtureManifest = Object.freeze([
     sha256: "24cea1ed6340fbf7c3549db91c768d71466b1356105518865a7cc36496389a1f",
     synthetic: true,
     sourceId: "ashby",
-    expectations: Object.freeze([
-      Object.freeze({ postingId: ASHBY_TARGET, outcome: "private" }),
-    ]),
+    expectations: Object.freeze([Object.freeze({ postingId: ASHBY_TARGET, outcome: "private" })]),
   }),
   Object.freeze({
     caseId: "pinpoint_aggregate_active",
@@ -201,11 +195,7 @@ test("frozen fixture manifest matches the fixture directory in both directions",
 
   for (const entry of fixtureManifest) {
     const bytes = readFileSync(resolve(fixtureRoot, entry.file));
-    assert.equal(
-      createHash("sha256").update(bytes).digest("hex"),
-      entry.sha256,
-      entry.file,
-    );
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), entry.sha256, entry.file);
     assert.equal(entry.synthetic, true, entry.file);
     assert.ok(["case", "documentation"].includes(entry.kind), entry.file);
     if (entry.kind === "case") {
@@ -228,11 +218,7 @@ test("every declared fixture expectation is replayed through the resolver", () =
   for (const entry of fixtureManifest.filter((item) => item.kind === "case")) {
     const body = fixtureBody(entry.caseId);
     for (const expectation of entry.expectations) {
-      const result = selectPostingFromAggregate(
-        entry.sourceId,
-        body,
-        expectation.postingId,
-      );
+      const result = selectPostingFromAggregate(entry.sourceId, body, expectation.postingId);
       replayed.push({
         caseId: entry.caseId,
         postingId: expectation.postingId,
@@ -262,16 +248,20 @@ test("every declared fixture expectation is replayed through the resolver", () =
           caseId: item.caseId,
           postingId: expectation.postingId,
           outcome: expectation.outcome,
-        }))),
+        })),
+      ),
   );
 
   // Pinned independently of the manifest: without it an expectation could be deleted and the
   // covered set would silently shrink instead of failing.
   assert.equal(replayed.length, 19);
-  assert.deepEqual(
-    [...new Set(replayed.map((item) => item.outcome))].sort(),
-    ["absent", "access_failure", "active", "closed", "private"],
-  );
+  assert.deepEqual([...new Set(replayed.map((item) => item.outcome))].sort(), [
+    "absent",
+    "access_failure",
+    "active",
+    "closed",
+    "private",
+  ]);
 });
 
 test("route inventory is frozen, bounded and states its unverified provenance", () => {
@@ -331,13 +321,7 @@ const frozenStatusVocabulary = Object.freeze({
     "removed",
     "unpublished",
   ]),
-  private: Object.freeze([
-    "confidential",
-    "internal",
-    "private",
-    "restricted",
-    "unlisted",
-  ]),
+  private: Object.freeze(["confidential", "internal", "private", "restricted", "unlisted"]),
 });
 
 test("every declared status literal classifies as declared and no source is outcome-starved", () => {
@@ -360,19 +344,13 @@ test("every declared status literal classifies as declared and no source is outc
   // Each source must be able to reach every non-transport outcome through a declared mechanism,
   // otherwise the recipe prose promises a distinction the module cannot make.
   for (const [sourceId, route] of Object.entries(sourceRouteInventory)) {
-    assert.ok(
-      route.statusFields.length > 0 || route.unlistedFlags.length > 0,
-      sourceId,
-    );
+    assert.ok(route.statusFields.length > 0 || route.unlistedFlags.length > 0, sourceId);
   }
 
   // An unrecognized status stays active on purpose: refusing it would turn a live vacancy into a
   // failure. This is the accepted boundary, not an oversight.
   const unknown = JSON.stringify({ data: [{ id: PINPOINT_TARGET, status: "wibble" }] });
-  assert.equal(
-    selectPostingFromAggregate("pinpoint", unknown, PINPOINT_TARGET).outcome,
-    "active",
-  );
+  assert.equal(selectPostingFromAggregate("pinpoint", unknown, PINPOINT_TARGET).outcome, "active");
 });
 
 test("pinpoint resolves the documented tenant aggregate and never a posting suffix", () => {
@@ -507,11 +485,7 @@ test("an aggregate that does not contain the posting is absent, never the neares
   assert.equal(result.posting, null);
 
   const serialized = JSON.stringify(result);
-  for (const foreignValue of [
-    PINPOINT_OTHER,
-    "Senior Backend Engineer",
-    "Data Analyst",
-  ]) {
+  for (const foreignValue of [PINPOINT_OTHER, "Senior Backend Engineer", "Data Analyst"]) {
     assert.ok(!serialized.includes(foreignValue), foreignValue);
   }
 
@@ -542,10 +516,7 @@ test("a present posting is active and is returned byte-identically from the aggr
 
 test("posting identity tolerates numeric ids and refuses inherited or non-scalar ones", () => {
   const numeric = JSON.stringify({ data: [{ id: 12345, status: "published" }] });
-  assert.equal(
-    selectPostingFromAggregate("pinpoint", numeric, "12345").outcome,
-    "active",
-  );
+  assert.equal(selectPostingFromAggregate("pinpoint", numeric, "12345").outcome, "active");
 
   const inherited = { data: [Object.create({ id: PINPOINT_TARGET })] };
   assert.equal(
@@ -554,10 +525,7 @@ test("posting identity tolerates numeric ids and refuses inherited or non-scalar
   );
 
   const structured = JSON.stringify({ data: [{ id: { value: "x" } }, { id: ["x"] }] });
-  assert.equal(
-    selectPostingFromAggregate("pinpoint", structured, "x").outcome,
-    "absent",
-  );
+  assert.equal(selectPostingFromAggregate("pinpoint", structured, "x").outcome, "absent");
 });
 
 test("closed and private statuses stay distinct from absent on both sources", () => {
@@ -596,26 +564,14 @@ test("an empty or unusable aggregate is a retryable access failure, never absenc
     "pinpoint_aggregate_truncated",
     "pinpoint_aggregate_unknown_shape",
   ]) {
-    const result = selectPostingFromAggregate(
-      "pinpoint",
-      fixtureBody(caseId),
-      PINPOINT_TARGET,
-    );
+    const result = selectPostingFromAggregate("pinpoint", fixtureBody(caseId), PINPOINT_TARGET);
     assert.equal(result.outcome, "access_failure", caseId);
     assert.equal(result.retryable, true, caseId);
     assert.equal(result.posting, null, caseId);
   }
 
   // A body that is not a usable posting list is a transport problem, never a permanent absence.
-  for (const body of [
-    '﻿{"data": []}',
-    "null",
-    "42",
-    '"data"',
-    "[[]]",
-    "[1,2,3]",
-    "",
-  ]) {
+  for (const body of ['﻿{"data": []}', "null", "42", '"data"', "[[]]", "[1,2,3]", ""]) {
     const result = selectPostingFromAggregate("pinpoint", body, PINPOINT_TARGET);
     assert.equal(result.outcome, "access_failure", JSON.stringify(body));
     assert.equal(result.retryable, true, JSON.stringify(body));
@@ -661,10 +617,7 @@ test("compensation is read from the compensation object and never invented", () 
     field: null,
     compensation: null,
   });
-  assert.deepEqual(
-    control.posting.descriptionPlain,
-    active.posting.descriptionPlain,
-  );
+  assert.deepEqual(control.posting.descriptionPlain, active.posting.descriptionPlain);
 
   // A falsy-but-present figure is still an explicit statement, and an empty container is not.
   assert.deepEqual(readCompensation("ashby", { compensation: 0 }), {
@@ -673,8 +626,7 @@ test("compensation is read from the compensation object and never invented", () 
     compensation: 0,
   });
   assert.equal(
-    readCompensation("ashby", { compensation: {}, compensationTierSummary: "$1" })
-      .field,
+    readCompensation("ashby", { compensation: {}, compensationTierSummary: "$1" }).field,
     "compensationTierSummary",
   );
 });
@@ -701,26 +653,15 @@ test("the two sources degrade independently", () => {
     "access_failure",
   );
   assert.equal(
-    selectPostingFromAggregate(
-      "ashby",
-      fixtureBody("ashby_board_compensation"),
-      ASHBY_TARGET,
-    ).outcome,
+    selectPostingFromAggregate("ashby", fixtureBody("ashby_board_compensation"), ASHBY_TARGET)
+      .outcome,
     "active",
   );
   assert.equal(resolveSourceRoute(ASHBY_REF).sourceId, "ashby");
 });
 
 test("unknown sources and unusable posting ids fail closed", () => {
-  for (const sourceId of [
-    "greenhouse",
-    "lever",
-    "",
-    null,
-    undefined,
-    "__proto__",
-    "constructor",
-  ]) {
+  for (const sourceId of ["greenhouse", "lever", "", null, undefined, "__proto__", "constructor"]) {
     assert.equal(
       selectPostingFromAggregate(sourceId, "[]", "x").outcome,
       "access_failure",
@@ -748,8 +689,5 @@ test("unknown sources and unusable posting ids fail closed", () => {
 });
 
 test("every manifest file is exercised by this suite", () => {
-  assert.deepEqual(
-    [...executedCases].sort(),
-    fixtureManifest.map((entry) => entry.caseId).sort(),
-  );
+  assert.deepEqual([...executedCases].sort(), fixtureManifest.map((entry) => entry.caseId).sort());
 });

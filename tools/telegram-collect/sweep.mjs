@@ -41,7 +41,15 @@
 
 import { defaultRequestHeaders } from "../vacancy-fetch/adapters/contract.mjs";
 import { fetchDocument } from "../vacancy-fetch/transport.mjs";
-import { cardOf, citedEntriesOf, embedUrl, flatTitle, readerCardOf, readerPostFates, scoreUrlsOf } from "./cards.mjs";
+import {
+  cardOf,
+  citedEntriesOf,
+  embedUrl,
+  flatTitle,
+  readerCardOf,
+  readerPostFates,
+  scoreUrlsOf,
+} from "./cards.mjs";
 import { isCandidate, resumeHint, strongHits } from "./candidates.mjs";
 import { detectMessagePage, detectPage } from "./detect.mjs";
 import { boilerplateOf, linksOf, markBoilerplate } from "./links.mjs";
@@ -69,17 +77,35 @@ export const channelOutcomes = Object.freeze([
   "unrecognized_page",
 ]);
 
-export const stopReasons = Object.freeze(["cursor", "window", "page_cap", "end_of_history", "tip", "request_cap"]);
-export const verdictKinds = Object.freeze(["no_position", "none", "confirmed", "transient_miss", "hole"]);
+export const stopReasons = Object.freeze([
+  "cursor",
+  "window",
+  "page_cap",
+  "end_of_history",
+  "tip",
+  "request_cap",
+]);
+export const verdictKinds = Object.freeze([
+  "no_position",
+  "none",
+  "confirmed",
+  "transient_miss",
+  "hole",
+]);
 
 export function channelUrl(handle, before) {
-  return before === null
-    ? `https://t.me/s/${handle}`
-    : `https://t.me/s/${handle}?before=${before}`;
+  return before === null ? `https://t.me/s/${handle}` : `https://t.me/s/${handle}?before=${before}`;
 }
 
 // Every new post lies in exactly one. A thematic source fills only the first three.
-export const buckets = Object.freeze(["empty", "not_candidate", "repost", "card", "no_vacancy", "answer_invalid"]);
+export const buckets = Object.freeze([
+  "empty",
+  "not_candidate",
+  "repost",
+  "card",
+  "no_vacancy",
+  "answer_invalid",
+]);
 export const readOutcomes = Object.freeze(["vacancy", "no_vacancy", "answer_invalid"]);
 export const discrepancyKinds = Object.freeze(["no_vacancy", "answer_invalid", "card", "repost"]);
 
@@ -99,7 +125,16 @@ export const linkFates = Object.freeze([
   "emit",
 ]);
 
-async function walkChannel({ handle, cursor, windowEdgeMs, config, fetchImpl, sleep, capture, first }) {
+async function walkChannel({
+  handle,
+  cursor,
+  windowEdgeMs,
+  config,
+  fetchImpl,
+  sleep,
+  capture,
+  first,
+}) {
   const seenIds = new Set();
   const newPosts = [];
   const walkedPosts = [];
@@ -149,7 +184,15 @@ async function walkChannel({ handle, cursor, windowEdgeMs, config, fetchImpl, sl
     else if (pages >= config.pageCap) stop = "page_cap";
     if (stop !== null) {
       return {
-        outcome: "completed", stop, pages, postsSeen, newPosts, walkedPosts, counters, minWalked, firstPageMax,
+        outcome: "completed",
+        stop,
+        pages,
+        postsSeen,
+        newPosts,
+        walkedPosts,
+        counters,
+        minWalked,
+        firstPageMax,
         // A post above the cursor and older than the window was met. When it shares a page with the
         // cursor the stop is "cursor", and only this flag says that something entered nothing.
         oldAboveCursor: reachedWindow,
@@ -171,7 +214,11 @@ async function walkGroup({ handle, source, entry, delayMs, fetchImpl, sleep, cap
 
   for (;;) {
     if (!(first && requests === 0)) await sleep(delayMs);
-    const record = await fetchDocument({ url: embedUrl(handle, id), headers: defaultRequestHeaders, fetchImpl });
+    const record = await fetchDocument({
+      url: embedUrl(handle, id),
+      headers: defaultRequestHeaders,
+      fetchImpl,
+    });
     requests += 1;
     await capture({ handle, page: requests, before: null, messageId: id, record });
     const { outcome, post } = detectMessagePage(record, { handle });
@@ -195,7 +242,18 @@ async function walkGroup({ handle, source, entry, delayMs, fetchImpl, sleep, cap
     if (deadRun >= source.stopAfter) stop = "tip";
     else if (requests >= source.requestCap) stop = "request_cap";
     if (stop !== null) {
-      return { outcome: "completed", stop, requests, posts, from, to: id, lastLive, lastLiveAt, longestGap, deadRun };
+      return {
+        outcome: "completed",
+        stop,
+        requests,
+        posts,
+        from,
+        to: id,
+        lastLive,
+        lastLiveAt,
+        longestGap,
+        deadRun,
+      };
     }
     id += 1;
   }
@@ -247,7 +305,14 @@ const keyOf = (item) => `${item.handle}/${item.postId}`;
  * record per source, and the stamps of the sweep. Nothing here reads the reader's answers or the
  * memories of the state beyond the cursors.
  */
-export async function walkSources({ config, state, now, sleep, fetchImpl, capture = async () => {} }) {
+export async function walkSources({
+  config,
+  state,
+  now,
+  sleep,
+  fetchImpl,
+  capture = async () => {},
+}) {
   const startedMs = now();
   const startedAt = new Date(startedMs).toISOString();
   const windowEdgeMs = startedMs - config.backfillDays * DAY_MS;
@@ -265,14 +330,35 @@ export async function walkSources({ config, state, now, sleep, fetchImpl, captur
     if (kind === "group") {
       const positionBefore = entry?.last_live_id ?? null;
       if (!enabled) {
-        channels.push({ handle, kind, thematic, outcome: "disabled", position_before: positionBefore });
+        channels.push({
+          handle,
+          kind,
+          thematic,
+          outcome: "disabled",
+          position_before: positionBefore,
+        });
         continue;
       }
       if (rateLimited) {
-        channels.push({ handle, kind, thematic, outcome: "unattempted", position_before: positionBefore });
+        channels.push({
+          handle,
+          kind,
+          thematic,
+          outcome: "unattempted",
+          position_before: positionBefore,
+        });
         continue;
       }
-      const walk = await walkGroup({ handle, source, entry, delayMs: config.delayMs, fetchImpl, sleep, capture, first });
+      const walk = await walkGroup({
+        handle,
+        source,
+        entry,
+        delayMs: config.delayMs,
+        fetchImpl,
+        sleep,
+        capture,
+        first,
+      });
       first = false;
       if (walk.outcome !== "completed") {
         if (walk.outcome === "rate_limited") rateLimited = true;
@@ -288,7 +374,10 @@ export async function walkSources({ config, state, now, sleep, fetchImpl, captur
         });
         continue;
       }
-      const walked = walk.posts.map((post) => ({ post, entries: linksOf(post, { exclusions: config.exclusions }) }));
+      const walked = walk.posts.map((post) => ({
+        post,
+        entries: linksOf(post, { exclusions: config.exclusions }),
+      }));
       const boilerplate = boilerplateOf(walked);
       const boilerplateKeys = new Set(boilerplate.keys());
       const inWindow = (post) => Date.parse(post.instant) >= windowEdgeMs;
@@ -296,7 +385,13 @@ export async function walkSources({ config, state, now, sleep, fetchImpl, captur
       for (const { post, entries } of walked) {
         if (!inWindow(post)) continue;
         postsNew += 1;
-        fresh.push({ handle, postId: post.id, instant: post.instant, post, entries: markBoilerplate(entries, boilerplateKeys) });
+        fresh.push({
+          handle,
+          postId: post.id,
+          instant: post.instant,
+          post,
+          entries: markBoilerplate(entries, boilerplateKeys),
+        });
       }
       nextChannels[stateKey] = {
         kind: "group",
@@ -321,7 +416,11 @@ export async function walkSources({ config, state, now, sleep, fetchImpl, captur
         posts_seen: walk.posts.length,
         posts_new: postsNew,
         older_than_window: walk.posts.length - postsNew,
-        counters: { author_without_username: walk.posts.filter((post) => (post.author?.username ?? null) === null).length },
+        counters: {
+          author_without_username: walk.posts.filter(
+            (post) => (post.author?.username ?? null) === null,
+          ).length,
+        },
         boilerplate: [...boilerplate].map(([key, posts]) => ({ key, posts })),
         first_pass: entry === undefined,
         position_before: positionBefore,
@@ -343,7 +442,14 @@ export async function walkSources({ config, state, now, sleep, fetchImpl, captur
       continue;
     }
     const walk = await walkChannel({
-      handle, cursor, windowEdgeMs, config, fetchImpl, sleep, capture, first,
+      handle,
+      cursor,
+      windowEdgeMs,
+      config,
+      fetchImpl,
+      sleep,
+      capture,
+      first,
     });
     first = false;
     if (walk.outcome !== "completed") {
@@ -360,13 +466,22 @@ export async function walkSources({ config, state, now, sleep, fetchImpl, captur
       continue;
     }
 
-    const walked = walk.walkedPosts.map((post) => ({ post, entries: linksOf(post, { exclusions: config.exclusions }) }));
+    const walked = walk.walkedPosts.map((post) => ({
+      post,
+      entries: linksOf(post, { exclusions: config.exclusions }),
+    }));
     const boilerplate = boilerplateOf(walked);
     const boilerplateKeys = new Set(boilerplate.keys());
     const newIds = new Set(walk.newPosts.map((post) => post.id));
     for (const { post, entries } of walked) {
       if (newIds.has(post.id)) {
-        fresh.push({ handle, postId: post.id, instant: post.instant, post, entries: markBoilerplate(entries, boilerplateKeys) });
+        fresh.push({
+          handle,
+          postId: post.id,
+          instant: post.instant,
+          post,
+          entries: markBoilerplate(entries, boilerplateKeys),
+        });
       }
     }
     const cursorAfter = Math.max(walk.firstPageMax, cursor ?? 0);
@@ -374,14 +489,16 @@ export async function walkSources({ config, state, now, sleep, fetchImpl, captur
     // The range that entered nothing starts right below the smallest NEW post: on a window stop the
     // posts walked but older than the window lie in it too - they are newer than the cursor, and a
     // range counted from the smallest walked id would leave them in no list at all.
-    const smallestNew = walk.newPosts.length === 0
-      ? walk.firstPageMax + 1
-      : Math.min(...walk.newPosts.map((post) => post.id));
+    const smallestNew =
+      walk.newPosts.length === 0
+        ? walk.firstPageMax + 1
+        : Math.min(...walk.newPosts.map((post) => post.id));
     const leftSomething = walk.stop === "window" || walk.stop === "page_cap" || walk.oldAboveCursor;
     // An empty range is no range: the page cap can fall exactly on the post above the cursor.
-    const gap = leftSomething && (cursor === null || smallestNew - 1 >= cursor + 1)
-      ? { after_id: cursor, below_id: smallestNew }
-      : null;
+    const gap =
+      leftSomething && (cursor === null || smallestNew - 1 >= cursor + 1)
+        ? { after_id: cursor, below_id: smallestNew }
+        : null;
     channels.push({
       handle,
       kind,
@@ -430,7 +547,9 @@ export function resolveSweep({ config, state, walk, answers = null }) {
   // The memory of emitted addresses is read here, once: an address this sweep emits does not become
   // known to the other posts of the same sweep.
   const knownUrls = new Map(
-    Object.entries(state.emitted_urls).filter(([, entry]) => !isExpired(entry.last_seen, startedMs, memoryDays)),
+    Object.entries(state.emitted_urls).filter(
+      ([, entry]) => !isExpired(entry.last_seen, startedMs, memoryDays),
+    ),
   );
   const seenKnown = new Set();
   const index = repostIndex(state.fingerprints, { nowMs: startedMs, memoryDays });
@@ -454,14 +573,21 @@ export function resolveSweep({ config, state, walk, answers = null }) {
     const { handle, post, entries } = item;
     const thematic = thematicOf.get(handle) === true;
     if (!hasText(post)) {
-      empties.push({ handle, postId: post.id, instant: post.instant, hasAttachment: post.hasAttachment === true });
+      empties.push({
+        handle,
+        postId: post.id,
+        instant: post.instant,
+        hasAttachment: post.hasAttachment === true,
+      });
       continue;
     }
     if (!thematic && !isCandidate(post, entries, config.roleWords)) {
       notCandidates.push({ handle, postId: post.id });
       continue;
     }
-    const urlKeys = entries.filter((entry) => entry.type === "url" && entry.marks.length === 0).map((entry) => entry.key);
+    const urlKeys = entries
+      .filter((entry) => entry.type === "url" && entry.marks.length === 0)
+      .map((entry) => entry.key);
     for (const key of urlKeys) if (knownUrls.has(key)) seenKnown.add(key);
     const fingerprint = fingerprintOf(post, { handle, urlKeys, seenAt: startedAt });
     const original = index.find(fingerprint);
@@ -489,7 +615,14 @@ export function resolveSweep({ config, state, walk, answers = null }) {
   }
 
   if (pending.length > 0 && answers === null) {
-    return { awaiting: true, started_at: startedAt, window_edge: walk.window_edge, rate_limited: walk.rate_limited, channels, pending };
+    return {
+      awaiting: true,
+      started_at: startedAt,
+      window_edge: walk.window_edge,
+      rate_limited: walk.rate_limited,
+      channels,
+      pending,
+    };
   }
 
   const readOutcome = new Map();
@@ -497,7 +630,16 @@ export function resolveSweep({ config, state, walk, answers = null }) {
   const hint = (post) => resumeHint(post, config.resumeHints);
   const note = (kind, item, hits) => {
     for (const hit of hits) {
-      discrepancies.push({ kind, handle: item.handle, postId: item.postId, token: hit.token, where: hit.where, n: hit.n, text: hit.text, resumeHint: hint(item.post) });
+      discrepancies.push({
+        kind,
+        handle: item.handle,
+        postId: item.postId,
+        token: hit.token,
+        where: hit.where,
+        n: hit.n,
+        text: hit.text,
+        resumeHint: hint(item.post),
+      });
     }
   };
   for (const item of pending) {
@@ -514,9 +656,18 @@ export function resolveSweep({ config, state, walk, answers = null }) {
       const decided = readerPostFates(entries, { citedEntries, knownUrls });
       answer.vacancies.forEach((vacancy, at) => {
         const cited = citedEntriesOf(vacancy, answer.descriptor);
-        const card = readerCardOf(post, { handle, decided, knownUrls, vacancy, cited, vacancyNo: at + 1, first: at === 0 });
+        const card = readerCardOf(post, {
+          handle,
+          decided,
+          knownUrls,
+          vacancy,
+          cited,
+          vacancyNo: at + 1,
+          first: at === 0,
+        });
         cards.push(card);
-        for (const entry of card.marked) readerMarked.push({ card, url: entry.url, marks: entry.marks });
+        for (const entry of card.marked)
+          readerMarked.push({ card, url: entry.url, marks: entry.marks });
       });
       readOutcome.set(key, "vacancy");
       // The answer named a line the post does not have, and the post showed one line: the code took
@@ -524,14 +675,28 @@ export function resolveSweep({ config, state, walk, answers = null }) {
       // printed, because a reader corrected in silence is a reader nobody can check.
       if (answer.repairs.length > 0) {
         titleLineRepaired.push({
-          handle, postId: post.id, instant: post.instant, title: flatTitle(titleLineOf(post)), named: answer.repairs,
+          handle,
+          postId: post.id,
+          instant: post.instant,
+          title: flatTitle(titleLineOf(post)),
+          named: answer.repairs,
         });
       }
-      note("card", item, strongHits(post, entries, strong, { citedLines, citedEntries, skipTagRows: true }));
+      note(
+        "card",
+        item,
+        strongHits(post, entries, strong, { citedLines, citedEntries, skipTagRows: true }),
+      );
       continue;
     }
     index.remove(fingerprint);
-    const listed = { handle, postId: post.id, instant: post.instant, title: flatTitle(titleLineOf(post)), resumeHint: hint(post) };
+    const listed = {
+      handle,
+      postId: post.id,
+      instant: post.instant,
+      title: flatTitle(titleLineOf(post)),
+      resumeHint: hint(post),
+    };
     if (answer.kind === "none") {
       noVacancy.push(listed);
       readOutcome.set(key, "no_vacancy");
@@ -545,7 +710,8 @@ export function resolveSweep({ config, state, walk, answers = null }) {
   for (const repost of reposts) {
     const outcome = readOutcome.get(keyOf(repost.original)) ?? null;
     repost.originalOutcome = outcome;
-    if (outcome !== null && outcome !== "vacancy") note("repost", repost, strongHits(repost.post, repost.entries, strong));
+    if (outcome !== null && outcome !== "vacancy")
+      note("repost", repost, strongHits(repost.post, repost.entries, strong));
     delete repost.post;
     delete repost.entries;
   }
@@ -567,7 +733,13 @@ export function resolveSweep({ config, state, walk, answers = null }) {
       const holder = holders.get(key);
       if (holder === card) card.own.push({ url, key });
       else {
-        card.held.push({ url, key, handle: holder.handle, postId: holder.postId, vacancyNo: holder.vacancyNo });
+        card.held.push({
+          url,
+          key,
+          handle: holder.handle,
+          postId: holder.postId,
+          vacancyNo: holder.vacancyNo,
+        });
         if (holder.handle !== card.handle || holder.postId !== card.postId) {
           if (!heldByOthers.has(keyOf(card))) heldByOthers.set(keyOf(card), new Set());
           heldByOthers.get(keyOf(card)).add(key);
@@ -580,9 +752,11 @@ export function resolveSweep({ config, state, walk, answers = null }) {
   }
   for (const card of cards) {
     const heldKeys = heldByOthers.get(keyOf(card)) ?? new Set();
-    card.entries = card.entries.map((entry) => (entry.fate === "emit" && heldKeys.has(entry.key)
-      ? { ...entry, fate: "repeat_in_sweep" }
-      : entry));
+    card.entries = card.entries.map((entry) =>
+      entry.fate === "emit" && heldKeys.has(entry.key)
+        ? { ...entry, fate: "repeat_in_sweep" }
+        : entry,
+    );
   }
 
   for (const channel of channels) {
@@ -613,7 +787,12 @@ export function resolveSweep({ config, state, walk, answers = null }) {
   for (const card of cards) {
     for (const { key } of card.own) {
       if (key === card.postAddress) continue;
-      emittedUrls[key] = { handle: card.handle, post_id: card.postId, first_at: startedAt, last_seen: startedAt };
+      emittedUrls[key] = {
+        handle: card.handle,
+        post_id: card.postId,
+        first_at: startedAt,
+        last_seen: startedAt,
+      };
     }
   }
 
@@ -647,7 +826,15 @@ export function resolveSweep({ config, state, walk, answers = null }) {
  * Both halves at once. With posts to read and no `answers` the result is awaiting; a thematic-only
  * config finishes here, as before the reader stage.
  */
-export async function runSweep({ config, state, now, sleep, fetchImpl, capture = async () => {}, answers = null }) {
+export async function runSweep({
+  config,
+  state,
+  now,
+  sleep,
+  fetchImpl,
+  capture = async () => {},
+  answers = null,
+}) {
   const walk = await walkSources({ config, state, now, sleep, fetchImpl, capture });
   return { ...resolveSweep({ config, state, walk, answers }), walk };
 }

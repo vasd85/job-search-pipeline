@@ -36,9 +36,12 @@ export function shownLines(post, tokens, { fullText = false } = {}) {
   const lines = numberedLines(post);
   if (fullText || lines.length <= CUT_ABOVE_LINES) return lines;
   const total = lines.length;
-  return lines.filter((line) => line.n <= SHOW_HEAD_LINES
-    || line.n > total - SHOW_TAIL_LINES
-    || matchingToken(line.text, tokens) !== null);
+  return lines.filter(
+    (line) =>
+      line.n <= SHOW_HEAD_LINES ||
+      line.n > total - SHOW_TAIL_LINES ||
+      matchingToken(line.text, tokens) !== null,
+  );
 }
 
 /** The anchors the reader may cite, numbered from 1, with the index of each in the post's entries. */
@@ -53,8 +56,10 @@ export function offeredLinks(entries) {
 
 function renderLink(link, entries) {
   const entry = entries[link.entryIndex];
-  const address = entry.type === "url" ? ` ${flatLine(`${entry.host}${entry.path}`, MAX_BATCH_LINE)}` : "";
-  const marks = entry.type === "url" && entry.marks.length > 0 ? ` [${entry.marks.join(", ")}]` : "";
+  const address =
+    entry.type === "url" ? ` ${flatLine(`${entry.host}${entry.path}`, MAX_BATCH_LINE)}` : "";
+  const marks =
+    entry.type === "url" && entry.marks.length > 0 ? ` [${entry.marks.join(", ")}]` : "";
   const anchor = flatLine(entry.anchorText ?? "", MAX_ANCHOR_TEXT).replaceAll('"', "'");
   return `-> [${link.j}] ${entry.type}${address} "${anchor}"${marks}`;
 }
@@ -84,14 +89,24 @@ export function renderPost({ post, entries }, k, tokens, { fullText = false } = 
  * at most `MAX_BATCH_POSTS` posts and `MAX_BATCH_BYTES` bytes per file. Returns
  * `[{ file, handle, text, posts: [{ post, handle, postId, shown, links }] }]`.
  */
-export function planBatches(pending, tokens, { fullText = false, maxPosts = MAX_BATCH_POSTS, maxBytes = MAX_BATCH_BYTES, sourceOrder = [] } = {}) {
+export function planBatches(
+  pending,
+  tokens,
+  {
+    fullText = false,
+    maxPosts = MAX_BATCH_POSTS,
+    maxBytes = MAX_BATCH_BYTES,
+    sourceOrder = [],
+  } = {},
+) {
   const bySource = new Map();
   for (const item of pending) {
     if (!bySource.has(item.handle)) bySource.set(item.handle, []);
     bySource.get(item.handle).push(item);
   }
   // Sources in config order; a source the order does not name comes after the named ones.
-  const rank = (handle) => (sourceOrder.includes(handle) ? sourceOrder.indexOf(handle) : sourceOrder.length);
+  const rank = (handle) =>
+    sourceOrder.includes(handle) ? sourceOrder.indexOf(handle) : sourceOrder.length;
   const sources = [...bySource].sort(([a], [b]) => rank(a) - rank(b));
   const batches = [];
   for (const [handle, items] of sources) {
@@ -99,15 +114,23 @@ export function planBatches(pending, tokens, { fullText = false, maxPosts = MAX_
     let current = null;
     const open = () => {
       index += 1;
-      current = { file: `${handle}-${String(index).padStart(3, "0")}.txt`, handle, text: "", posts: [] };
+      current = {
+        file: `${handle}-${String(index).padStart(3, "0")}.txt`,
+        handle,
+        text: "",
+        posts: [],
+      };
       batches.push(current);
     };
     for (const item of items) {
       const k = current === null ? 1 : current.posts.length + 1;
       const rendered = renderPost(item, k, tokens, { fullText });
       const bytes = Buffer.byteLength(rendered.text, "utf8");
-      if (current === null || current.posts.length >= maxPosts
-        || Buffer.byteLength(current.text, "utf8") + bytes > maxBytes) {
+      if (
+        current === null ||
+        current.posts.length >= maxPosts ||
+        Buffer.byteLength(current.text, "utf8") + bytes > maxBytes
+      ) {
         open();
         const first = renderPost(item, 1, tokens, { fullText });
         current.text += first.text;

@@ -36,14 +36,8 @@ import {
   updateFileBackedProcessV3,
   validateProcessLogV3Deep,
 } from "./lib/process-log-v3-lifecycle.mjs";
-import {
-  SafeCliInputError,
-  hydrateSafeCliOptions,
-} from "./lib/safe-cli-input.mjs";
-import {
-  backupProcessLogV3,
-  restoreProcessLogV3,
-} from "./lib/process-log-ledger-rollback.mjs";
+import { SafeCliInputError, hydrateSafeCliOptions } from "./lib/safe-cli-input.mjs";
+import { backupProcessLogV3, restoreProcessLogV3 } from "./lib/process-log-ledger-rollback.mjs";
 import { isEmployerDomainExcluded } from "./job-sources/registry.mjs";
 import {
   processLogDiagnosticLimits,
@@ -53,19 +47,21 @@ import {
 import { OpsTreeError, verifyFolder } from "./ops-tree/manifest.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const workspaceRoot = resolve(
-  process.env.JOB_PIPELINE_WORKSPACE_ROOT ?? repoRoot,
-);
+const workspaceRoot = resolve(process.env.JOB_PIPELINE_WORKSPACE_ROOT ?? repoRoot);
 const outputRoot = resolve(
   process.env.JOB_PIPELINE_OUTPUT_ROOT ?? resolve(workspaceRoot, "output"),
 );
 const logPath = resolve(
-  process.env.JOB_PIPELINE_PROCESS_LOG
-    ?? resolve(workspaceRoot, "process-log.json"),
+  process.env.JOB_PIPELINE_PROCESS_LOG ?? resolve(workspaceRoot, "process-log.json"),
 );
-const inputRoot = process.env.JOB_PIPELINE_INPUT_ROOT
-  ?? resolve(workspaceRoot, ".pipeline-input");
-const booleanFlags = new Set(["adopt", "clear-company-hint", "clear-duplicate-of", "deep", "dry-run"]);
+const inputRoot = process.env.JOB_PIPELINE_INPUT_ROOT ?? resolve(workspaceRoot, ".pipeline-input");
+const booleanFlags = new Set([
+  "adopt",
+  "clear-company-hint",
+  "clear-duplicate-of",
+  "deep",
+  "dry-run",
+]);
 const selectorOptionNames = Object.freeze(["id", "source-ref", "output-dir"]);
 
 class ProcessLogCliError extends Error {
@@ -128,10 +124,7 @@ function parseArgs(argv) {
     }
     const key = flag.slice(2);
     if (Object.hasOwn(options, key)) {
-      throw new ProcessLogCliError(
-        "invalid_cli_arguments",
-        `Duplicate option: --${key}`,
-      );
+      throw new ProcessLogCliError("invalid_cli_arguments", `Duplicate option: --${key}`);
     }
     if (booleanFlags.has(key)) {
       options[key] = true;
@@ -139,10 +132,7 @@ function parseArgs(argv) {
     } else {
       const value = rest[index + 1];
       if (value === undefined || value.startsWith("--")) {
-        throw new ProcessLogCliError(
-          "invalid_cli_arguments",
-          `Missing value for --${key}`,
-        );
+        throw new ProcessLogCliError("invalid_cli_arguments", `Missing value for --${key}`);
       }
       options[key] = value;
       index += 2;
@@ -164,10 +154,7 @@ function assertAllowed(options, allowed) {
 function requireOption(options, key) {
   const value = options[key]?.trim();
   if (!value) {
-    throw new ProcessLogCliError(
-      "invalid_cli_arguments",
-      `Missing required option: --${key}`,
-    );
+    throw new ProcessLogCliError("invalid_cli_arguments", `Missing required option: --${key}`);
   }
   return value;
 }
@@ -177,10 +164,7 @@ function parseJsonOption(options, key) {
   try {
     return JSON.parse(source);
   } catch {
-    throw new ProcessLogCliError(
-      "invalid_cli_json",
-      `--${key} must contain valid JSON`,
-    );
+    throw new ProcessLogCliError("invalid_cli_json", `--${key} must contain valid JSON`);
   }
 }
 
@@ -189,9 +173,9 @@ function print(value) {
 }
 
 function boundedCliErrorCode(value, fallback = "process_log_cli_failed") {
-  return typeof value === "string"
-    && Buffer.byteLength(value, "utf8") <= processLogDiagnosticLimits.codeMaxBytes
-    && processLogStableDiagnosticCodePattern.test(value)
+  return typeof value === "string" &&
+    Buffer.byteLength(value, "utf8") <= processLogDiagnosticLimits.codeMaxBytes &&
+    processLogStableDiagnosticCodePattern.test(value)
     ? value
     : fallback;
 }
@@ -220,13 +204,14 @@ function safeErrorMessage(error) {
 function printError(error) {
   const coreEvidence = processLogCorePrimaryEvidence(error);
   const validationEvidence = processLogV3ValidationErrorEvidence(error);
-  const knownCommandError = safeErrorIs(error, ProcessLogLifecycleError)
-    || safeErrorIs(error, ProcessLogCliError)
-    || safeErrorIs(error, SafeCliInputError);
+  const knownCommandError =
+    safeErrorIs(error, ProcessLogLifecycleError) ||
+    safeErrorIs(error, ProcessLogCliError) ||
+    safeErrorIs(error, SafeCliInputError);
   const code = boundedCliErrorCode(
-    coreEvidence?.code
-      ?? validationEvidence?.code
-      ?? (knownCommandError ? safeErrorProperty(error, "code") : null),
+    coreEvidence?.code ??
+      validationEvidence?.code ??
+      (knownCommandError ? safeErrorProperty(error, "code") : null),
   );
   const prefix = `${code}: `;
   const observedMessage = safeErrorMessage(error);
@@ -239,12 +224,15 @@ function printError(error) {
   } else if (coreEvidence !== null) {
     message = coreEvidence.message;
   } else if (
-    typeof rawMessage === "string"
-    && processLogDiagnosticProblems({
-      code: "cli_error",
-      message: rawMessage,
-      details: [],
-    }, "error").length === 0
+    typeof rawMessage === "string" &&
+    processLogDiagnosticProblems(
+      {
+        code: "cli_error",
+        message: rawMessage,
+        details: [],
+      },
+      "error",
+    ).length === 0
   ) {
     message = rawMessage;
   } else {
@@ -268,20 +256,26 @@ function printError(error) {
       recovery_action: secondary.recoveryAction,
     }));
   }
-  console.error(JSON.stringify({
-    status: "error",
-    error: details,
-  }, null, 2));
+  console.error(
+    JSON.stringify(
+      {
+        status: "error",
+        error: details,
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 function translateTransportedCommandError(error) {
   const trustedCoreError = processLogCorePrimaryEvidence(error) !== null;
   const trustedValidationError = processLogV3ValidationErrorEvidence(error) !== null;
   if (
-    safeErrorIs(error, SafeCliInputError)
-    || safeErrorIs(error, ProcessLogCliError)
-    || trustedCoreError
-    || trustedValidationError
+    safeErrorIs(error, SafeCliInputError) ||
+    safeErrorIs(error, ProcessLogCliError) ||
+    trustedCoreError ||
+    trustedValidationError
   ) {
     return error;
   }
@@ -363,13 +357,7 @@ function start(options) {
 }
 
 function update(options) {
-  assertAllowed(options, [
-    "id",
-    "company-observed",
-    "company-hint",
-    "clear-company-hint",
-    "role",
-  ]);
+  assertAllowed(options, ["id", "company-observed", "company-hint", "clear-company-hint", "role"]);
   if (options["company-hint"] && options["clear-company-hint"]) {
     throw new ProcessLogCliError(
       "invalid_cli_arguments",
@@ -403,11 +391,13 @@ function resolveProcess(options) {
 
 function reserveOutput(options) {
   assertAllowed(options, ["id"]);
-  print(reserveFileBackedOutputV3(
-    logPath,
-    { processId: requireOption(options, "id") },
-    lifecycleEnvironment(),
-  ));
+  print(
+    reserveFileBackedOutputV3(
+      logPath,
+      { processId: requireOption(options, "id") },
+      lifecycleEnvironment(),
+    ),
+  );
 }
 
 function preflightStep(options) {
@@ -425,14 +415,16 @@ function preflightStep(options) {
 
 function beginStep(options) {
   assertStepCommandOptions(options);
-  print(beginFileBackedStepV3(
-    logPath,
-    {
-      selector: selectorFromOptions(options),
-      stepName: requireOption(options, "step"),
-    },
-    lifecycleEnvironment(),
-  ));
+  print(
+    beginFileBackedStepV3(
+      logPath,
+      {
+        selector: selectorFromOptions(options),
+        stepName: requireOption(options, "step"),
+      },
+      lifecycleEnvironment(),
+    ),
+  );
 }
 
 function publishStep(options) {
@@ -447,115 +439,124 @@ function publishStep(options) {
   const blocker = Object.hasOwn(options, "blocker-json")
     ? parseJsonOption(options, "blocker-json")
     : null;
-  print(publishFileBackedStepV3(
-    logPath,
-    {
-      selector: selectorFromOptions(options),
-      stepName: requireOption(options, "step"),
-      attemptId: requireOption(options, "attempt-id"),
-      publicationId: requireOption(options, "publication-id"),
-      outcome,
-      blocker,
-      waivers: Object.hasOwn(options, "waivers-json")
-        ? parseJsonOption(options, "waivers-json")
-        : [],
-    },
-    lifecycleEnvironment(),
-  ));
+  print(
+    publishFileBackedStepV3(
+      logPath,
+      {
+        selector: selectorFromOptions(options),
+        stepName: requireOption(options, "step"),
+        attemptId: requireOption(options, "attempt-id"),
+        publicationId: requireOption(options, "publication-id"),
+        outcome,
+        blocker,
+        waivers: Object.hasOwn(options, "waivers-json")
+          ? parseJsonOption(options, "waivers-json")
+          : [],
+      },
+      lifecycleEnvironment(),
+    ),
+  );
 }
 
 function failStep(options) {
   assertStepCommandOptions(options, ["attempt-id", "error-json"]);
-  print(failFileBackedStepV3(logPath, {
-    selector: selectorFromOptions(options),
-    stepName: requireOption(options, "step"),
-    attemptId: requireOption(options, "attempt-id"),
-    error: parseJsonOption(options, "error-json"),
-  }));
+  print(
+    failFileBackedStepV3(logPath, {
+      selector: selectorFromOptions(options),
+      stepName: requireOption(options, "step"),
+      attemptId: requireOption(options, "attempt-id"),
+      error: parseJsonOption(options, "error-json"),
+    }),
+  );
 }
 
 function retryStep(options) {
   assertStepCommandOptions(options);
-  print(retryFileBackedStepV3(
-    logPath,
-    {
-      selector: selectorFromOptions(options),
-      stepName: requireOption(options, "step"),
-    },
-    lifecycleEnvironment(),
-  ));
+  print(
+    retryFileBackedStepV3(
+      logPath,
+      {
+        selector: selectorFromOptions(options),
+        stepName: requireOption(options, "step"),
+      },
+      lifecycleEnvironment(),
+    ),
+  );
 }
 
 function reopenStep(options) {
   assertStepCommandOptions(options, ["adopt"]);
-  print(reopenFileBackedStepV3(
-    logPath,
-    {
-      selector: selectorFromOptions(options),
-      stepName: requireOption(options, "step"),
-      adopt: options.adopt === true,
-    },
-    lifecycleEnvironment(),
-  ));
+  print(
+    reopenFileBackedStepV3(
+      logPath,
+      {
+        selector: selectorFromOptions(options),
+        stepName: requireOption(options, "step"),
+        adopt: options.adopt === true,
+      },
+      lifecycleEnvironment(),
+    ),
+  );
 }
 
 function reviseStep(options) {
   assertStepCommandOptions(options, ["channel", "adopt", "waivers-json"]);
-  print(reviseFileBackedStepV3(
-    logPath,
-    {
-      selector: selectorFromOptions(options),
-      stepName: requireOption(options, "step"),
-      channel: requireOption(options, "channel"),
-      adopt: options.adopt === true,
-      waivers: Object.hasOwn(options, "waivers-json")
-        ? parseJsonOption(options, "waivers-json")
-        : [],
-    },
-    lifecycleEnvironment(),
-  ));
+  print(
+    reviseFileBackedStepV3(
+      logPath,
+      {
+        selector: selectorFromOptions(options),
+        stepName: requireOption(options, "step"),
+        channel: requireOption(options, "channel"),
+        adopt: options.adopt === true,
+        waivers: Object.hasOwn(options, "waivers-json")
+          ? parseJsonOption(options, "waivers-json")
+          : [],
+      },
+      lifecycleEnvironment(),
+    ),
+  );
 }
 
 function reconcileStep(options) {
   assertStepCommandOptions(options, ["attempt-id", "publication-id"]);
   const hasAttemptId = Object.hasOwn(options, "attempt-id");
   const hasPublicationId = Object.hasOwn(options, "publication-id");
-  print(reconcileFileBackedStepV3(
-    logPath,
-    {
-      selector: selectorFromOptions(options),
-      stepName: requireOption(options, "step"),
-      attemptId: hasAttemptId ? requireOption(options, "attempt-id") : null,
-      publicationId: hasPublicationId
-        ? requireOption(options, "publication-id")
-        : null,
-    },
-    lifecycleEnvironment(),
-  ));
+  print(
+    reconcileFileBackedStepV3(
+      logPath,
+      {
+        selector: selectorFromOptions(options),
+        stepName: requireOption(options, "step"),
+        attemptId: hasAttemptId ? requireOption(options, "attempt-id") : null,
+        publicationId: hasPublicationId ? requireOption(options, "publication-id") : null,
+      },
+      lifecycleEnvironment(),
+    ),
+  );
 }
 
 function cleanupStaging(options) {
   assertAllowed(options, ["id", "publication-id", "confirmation-token", "dry-run"]);
-  if (
-    options["dry-run"]
-    && Object.hasOwn(options, "confirmation-token")
-  ) {
+  if (options["dry-run"] && Object.hasOwn(options, "confirmation-token")) {
     throw new ProcessLogCliError(
       "invalid_cli_arguments",
       "--dry-run and --confirmation-token are mutually exclusive",
     );
   }
-  print(cleanupFileBackedStagingV3(
-    logPath,
-    {
-      processId: requireOption(options, "id"),
-      publicationId: requireOption(options, "publication-id"),
-      confirmationToken: Object.hasOwn(options, "confirmation-token")
-        ? requireOption(options, "confirmation-token")
-        : null,
-    },
-    lifecycleEnvironment(),
-  ));
+  print(
+    cleanupFileBackedStagingV3(
+      logPath,
+      {
+        processId: requireOption(options, "id"),
+        publicationId: requireOption(options, "publication-id"),
+        confirmationToken: Object.hasOwn(options, "confirmation-token")
+          ? requireOption(options, "confirmation-token")
+          : null,
+      },
+      lifecycleEnvironment(),
+    ),
+  );
 }
 
 function findCompany(options) {
@@ -573,9 +574,8 @@ function createCompany(options) {
   const normalized = normalizeSearchText(displayName);
   const result = commitCompanyMutation((log) => {
     const collisions = log.companies.filter((company) =>
-      company.search_terms.some(
-        (term) => normalizeSearchText(term) === normalized,
-      ));
+      company.search_terms.some((term) => normalizeSearchText(term) === normalized),
+    );
     if (collisions.length === 1) {
       return {
         changed: false,
@@ -590,16 +590,16 @@ function createCompany(options) {
     }
     const company = createCompanyRecord(displayName);
     if (options.term) {
-      company.search_terms = [...deriveSearchTerms(displayName), options.term.trim()]
-        .filter((term, index, terms) =>
-          terms.findIndex((candidate) =>
-            normalizeSearchText(candidate) === normalizeSearchText(term),
-          ) === index);
+      company.search_terms = [...deriveSearchTerms(displayName), options.term.trim()].filter(
+        (term, index, terms) =>
+          terms.findIndex(
+            (candidate) => normalizeSearchText(candidate) === normalizeSearchText(term),
+          ) === index,
+      );
     }
     if (domain) company.domains = [domain];
     log.companies.push(company);
-    log.companies.sort((left, right) =>
-      left.display_name.localeCompare(right.display_name, "en"));
+    log.companies.sort((left, right) => left.display_name.localeCompare(right.display_name, "en"));
     return { result: { status: "created", company } };
   });
   if (result.status === "ambiguous") process.exitCode = 2;
@@ -607,10 +607,12 @@ function createCompany(options) {
 
 function linkCompany(options) {
   assertAllowed(options, ["id", "company-id"]);
-  print(linkFileBackedProcessCompanyV3(logPath, {
-    processId: requireOption(options, "id"),
-    companyId: requireOption(options, "company-id"),
-  }));
+  print(
+    linkFileBackedProcessCompanyV3(logPath, {
+      processId: requireOption(options, "id"),
+      companyId: requireOption(options, "company-id"),
+    }),
+  );
 }
 
 // Provenance only, and the two ids are machine tokens the caller already holds, so no `--input-file`
@@ -625,10 +627,12 @@ function linkDuplicate(options) {
       "link-duplicate takes exactly one of --duplicate-of <id> or --clear-duplicate-of",
     );
   }
-  print(linkFileBackedProcessDuplicateV3(logPath, {
-    processId: requireOption(options, "id"),
-    duplicateOf,
-  }));
+  print(
+    linkFileBackedProcessDuplicateV3(logPath, {
+      processId: requireOption(options, "id"),
+      duplicateOf,
+    }),
+  );
 }
 
 // Read-only, and it exits 0 whatever it finds: a chain is history, not a condition to resolve. It
@@ -646,11 +650,12 @@ function renameCompany(options) {
   const displayName = requireOption(options, "display-name");
   commitCompanyMutation((log) => {
     const company = getCompany(log, id);
-    company.search_terms = [...company.search_terms, ...deriveSearchTerms(displayName)]
-      .filter((term, index, terms) =>
-        terms.findIndex((candidate) =>
-          normalizeSearchText(candidate) === normalizeSearchText(term),
-        ) === index);
+    company.search_terms = [...company.search_terms, ...deriveSearchTerms(displayName)].filter(
+      (term, index, terms) =>
+        terms.findIndex(
+          (candidate) => normalizeSearchText(candidate) === normalizeSearchText(term),
+        ) === index,
+    );
     company.display_name = displayName;
     return { result: { status: "renamed", company } };
   });
@@ -659,10 +664,7 @@ function renameCompany(options) {
 function getCompany(log, id) {
   const company = log.companies.find((candidate) => candidate.id === id);
   if (!company) {
-    throw new ProcessLogCliError(
-      "company_not_found",
-      `Unknown company id: ${id}`,
-    );
+    throw new ProcessLogCliError("company_not_found", `Unknown company id: ${id}`);
   }
   return company;
 }
@@ -674,9 +676,7 @@ function editCompanyTerm(options, remove) {
   const key = normalizeSearchText(term);
   commitCompanyMutation((log) => {
     const company = getCompany(log, id);
-    const exists = company.search_terms.some(
-      (candidate) => normalizeSearchText(candidate) === key,
-    );
+    const exists = company.search_terms.some((candidate) => normalizeSearchText(candidate) === key);
     if (remove && key === normalizeSearchText(company.display_name)) {
       throw new ProcessLogCliError(
         "company_term_required",
@@ -717,9 +717,7 @@ function editCompanyDomain(options, remove) {
       };
     }
     if (remove) {
-      company.domains = company.domains.filter(
-        (candidate) => candidate !== domain,
-      );
+      company.domains = company.domains.filter((candidate) => candidate !== domain);
     } else {
       company.domains.push(domain);
     }
@@ -849,10 +847,7 @@ try {
   if (command === "help" || command === "--help") {
     usage();
   } else if (!command || !Object.hasOwn(commands, command)) {
-    throw new ProcessLogCliError(
-      "unknown_command",
-      `Unknown command: ${command ?? "<none>"}`,
-    );
+    throw new ProcessLogCliError("unknown_command", `Unknown command: ${command ?? "<none>"}`);
   } else {
     if (!commandsWithoutFolderCheck.includes(command)) verifyOperationalFolder();
     const hydrated = hydrateSafeCliOptions({
@@ -863,9 +858,7 @@ try {
     try {
       commands[command](hydrated.options);
     } catch (error) {
-      throw hydrated.transported
-        ? translateTransportedCommandError(error)
-        : error;
+      throw hydrated.transported ? translateTransportedCommandError(error) : error;
     }
   }
 } catch (error) {

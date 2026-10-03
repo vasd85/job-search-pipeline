@@ -19,7 +19,14 @@
  */
 import { normalizeScorerInput } from "./normalized-input.mjs";
 import { REFERENCE_RATE_PROVIDER } from "../candidate/scoring.mjs";
-import { TOOLMATCH_TAXONOMY_ID, resolveLanguageName, resolveToolName, frameworkClassFor, isSupportingName, normalizeToolName } from "./tool-taxonomy.mjs";
+import {
+  TOOLMATCH_TAXONOMY_ID,
+  resolveLanguageName,
+  resolveToolName,
+  frameworkClassFor,
+  isSupportingName,
+  normalizeToolName,
+} from "./tool-taxonomy.mjs";
 
 const FORMAT_PRIORITY = Object.freeze(["Remote", "Hybrid", "On-site", "Unknown"]);
 
@@ -87,9 +94,11 @@ const BELOW_FLOOR_CURVE = Object.freeze([0.9, 0.8, 0.7, 0.5, 0]);
 const SKIP_REASONS = Object.freeze({
   not_qa_or_testing_role: "The vacancy is not a QA or software testing role.",
   language_not_supported: "The full description is not in a supported language.",
-  explicitly_not_eligible_to_work: "The source explicitly states an incompatible work authorization.",
+  explicitly_not_eligible_to_work:
+    "The source explicitly states an incompatible work authorization.",
   destination_excluded: "The role requires presence in a destination the candidate excludes.",
-  mobility_not_feasible: "A closing sign has no countervailing opening sign (knowledge/job-match-rules.md#mobility-feasibility).",
+  mobility_not_feasible:
+    "A closing sign has no countervailing opening sign (knowledge/job-match-rules.md#mobility-feasibility).",
   manager_role: "The role is explicitly process/people management with no engineering QA scope.",
   manual_role: "The role is explicitly manual-only.",
   junior_role: "The role is explicitly Junior/Entry seniority.",
@@ -132,9 +141,10 @@ function destinationOutsideFeasibleSet(offer, scoring) {
 function requiresExcludedDestination(offer, scoring) {
   const excluded = scoring.mobility.excluded_destinations;
   if (
-    ["Hybrid", "On-site"].includes(offer.workFormat)
-    && excluded.includes(offer.relocationCountryCode)
-  ) return true;
+    ["Hybrid", "On-site"].includes(offer.workFormat) &&
+    excluded.includes(offer.relocationCountryCode)
+  )
+    return true;
   return excluded.includes(offer.residenceRequirementCountryCode);
 }
 
@@ -151,17 +161,20 @@ function mobilityClosingSign(offer, scoring) {
   }
   if (outside === true && offer.sponsorship === "unavailable") return "sponsorship_unavailable";
   if (
-    offer.companyRegion === "WEST"
-    && offer.sponsorship === "unknown"
-    && offer.workAuthorization === "unknown"
-  ) return "west_relocation_authorization_silent";
+    offer.companyRegion === "WEST" &&
+    offer.sponsorship === "unknown" &&
+    offer.workAuthorization === "unknown"
+  )
+    return "west_relocation_authorization_silent";
   return null;
 }
 
 function mobilityOpeningSign(offer) {
-  return offer.sponsorship === "available"
-    || offer.relocationSupport === "available"
-    || offer.workAuthorization === "eligible";
+  return (
+    offer.sponsorship === "available" ||
+    offer.relocationSupport === "available" ||
+    offer.workAuthorization === "eligible"
+  );
 }
 
 /**
@@ -174,10 +187,12 @@ function remoteResidenceCloses(offer) {
   if (offer.workFormat !== "Remote" || offer.residenceRestriction !== "incompatible") return false;
   // All four refusals together, and each one of them alone is enough to keep the path scoreable:
   // an offered cure and an explicit refusal of it are different values of the same fact.
-  return offer.contractorEligibility === "ineligible"
-    && offer.workAuthorization === "required_existing"
-    && offer.sponsorship === "unavailable"
-    && offer.relocationSupport === "unavailable";
+  return (
+    offer.contractorEligibility === "ineligible" &&
+    offer.workAuthorization === "required_existing" &&
+    offer.sponsorship === "unavailable" &&
+    offer.relocationSupport === "unavailable"
+  );
 }
 
 /** Every hard-SKIP rule this one offered path trips, with the basis a mobility skip owes knowledge/job-match-rules.md#7-decision-trace-contract. */
@@ -186,7 +201,8 @@ function terminatePath(offer, scoring) {
   if (offer.workAuthorization === "explicitly_ineligible") {
     codes.push({ basis: null, code: "explicitly_not_eligible_to_work" });
   }
-  if (requiresExcludedDestination(offer, scoring)) codes.push({ basis: null, code: "destination_excluded" });
+  if (requiresExcludedDestination(offer, scoring))
+    codes.push({ basis: null, code: "destination_excluded" });
   const closingSign = mobilityClosingSign(offer, scoring);
   if (closingSign !== null && !mobilityOpeningSign(offer)) {
     codes.push({ basis: closingSign, code: "mobility_not_feasible" });
@@ -220,9 +236,18 @@ function selectOffer(input) {
     codes: terminatePath(offer, input.candidateScoring),
     offer,
   }));
-  const survivors = terminations.filter(({ codes }) => codes.length === 0).map(({ offer }) => offer);
+  const survivors = terminations
+    .filter(({ codes }) => codes.length === 0)
+    .map(({ offer }) => offer);
   if (input.offers.length > 0 && survivors.length === 0) {
-    return { allTerminated: true, observedFormats, observedRegions, review: null, selectedOffer: null, terminations };
+    return {
+      allTerminated: true,
+      observedFormats,
+      observedRegions,
+      review: null,
+      selectedOffer: null,
+      terminations,
+    };
   }
 
   for (const workFormat of FORMAT_PRIORITY) {
@@ -252,7 +277,14 @@ function selectOffer(input) {
       };
     }
   }
-  return { allTerminated: false, observedFormats, observedRegions, review: null, selectedOffer: null, terminations };
+  return {
+    allTerminated: false,
+    observedFormats,
+    observedRegions,
+    review: null,
+    selectedOffer: null,
+    terminations,
+  };
 }
 
 /** The configured tier of one country code, or `null` when no tier lists it. */
@@ -267,11 +299,14 @@ function tierOf(code, scoring) {
  * home region at the tier all its countries share, if they share one. Any other region spans tiers.
  */
 function regionTierScore(offer, scoring) {
-  if (offer.companyRegion === "WEST") return scoring.scoring.m.relocation[scoring.mobility.west_tier];
+  if (offer.companyRegion === "WEST")
+    return scoring.scoring.m.relocation[scoring.mobility.west_tier];
   if (offer.companyRegion === "HOME") {
     const tiers = new Set(scoring.mobility.home_region.map((code) => tierOf(code, scoring)));
     const [only] = tiers;
-    return tiers.size === 1 && only !== null ? scoring.scoring.m.relocation[only] : scoring.scoring.m.relocation.unknown;
+    return tiers.size === 1 && only !== null
+      ? scoring.scoring.m.relocation[only]
+      : scoring.scoring.m.relocation.unknown;
   }
   return scoring.scoring.m.relocation.unknown;
 }
@@ -282,7 +317,8 @@ function relocationCountryScore(offer, scoring) {
     const named = tierOf(offer.relocationCountryCode, scoring);
     if (named !== null) return { gaps: [], score: scoring.scoring.m.relocation[named] };
     // A code no tier lists on a WEST path is a WEST country, priced by the region as it always was.
-    if (offer.companyRegion === "WEST") return { gaps: [], score: scoring.scoring.m.relocation[scoring.mobility.west_tier] };
+    if (offer.companyRegion === "WEST")
+      return { gaps: [], score: scoring.scoring.m.relocation[scoring.mobility.west_tier] };
     return { gaps: [GAP.relocationCountryUnlisted], score: scoring.scoring.m.relocation.unknown };
   }
   // A named destination nobody could identify (knowledge/job-match-rules.md#31-m--mobility--work-feasibility): the region does not price it either, because
@@ -313,14 +349,13 @@ function relocationCountryScore(offer, scoring) {
 function unresolvedDestinationGaps(offer) {
   const gaps = [];
   if (
-    ["Hybrid", "On-site"].includes(offer.workFormat)
-    && offer.relocationCountry !== null
-    && offer.relocationCountryCode === null
-  ) gaps.push(GAP.relocationCountryUnresolved);
-  if (
-    offer.residenceRequirementCountry !== null
-    && offer.residenceRequirementCountryCode === null
-  ) gaps.push(GAP.residenceRequirementCountryUnresolved);
+    ["Hybrid", "On-site"].includes(offer.workFormat) &&
+    offer.relocationCountry !== null &&
+    offer.relocationCountryCode === null
+  )
+    gaps.push(GAP.relocationCountryUnresolved);
+  if (offer.residenceRequirementCountry !== null && offer.residenceRequirementCountryCode === null)
+    gaps.push(GAP.residenceRequirementCountryUnresolved);
   return gaps;
 }
 
@@ -345,10 +380,12 @@ function mobilityBranchScore(offer, scoring) {
   }
   const unresolved = {
     gaps: [GAP.mobilityBranchUnresolved],
-    reason: "The observed combination matches no mobility branch; middle mobility score (knowledge/job-match-rules.md#31-m--mobility--work-feasibility).",
+    reason:
+      "The observed combination matches no mobility branch; middle mobility score (knowledge/job-match-rules.md#31-m--mobility--work-feasibility).",
     score: scoring.scoring.m.unknown,
   };
-  const residenceGaps = offer.residenceRestriction === "unknown" ? [GAP.residenceRestrictionAbsent] : [];
+  const residenceGaps =
+    offer.residenceRestriction === "unknown" ? [GAP.residenceRestrictionAbsent] : [];
 
   if (offer.sponsorship === "available" && offer.companyRegion === "WEST") {
     return { gaps: [], reason: "WEST path with explicit sponsorship.", score: points.sponsored };
@@ -369,44 +406,84 @@ function mobilityBranchScore(offer, scoring) {
       return {
         gaps: residenceGaps,
         reason: "WEST remote path with a local timezone constraint.",
-        score: far ? (compatible ? remote.far_local_open : remote.far_local_restricted) : (compatible ? remote.near_local_open : remote.near_local_restricted),
+        score: far
+          ? compatible
+            ? remote.far_local_open
+            : remote.far_local_restricted
+          : compatible
+            ? remote.near_local_open
+            : remote.near_local_restricted,
       };
     }
     return {
       gaps: residenceGaps,
       reason: "WEST remote path with no explicit timezone constraint.",
-      score: far ? (compatible ? remote.far_unknown_open : remote.far_unknown_restricted) : (compatible ? remote.near_unknown_open : remote.near_unknown_restricted),
+      score: far
+        ? compatible
+          ? remote.far_unknown_open
+          : remote.far_unknown_restricted
+        : compatible
+          ? remote.near_unknown_open
+          : remote.near_unknown_restricted,
     };
   }
 
   if (offer.workFormat === "Remote") {
     if (["tz_any", "tz_home"].includes(offer.timezone)) {
-      return { gaps: [], reason: "Remote path with a broad or home-compatible timezone.", score: remote.other_near };
+      return {
+        gaps: [],
+        reason: "Remote path with a broad or home-compatible timezone.",
+        score: remote.other_near,
+      };
     }
     if (offer.companyRegion === "HOME") {
-      return { gaps: [], reason: "Remote path in the home region, which shares the home timezone.", score: remote.other_near };
+      return {
+        gaps: [],
+        reason: "Remote path in the home region, which shares the home timezone.",
+        score: remote.other_near,
+      };
     }
     if (offer.timezoneDistance === "near") {
-      return { gaps: [], reason: "Remote path close to the home timezone.", score: remote.other_near };
+      return {
+        gaps: [],
+        reason: "Remote path close to the home timezone.",
+        score: remote.other_near,
+      };
     }
     if (offer.companyRegion === "UNKNOWN") {
-      return { gaps: [], reason: "Remote path with an unknown company region.", score: remote.other_unknown };
+      return {
+        gaps: [],
+        reason: "Remote path with an unknown company region.",
+        score: remote.other_unknown,
+      };
     }
     if (offer.timezoneDistance === "far" && offer.timezone === "tz_unknown") {
-      return { gaps: [], reason: "Remote path far from the home timezone with no explicit timezone constraint.", score: remote.other_far_unknown };
+      return {
+        gaps: [],
+        reason: "Remote path far from the home timezone with no explicit timezone constraint.",
+        score: remote.other_far_unknown,
+      };
     }
     if (offer.timezoneDistance === "far" && offer.timezone === "tz_local") {
-      return { gaps: [], reason: "Remote path far from the home timezone and bound to a local timezone.", score: remote.other_far_local };
+      return {
+        gaps: [],
+        reason: "Remote path far from the home timezone and bound to a local timezone.",
+        score: remote.other_far_local,
+      };
     }
     return unresolved;
   }
 
   if (["Hybrid", "On-site"].includes(offer.workFormat)) {
     const country = relocationCountryScore(offer, scoring);
-    const bonus = offer.sponsorship === "available" || offer.relocationSupport === "available" ? points.relocation.bonus : 0;
+    const bonus =
+      offer.sponsorship === "available" || offer.relocationSupport === "available"
+        ? points.relocation.bonus
+        : 0;
     return {
       gaps: country.gaps,
-      reason: "Relocation path scored by the country table (knowledge/job-match-rules.md#31-m--mobility--work-feasibility).",
+      reason:
+        "Relocation path scored by the country table (knowledge/job-match-rules.md#31-m--mobility--work-feasibility).",
       score: Math.min(points.relocation.max, country.score + bonus),
     };
   }
@@ -424,21 +501,20 @@ function resolveEngagementPath(offer, selectedFormat) {
   if (region === "HOME") {
     return { assumption: ASSUMPTION.engagementPathHomeEmployment, path: "home_employment" };
   }
-  const remoteOrUnresolved = selectedFormat === null
-    || selectedFormat === "Remote"
-    || selectedFormat === "Unknown";
+  const remoteOrUnresolved =
+    selectedFormat === null || selectedFormat === "Remote" || selectedFormat === "Unknown";
   return remoteOrUnresolved
     ? {
-      assumption: ASSUMPTION.engagementPathOutsideHomeContractor,
-      path: "outside_home_contractor",
-    }
+        assumption: ASSUMPTION.engagementPathOutsideHomeContractor,
+        path: "outside_home_contractor",
+      }
     : { assumption: ASSUMPTION.engagementPathRelocation, path: "relocation_employment" };
 }
 
 function monthlyAmount(amount, period) {
   if (period === "monthly") return amount;
   if (period === "annual") return amount / 12;
-  if (period === "hourly") return amount * 40 * 52 / 12;
+  if (period === "hourly") return (amount * 40 * 52) / 12;
   return null;
 }
 
@@ -465,27 +541,30 @@ function ordinaryFloor(engagementPath, compensation, scoring) {
 
 function convertMonthly(value, sourceCurrency, targetCurrency, fx, scoring) {
   if (sourceCurrency === targetCurrency) return value;
-  const { home_currency: homeCurrency, home_rate_provider: homeRateProvider } = scoring.compensation;
-  const provider = sourceCurrency === homeCurrency || targetCurrency === homeCurrency
-    ? homeRateProvider
-    : REFERENCE_RATE_PROVIDER;
+  const { home_currency: homeCurrency, home_rate_provider: homeRateProvider } =
+    scoring.compensation;
+  const provider =
+    sourceCurrency === homeCurrency || targetCurrency === homeCurrency
+      ? homeRateProvider
+      : REFERENCE_RATE_PROVIDER;
   if (
-    !fx
-    || fx.sourceCurrency !== sourceCurrency
-    || fx.targetCurrency !== targetCurrency
-    || fx.provider !== provider
-  ) return null;
+    !fx ||
+    fx.sourceCurrency !== sourceCurrency ||
+    fx.targetCurrency !== targetCurrency ||
+    fx.provider !== provider
+  )
+    return null;
   return value * fx.targetPerSource;
 }
 
 function scoreReferenceMarket(market, monthly, points) {
   const bands = REFERENCE_MARKET_BANDS[market];
   if (!bands) return null;
-  return points.reference[bands.findIndex(threshold => monthly >= threshold)];
+  return points.reference[bands.findIndex((threshold) => monthly >= threshold)];
 }
 
 function belowFloorScore(ratio, points) {
-  return points.below_floor[BELOW_FLOOR_CURVE.findIndex(threshold => ratio >= threshold)];
+  return points.below_floor[BELOW_FLOOR_CURVE.findIndex((threshold) => ratio >= threshold)];
 }
 
 /**
@@ -495,12 +574,21 @@ function belowFloorScore(ratio, points) {
 function outsideHomeContractorScore(monthly, floor, target, points) {
   const width = target - floor;
   if (monthly >= target + width) return points.max;
-  if (monthly >= target) return points.target + Math.floor((points.max - points.target) * (monthly - target) / width);
-  return points.start + Math.floor((points.target - points.start) * (monthly - floor) / width);
+  if (monthly >= target)
+    return points.target + Math.floor(((points.max - points.target) * (monthly - target)) / width);
+  return points.start + Math.floor(((points.target - points.start) * (monthly - floor)) / width);
 }
 
 function compensationMiddle(gaps, reason, points) {
-  return { assumptions: [], floor: null, fxUsed: null, gaps, reason, review: null, score: points.unknown };
+  return {
+    assumptions: [],
+    floor: null,
+    fxUsed: null,
+    gaps,
+    reason,
+    review: null,
+    score: points.unknown,
+  };
 }
 
 /**
@@ -513,12 +601,16 @@ function scoreCompensation(input, offer, engagementPath) {
   const scoring = input.candidateScoring;
   const points = scoring.scoring.c;
   if (compensation === null) {
-    return compensationMiddle([GAP.compensationAbsent], "Compensation is not stated; middle score.", points);
+    return compensationMiddle(
+      [GAP.compensationAbsent],
+      "Compensation is not stated; middle score.",
+      points,
+    );
   }
   const override = input.explicitOverride;
   if (
-    override
-    && (monthlyAmount(override.amount, override.period) === null || override.basis === "unknown")
+    override &&
+    (monthlyAmount(override.amount, override.period) === null || override.basis === "unknown")
   ) {
     return {
       assumptions: [],
@@ -532,25 +624,26 @@ function scoreCompensation(input, offer, engagementPath) {
 
   const floor = override
     ? {
-      amount: monthlyAmount(override.amount, override.period),
-      basis: override.basis,
-      currency: override.currency,
-      origin: "override",
-      period: "monthly",
-      scope: "batch",
-    }
+        amount: monthlyAmount(override.amount, override.period),
+        basis: override.basis,
+        currency: override.currency,
+        origin: "override",
+        period: "monthly",
+        scope: "batch",
+      }
     : ordinaryFloor(engagementPath, compensation, scoring);
   const floorAssumptions = floor?.assumptions ?? [];
-  const publishedFloor = floor === null
-    ? null
-    : {
-      amount: floor.amount,
-      basis: floor.basis,
-      currency: floor.currency,
-      origin: floor.origin,
-      period: floor.period,
-      ...(floor.scope ? { scope: floor.scope } : {}),
-    };
+  const publishedFloor =
+    floor === null
+      ? null
+      : {
+          amount: floor.amount,
+          basis: floor.basis,
+          currency: floor.currency,
+          origin: floor.origin,
+          period: floor.period,
+          ...(floor.scope ? { scope: floor.scope } : {}),
+        };
 
   const gaps = [];
   const monthlyMinimum = monthlyAmount(compensation.minimum, compensation.period);
@@ -562,10 +655,11 @@ function scoreCompensation(input, offer, engagementPath) {
   // It never touches a stated basis, and against a net floor it would price nothing, because gross
   // is never converted to net. The floor may be the ordinary one or a batch override; on a lane
   // with no floor there is no comparison for the reading to be consumed by.
-  const advertisedGross = compensation.basis === "unknown"
-    && floor !== null
-    && floor.basis === "gross"
-    && GROSS_ADVERTISING_MARKETS.has(offer?.compensationMarket);
+  const advertisedGross =
+    compensation.basis === "unknown" &&
+    floor !== null &&
+    floor.basis === "gross" &&
+    GROSS_ADVERTISING_MARKETS.has(offer?.compensationMarket);
   if (advertisedGross) assumptions.push(ASSUMPTION.compensationBasisAdvertisedGross);
   const comparisonBasis = advertisedGross ? "gross" : compensation.basis;
   // The basis bullet needs a floor to be about: a lane without one has no comparison to fail.
@@ -639,7 +733,11 @@ function scoreCompensation(input, offer, engagementPath) {
     score,
   });
 
-  if (belowFloor !== null) return settle(belowFloor, "The amount is below the applicable floor; below-floor curve applied (knowledge/job-match-rules.md#32-c--compensation--contract-fit).");
+  if (belowFloor !== null)
+    return settle(
+      belowFloor,
+      "The amount is below the applicable floor; below-floor curve applied (knowledge/job-match-rules.md#32-c--compensation--contract-fit).",
+    );
 
   if (engagementPath === "outside_home_contractor") {
     const curve = scoring.compensation.floors.outside_home_contractor;
@@ -649,14 +747,19 @@ function scoreCompensation(input, offer, engagementPath) {
     // curve. A batch override that lowers the floor is the one way to reach that range without
     // being below the floor, and the candidate may lower a floor for a batch.
     if (monthly < curve.amount) {
-      return settle(belowFloorScore(floorRatio, points), "The amount is below band A; below-floor curve applied (knowledge/job-match-rules.md#32-c--compensation--contract-fit).");
+      return settle(
+        belowFloorScore(floorRatio, points),
+        "The amount is below band A; below-floor curve applied (knowledge/job-match-rules.md#32-c--compensation--contract-fit).",
+      );
     }
     return settle(
       outsideHomeContractorScore(monthly, curve.amount, scoring.compensation.target, points),
       "Outside-home contractor curve.",
     );
   }
-  if (["home_employment", "home_contractor", "comparable_cost_employment"].includes(engagementPath)) {
+  if (
+    ["home_employment", "home_contractor", "comparable_cost_employment"].includes(engagementPath)
+  ) {
     return settle(points.local, "Approved neutral local compensation score.");
   }
 
@@ -676,7 +779,10 @@ function scoreCompensation(input, offer, engagementPath) {
   }
   const monthly = convert(comparisonValue, comparisonCurrency, targetCurrency);
   if (monthly === null) return fxMiddle();
-  return settle(scoreReferenceMarket(market, monthly, points), `${market} relocation reference curve.`);
+  return settle(
+    scoreReferenceMarket(market, monthly, points),
+    `${market} relocation reference curve.`,
+  );
 }
 
 /**
@@ -685,7 +791,11 @@ function scoreCompensation(input, offer, engagementPath) {
  */
 function scoreDomain(role, domainFit, points) {
   if (role.domain === "unclear") {
-    return { gaps: [GAP.domainUnclear], reason: "Domain unclear; middle score.", score: points.unknown };
+    return {
+      gaps: [GAP.domainUnclear],
+      reason: "Domain unclear; middle score.",
+      score: points.unknown,
+    };
   }
   if (role.domain === "irrelevant") {
     return { gaps: [], reason: "The domain is not software testing.", score: 0 };
@@ -695,11 +805,15 @@ function scoreDomain(role, domainFit, points) {
   if (!Object.hasOwn(domainFit, role.domain)) {
     throw new Error(`the scoring values place no domain ${role.domain}`);
   }
-  return { gaps: [], reason: "Placed by the candidate's configuration.", score: domainFit[role.domain] };
+  return {
+    gaps: [],
+    reason: "Placed by the candidate's configuration.",
+    score: domainFit[role.domain],
+  };
 }
 
 export function mobilityCap(score, points) {
-  return points.cap_limits[points.cap_scores.findIndex(upper => score <= upper)];
+  return points.cap_limits[points.cap_scores.findIndex((upper) => score <= upper)];
 }
 
 export function bucketFor(matchPercent) {
@@ -714,13 +828,21 @@ function deriveToolMatch(role, toolMatch) {
   const observe = (item, language) => {
     const canonical = language ? resolveLanguageName(item.name) : resolveToolName(item.name);
     const knownClass = language ? null : frameworkClassFor(canonical);
-    const kind = language ? "language" : knownClass !== null ? "framework"
-      : isSupportingName(item.name) ? "supporting" : item.kind;
+    const kind = language
+      ? "language"
+      : knownClass !== null
+        ? "framework"
+        : isSupportingName(item.name)
+          ? "supporting"
+          : item.kind;
     const prices = language ? toolMatch.languages : toolMatch.frameworks;
-    const price = prices.find(entry => entry.name === canonical);
+    const price = prices.find((entry) => entry.name === canonical);
     const counted = item.scope === "main" && (language || kind === "framework");
     return {
-      ...item, canonical_name: canonical, kind, framework_class: knownClass,
+      ...item,
+      canonical_name: canonical,
+      kind,
+      framework_class: knownClass,
       recognised: canonical !== null,
       points: counted ? (price?.points ?? 0) : null,
       experience: price?.experience ?? "unknown",
@@ -728,14 +850,30 @@ function deriveToolMatch(role, toolMatch) {
     };
   };
   const order = (left, right) => {
-    const a = JSON.stringify([left.canonical_name ?? normalizeToolName(left.name), left.name, left.scope, left.requirement, left.evidenceQuote, left.requirementPhrase, left.scopeReason]);
-    const b = JSON.stringify([right.canonical_name ?? normalizeToolName(right.name), right.name, right.scope, right.requirement, right.evidenceQuote, right.requirementPhrase, right.scopeReason]);
+    const a = JSON.stringify([
+      left.canonical_name ?? normalizeToolName(left.name),
+      left.name,
+      left.scope,
+      left.requirement,
+      left.evidenceQuote,
+      left.requirementPhrase,
+      left.scopeReason,
+    ]);
+    const b = JSON.stringify([
+      right.canonical_name ?? normalizeToolName(right.name),
+      right.name,
+      right.scope,
+      right.requirement,
+      right.evidenceQuote,
+      right.requirementPhrase,
+      right.scopeReason,
+    ]);
     return a < b ? -1 : a > b ? 1 : 0;
   };
-  const languages = role.observedLanguages.map(item => observe(item, true)).sort(order);
-  const tools = role.observedTools.map(item => observe(item, false)).sort(order);
+  const languages = role.observedLanguages.map((item) => observe(item, true)).sort(order);
+  const tools = role.observedTools.map((item) => observe(item, false)).sort(order);
   const half = (items) => {
-    const main = items.filter(item => item.counted);
+    const main = items.filter((item) => item.counted);
     if (main.length === 0) return { score: 2, selected: null, state: "unknown" };
     const best = [...main].sort((a, b) => b.points - a.points || order(a, b))[0];
     return { score: best.points, selected: best, state: best.points > 0 ? "matched" : "mismatch" };
@@ -749,32 +887,43 @@ function deriveToolMatch(role, toolMatch) {
     if (language.state === "unknown") gaps.push(GAP.testLanguageAbsent);
     if (framework.state === "unknown") gaps.push(GAP.testFrameworkAbsent);
   }
-  if (all.some(item => item.scope === "ambiguous" || item.kind === "ambiguous")) gaps.push(GAP.stackAmbiguous);
+  if (all.some((item) => item.scope === "ambiguous" || item.kind === "ambiguous"))
+    gaps.push(GAP.stackAmbiguous);
   return {
-    toolMatch: language.score + framework.score, gaps,
+    toolMatch: language.score + framework.score,
+    gaps,
     breakdown: {
-      language, framework, observations: all,
-      optional: all.filter(item => item.scope === "optional"),
-      supporting: all.filter(item => item.kind === "supporting"),
-      product: all.filter(item => item.scope === "product"),
-      ambiguous: all.filter(item => item.scope === "ambiguous" || item.kind === "ambiguous"),
-      unrecognised: all.filter(item => !item.recognised),
-      required_without_direct_experience: all.filter(item => item.requirement === "required"
-        && item.scope === "main" && ["language", "framework"].includes(item.kind) && item.experience !== "direct"),
-      experience_note: "Experience describes the named technology; direct framework use does not establish direct use in every language or version.",
+      language,
+      framework,
+      observations: all,
+      optional: all.filter((item) => item.scope === "optional"),
+      supporting: all.filter((item) => item.kind === "supporting"),
+      product: all.filter((item) => item.scope === "product"),
+      ambiguous: all.filter((item) => item.scope === "ambiguous" || item.kind === "ambiguous"),
+      unrecognised: all.filter((item) => !item.recognised),
+      required_without_direct_experience: all.filter(
+        (item) =>
+          item.requirement === "required" &&
+          item.scope === "main" &&
+          ["language", "framework"].includes(item.kind) &&
+          item.experience !== "direct",
+      ),
+      experience_note:
+        "Experience describes the named technology; direct framework use does not establish direct use in every language or version.",
     },
   };
 }
 
 /** knowledge/job-match-rules.md#33-s--skillsstack--role-fit S = AutomationShare + ToolMatch + SeniorityFit, each with its own middle. */
 function scoreSkills(role, toolMatch, points) {
-  const terminalCode = role.automation === "manager_only"
-    ? "manager_role"
-    : role.automation === "manual_only"
-      ? "manual_role"
-      : role.seniority === "junior"
-        ? "junior_role"
-        : null;
+  const terminalCode =
+    role.automation === "manager_only"
+      ? "manager_role"
+      : role.automation === "manual_only"
+        ? "manual_role"
+        : role.seniority === "junior"
+          ? "junior_role"
+          : null;
   if (terminalCode) return { gaps: [], score: null, terminalCode };
 
   const gaps = [];
@@ -805,19 +954,22 @@ function scoreSkills(role, toolMatch, points) {
 function terminalEvidence(code, input, selection) {
   if (code === "language_not_supported") return input.role.evidence.language;
   if (code === "explicitly_not_eligible_to_work") {
-    return input.offers.find(
-      (offer) => offer.workAuthorization === "explicitly_ineligible",
-    )?.evidenceQuote ?? null;
+    return (
+      input.offers.find((offer) => offer.workAuthorization === "explicitly_ineligible")
+        ?.evidenceQuote ?? null
+    );
   }
   if (code === "destination_excluded") {
-    return input.offers.find(
-      (offer) => requiresExcludedDestination(offer, input.candidateScoring),
-    )?.evidenceQuote ?? null;
+    return (
+      input.offers.find((offer) => requiresExcludedDestination(offer, input.candidateScoring))
+        ?.evidenceQuote ?? null
+    );
   }
   if (code === "mobility_not_feasible") {
-    return selection.terminations.find(
-      ({ codes }) => codes.some((entry) => entry.code === code),
-    )?.offer.evidenceQuote ?? null;
+    return (
+      selection.terminations.find(({ codes }) => codes.some((entry) => entry.code === code))?.offer
+        .evidenceQuote ?? null
+    );
   }
   if (["manager_role", "manual_role"].includes(code)) return input.role.evidence.automation;
   if (code === "junior_role") return input.role.evidence.seniority;
@@ -878,7 +1030,11 @@ export function decideNormalizedJob(rawInput, { languages, scoring } = {}) {
   }
 
   const selection = selectOffer(input);
-  const skills = scoreSkills(input.role, input.candidateScoring.tool_match, input.candidateScoring.scoring.s);
+  const skills = scoreSkills(
+    input.role,
+    input.candidateScoring.tool_match,
+    input.candidateScoring.scoring.s,
+  );
   const terminatedCodes = selection.allTerminated
     ? selection.terminations.flatMap(({ codes }) => codes.map(({ code }) => code))
     : [];
@@ -931,7 +1087,11 @@ export function decideNormalizedJob(rawInput, { languages, scoring } = {}) {
   }
 
   const mobility = scoreMobility(selection.selectedOffer, input.candidateScoring);
-  const domain = scoreDomain(input.role, input.candidateScoring.domain_fit, input.candidateScoring.scoring.d);
+  const domain = scoreDomain(
+    input.role,
+    input.candidateScoring.domain_fit,
+    input.candidateScoring.scoring.d,
+  );
   const matchRaw = mobility.score + compensation.score + skills.score + domain.score;
   const cap = mobilityCap(mobility.score, input.candidateScoring.scoring.m);
   const matchPercent = Math.min(matchRaw, cap);

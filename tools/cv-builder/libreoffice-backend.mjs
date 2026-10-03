@@ -1,17 +1,5 @@
-import {
-  accessSync,
-  constants,
-  readFileSync,
-  statSync,
-} from "node:fs";
-import {
-  basename,
-  delimiter,
-  dirname,
-  isAbsolute,
-  join,
-  normalize,
-} from "node:path";
+import { accessSync, constants, readFileSync, statSync } from "node:fs";
+import { basename, delimiter, dirname, isAbsolute, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const DEFAULT_MACOS_LIBREOFFICE_APP = "/Applications/LibreOffice.app";
@@ -46,9 +34,11 @@ function readSmallTextFile(path) {
 
 function isRuntimeOverridePath(path) {
   const overrideDir = dirname(path);
-  return basename(overrideDir) === "override"
-    && basename(dirname(overrideDir)) === "bin"
-    && basename(dirname(dirname(overrideDir))) === "dependencies";
+  return (
+    basename(overrideDir) === "override" &&
+    basename(dirname(overrideDir)) === "bin" &&
+    basename(dirname(dirname(overrideDir))) === "dependencies"
+  );
 }
 
 function looksLikeSystemMacosGuiSoffice(path, readText) {
@@ -80,8 +70,11 @@ export function resolveLibreOfficeBackend(options = {}, context = {}) {
   const executable = context.isExecutable ?? isExecutableFile;
   const directory = context.isDirectory ?? isDirectory;
   const readText = context.readText ?? readSmallTextFile;
-  const pathEntries = context.pathEntries
-    ?? String(env.PATH ?? "").split(delimiter).filter(Boolean);
+  const pathEntries =
+    context.pathEntries ??
+    String(env.PATH ?? "")
+      .split(delimiter)
+      .filter(Boolean);
 
   if (options.docxRenderer) {
     return {
@@ -179,12 +172,10 @@ export function createRendererEnvironment(baseEnv = process.env, platform = proc
   return env;
 }
 
-export function buildLibreOfficeInvocation(backend, {
-  docxPath,
-  qaDir,
-  profileDir,
-  platform = process.platform,
-}) {
+export function buildLibreOfficeInvocation(
+  backend,
+  { docxPath, qaDir, profileDir, platform = process.platform },
+) {
   if (backend.kind === "python-renderer") {
     return {
       command: backend.command,

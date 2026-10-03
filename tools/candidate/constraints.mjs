@@ -143,8 +143,11 @@ function requireTermList(value, { entryId, field, singleWord }) {
       `constraint ${entryId}: ${field} must hold at most ${MAX_TERMS_PER_ENTRY} entries`,
     );
   }
-  return Object.freeze(value.map((entry, index) =>
-    requireTerm(entry, { entryId, field: `${field}[${index}]`, singleWord })));
+  return Object.freeze(
+    value.map((entry, index) =>
+      requireTerm(entry, { entryId, field: `${field}[${index}]`, singleWord }),
+    ),
+  );
 }
 
 function requireScope(value, entryId) {
@@ -186,7 +189,10 @@ function requireScope(value, entryId) {
 
 function requireWhy(value, entryId) {
   if (typeof value !== "string" || value.trim().length === 0) {
-    fail("candidate_constraint_why_invalid", `constraint ${entryId}: why must be a non-empty string`);
+    fail(
+      "candidate_constraint_why_invalid",
+      `constraint ${entryId}: why must be a non-empty string`,
+    );
   }
   if (value.length > MAX_WHY_LENGTH) {
     fail(
@@ -229,7 +235,11 @@ function parseEntry(value, index, seenIds) {
     );
   }
   const fields = PAYLOAD_FIELDS[type];
-  const known = new Set([...ENTRY_FIELDS, fields.list, ...(fields.required ? [fields.required] : [])]);
+  const known = new Set([
+    ...ENTRY_FIELDS,
+    fields.list,
+    ...(fields.required ? [fields.required] : []),
+  ]);
   // An unknown field is a refusal rather than something ignored. This is where an attempt to
   // switch an engine constraint off would land: the file has no shape for subtraction, and a
   // field invented to express one is refused by name.
@@ -265,7 +275,8 @@ function parseEntry(value, index, seenIds) {
   // engine check refuses, with both halves inside one record.
   if (entry.required !== null) {
     const selfRefusing = entry.terms.find((term) =>
-      containsCandidateTerm(entry.required, term, { caseSensitive: entry.caseSensitive }));
+      containsCandidateTerm(entry.required, term, { caseSensitive: entry.caseSensitive }),
+    );
     if (selfRefusing !== undefined) {
       fail(
         "candidate_constraint_payload_invalid",
@@ -284,7 +295,10 @@ export function parseCandidateConstraints(value) {
     fail("candidate_constraints_shape_invalid", "candidate constraints must be a JSON object");
   }
   if (!Object.hasOwn(value, "schema_version")) {
-    fail("candidate_constraints_schema_version_missing", "candidate constraints must carry schema_version");
+    fail(
+      "candidate_constraints_schema_version_missing",
+      "candidate constraints must carry schema_version",
+    );
   }
   if (value.schema_version !== candidateConstraintsSchemaVersion) {
     fail(
@@ -292,7 +306,9 @@ export function parseCandidateConstraints(value) {
       `candidate constraints declare a schema this engine does not read; it reads ${candidateConstraintsSchemaVersion}`,
     );
   }
-  const unknown = Object.keys(value).find((key) => key !== "constraints" && key !== "schema_version");
+  const unknown = Object.keys(value).find(
+    (key) => key !== "constraints" && key !== "schema_version",
+  );
   if (unknown !== undefined) {
     fail(
       "candidate_constraints_shape_invalid",
@@ -301,7 +317,10 @@ export function parseCandidateConstraints(value) {
   }
   const { constraints } = value;
   if (!Array.isArray(constraints)) {
-    fail("candidate_constraints_shape_invalid", "candidate constraints must carry a constraints array");
+    fail(
+      "candidate_constraints_shape_invalid",
+      "candidate constraints must carry a constraints array",
+    );
   }
   if (constraints.length > MAX_ENTRIES) {
     fail(
@@ -318,7 +337,12 @@ export function candidateConstraintsPathFor(root) {
 }
 
 function requireExactRootPath(root) {
-  if (typeof root !== "string" || root.length === 0 || !isAbsolute(root) || root !== resolve(root)) {
+  if (
+    typeof root !== "string" ||
+    root.length === 0 ||
+    !isAbsolute(root) ||
+    root !== resolve(root)
+  ) {
     fail("candidate_root_invalid", "candidate root must be an absolute normalized path");
   }
   return root;
@@ -345,7 +369,10 @@ export function loadCandidateConstraints({ root } = {}) {
       fail("candidate_constraints_unreadable", "candidate constraints must be a regular file");
     }
     if (stats.size > MAX_CONSTRAINTS_BYTES) {
-      fail("candidate_constraints_unreadable", "candidate constraints are larger than this reader accepts");
+      fail(
+        "candidate_constraints_unreadable",
+        "candidate constraints are larger than this reader accepts",
+      );
     }
     bytes = readFileSync(path, "utf8");
   } catch (error) {
@@ -381,18 +408,22 @@ export function loadCandidateConstraints({ root } = {}) {
  */
 export function candidatePrivateProjectConstraints(profile) {
   if (profile === null) return Object.freeze([]);
-  return Object.freeze(profile.projects
-    .filter((project) => project.visibility === "private")
-    .map((project) => Object.freeze({
-      caseSensitive: false,
-      id: `${candidatePrivateProjectIdPrefix}${project.number.replace(".", "-")}`,
-      required: null,
-      requiredField: null,
-      scope: Object.freeze({ materials: candidateConstraintMaterials }),
-      terms: Object.freeze([project.name]),
-      type: "forbid_phrases",
-      why: `project ${project.number.split(".")[1]} of candidate/profile.md#10-personal-projects is private, and a private project is never named (generation-rules.md rule 16)`,
-    })));
+  return Object.freeze(
+    profile.projects
+      .filter((project) => project.visibility === "private")
+      .map((project) =>
+        Object.freeze({
+          caseSensitive: false,
+          id: `${candidatePrivateProjectIdPrefix}${project.number.replace(".", "-")}`,
+          required: null,
+          requiredField: null,
+          scope: Object.freeze({ materials: candidateConstraintMaterials }),
+          terms: Object.freeze([project.name]),
+          type: "forbid_phrases",
+          why: `project ${project.number.split(".")[1]} of candidate/profile.md#10-personal-projects is private, and a private project is never named (generation-rules.md rule 16)`,
+        }),
+      ),
+  );
 }
 
 // The layer's own entries and the ones its profile derives, as one list. The profile is read on
@@ -453,7 +484,8 @@ export function candidateConstraintFindings(constraints, text, { artifact } = {}
   const findings = [];
   for (const entry of constraints) {
     const broken = entry.terms.some((term) =>
-      containsCandidateTerm(text, term, { caseSensitive: entry.caseSensitive }));
+      containsCandidateTerm(text, term, { caseSensitive: entry.caseSensitive }),
+    );
     if (!broken) continue;
     if (entry.type === "forbid_phrases") {
       findings.push(`${artifact} breaks candidate constraint "${entry.id}" (forbid_phrases)`);
@@ -484,12 +516,24 @@ export function candidateConstraintFindings(constraints, text, { artifact } = {}
  * are added after the narrowing and checked with the layer's own entries as one list, so the
  * publication, its dry run and the pins of a pack all see the same set.
  */
-export function candidateConstraintsFor({ engineForbidden = [], language = null, material, root } = {}) {
+export function candidateConstraintsFor({
+  engineForbidden = [],
+  language = null,
+  material,
+  root,
+} = {}) {
   const loaded = loadCandidateConstraints({ root });
-  const selected = selectCandidateConstraints(layerConstraints(root, loaded.constraints), { material });
-  const merged = material === "cover_letter" && isLanguageName(language) && language !== DEFAULT_LANGUAGE.name
-    ? mergePackConstraints(selected, loadCandidatePackConstraints({ language, root }).constraints, language)
-    : selected;
+  const selected = selectCandidateConstraints(layerConstraints(root, loaded.constraints), {
+    material,
+  });
+  const merged =
+    material === "cover_letter" && isLanguageName(language) && language !== DEFAULT_LANGUAGE.name
+      ? mergePackConstraints(
+          selected,
+          loadCandidatePackConstraints({ language, root }).constraints,
+          language,
+        )
+      : selected;
   assertCandidateConstraintsCompatible(merged, { engineForbidden });
   return merged;
 }

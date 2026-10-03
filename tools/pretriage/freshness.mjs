@@ -29,11 +29,7 @@ export const collectionStaleAfterDays = 7;
 export const collectionStates = Object.freeze(["fresh", "stale", "undated"]);
 
 /** How the batch order was arrived at. Reported so silence is never mistaken for a guarantee. */
-export const orderingBases = Object.freeze([
-  "posted_at",
-  "declared_newest_first",
-  "input_order",
-]);
+export const orderingBases = Object.freeze(["posted_at", "declared_newest_first", "input_order"]);
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/u;
 const ZONE_DESIGNATOR = /(?:Z|[+-]\d{2}:\d{2})$/u;
@@ -93,7 +89,10 @@ export function assessCollection({
     fail("pretriage_invalid_instant", "The batch instant must be a zoned instant.");
   }
   if (!Number.isSafeInteger(staleAfterDays) || staleAfterDays < 1) {
-    fail("pretriage_invalid_window", "The staleness window must be a positive whole number of days.");
+    fail(
+      "pretriage_invalid_window",
+      "The staleness window must be a positive whole number of days.",
+    );
   }
   if (collectedAt === null || collectedAt === undefined) {
     return {
@@ -110,10 +109,7 @@ export function assessCollection({
     // A present-but-unreadable date is louder than an absent one, and deliberately so: it means the
     // operator wrote something the policy could not use, which is a different problem from not
     // having written anything.
-    fail(
-      "pretriage_invalid_instant",
-      "The collection date must be a zoned instant or a UTC date.",
-    );
+    fail("pretriage_invalid_instant", "The collection date must be a zoned instant or a UTC date.");
   }
   // A date-only stamp up to one day ahead is the operator writing their own local date: an hour
   // after midnight in Tbilisi, "today" is already tomorrow in UTC. That is an ordinary input, not a

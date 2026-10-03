@@ -41,7 +41,8 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // The letter languages come from the tracked example — the default language and Greek — never from
 // the operator's layer. The wrappers pass them so each case states only what it is about.
 const exampleLanguages = candidateLanguageNames({ root: candidateExampleRootFor(repoRoot) });
-const readCorpus = (directory, options = {}) => readCorpusWith(directory, { languages: exampleLanguages, ...options });
+const readCorpus = (directory, options = {}) =>
+  readCorpusWith(directory, { languages: exampleLanguages, ...options });
 const validateRecord = (record, label, options = {}) =>
   validateRecordWith(record, label, { languages: exampleLanguages, ...options });
 const writeRecord = (directory, fields, options = {}) =>
@@ -66,11 +67,11 @@ function gitAnswers({ insideWorkTree = true, ignored = true } = {}) {
       return insideWorkTree
         ? { error: undefined, status: 0, stdout: "true\n", stderr: "" }
         : {
-          error: undefined,
-          status: 128,
-          stdout: "",
-          stderr: "fatal: not a git repository (or any of the parent directories): .git\n",
-        };
+            error: undefined,
+            status: 128,
+            stdout: "",
+            stderr: "fatal: not a git repository (or any of the parent directories): .git\n",
+          };
     }
     if (args[0] === "check-ignore") {
       return {
@@ -133,15 +134,24 @@ const ENVELOPE = Object.freeze({
 function recordArgs(basename, overrides = []) {
   return [
     "record",
-    "--input-file", basename,
-    "--process-id", "proc_20260911T141824Z_67541307",
-    "--publication-before", "pub_write_cover_letter_9581796e085d",
-    "--publication-after", "publication_d36efb81",
-    "--after-state", "published",
-    "--before-index", "0",
-    "--channel", "chat_command",
-    "--language", "Greek",
-    "--occurred-on", "2026-09-11",
+    "--input-file",
+    basename,
+    "--process-id",
+    "proc_20260911T141824Z_67541307",
+    "--publication-before",
+    "pub_write_cover_letter_9581796e085d",
+    "--publication-after",
+    "publication_d36efb81",
+    "--after-state",
+    "published",
+    "--before-index",
+    "0",
+    "--channel",
+    "chat_command",
+    "--language",
+    "Greek",
+    "--occurred-on",
+    "2026-09-11",
     ...overrides,
   ];
 }
@@ -161,7 +171,10 @@ function silently(run) {
 }
 
 function seams(overrides, workspaceRoot) {
-  return { spawnSync: gitAnswers(overrides), ...(workspaceRoot === undefined ? {} : { workspaceRoot }) };
+  return {
+    spawnSync: gitAnswers(overrides),
+    ...(workspaceRoot === undefined ? {} : { workspaceRoot }),
+  };
 }
 
 function fields(overrides = {}) {
@@ -255,12 +268,17 @@ test("the blind reader's verdict is written by the revision that records the cor
   process.env.JOB_PIPELINE_INPUT_ROOT = inputRoot;
 
   // `flagged` and `missed` answer different questions and have different owners, so both travel.
-  for (const [verdict, id] of [["flagged", "aa0000000001"], ["missed", "aa0000000002"]]) {
+  for (const [verdict, id] of [
+    ["flagged", "aa0000000001"],
+    ["missed", "aa0000000002"],
+  ]) {
     const basename = writeEnvelope(inputRoot, { ...ENVELOPE });
-    const { result, stdout } = silently(() => main(
-      recordArgs(basename, ["--reader-verdict", verdict]),
-      { ...seams(undefined, workspaceRoot), randomId: () => id },
-    ));
+    const { result, stdout } = silently(() =>
+      main(recordArgs(basename, ["--reader-verdict", verdict]), {
+        ...seams(undefined, workspaceRoot),
+        randomId: () => id,
+      }),
+    );
     assert.equal(result, 0);
     const written = JSON.parse(readFileSync(JSON.parse(stdout).path, "utf8"));
     assert.equal(written.reader_verdict, verdict);
@@ -271,20 +289,25 @@ test("the blind reader's verdict is written by the revision that records the cor
   // Left out, the field stays null - which on a live record means the reading did not happen, not
   // that the reader found nothing. Nothing in the CLI invents a verdict.
   const bare = writeEnvelope(inputRoot, { ...ENVELOPE });
-  const { stdout: bareStdout } = silently(() => main(
-    recordArgs(bare, []),
-    { ...seams(undefined, workspaceRoot), randomId: () => "aa0000000003" },
-  ));
+  const { stdout: bareStdout } = silently(() =>
+    main(recordArgs(bare, []), {
+      ...seams(undefined, workspaceRoot),
+      randomId: () => "aa0000000003",
+    }),
+  );
   assert.equal(JSON.parse(readFileSync(JSON.parse(bareStdout).path, "utf8")).reader_verdict, null);
 
   // A verdict outside the vocabulary is refused before anything is written.
   const wrong = writeEnvelope(inputRoot, { ...ENVELOPE });
   const before = readdirSync(join(corpus, "records")).length;
   assert.throws(
-    () => silently(() => main(
-      recordArgs(wrong, ["--reader-verdict", "ignored"]),
-      { ...seams(undefined, workspaceRoot), randomId: () => "aa0000000004" },
-    )),
+    () =>
+      silently(() =>
+        main(recordArgs(wrong, ["--reader-verdict", "ignored"]), {
+          ...seams(undefined, workspaceRoot),
+          randomId: () => "aa0000000004",
+        }),
+      ),
     (error) => error.code === "invalid_cli_arguments" && /reader-verdict/u.test(error.message),
   );
   assert.equal(readdirSync(join(corpus, "records")).length, before);
@@ -338,7 +361,9 @@ test("the record keeps its shape against hand edits of the two open fields", () 
     // language, so a record in a configured one is refused rather than read on a guess.
     assert.throws(
       () => validateRecordWith({ ...base }, "lc_x.json"),
-      (error) => error.code === "corpus_record_invalid" && /language is not a letter language/u.test(error.message),
+      (error) =>
+        error.code === "corpus_record_invalid" &&
+        /language is not a letter language/u.test(error.message),
     );
     assert.doesNotThrow(() => validateRecordWith({ ...base, language: "English" }, "lc_x.json"));
   }
@@ -359,47 +384,60 @@ test("the corpus is refused in a tree the repository does not ignore", (t) => {
     (error) => error.code === "corpus_in_public_tree",
   );
   // Ignored is the candidate layer, which is where the corpus belongs.
-  assert.doesNotThrow(() => writeRecord(corpus, fields(), {
-    ...seams(),
-    randomId: () => "cccccccccccc",
-  }));
+  assert.doesNotThrow(() =>
+    writeRecord(corpus, fields(), {
+      ...seams(),
+      randomId: () => "cccccccccccc",
+    }),
+  );
   // Outside every checkout there is nothing an export could reach, so there is nothing to guard.
-  assert.doesNotThrow(() => writeRecord(corpus, fields(), {
-    ...seams({ insideWorkTree: false }),
-    randomId: () => "dddddddddddd",
-  }));
+  assert.doesNotThrow(() =>
+    writeRecord(corpus, fields(), {
+      ...seams({ insideWorkTree: false }),
+      randomId: () => "dddddddddddd",
+    }),
+  );
   // git that did not run at all is not an answer. This is the failure mode a guard is likeliest to
   // meet on somebody else's machine, and the one it must not read as permission.
   assert.throws(
-    () => writeRecord(corpus, fields(), {
-      randomId: () => "111111111111",
-      spawnSync: () => ({ error: new Error("spawn git ENOENT"), status: null, stdout: "", stderr: "" }),
-    }),
+    () =>
+      writeRecord(corpus, fields(), {
+        randomId: () => "111111111111",
+        spawnSync: () => ({
+          error: new Error("spawn git ENOENT"),
+          status: null,
+          stdout: "",
+          stderr: "",
+        }),
+      }),
     (error) => error.code === "corpus_ignore_status_unknown",
   );
   // A repository git refuses to look at is not a repository that is absent. Both exit non-zero,
   // and only the absent one is safe, so the two are told apart by what git says.
   assert.throws(
-    () => writeRecord(corpus, fields(), {
-      randomId: () => "222222222222",
-      spawnSync: () => ({
-        error: undefined,
-        status: 128,
-        stdout: "",
-        stderr: "fatal: detected dubious ownership in repository at '/x'\n",
+    () =>
+      writeRecord(corpus, fields(), {
+        randomId: () => "222222222222",
+        spawnSync: () => ({
+          error: undefined,
+          status: 128,
+          stdout: "",
+          stderr: "fatal: detected dubious ownership in repository at '/x'\n",
+        }),
       }),
-    }),
     (error) => error.code === "corpus_ignore_status_unknown",
   );
   // An answer git will not give is a refusal of its own. A guard that failed open on an unreadable
   // repository would pass exactly the case it cannot see.
   assert.throws(
-    () => writeRecord(corpus, fields(), {
-      randomId: () => "ffffffffffff",
-      spawnSync: (_command, args) => (args[0] === "rev-parse"
-        ? { error: undefined, status: 0, stdout: "true\n", stderr: "" }
-        : { error: undefined, status: 128, stdout: "", stderr: "fatal: bad index\n" }),
-    }),
+    () =>
+      writeRecord(corpus, fields(), {
+        randomId: () => "ffffffffffff",
+        spawnSync: (_command, args) =>
+          args[0] === "rev-parse"
+            ? { error: undefined, status: 0, stdout: "true\n", stderr: "" }
+            : { error: undefined, status: 128, stdout: "", stderr: "fatal: bad index\n" },
+      }),
     (error) => error.code === "corpus_ignore_status_unknown",
   );
 });
@@ -421,10 +459,11 @@ test("a records directory that links out of the ignored corpus is refused too", 
   const layerReal = realpathSync(layer);
 
   assert.throws(
-    () => writeRecord(join(layer, "corpus"), fields(), {
-      ...seams({ ignored: (path) => path.startsWith(layerReal) }),
-      randomId: () => "aaaaaaaaaaaa",
-    }),
+    () =>
+      writeRecord(join(layer, "corpus"), fields(), {
+        ...seams({ ignored: (path) => path.startsWith(layerReal) }),
+        randomId: () => "aaaaaaaaaaaa",
+      }),
     (error) => error.code === "corpus_in_public_tree",
   );
   assert.deepEqual(readdirSync(join(tracked, "smuggled")), []);
@@ -438,17 +477,18 @@ test("the guard reads a real repository through its default wiring", (t) => {
   const root = realpathSync(environment.workspaceRoot);
   const primary = join(root, "primary");
   mkdirSync(primary, { mode: 0o700 });
-  const git = (args, cwd = primary) => execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      GIT_AUTHOR_EMAIL: "t@example.invalid",
-      GIT_AUTHOR_NAME: "t",
-      GIT_COMMITTER_EMAIL: "t@example.invalid",
-      GIT_COMMITTER_NAME: "t",
-    },
-  });
+  const git = (args, cwd = primary) =>
+    execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GIT_AUTHOR_EMAIL: "t@example.invalid",
+        GIT_AUTHOR_NAME: "t",
+        GIT_COMMITTER_EMAIL: "t@example.invalid",
+        GIT_COMMITTER_NAME: "t",
+      },
+    });
   git(["init", "--initial-branch", "main", "."]);
   mkdirSync(join(primary, "corpus", "records"), { mode: 0o700, recursive: true });
   mkdirSync(join(primary, "public-corpus", "records"), { mode: 0o700, recursive: true });
@@ -457,15 +497,18 @@ test("the guard reads a real repository through its default wiring", (t) => {
   git(["commit", "-m", "seed"]);
 
   // Ignored by a rule this repository really carries: no seam involved, and the write goes through.
-  assert.doesNotThrow(() => writeRecord(join(primary, "corpus"), fields(), {
-    randomId: () => "eeeeeeeeeeee",
-  }));
+  assert.doesNotThrow(() =>
+    writeRecord(join(primary, "corpus"), fields(), {
+      randomId: () => "eeeeeeeeeeee",
+    }),
+  );
 
   // The same repository, one directory over, with no rule covering it.
   assert.throws(
-    () => writeRecord(join(primary, "public-corpus"), fields(), {
-      randomId: () => "ffffffffffff",
-    }),
+    () =>
+      writeRecord(join(primary, "public-corpus"), fields(), {
+        randomId: () => "ffffffffffff",
+      }),
     (error) => error.code === "corpus_in_public_tree",
   );
 
@@ -492,10 +535,12 @@ test("the CLI takes the fragments and the reason only from the envelope", (t) =>
   process.env.JOB_PIPELINE_INPUT_ROOT = inputRoot;
 
   const basename = writeEnvelope(inputRoot, { ...ENVELOPE });
-  const { result, stdout } = silently(() => main(
-    recordArgs(basename, ["--class", "class-5", "--class", "class-6"]),
-    { ...seams(undefined, workspaceRoot), randomId: () => "0123456789ab" },
-  ));
+  const { result, stdout } = silently(() =>
+    main(recordArgs(basename, ["--class", "class-5", "--class", "class-6"]), {
+      ...seams(undefined, workspaceRoot),
+      randomId: () => "0123456789ab",
+    }),
+  );
   assert.equal(result, 0);
   const reported = JSON.parse(stdout);
   assert.equal(reported.recordId, "lc_0123456789ab");
@@ -542,10 +587,7 @@ test("the CLI refuses a malformed envelope, a wrong code and a contradictory rea
 
   // Exactly one of the two ways a record can answer "why".
   const withReason = writeEnvelope(inputRoot, { ...ENVELOPE });
-  refuse(
-    recordArgs(withReason, ["--reason-absent", "in_place_edit"]),
-    "invalid_cli_arguments",
-  );
+  refuse(recordArgs(withReason, ["--reason-absent", "in_place_edit"]), "invalid_cli_arguments");
   const withoutReason = writeEnvelope(inputRoot, {
     companyRole: ENVELOPE.companyRole,
     fragmentAfter: ENVELOPE.fragmentAfter,
@@ -563,16 +605,16 @@ test("the CLI refuses a malformed envelope, a wrong code and a contradictory rea
     ["--before-index", "-1"],
   ]) {
     const basename = writeEnvelope(inputRoot, { ...ENVELOPE });
-    const argv = recordArgs(basename).filter((value, index, all) =>
-      value !== override[0] && all[index - 1] !== override[0]);
+    const argv = recordArgs(basename).filter(
+      (value, index, all) => value !== override[0] && all[index - 1] !== override[0],
+    );
     refuse([...argv, ...override], "invalid_cli_arguments");
   }
 
   // `not_published` and a publication id are the same statement twice, so they may not disagree.
   const disagree = writeEnvelope(inputRoot, { ...ENVELOPE });
   refuse(
-    recordArgs(disagree).map((value) =>
-      (value === "published" ? "not_published" : value)),
+    recordArgs(disagree).map((value) => (value === "published" ? "not_published" : value)),
     "invalid_cli_arguments",
   );
   assert.equal(existsSync(corpus), false, "no refusal wrote a record or created the corpus");
@@ -604,10 +646,11 @@ test("the summary counts corrections per letter, classes and the reader's share"
   });
   const root = realpathSync(environment.workspaceRoot);
   const corpus = corpusIn(root);
-  const write = (overrides, id) => writeRecord(corpus, fields(overrides), {
-    ...seams(),
-    randomId: () => id,
-  });
+  const write = (overrides, id) =>
+    writeRecord(corpus, fields(overrides), {
+      ...seams(),
+      randomId: () => id,
+    });
 
   write({ processId: "proc_a", classes: ["class-6"] }, "a00000000000");
   write({ processId: "proc_a", classes: ["class-1", "class-6"] }, "a00000000001");
@@ -617,10 +660,13 @@ test("the summary counts corrections per letter, classes and the reader's share"
   const summary = summarize(readCorpus(corpus));
   assert.equal(summary.records, 4);
   assert.equal(summary.letters, 2);
-  assert.deepEqual(summary.perLetter.map((letter) => [letter.processId, letter.corrections]), [
-    ["proc_a", 3],
-    ["proc_b", 1],
-  ]);
+  assert.deepEqual(
+    summary.perLetter.map((letter) => [letter.processId, letter.corrections]),
+    [
+      ["proc_a", 3],
+      ["proc_b", 1],
+    ],
+  );
   assert.deepEqual(summary.inPlacePerLetter, { total: 2, mean: 1 });
   assert.deepEqual(summary.correctionsPerLetter, { total: 4, mean: 2 });
   // A record in two classes counts in both, and the unclassified ones are counted as such rather
@@ -661,8 +707,8 @@ test("the summary refuses a broken record and names its file", (t) => {
 
   assert.throws(
     () => readCorpus(corpus),
-    (error) => error.code === "corpus_record_invalid"
-      && error.message.includes("lc_b00000000000.json"),
+    (error) =>
+      error.code === "corpus_record_invalid" && error.message.includes("lc_b00000000000.json"),
   );
 });
 
@@ -673,7 +719,7 @@ test("the class codes and the refusal codes match the README, in both directions
   // into the public README instead, and the two lists are frozen against each other here - a code
   // without a line, or a line without a code, is a defect either way round.
   const readme = readFileSync(join(repoRoot, "tools/letter-corrections/README.md"), "utf8");
-  const documented = [...readme.matchAll(/^\| `(class-\d+)` \| /gmu)].map((match) => match[1]);
+  const documented = [...readme.matchAll(/^\|\s+`(class-\d+)`\s+\| /gmu)].map((match) => match[1]);
   assert.equal(documented.length, 11);
   assert.deepEqual([...CLASS_CODES].sort(), [...documented].sort());
 
@@ -700,8 +746,9 @@ test("every record of the tracked example still validates", () => {
   // would leave a public document quietly wrong. The sentence is compared with the directory, not
   // with a number repeated here: a pin between two literals an author edits together proves only
   // that the author was consistent.
-  const counted = readFileSync(join(repoRoot, "tools/letter-corrections/README.md"), "utf8")
-    .match(/`fixtures\/example-corpus\/`, holds (\w+) fictional records/u)?.[1];
+  const counted = readFileSync(join(repoRoot, "tools/letter-corrections/README.md"), "utf8").match(
+    /`fixtures\/example-corpus\/`, holds (\w+) fictional records/u,
+  )?.[1];
   assert.equal(counted, ["no", "one", "two", "three", "four", "five", "six"][records.length]);
   for (const record of records) validateRecord(record, record.record_id);
   // A migrated record names the log it was read out of, and that log is in the candidate layer
@@ -711,7 +758,11 @@ test("every record of the tracked example still validates", () => {
   const migrated = records.filter((entry) => entry.origin === "retrospective-2026-09");
   assert.equal(migrated.length, 1);
   for (const record of migrated) {
-    assert.match(record.source_ref, /^candidate\/research\/letter-revisions-2026-09\//u, record.record_id);
+    assert.match(
+      record.source_ref,
+      /^candidate\/research\/letter-revisions-2026-09\//u,
+      record.record_id,
+    );
   }
   assert.equal(new Set(records.map((record) => record.record_id)).size, records.length);
 
@@ -730,10 +781,7 @@ test("every record of the tracked example still validates", () => {
   // The author's own publication is index 0, which the README names and no record used to show.
   assert.deepEqual(values("before_index"), [0, 1, 2]);
   // Both edges the README calls normal: no class at all, and two classes on one record.
-  assert.deepEqual(
-    [...new Set(records.map((record) => record.classes.length))].sort(),
-    [0, 1, 2],
-  );
+  assert.deepEqual([...new Set(records.map((record) => record.classes.length))].sort(), [0, 1, 2]);
   // An empty "after" side is the README's way of saying the fragment was cut, and it is the one
   // shape a careless validator would reject as a missing field.
   assert.equal(records.filter((record) => record.fragment_after === "").length, 1);
@@ -754,7 +802,8 @@ test("a colliding record identifier is refused by its own code, not as an unknow
   );
   // The first record is untouched: a collision must never overwrite a correction.
   assert.equal(
-    JSON.parse(readFileSync(join(corpus, "records", "lc_cccccccccccc.json"), "utf8")).fragment_after,
+    JSON.parse(readFileSync(join(corpus, "records", "lc_cccccccccccc.json"), "utf8"))
+      .fragment_after,
     "после",
   );
 });
@@ -767,10 +816,14 @@ test("the summary command prints the counts, and refuses what it cannot read", (
   const root = realpathSync(environment.workspaceRoot);
   const corpus = corpusIn(root);
   writeRecord(corpus, fields(), { ...seams(), randomId: () => "a00000000000" });
-  writeRecord(corpus, fields({ channel: "manual_file", userReason: null, userReasonAbsent: "in_place_edit" }), {
-    ...seams(),
-    randomId: () => "b00000000000",
-  });
+  writeRecord(
+    corpus,
+    fields({ channel: "manual_file", userReason: null, userReasonAbsent: "in_place_edit" }),
+    {
+      ...seams(),
+      randomId: () => "b00000000000",
+    },
+  );
 
   const { result, stdout } = silently(() => main(["summary", "--corpus", corpus]));
   assert.equal(result, 0);
@@ -800,18 +853,32 @@ test("a refusal raised deep in the run still leaves stable JSON and exit code 1"
   const corpus = runRootIn(root);
   // No envelope was produced, so the transport refuses - the case that travels through
   // SafeCliInputError rather than through this CLI's own error class.
-  const result = spawnSync(process.execPath, [
-    cliPath, "record",
-    "--input-file", "input-00000000000000000000000000000000.json",
-    "--process-id", "proc_a",
-    "--publication-before", "pub_a",
-    "--publication-after", "pub_b",
-    "--after-state", "published",
-    "--before-index", "0",
-    "--channel", "chat_command",
-    "--language", "English",
-    "--occurred-on", "2026-09-11",
-  ], { cwd: root, encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: root } });
+  const result = spawnSync(
+    process.execPath,
+    [
+      cliPath,
+      "record",
+      "--input-file",
+      "input-00000000000000000000000000000000.json",
+      "--process-id",
+      "proc_a",
+      "--publication-before",
+      "pub_a",
+      "--publication-after",
+      "pub_b",
+      "--after-state",
+      "published",
+      "--before-index",
+      "0",
+      "--channel",
+      "chat_command",
+      "--language",
+      "English",
+      "--occurred-on",
+      "2026-09-11",
+    ],
+    { cwd: root, encoding: "utf8", env: { ...process.env, JOB_PIPELINE_WORKSPACE_ROOT: root } },
+  );
   assert.equal(result.status, 1);
   assert.equal(result.stdout, "");
   const reported = JSON.parse(result.stderr);
@@ -854,9 +921,12 @@ test("a record is written only in a run root, beside the process log", (t) => {
   // The corpus is no longer the caller's to name.
   const other = join(workspaceRoot, "elsewhere");
   assert.throws(
-    () => silently(() => main(["record", "--corpus", other, ...recordArgs(refused).slice(1)], {
-      ...seams(undefined, workspaceRoot),
-    })),
+    () =>
+      silently(() =>
+        main(["record", "--corpus", other, ...recordArgs(refused).slice(1)], {
+          ...seams(undefined, workspaceRoot),
+        }),
+      ),
     (error) => error.code === "invalid_cli_arguments" && /--corpus/u.test(error.message),
   );
   assert.equal(existsSync(other), false);
@@ -866,10 +936,12 @@ test("a record is written only in a run root, beside the process log", (t) => {
   const run = realpathSync(join(workspaceRoot, "run"));
   const runCorpus = runRootIn(run);
   const basename = writeEnvelope(inputRoot, { ...ENVELOPE });
-  const { result, stdout } = silently(() => main(recordArgs(basename), {
-    ...seams(undefined, run),
-    randomId: () => "0000aaaa1111",
-  }));
+  const { result, stdout } = silently(() =>
+    main(recordArgs(basename), {
+      ...seams(undefined, run),
+      randomId: () => "0000aaaa1111",
+    }),
+  );
   assert.equal(result, 0);
   assert.equal(JSON.parse(stdout).path, join(runCorpus, "records", "lc_0000aaaa1111.json"));
   assert.deepEqual(readdirSync(join(runCorpus, "records")), ["lc_0000aaaa1111.json"]);
@@ -878,7 +950,10 @@ test("a record is written only in a run root, beside the process log", (t) => {
 
 test("the workspace is the isolation variable's, or else the command's own checkout", () => {
   assert.equal(workspaceRootFor("/checkout", {}), "/checkout");
-  assert.equal(workspaceRootFor("/checkout", { JOB_PIPELINE_WORKSPACE_ROOT: "/run/./root" }), "/run/root");
+  assert.equal(
+    workspaceRootFor("/checkout", { JOB_PIPELINE_WORKSPACE_ROOT: "/run/./root" }),
+    "/run/root",
+  );
 });
 
 test("the run's records/ is written where the engine ignores it and refused where it is tracked", (t) => {
@@ -895,9 +970,13 @@ test("the run's records/ is written where the engine ignores it and refused wher
   const checkout = (name, { ignore }) => {
     const path = join(root, name);
     mkdirSync(path, { mode: 0o700 });
-    const git = (...args) => execFileSync("git", args, { cwd: path, encoding: "utf8", env: gitIdentity() });
+    const git = (...args) =>
+      execFileSync("git", args, { cwd: path, encoding: "utf8", env: gitIdentity() });
     git("init", "--quiet", "--initial-branch", "main", ".");
-    writeFileSync(join(path, ".gitignore"), ignore ? "/process-log.json\n/records/\n" : "/process-log.json\n");
+    writeFileSync(
+      join(path, ".gitignore"),
+      ignore ? "/process-log.json\n/records/\n" : "/process-log.json\n",
+    );
     runRootIn(path);
     if (!ignore) {
       // A checkout that tracks the directory: the case an export would ship.
@@ -908,21 +987,28 @@ test("the run's records/ is written where the engine ignores it and refused wher
     git("commit", "--quiet", "-m", "seed");
     return path;
   };
-  const record = (workspaceRoot, id) => silently(() => main(recordArgs(writeEnvelope(inputRoot, { ...ENVELOPE })), {
-    randomId: () => id,
-    workspaceRoot,
-  }));
+  const record = (workspaceRoot, id) =>
+    silently(() =>
+      main(recordArgs(writeEnvelope(inputRoot, { ...ENVELOPE })), {
+        randomId: () => id,
+        workspaceRoot,
+      }),
+    );
 
   // Real git, no seam: the engine's own rule is what lets the write through.
   const ignoring = checkout("ignoring", { ignore: true });
   assert.equal(record(ignoring, "1111aaaa2222").result, 0);
-  assert.deepEqual(
-    readdirSync(join(ignoring, "records", "letter-corrections", "records")),
-    ["lc_1111aaaa2222.json"],
-  );
+  assert.deepEqual(readdirSync(join(ignoring, "records", "letter-corrections", "records")), [
+    "lc_1111aaaa2222.json",
+  ]);
   const tracking = checkout("tracking", { ignore: false });
-  assert.throws(() => record(tracking, "3333aaaa4444"), (error) => error.code === "corpus_in_public_tree");
-  assert.deepEqual(readdirSync(join(tracking, "records", "letter-corrections", "records")), [".keep"]);
+  assert.throws(
+    () => record(tracking, "3333aaaa4444"),
+    (error) => error.code === "corpus_in_public_tree",
+  );
+  assert.deepEqual(readdirSync(join(tracking, "records", "letter-corrections", "records")), [
+    ".keep",
+  ]);
 
   // And the engine carries the rule itself.
   assert.match(readFileSync(join(repoRoot, ".gitignore"), "utf8"), /^\/records\/$/mu);
@@ -938,9 +1024,10 @@ test("a record file must be named after its record_id", (t) => {
   writeFileSync(join(corpus, "records", "lc_b00000000000.json"), readFileSync(path));
   assert.throws(
     () => readCorpus(corpus),
-    (error) => error.code === "corpus_record_invalid"
-      && error.message.includes("lc_b00000000000.json")
-      && /named after its record_id/u.test(error.message),
+    (error) =>
+      error.code === "corpus_record_invalid" &&
+      error.message.includes("lc_b00000000000.json") &&
+      /named after its record_id/u.test(error.message),
   );
 });
 
@@ -961,11 +1048,19 @@ function gitIdentity() {
  */
 function isolateGit(t, root) {
   const config = join(root, "gitconfig");
-  writeFileSync(config, [
-    "[user]", "\tname = Records Probe", "\temail = probe@example.invalid",
-    "[init]", "\tdefaultBranch = main",
-    "[commit]", "\tgpgsign = false", "",
-  ].join("\n"));
+  writeFileSync(
+    config,
+    [
+      "[user]",
+      "\tname = Records Probe",
+      "\temail = probe@example.invalid",
+      "[init]",
+      "\tdefaultBranch = main",
+      "[commit]",
+      "\tgpgsign = false",
+      "",
+    ].join("\n"),
+  );
   const saved = {};
   for (const key of ["GIT_CONFIG_GLOBAL", "GIT_CONFIG_NOSYSTEM"]) saved[key] = process.env[key];
   process.env.GIT_CONFIG_GLOBAL = config;
@@ -1021,7 +1116,11 @@ function clonedPrivateRepository(root, git) {
 
 function snapshot(directory) {
   return existsSync(directory)
-    ? Object.fromEntries(readdirSync(directory).sort().map((name) => [name, readFileSync(join(directory, name), "utf8")]))
+    ? Object.fromEntries(
+        readdirSync(directory)
+          .sort()
+          .map((name) => [name, readFileSync(join(directory, name), "utf8")]),
+      )
     : {};
 }
 
@@ -1033,7 +1132,10 @@ test("records:import carries overlapping sets into the private repository withou
   const root = realpathSync(environment.workspaceRoot);
   const git = isolateGit(t, root);
   const { corpus: runCorpus, opsRoot } = opsRootWith(root, [
-    "a00000000001", "a00000000002", "a00000000003", "a00000000004",
+    "a00000000001",
+    "a00000000002",
+    "a00000000003",
+    "a00000000004",
   ]);
   const candidate = privateRepository(root, git);
   const target = join(candidate, "research", "letter-corrections", "records");
@@ -1049,7 +1151,10 @@ test("records:import carries overlapping sets into the private repository withou
   writeFileSync(join(target, "lc_a00000000002.json"), taughtText);
   const older = join(root, "older");
   mkdirSync(join(older, "records"), { recursive: true });
-  writeRecord(older, fields({ processId: "proc_old" }), { ...seams(), randomId: () => "b00000000009" });
+  writeRecord(older, fields({ processId: "proc_old" }), {
+    ...seams(),
+    randomId: () => "b00000000009",
+  });
   cpSync(join(older, "records", "lc_b00000000009.json"), join(target, "lc_b00000000009.json"));
   git(candidate, "add", "--all");
   git(candidate, "commit", "--quiet", "-m", "earlier copy");
@@ -1078,14 +1183,19 @@ test("records:import carries overlapping sets into the private repository withou
   // The union, once each; every record of the run is there, and the user's edit won.
   const after = snapshot(target);
   assert.deepEqual(Object.keys(after), [
-    "lc_a00000000001.json", "lc_a00000000002.json", "lc_a00000000003.json", "lc_a00000000004.json",
+    "lc_a00000000001.json",
+    "lc_a00000000002.json",
+    "lc_a00000000003.json",
+    "lc_a00000000004.json",
     "lc_b00000000009.json",
   ]);
   for (const name of ["lc_a00000000001.json", "lc_a00000000003.json", "lc_a00000000004.json"]) {
     assert.equal(after[name], sourceBefore[name], `${name} is the run's bytes`);
   }
   assert.equal(after["lc_a00000000002.json"], taughtText);
-  const ids = readCorpus(join(candidate, "research", "letter-corrections")).map((record) => record.record_id);
+  const ids = readCorpus(join(candidate, "research", "letter-corrections")).map(
+    (record) => record.record_id,
+  );
   assert.equal(new Set(ids).size, ids.length);
 
   // One commit, exactly the two new files; the other session's file is still staged, not committed.
@@ -1149,17 +1259,19 @@ test("records:import writes nothing when either side holds a broken record", (t)
   writeFileSync(join(runCorpus, "records", "lc_d00000000003.json"), "{\n");
   assert.throws(
     () => importRecords({ candidateRoot: candidate, opsRoot }),
-    (error) => error.code === "corpus_record_invalid" && error.message.includes("lc_d00000000003.json"),
+    (error) =>
+      error.code === "corpus_record_invalid" && error.message.includes("lc_d00000000003.json"),
   );
   assert.equal(existsSync(target), false);
   rmSync(join(runCorpus, "records", "lc_d00000000003.json"));
 
   // A truncated copy on the private side is refused by name, not kept as a differing record.
   mkdirSync(target, { recursive: true });
-  writeFileSync(join(target, "lc_d00000000001.json"), "{\n  \"schemaVersion\": 1,\n");
+  writeFileSync(join(target, "lc_d00000000001.json"), '{\n  "schemaVersion": 1,\n');
   assert.throws(
     () => importRecords({ candidateRoot: candidate, opsRoot }),
-    (error) => error.code === "corpus_record_invalid" && error.message.includes("lc_d00000000001.json"),
+    (error) =>
+      error.code === "corpus_record_invalid" && error.message.includes("lc_d00000000001.json"),
   );
   assert.deepEqual(readdirSync(target), ["lc_d00000000001.json"]);
   assert.equal(git(candidate, "rev-parse", "HEAD").trim(), head);
@@ -1174,7 +1286,12 @@ test("records:import refuses what is not a production run, and a root that is no
   const git = isolateGit(t, root);
   const { opsRoot } = opsRootWith(root, ["e00000000001"]);
   const candidate = privateRepository(root, git);
-  const refuse = (options, code) => assert.throws(() => importRecords(options), (error) => error.code === code, code);
+  const refuse = (options, code) =>
+    assert.throws(
+      () => importRecords(options),
+      (error) => error.code === code,
+      code,
+    );
 
   const noLedger = join(root, "no-ledger");
   mkdirSync(noLedger);
@@ -1190,7 +1307,10 @@ test("records:import refuses what is not a production run, and a root that is no
   writeFileSync(join(opsRoot, "ops-manifest.json"), `${JSON.stringify({ kind: "operational" })}\n`);
 
   // A directory inside the clone is not the clone's root, and neither is one outside every clone.
-  refuse({ candidateRoot: join(candidate, "languages"), opsRoot }, "records_import_root_not_a_clone");
+  refuse(
+    { candidateRoot: join(candidate, "languages"), opsRoot },
+    "records_import_root_not_a_clone",
+  );
   refuse({ candidateRoot: join(root, "nowhere"), opsRoot }, "records_import_root_not_a_clone");
   assert.equal(existsSync(join(candidate, "research")), false);
 
@@ -1198,12 +1318,18 @@ test("records:import refuses what is not a production run, and a root that is no
   const empty = join(root, "empty-run");
   mkdirSync(empty);
   runRootIn(empty);
-  assert.equal(importRecords({ candidateRoot: candidate, opsRoot: empty }).status, "nothing_to_import");
+  assert.equal(
+    importRecords({ candidateRoot: candidate, opsRoot: empty }).status,
+    "nothing_to_import",
+  );
 
   // The operational kind passes.
   assert.equal(importRecords({ candidateRoot: candidate, opsRoot }).imported, 1);
 
-  assert.throws(() => parseImportArguments([]), (error) => error.code === "records_import_invalid_arguments");
+  assert.throws(
+    () => parseImportArguments([]),
+    (error) => error.code === "records_import_invalid_arguments",
+  );
   assert.throws(
     () => parseImportArguments(["--ops-root", "relative/path"]),
     (error) => error.code === "records_import_invalid_arguments",
@@ -1289,7 +1415,13 @@ test("records:import pushes an import commit a failed take-back left ahead of th
   const git = isolateGit(t, root);
   const { opsRoot } = opsRootWith(root, ["f10000000001"]);
   const { candidate, remote } = clonedPrivateRepository(root, git);
-  const record = join(candidate, "research", "letter-corrections", "records", "lc_f10000000001.json");
+  const record = join(
+    candidate,
+    "research",
+    "letter-corrections",
+    "records",
+    "lc_f10000000001.json",
+  );
   const stranded = strandImportCommit(git, { candidate, opsRoot, remote });
   assert.equal(existsSync(record), true);
 
@@ -1299,7 +1431,9 @@ test("records:import pushes an import commit a failed take-back left ahead of th
   assert.throws(
     () => importRecords({ candidateRoot: candidate, opsRoot }),
     // Named by the command itself, not only inside git's quoted output after the parenthesis.
-    (error) => error.code === "records_import_push_refused" && error.message.split("(")[0].includes(stranded),
+    (error) =>
+      error.code === "records_import_push_refused" &&
+      error.message.split("(")[0].includes(stranded),
   );
   assert.equal(git(candidate, "rev-parse", "HEAD").trim(), stranded);
   assert.equal(existsSync(record), true);
@@ -1308,7 +1442,12 @@ test("records:import pushes an import commit a failed take-back left ahead of th
   rmSync(hook);
   const result = importRecords({ candidateRoot: candidate, opsRoot });
   assert.deepEqual(
-    { committed: result.committed, pushed: result.pushed, status: result.status, unpushed: result.unpushed },
+    {
+      committed: result.committed,
+      pushed: result.pushed,
+      status: result.status,
+      unpushed: result.unpushed,
+    },
     { committed: 0, pushed: true, status: "imported", unpushed: [] },
   );
   assert.equal(git(remote, "rev-parse", "main").trim(), stranded);
@@ -1319,7 +1458,10 @@ test("records:import pushes an import commit a failed take-back left ahead of th
   writeFileSync(record, `${JSON.stringify(taught, null, 2)}\n`);
   git(candidate, "commit", "--quiet", "-am", "teach one record");
   const again = importRecords({ candidateRoot: candidate, opsRoot });
-  assert.deepEqual({ pushed: again.pushed, unpushed: again.unpushed }, { pushed: null, unpushed: [] });
+  assert.deepEqual(
+    { pushed: again.pushed, unpushed: again.unpushed },
+    { pushed: null, unpushed: [] },
+  );
   assert.equal(git(remote, "rev-parse", "main").trim(), stranded);
 });
 

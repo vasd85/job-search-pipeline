@@ -48,8 +48,10 @@ function freshnessLine(freshness) {
   if (freshness.state === "undated") {
     return `Collection with no collection date — read as unverified, window ${freshness.stale_after_days} d.`;
   }
-  return `Collection of ${freshness.collected_at}: age ${freshness.age_days} d.,`
-    + ` state ${freshness.state}, window ${freshness.stale_after_days} d.`;
+  return (
+    `Collection of ${freshness.collected_at}: age ${freshness.age_days} d.,` +
+    ` state ${freshness.state}, window ${freshness.stale_after_days} d.`
+  );
 }
 
 /** The dispositions that genuinely end a link's spend. Everything else still costs the batch. */
@@ -83,31 +85,32 @@ function block(lines, heading, rows) {
  */
 export function renderPreTriagePlan(plan) {
   if (
-    !isObject(plan)
-    || !Array.isArray(plan.links)
-    || !isObject(plan.spend)
-    || !isObject(plan.freshness)
-    || !isObject(plan.ordering)
-    || !isObject(plan.gate)
+    !isObject(plan) ||
+    !Array.isArray(plan.links) ||
+    !isObject(plan.spend) ||
+    !isObject(plan.freshness) ||
+    !isObject(plan.ordering) ||
+    !isObject(plan.gate)
   ) {
     fail("pretriage_invalid_plan", "The plan must carry an array of links.");
   }
   const spend = plan.spend;
   const lines = [
-    `Pre-triage: ${spend.supplied} ${plural(spend.supplied, "link", "links")},`
-      + ` order — ${plan.ordering.basis}.`,
+    `Pre-triage: ${spend.supplied} ${plural(spend.supplied, "link", "links")},` +
+      ` order — ${plan.ordering.basis}.`,
     freshnessLine(plan.freshness),
     plan.gate.expensive_lane_open
       ? "Gate: the expensive lane is open."
       : `Gate: the expensive lane is closed (${plan.gate.blocked_by.join(", ")}).`,
-    `Saved: ${spend.avoided_expensive_lane} of ${spend.supplied}`
-      + ` (${percent(spend.avoided_share)}) will not reach the expensive lane;`
-      + ` of those ${spend.avoided_by_pretriage} were removed by pre-triage,`
-      + ` ${spend.avoided_by_ledger} by the ledger,`
-      + ` ${spend.unreadable_link} are unreadable. Never fetched at all: ${spend.never_fetched}.`,
+    `Saved: ${spend.avoided_expensive_lane} of ${spend.supplied}` +
+      ` (${percent(spend.avoided_share)}) will not reach the expensive lane;` +
+      ` of those ${spend.avoided_by_pretriage} were removed by pre-triage,` +
+      ` ${spend.avoided_by_ledger} by the ledger,` +
+      ` ${spend.unreadable_link} are unreadable. Never fetched at all: ${spend.never_fetched}.`,
     `Dispositions: ${Object.keys(spend)
       .filter((key) => dispositions.includes(key))
-      .map((key) => `${key} ${spend[key]}`).join(", ")}.`,
+      .map((key) => `${key} ${spend[key]}`)
+      .join(", ")}.`,
   ];
   block(
     lines,
@@ -117,7 +120,9 @@ export function renderPreTriagePlan(plan) {
   block(
     lines,
     "Still costing the budget:",
-    plan.links.filter((row) => row.disposition === "browser_rung" || row.disposition === "pending_sweep"),
+    plan.links.filter(
+      (row) => row.disposition === "browser_rung" || row.disposition === "pending_sweep",
+    ),
   );
   return lines.join("\n");
 }
@@ -134,31 +139,36 @@ export function renderCompositionReport(composition) {
   // by hand, or one from a future shape, must fail with a bounded code rather than a TypeError
   // thrown from the middle of a string template.
   if (
-    !isObject(composition)
-    || !isObject(composition.by_priority_class)
-    || !isObject(composition.priority_class_shares)
-    || !isObject(composition.by_work_format)
-    || !isObject(composition.by_company_region)
+    !isObject(composition) ||
+    !isObject(composition.by_priority_class) ||
+    !isObject(composition.priority_class_shares) ||
+    !isObject(composition.by_work_format) ||
+    !isObject(composition.by_company_region)
   ) {
     fail("pretriage_invalid_composition", "The composition report must be an object.");
   }
   const lines = [
-    `Batch composition: ${composition.total}`
-    + ` ${plural(composition.total, "vacancy", "vacancies")}`
-    + " (the candidate's priority classes).",
+    `Batch composition: ${composition.total}` +
+      ` ${plural(composition.total, "vacancy", "vacancies")}` +
+      " (the candidate's priority classes).",
   ];
   for (const bucket of compositionBuckets) {
     const count = composition.by_priority_class[bucket];
-    const label = bucket === "outside"
-      ? "outside (none of the three classes)"
-      : bucket === "unknown" ? "unknown (the source did not say)" : `class ${bucket}`;
+    const label =
+      bucket === "outside"
+        ? "outside (none of the three classes)"
+        : bucket === "unknown"
+          ? "unknown (the source did not say)"
+          : `class ${bucket}`;
     lines.push(`  ${label}: ${count} (${percent(composition.priority_class_shares[bucket])})`);
   }
   lines.push(
     `Work format: ${Object.entries(composition.by_work_format)
-      .map(([name, count]) => `${name} ${count}`).join(", ")}.`,
+      .map(([name, count]) => `${name} ${count}`)
+      .join(", ")}.`,
     `Company region: ${Object.entries(composition.by_company_region)
-      .map(([name, count]) => `${name} ${count}`).join(", ")}.`,
+      .map(([name, count]) => `${name} ${count}`)
+      .join(", ")}.`,
   );
   return lines.join("\n");
 }

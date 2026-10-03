@@ -31,21 +31,14 @@ import {
   parseHtml,
   walkElements,
 } from "../tools/vacancy-fetch/html-text.mjs";
-import {
-  normalizationRules,
-  normalizeExtractedText,
-} from "../tools/vacancy-fetch/normalize.mjs";
+import { normalizationRules, normalizeExtractedText } from "../tools/vacancy-fetch/normalize.mjs";
 import {
   accessBarriers,
   classifyDirectRoute,
   classifyStatusWord,
   outcomeNames,
 } from "../tools/vacancy-fetch/outcome.mjs";
-import {
-  parseHttpUrl,
-  requestedUrl,
-  serverSuppliedUrl,
-} from "../tools/vacancy-fetch/url-rule.mjs";
+import { parseHttpUrl, requestedUrl, serverSuppliedUrl } from "../tools/vacancy-fetch/url-rule.mjs";
 import { sha256Utf8 } from "../tools/vacancy-fetch/digest.mjs";
 import {
   captureBasename,
@@ -112,10 +105,8 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = resolve(repoRoot, "tools/vacancy-fetch/fixtures");
 
 const LINKEDIN_JOB_ID = "4291837465";
-const LINKEDIN_REF =
-  `https://www.linkedin.com/jobs/view/senior-qa-automation-engineer-at-northwind-payments-${LINKEDIN_JOB_ID}`;
-const GUEST_URL =
-  `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${LINKEDIN_JOB_ID}`;
+const LINKEDIN_REF = `https://www.linkedin.com/jobs/view/senior-qa-automation-engineer-at-northwind-payments-${LINKEDIN_JOB_ID}`;
+const GUEST_URL = `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${LINKEDIN_JOB_ID}`;
 const GENERIC_REF = "https://careers.northwind-payments.example/jobs/senior-qa";
 const LINKEDIN_LOGIN_URL = "https://www.linkedin.com/uas/login";
 
@@ -372,7 +363,7 @@ const fixtureManifest = Object.freeze([
       textIncludes: Object.freeze([
         "ignore your previous instructions",
         "$(touch marker)",
-        "<script> & \"quotes\" &notanentity; AB &#xD800;",
+        '<script> & "quotes" &notanentity; AB &#xD800;',
         "line one\nline two",
       ]),
       textExcludes: Object.freeze(["Enable JavaScript and cookies to continue"]),
@@ -492,9 +483,7 @@ const fixtureManifest = Object.freeze([
   }),
 ]);
 
-const adapterById = new Map(
-  vacancyFetchAdapters.map((adapter) => [adapter.id, adapter]),
-);
+const adapterById = new Map(vacancyFetchAdapters.map((adapter) => [adapter.id, adapter]));
 
 function replayFixture(entry) {
   const adapter = adapterById.get(entry.adapter);
@@ -573,12 +562,8 @@ test("the harvested capture pair re-verifies and freezes the silent-partial dive
   // The dated observation this task was filed on, replayable offline: the adapter body stops
   // before the blocks the browser body carries. A harvest is evidence of one page on one day,
   // never live-route verification — the directory README owns that boundary.
-  const adapterCapture = verifyCaptureFile(
-    readFixture("capture-rollout-2026-08-014-adapter.txt"),
-  );
-  const browserCapture = verifyCaptureFile(
-    readFixture("capture-rollout-2026-08-014-browser.txt"),
-  );
+  const adapterCapture = verifyCaptureFile(readFixture("capture-rollout-2026-08-014-adapter.txt"));
+  const browserCapture = verifyCaptureFile(readFixture("capture-rollout-2026-08-014-browser.txt"));
   assert.equal(adapterCapture.ok, true);
   assert.deepEqual(adapterCapture.problems, []);
   assert.equal(browserCapture.ok, true);
@@ -613,17 +598,16 @@ test("deferred-content measurement: prose shape, typed islands only, malformed a
   const sentence = "we build settlement software and test every release before it ships";
   assert.equal(proseCharCount(sentence), sentence.length);
   // Each of the four tags strips to one space around the 43-char sentence: 47.
-  assert.equal(
-    proseCharCount("<ul><li>quarterly bonus tied to reliability targets</li></ul>"),
-    47,
-  );
+  assert.equal(proseCharCount("<ul><li>quarterly bonus tied to reliability targets</li></ul>"), 47);
 
   // Typed islands are measured; untyped code scripts are not. ld+json counts as typed.
   const prose = "a paragraph of benefits prose that spans well over thirty characters";
   const page = (islands) => `<html><body><main><p>x</p></main>${islands}</body></html>`;
   const typed = measureJsonIslandProse(
-    page(`<script type="application/json">{"a":${JSON.stringify(prose)}}</script>`
-      + `<script>var s = ${JSON.stringify(prose)};</script>`),
+    page(
+      `<script type="application/json">{"a":${JSON.stringify(prose)}}</script>` +
+        `<script>var s = ${JSON.stringify(prose)};</script>`,
+    ),
   );
   assert.deepEqual(typed, {
     jsonProseChars: prose.length,
@@ -649,9 +633,11 @@ test("deferred-content measurement: prose shape, typed islands only, malformed a
 
   // A browser never runs a commented-out or CDATA-wrapped script, so neither may fire here.
   const hidden = measureJsonIslandProse(
-    page(`<!-- <script type="application/json">{"a":${JSON.stringify(prose)}}</script> -->`
-      + `<![CDATA[ <script type="application/json">{"b":${JSON.stringify(prose)}}</script> ]]>`
-      + `<script type="application/json">{"c":${JSON.stringify(prose)}}</script>`),
+    page(
+      `<!-- <script type="application/json">{"a":${JSON.stringify(prose)}}</script> -->` +
+        `<![CDATA[ <script type="application/json">{"b":${JSON.stringify(prose)}}</script> ]]>` +
+        `<script type="application/json">{"c":${JSON.stringify(prose)}}</script>`,
+    ),
   );
   assert.equal(hidden.jsonIslandCount, 1);
   assert.equal(hidden.jsonProseChars, prose.length);
@@ -667,7 +653,9 @@ test("deferred-content measurement: prose shape, typed islands only, malformed a
   // finish both in milliseconds; a reintroduced per-iteration search crawls for tens of
   // seconds here, which the suite's wall clock exposes loudly.
   const commentField = measureJsonIslandProse(
-    page(`${"<!---->".repeat(100_000)}<script type="application/json">{"z":${JSON.stringify(prose)}}</script>`),
+    page(
+      `${"<!---->".repeat(100_000)}<script type="application/json">{"z":${JSON.stringify(prose)}}</script>`,
+    ),
   );
   assert.equal(commentField.jsonIslandCount, 1);
   assert.equal(commentField.jsonProseChars, prose.length);
@@ -680,8 +668,10 @@ test("deferred-content measurement: prose shape, typed islands only, malformed a
   // A malformed typed island records the fact, measures nothing from that island, and leaves
   // other islands counted.
   const malformed = measureJsonIslandProse(
-    page(`<script type="application/json">{"broken": [</script>`
-      + `<script type="application/json">{"ok":${JSON.stringify(prose)}}</script>`),
+    page(
+      `<script type="application/json">{"broken": [</script>` +
+        `<script type="application/json">{"ok":${JSON.stringify(prose)}}</script>`,
+    ),
   );
   assert.equal(malformed.jsonIslandUnparsed, true);
   assert.equal(malformed.jsonProseChars, prose.length);
@@ -691,7 +681,9 @@ test("deferred-content measurement: prose shape, typed islands only, malformed a
   // here without a megabyte fixture: three values of budget cannot finish an island of many.
   assert.equal(jsonWalkValueBudget, 250_000);
   const breached = measureJsonIslandProse(
-    page(`<script type="application/json">{"a":[1,2,3,4,5,6,7,8],"b":${JSON.stringify(prose)}}</script>`),
+    page(
+      `<script type="application/json">{"a":[1,2,3,4,5,6,7,8],"b":${JSON.stringify(prose)}}</script>`,
+    ),
     { valueBudget: 3 },
   );
   assert.equal(breached.jsonWalkBudgetHit, true);
@@ -701,10 +693,7 @@ test("deferred-content measurement: prose shape, typed islands only, malformed a
     deferredContentSuspected({ jsonProseChars: 0, jsonWalkBudgetHit: true }, 5000),
     true,
   );
-  assert.equal(
-    deferredContentSuspected({ jsonProseChars: 0, jsonWalkBudgetHit: false }, 0),
-    false,
-  );
+  assert.equal(deferredContentSuspected({ jsonProseChars: 0, jsonWalkBudgetHit: false }, 0), false);
 
   // The threshold is exact and two-sided: prose equal to ratio × extracted fires, one character
   // short of it does not. The ratio is frozen as a literal here, never read back as arithmetic
@@ -749,19 +738,21 @@ test("deferred-content measurement: prose shape, typed islands only, malformed a
 });
 
 test("the HTML scanner keeps visible text and drops what a page never shows", () => {
-  const { root } = parseHtml([
-    "<!doctype html><html><head><title>Tab title</title>",
-    "<style>.x{color:red}</style><meta charset=\"utf-8\"></head><body>",
-    "<script>var a = \"<p>fake</p>\";</script>",
-    "<noscript><p>no script here</p></noscript>",
-    "<p>First</p><p>Second",
-    "<ul><li>Alpha<li>Beta</ul>",
-    "<div>Third<br>Fourth</div>",
-    "<pre>keep\nlines</pre>",
-    "</wrong>",
-    "<p>5 < 6 and &amp; and &#65;</p>",
-    "</body></html>",
-  ].join(""));
+  const { root } = parseHtml(
+    [
+      "<!doctype html><html><head><title>Tab title</title>",
+      '<style>.x{color:red}</style><meta charset="utf-8"></head><body>',
+      '<script>var a = "<p>fake</p>";</script>',
+      "<noscript><p>no script here</p></noscript>",
+      "<p>First</p><p>Second",
+      "<ul><li>Alpha<li>Beta</ul>",
+      "<div>Third<br>Fourth</div>",
+      "<pre>keep\nlines</pre>",
+      "</wrong>",
+      "<p>5 < 6 and &amp; and &#65;</p>",
+      "</body></html>",
+    ].join(""),
+  );
   // The collector emits raw block boundaries; the logged normalization pass owns blank-run
   // collapsing, so the pipeline's own composition is what this asserts.
   const text = normalizeExtractedText(collectText(root)).text;
@@ -796,7 +787,7 @@ test("the HTML scanner keeps visible text and drops what a page never shows", ()
 });
 
 test("character references resolve, and an unknown one stays literal", () => {
-  assert.equal(decodeEntities("&amp;&lt;&gt;&quot;&#65;&#x42;"), "&<>\"AB");
+  assert.equal(decodeEntities("&amp;&lt;&gt;&quot;&#65;&#x42;"), '&<>"AB');
   assert.equal(decodeEntities("&notanentity;"), "&notanentity;");
   assert.equal(decodeEntities("&#xD800;"), "&#xD800;");
   assert.equal(decodeEntities("&#0;"), "&#0;");
@@ -843,13 +834,16 @@ test("a stray close tag cannot move content out of its container", () => {
   // Honouring an unmatched close tag unwinds the stack, and everything after it becomes a
   // sibling of the container instead of its child - silently truncating a job description at
   // whatever stray tag a page happens to carry.
-  const { root } = parseHtml([
-    "<div class=\"description__text\"><div class=\"show-more-less-html__markup\">",
-    "<p>Before the stray tag</p></section><p>After the stray tag</p>",
-    "</div></div>",
-  ].join(""));
+  const { root } = parseHtml(
+    [
+      '<div class="description__text"><div class="show-more-less-html__markup">',
+      "<p>Before the stray tag</p></section><p>After the stray tag</p>",
+      "</div></div>",
+    ].join(""),
+  );
   const container = findElement(root, (node) =>
-    hasClassContaining(node, "show-more-less-html__markup"));
+    hasClassContaining(node, "show-more-less-html__markup"),
+  );
   assert.notEqual(container, null);
   const contained = collectText(container);
   assert.match(contained, /Before the stray tag/u);
@@ -861,9 +855,13 @@ test("class helpers read the attribute they claim to read", () => {
     "<div class='alpha show-more-less-html__markup beta'><p>Body</p></div>",
   );
   const container = findElement(root, (node) =>
-    hasClassContaining(node, "show-more-less-html__markup"));
+    hasClassContaining(node, "show-more-less-html__markup"),
+  );
   assert.notEqual(container, null);
-  assert.equal(findElement(root, (node) => hasClassContaining(node, "absent")), null);
+  assert.equal(
+    findElement(root, (node) => hasClassContaining(node, "absent")),
+    null,
+  );
   assert.deepEqual(genericChromeTags, ["aside", "footer", "form", "header", "nav"]);
 });
 
@@ -875,11 +873,11 @@ test("the normalization pass logs every rule, its count and the digests around i
   assert.equal(pass.log.beforeSha256, sha256Utf8(extracted));
   assert.equal(pass.log.afterSha256, sha256Utf8(pass.text));
   assert.equal(pass.log.changed, true);
-  assert.deepEqual(pass.log.rules.map((rule) => rule.id),
-    normalizationRules.map((rule) => rule.id));
-  const counts = Object.fromEntries(
-    pass.log.rules.map((rule) => [rule.id, rule.replacements]),
+  assert.deepEqual(
+    pass.log.rules.map((rule) => rule.id),
+    normalizationRules.map((rule) => rule.id),
   );
+  const counts = Object.fromEntries(pass.log.rules.map((rule) => [rule.id, rule.replacements]));
   assert.deepEqual(counts, {
     strip_bom: 1,
     crlf_to_lf: 4,
@@ -896,7 +894,10 @@ test("the normalization pass is idempotent and records a no-op honestly", () => 
   const once = normalizeExtractedText("Already clean\n\nText\n");
   assert.equal(once.log.changed, false);
   assert.equal(once.log.beforeSha256, once.log.afterSha256);
-  assert.deepEqual(once.log.rules.filter((rule) => rule.replacements > 0), []);
+  assert.deepEqual(
+    once.log.rules.filter((rule) => rule.replacements > 0),
+    [],
+  );
   const twice = normalizeExtractedText(normalizeExtractedText("A B\r\n\n\n\nC").text);
   assert.equal(twice.log.changed, false);
 });
@@ -905,10 +906,7 @@ test("the normalization pass composes decomposed characters instead of rewriting
   const decomposed = "Café role\n";
   const pass = normalizeExtractedText(decomposed);
   assert.equal(pass.text, "Café role\n");
-  assert.equal(
-    pass.log.rules.find((rule) => rule.id === "nfc").replacements,
-    1,
-  );
+  assert.equal(pass.log.rules.find((rule) => rule.id === "nfc").replacements, 1);
   // The before-digest describes the bytes as they arrived, not the bytes after any rule ran. A
   // log whose "before" was taken after normalization would report a chain of custody it does not
   // have, and this input is the one where the two differ.
@@ -1002,7 +1000,9 @@ test("only access_failure is retryable, and no barrier is ever terminal", () => 
 test("a terminal unavailability verdict is reachable only from a stated word or a 404/410", () => {
   // Every status other than 404/410, with no first-party statement, must stay non-terminal.
   const terminal = new Set(["absent", "closed", "private"]);
-  for (const status of [200, 201, 202, 204, 301, 302, 400, 401, 403, 405, 418, 429, 500, 503, 999]) {
+  for (const status of [
+    200, 201, 202, 204, 301, 302, 400, 401, 403, 405, 418, 429, 500, 503, 999,
+  ]) {
     const verdict = classifyDirectRoute({
       transportFailure: null,
       status,
@@ -1092,26 +1092,28 @@ test("an edited capture body fails its own digest and size check", () => {
     },
     body,
   });
-  assert.deepEqual(
-    verifyCaptureFile(file.replace("Original", "Fabricated")).problems,
-    ["capture_digest_mismatch", "capture_size_mismatch"],
-  );
+  assert.deepEqual(verifyCaptureFile(file.replace("Original", "Fabricated")).problems, [
+    "capture_digest_mismatch",
+    "capture_size_mismatch",
+  ]);
   // A same-length substitution is still caught, because the digest is over the bytes and the
   // size check alone would pass.
-  assert.deepEqual(
-    verifyCaptureFile(file.replace("Original", "Fabrikat")).problems,
-    ["capture_digest_mismatch"],
-  );
-  assert.deepEqual(verifyCaptureFile("no delimiter here").problems,
-    ["capture_delimiter_absent"]);
+  assert.deepEqual(verifyCaptureFile(file.replace("Original", "Fabrikat")).problems, [
+    "capture_digest_mismatch",
+  ]);
+  assert.deepEqual(verifyCaptureFile("no delimiter here").problems, ["capture_delimiter_absent"]);
   assert.deepEqual(verifyCaptureFile("").problems, ["capture_empty"]);
 });
 
 test("a capture header value can never carry a line break", () => {
-  assert.throws(() => renderCaptureFile({
-    header: { index: "1\n# outcome: active", adapter: "x@1" },
-    body: "b\n",
-  }), /single-line/u);
+  assert.throws(
+    () =>
+      renderCaptureFile({
+        header: { index: "1\n# outcome: active", adapter: "x@1" },
+        body: "b\n",
+      }),
+    /single-line/u,
+  );
 });
 
 test("a body line that imitates the delimiter does not move the header boundary", () => {
@@ -1155,10 +1157,11 @@ function stubFetch(routes, calls = []) {
 }
 
 function htmlResponse(body, { status = 200, headers = {} } = {}) {
-  return () => new Response(body, {
-    status,
-    headers: { "content-type": "text/html; charset=utf-8", ...headers },
-  });
+  return () =>
+    new Response(body, {
+      status,
+      headers: { "content-type": "text/html; charset=utf-8", ...headers },
+    });
 }
 
 function redirectResponse(location, status = 302) {
@@ -1168,10 +1171,14 @@ function redirectResponse(location, status = 302) {
 test("the transport records the redirect chain narrowed by the URL rule", async () => {
   const calls = [];
   const routes = new Map([
-    ["https://jobs.example.com/a",
-      redirectResponse("https://jobs.example.com/b?token=SECRET#frag")],
-    ["https://jobs.example.com/b?token=SECRET",
-      htmlResponse("<main>body</main>", { headers: { "set-cookie": "session=abc" } })],
+    [
+      "https://jobs.example.com/a",
+      redirectResponse("https://jobs.example.com/b?token=SECRET#frag"),
+    ],
+    [
+      "https://jobs.example.com/b?token=SECRET",
+      htmlResponse("<main>body</main>", { headers: { "set-cookie": "session=abc" } }),
+    ],
   ]);
   const result = await fetchDocument({
     url: "https://jobs.example.com/a",
@@ -1181,30 +1188,34 @@ test("the transport records the redirect chain narrowed by the URL rule", async 
 
   assert.equal(result.transportFailure, null);
   assert.equal(result.status, 200);
-  assert.deepEqual(result.redirectChain, [
-    { status: 302, url: "https://jobs.example.com/b" },
-  ]);
+  assert.deepEqual(result.redirectChain, [{ status: 302, url: "https://jobs.example.com/b" }]);
   assert.equal(result.finalUrl, "https://jobs.example.com/b");
   assert.equal(result.charset, "utf-8");
   assert.match(result.body, /body/u);
   // Redirects are followed by this module, never by the runtime, because the chain is evidence.
-  assert.deepEqual(calls.map((call) => call.redirect), ["manual", "manual"]);
+  assert.deepEqual(
+    calls.map((call) => call.redirect),
+    ["manual", "manual"],
+  );
 });
 
 test("the transport records only allowlisted response headers", async () => {
   const routes = new Map([
-    ["https://jobs.example.com/x", htmlResponse("<main>body</main>", {
-      status: 401,
-      headers: {
-        "content-length": "18",
-        etag: "\"abc\"",
-        "retry-after": "120",
-        "set-cookie": "session=SECRET; HttpOnly",
-        "www-authenticate": "Bearer realm=\"corp\", error=\"invalid_token\"",
-        "x-request-id": "should-not-be-recorded",
-        location: "https://login.example.com/oauth?code=SECRET",
-      },
-    })],
+    [
+      "https://jobs.example.com/x",
+      htmlResponse("<main>body</main>", {
+        status: 401,
+        headers: {
+          "content-length": "18",
+          etag: '"abc"',
+          "retry-after": "120",
+          "set-cookie": "session=SECRET; HttpOnly",
+          "www-authenticate": 'Bearer realm="corp", error="invalid_token"',
+          "x-request-id": "should-not-be-recorded",
+          location: "https://login.example.com/oauth?code=SECRET",
+        },
+      }),
+    ],
   ]);
   const result = await fetchDocument({
     url: "https://jobs.example.com/x",
@@ -1234,9 +1245,9 @@ test("the transport fails closed on each bounded ceiling", async () => {
     url: "https://jobs.example.com/big",
     headers: defaultRequestHeaders,
     maxBytes: 64,
-    fetchImpl: stubFetch(new Map([
-      ["https://jobs.example.com/big", htmlResponse("x".repeat(4096))],
-    ])),
+    fetchImpl: stubFetch(
+      new Map([["https://jobs.example.com/big", htmlResponse("x".repeat(4096))]]),
+    ),
   });
   assert.equal(oversize.transportFailure, "oversize");
   assert.equal(oversize.body, "");
@@ -1257,9 +1268,9 @@ test("the transport fails closed on each bounded ceiling", async () => {
   const badScheme = await fetchDocument({
     url: "https://jobs.example.com/bad",
     headers: defaultRequestHeaders,
-    fetchImpl: stubFetch(new Map([
-      ["https://jobs.example.com/bad", redirectResponse("javascript:alert(1)")],
-    ])),
+    fetchImpl: stubFetch(
+      new Map([["https://jobs.example.com/bad", redirectResponse("javascript:alert(1)")]]),
+    ),
   });
   assert.equal(badScheme.transportFailure, "invalid_redirect");
 
@@ -1290,13 +1301,18 @@ test("the transport decodes a declared charset and counts replacements", async (
   const declared = await fetchDocument({
     url: "https://jobs.example.com/latin1",
     headers: defaultRequestHeaders,
-    fetchImpl: stubFetch(new Map([
-      ["https://jobs.example.com/latin1",
-        () => new Response(latin1, {
-          status: 200,
-          headers: { "content-type": "text/html; charset=iso-8859-1" },
-        })],
-    ])),
+    fetchImpl: stubFetch(
+      new Map([
+        [
+          "https://jobs.example.com/latin1",
+          () =>
+            new Response(latin1, {
+              status: 200,
+              headers: { "content-type": "text/html; charset=iso-8859-1" },
+            }),
+        ],
+      ]),
+    ),
   });
   assert.equal(declared.charset, "iso-8859-1");
   assert.match(declared.body, /Café role/u);
@@ -1306,12 +1322,21 @@ test("the transport decodes a declared charset and counts replacements", async (
   const sniffed = await fetchDocument({
     url: "https://jobs.example.com/meta",
     headers: defaultRequestHeaders,
-    fetchImpl: stubFetch(new Map([
-      ["https://jobs.example.com/meta", () => new Response(
-        Buffer.from("<html><head><meta charset=\"iso-8859-1\"></head><body>Caf\xe9</body>", "latin1"),
-        { status: 200, headers: { "content-type": "text/html" } },
-      )],
-    ])),
+    fetchImpl: stubFetch(
+      new Map([
+        [
+          "https://jobs.example.com/meta",
+          () =>
+            new Response(
+              Buffer.from(
+                '<html><head><meta charset="iso-8859-1"></head><body>Caf\xe9</body>',
+                "latin1",
+              ),
+              { status: 200, headers: { "content-type": "text/html" } },
+            ),
+        ],
+      ]),
+    ),
   });
   assert.equal(sniffed.declaredCharset, "iso-8859-1");
   assert.match(sniffed.body, /Café/u);
@@ -1320,12 +1345,18 @@ test("the transport decodes a declared charset and counts replacements", async (
   const broken = await fetchDocument({
     url: "https://jobs.example.com/broken",
     headers: defaultRequestHeaders,
-    fetchImpl: stubFetch(new Map([
-      ["https://jobs.example.com/broken", () => new Response(
-        Buffer.from([0x3c, 0x70, 0x3e, 0xff, 0xfe, 0x3c, 0x2f, 0x70, 0x3e]),
-        { status: 200, headers: { "content-type": "text/html" } },
-      )],
-    ])),
+    fetchImpl: stubFetch(
+      new Map([
+        [
+          "https://jobs.example.com/broken",
+          () =>
+            new Response(Buffer.from([0x3c, 0x70, 0x3e, 0xff, 0xfe, 0x3c, 0x2f, 0x70, 0x3e]), {
+              status: 200,
+              headers: { "content-type": "text/html" },
+            }),
+        ],
+      ]),
+    ),
   });
   assert.equal(broken.replacementCount > 0, true);
   assert.equal(transportDefaults.maxRedirects, 5);
@@ -1359,9 +1390,14 @@ test("adapter selection prefers a dedicated adapter and never leaves a URL unser
   // A LinkedIn URL that identifies no single posting is served by the fallback, not refused.
   assert.equal(selectAdapter("https://www.linkedin.com/jobs/search").id, "generic-html");
   assert.equal(fallbackAdapter.id, "generic-html");
-  assert.deepEqual(dedicatedAdapters.map((entry) => entry.id), ["linkedin-guest"]);
-  assert.deepEqual(vacancyFetchAdapters.map((entry) => entry.id),
-    ["linkedin-guest", "generic-html"]);
+  assert.deepEqual(
+    dedicatedAdapters.map((entry) => entry.id),
+    ["linkedin-guest"],
+  );
+  assert.deepEqual(
+    vacancyFetchAdapters.map((entry) => entry.id),
+    ["linkedin-guest", "generic-html"],
+  );
   // Source identification stays single-sourced through the registry.
   assert.equal(sourceIdFor(LINKEDIN_REF), "linkedin");
   assert.equal(sourceIdFor("https://hh.ru/vacancy/123"), "hh_ru");
@@ -1446,8 +1482,8 @@ test("every adapter's structural verdict implies its minimum-content check", () 
     "<main></main>",
     "<main><p>Too short to be a description.</p></main>",
     `<main><p>${filler}</p></main>`,
-    `<main><div class="description__text"><div class="show-more-less-html__markup">`
-      + `<p>${filler}</p></div></div></main>`,
+    `<main><div class="description__text"><div class="show-more-less-html__markup">` +
+      `<p>${filler}</p></div></div></main>`,
     `<main><div class="description__text"><p>Short.</p></div></main>`,
     `<main><p>No longer accepting applications</p><p>${filler}</p></main>`,
   ];
@@ -1502,31 +1538,28 @@ test("the shared minimum-content floor is one number, not a per-adapter opinion"
 test("the reason vocabulary is bounded, and an unknown code cannot leave an adapter", () => {
   // Frozen as a literal, so a new code is a deliberate edit here and in the README's list of what
   // a caller may branch on.
-  assert.deepEqual([...adapterReasonCodes], [
-    "anti_bot_page",
-    "auth_wall",
-    "content_below_minimum",
-    "deferred_content_suspected",
-    "description_container_absent",
-    "identity_unconfirmed",
-    "rate_limited",
-    "route_unresolved",
-    "transport_failed",
-    "unsupported_content_type",
-    "unknown_shape",
-  ]);
+  assert.deepEqual(
+    [...adapterReasonCodes],
+    [
+      "anti_bot_page",
+      "auth_wall",
+      "content_below_minimum",
+      "deferred_content_suspected",
+      "description_container_absent",
+      "identity_unconfirmed",
+      "rate_limited",
+      "route_unresolved",
+      "transport_failed",
+      "unsupported_content_type",
+      "unknown_shape",
+    ],
+  );
   // The one code a module outside the adapters holds as a constant. It must stay a member of the
   // list above, or `tools/vacancy-fetch/batch.mjs` would count a demand no adapter ever emits.
   assert.ok(adapterReasonCodes.includes(deferredContentReason));
-  assert.throws(
-    () => adapterReading({ reasons: ["looks_wrong"] }),
-    /unknown adapter reason code/u,
-  );
+  assert.throws(() => adapterReading({ reasons: ["looks_wrong"] }), /unknown adapter reason code/u);
   // Duplicates collapse rather than accumulate, so a caller counting reasons counts conditions.
-  assert.deepEqual(
-    adapterReading({ reasons: ["auth_wall", "auth_wall"] }).reasons,
-    ["auth_wall"],
-  );
+  assert.deepEqual(adapterReading({ reasons: ["auth_wall", "auth_wall"] }).reasons, ["auth_wall"]);
 
   // Every reason any fixture actually produces is a member, so the list cannot drift away from
   // what the adapters emit.
@@ -1556,7 +1589,10 @@ test("the bounded marker lists stay bounded and repository-owned", () => {
 test("the LinkedIn wall paths stay bounded, and both adapters read the same lists", () => {
   // The generic adapter imports these rather than keeping its own copy, so a path appended for one
   // adapter is a path the other reads too. The literal freezes the list; a change is deliberate.
-  assert.deepEqual([...linkedinAuthWallPathPrefixes], ["/authwall", "/login", "/signup", "/uas/login"]);
+  assert.deepEqual(
+    [...linkedinAuthWallPathPrefixes],
+    ["/authwall", "/login", "/signup", "/uas/login"],
+  );
   assert.deepEqual([...linkedinAntiBotPathPrefixes], ["/checkpoint"]);
   assert.ok(Object.isFrozen(linkedinAuthWallPathPrefixes));
   assert.ok(Object.isFrozen(linkedinAntiBotPathPrefixes));
@@ -1594,21 +1630,29 @@ test("a batch persists one capture per usable vacancy and one manifest", async (
   });
 
   // Sequential, with the delay between requests and never before the first one.
-  assert.deepEqual(calls.map((call) => call.url), [
-    GUEST_URL,
-    GENERIC_REF,
-    "https://careers.example/closed",
-  ]);
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    [GUEST_URL, GENERIC_REF, "https://careers.example/closed"],
+  );
   assert.deepEqual(slept, [1500, 1500]);
 
-  assert.deepEqual(readdirSync(outDir).filter((entry) => entry.endsWith(".txt")).sort(),
-    ["001.capture.txt", "002.capture.txt"]);
+  assert.deepEqual(
+    readdirSync(outDir)
+      .filter((entry) => entry.endsWith(".txt"))
+      .sort(),
+    ["001.capture.txt", "002.capture.txt"],
+  );
   assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.batch.label, "gate-1");
   assert.equal(manifest.batch.isDefaultTransport, true);
   assert.equal(manifest.stoppedEarly, null);
-  assert.deepEqual(manifest.summary.byOutcome,
-    { active: 2, absent: 0, closed: 0, private: 0, access_failure: 1 });
+  assert.deepEqual(manifest.summary.byOutcome, {
+    active: 2,
+    absent: 0,
+    closed: 0,
+    private: 0,
+    access_failure: 1,
+  });
   assert.equal(manifest.summary.usable, 2);
   assert.equal(manifest.summary.needsBrowserFallback, 1);
   assert.equal(manifest.summary.skipped, 0);
@@ -1643,7 +1687,10 @@ test("a batch stops on a rate limit and records the rest as unattempted", async 
     now: () => new Date("2026-08-18T09:00:00.000Z"),
   });
 
-  assert.deepEqual(calls.map((call) => call.url), [GUEST_URL]);
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    [GUEST_URL],
+  );
   assert.equal(manifest.stoppedEarly, "rate_limited");
   assert.equal(manifest.summary.skipped, 2);
   assert.equal(manifest.records[0].accessBarrier, "rate_limit");
@@ -1706,9 +1753,9 @@ test("a closed posting read from an unrecognized layout is not trusted as termin
     outDir,
     batch: "gate-5",
     delayMs: 0,
-    fetchImpl: stubFetch(new Map([
-      [GUEST_URL, htmlResponse(readFixture("linkedin-guest-wrong-job.html"))],
-    ])),
+    fetchImpl: stubFetch(
+      new Map([[GUEST_URL, htmlResponse(readFixture("linkedin-guest-wrong-job.html"))]]),
+    ),
     now: () => new Date("2026-08-18T09:00:00.000Z"),
   });
   const [record] = manifest.records;
@@ -1724,9 +1771,9 @@ test("a terminal absence needs no browser fallback", async (t) => {
     outDir,
     batch: "gate-6",
     delayMs: 0,
-    fetchImpl: stubFetch(new Map([
-      [GENERIC_REF, htmlResponse("<main><p>Gone</p></main>", { status: 410 })],
-    ])),
+    fetchImpl: stubFetch(
+      new Map([[GENERIC_REF, htmlResponse("<main><p>Gone</p></main>", { status: 410 })]]),
+    ),
     now: () => new Date("2026-08-18T09:00:00.000Z"),
   });
   const [record] = manifest.records;
@@ -1747,7 +1794,10 @@ test("a reference that is not a fetchable URL costs no request", async (t) => {
     fetchImpl: stubFetch(fixtureRoutes(), calls),
     now: () => new Date("2026-08-18T09:00:00.000Z"),
   });
-  assert.deepEqual(calls.map((call) => call.url), [GENERIC_REF]);
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    [GENERIC_REF],
+  );
   assert.deepEqual(manifest.records[0].reasons, ["route_unresolved"]);
   assert.equal(manifest.records[0].skipped, false);
   assert.equal(manifest.records[0].requestedUrl, null);
@@ -1756,15 +1806,16 @@ test("a reference that is not a fetchable URL costs no request", async (t) => {
 test("the batch refuses an unusable output directory before it fetches anything", async (t) => {
   const { outDir } = batchWorkspace(t);
   const calls = [];
-  const run = (overrides) => runVacancyFetchBatch({
-    urls: [GENERIC_REF],
-    outDir,
-    batch: "gate-8",
-    delayMs: 0,
-    fetchImpl: stubFetch(fixtureRoutes(), calls),
-    now: () => new Date("2026-08-18T09:00:00.000Z"),
-    ...overrides,
-  });
+  const run = (overrides) =>
+    runVacancyFetchBatch({
+      urls: [GENERIC_REF],
+      outDir,
+      batch: "gate-8",
+      delayMs: 0,
+      fetchImpl: stubFetch(fixtureRoutes(), calls),
+      now: () => new Date("2026-08-18T09:00:00.000Z"),
+      ...overrides,
+    });
 
   await assert.rejects(run({ outDir: join(outDir, "absent") }), (error) => {
     assert.equal(error.code, "out_dir_missing");
@@ -1807,15 +1858,16 @@ test("the batch refuses an unusable output directory before it fetches anything"
 
 test("the batch validates its own settings", async (t) => {
   const { outDir } = batchWorkspace(t);
-  const run = (overrides) => runVacancyFetchBatch({
-    urls: [GENERIC_REF],
-    outDir,
-    batch: "gate-9",
-    delayMs: 0,
-    fetchImpl: stubFetch(fixtureRoutes()),
-    now: () => new Date("2026-08-18T09:00:00.000Z"),
-    ...overrides,
-  });
+  const run = (overrides) =>
+    runVacancyFetchBatch({
+      urls: [GENERIC_REF],
+      outDir,
+      batch: "gate-9",
+      delayMs: 0,
+      fetchImpl: stubFetch(fixtureRoutes()),
+      now: () => new Date("2026-08-18T09:00:00.000Z"),
+      ...overrides,
+    });
   for (const [overrides, code] of [
     [{ urls: [] }, "urls_invalid"],
     [{ urls: new Array(maxBatchUrls + 1).fill(GENERIC_REF) }, "urls_invalid"],
@@ -1839,7 +1891,7 @@ test("a closure banner read without the description container is not trusted as 
   // Composed inline rather than added to the frozen corpus: this pins the interaction between a
   // body-derived terminal verdict and a failed structural check, not one document's extraction.
   const body = [
-    "<section class=\"top-card-layout\">",
+    '<section class="top-card-layout">',
     `<a class="topcard__link" href="/jobs/view/role-${LINKEDIN_JOB_ID}">See job</a>`,
     "<p>No longer accepting applications</p>",
     `<p>${"Description filler text. ".repeat(40)}</p>`,
@@ -1927,16 +1979,25 @@ test("the CLI reads its URLs from the ADR 0011 envelope and never from argv", as
     [GUEST_URL, htmlResponse(readFixture("linkedin-guest-active.html"))],
     [hostile, htmlResponse(readFixture("generic-main-active.html"))],
   ]);
-  const { result: exitCode, stdout } = await captureStdout(() => cliMain([
-    "fetch",
-    "--input-file", basename,
-    "--out-dir", outDir,
-    "--batch", "cli-1",
-    "--delay-ms", "0",
-  ], {
-    fetchImpl: stubFetch(routes, calls),
-    now: () => new Date("2026-08-18T09:00:00.000Z"),
-  }));
+  const { result: exitCode, stdout } = await captureStdout(() =>
+    cliMain(
+      [
+        "fetch",
+        "--input-file",
+        basename,
+        "--out-dir",
+        outDir,
+        "--batch",
+        "cli-1",
+        "--delay-ms",
+        "0",
+      ],
+      {
+        fetchImpl: stubFetch(routes, calls),
+        now: () => new Date("2026-08-18T09:00:00.000Z"),
+      },
+    ),
+  );
 
   assert.equal(exitCode, 0);
   // The printed summary carries counts and bounded codes only: a URL or a page fragment on
@@ -1981,25 +2042,36 @@ test("the CLI signals the browser fallback through its exit code", async (t) => 
   process.env.JOB_PIPELINE_INPUT_ROOT = inputRoot;
   t.after(() => delete process.env.JOB_PIPELINE_INPUT_ROOT);
 
-  const { result: exitCode, stdout } = await captureStdout(() => cliMain([
-    "fetch",
-    "--input-file", basename,
-    "--out-dir", outDir,
-    "--batch", "cli-2",
-    "--delay-ms", "0",
-  ], {
-    fetchImpl: stubFetch(new Map([[GENERIC_REF, htmlResponse("<main>thin</main>")]])),
-    now: () => new Date("2026-08-18T09:00:00.000Z"),
-  }));
+  const { result: exitCode, stdout } = await captureStdout(() =>
+    cliMain(
+      [
+        "fetch",
+        "--input-file",
+        basename,
+        "--out-dir",
+        outDir,
+        "--batch",
+        "cli-2",
+        "--delay-ms",
+        "0",
+      ],
+      {
+        fetchImpl: stubFetch(new Map([[GENERIC_REF, htmlResponse("<main>thin</main>")]])),
+        now: () => new Date("2026-08-18T09:00:00.000Z"),
+      },
+    ),
+  );
   assert.equal(exitCode, 2);
   const printed = JSON.parse(stdout);
   assert.equal(printed.summary.needsBrowserFallback, 1);
-  assert.deepEqual(printed.fallback, [{
-    index: 1,
-    outcome: "access_failure",
-    accessBarrier: "unparseable",
-    reasons: ["content_below_minimum"],
-  }]);
+  assert.deepEqual(printed.fallback, [
+    {
+      index: 1,
+      outcome: "access_failure",
+      accessBarrier: "unparseable",
+      reasons: ["content_below_minimum"],
+    },
+  ]);
 });
 
 test("a usable record whose completeness is unverified moves the exit code too", async (t) => {
@@ -2018,18 +2090,27 @@ test("a usable record whose completeness is unverified moves the exit code too",
   // The whole defect in one batch: every record is usable, none needs the fallback, nothing was
   // left unattempted - and every record owes the browser the one load the skill's confirmation
   // rule will spend on it. Before this counter existed the batch exited 0.
-  const { result: exitCode, stdout } = await captureStdout(() => cliMain([
-    "fetch",
-    "--input-file", basename,
-    "--out-dir", outDir,
-    "--batch", "cli-3",
-    "--delay-ms", "0",
-  ], {
-    fetchImpl: stubFetch(new Map([
-      [GENERIC_REF, htmlResponse(readFixture("generic-spa-deferred.html"))],
-    ])),
-    now: () => new Date("2026-08-18T09:00:00.000Z"),
-  }));
+  const { result: exitCode, stdout } = await captureStdout(() =>
+    cliMain(
+      [
+        "fetch",
+        "--input-file",
+        basename,
+        "--out-dir",
+        outDir,
+        "--batch",
+        "cli-3",
+        "--delay-ms",
+        "0",
+      ],
+      {
+        fetchImpl: stubFetch(
+          new Map([[GENERIC_REF, htmlResponse(readFixture("generic-spa-deferred.html"))]]),
+        ),
+        now: () => new Date("2026-08-18T09:00:00.000Z"),
+      },
+    ),
+  );
 
   const printed = JSON.parse(stdout);
   assert.equal(printed.summary.usable, 1);
@@ -2040,11 +2121,13 @@ test("a usable record whose completeness is unverified moves the exit code too",
   // Two lists, never one: a record the layer could not serve and a record whose completeness it
   // cannot vouch for are different instructions to the caller.
   assert.deepEqual(printed.fallback, []);
-  assert.deepEqual(printed.completenessCheck, [{
-    index: 1,
-    outcome: "active",
-    reasons: ["deferred_content_suspected"],
-  }]);
+  assert.deepEqual(printed.completenessCheck, [
+    {
+      index: 1,
+      outcome: "active",
+      reasons: ["deferred_content_suspected"],
+    },
+  ]);
   // The stdout summary stays counts and bounded codes: the new list carries no URL and no page
   // text, because a model reads this output.
   assert.equal(stdout.includes("northwind"), false);
@@ -2079,11 +2162,13 @@ test("the completeness counter counts usable flagged records and nothing else", 
     outDir,
     batch: "gate-completeness",
     delayMs: 0,
-    fetchImpl: stubFetch(new Map([
-      [mirror, htmlResponse(readFixture("generic-spa-mirror.html"))],
-      [GENERIC_REF, htmlResponse(readFixture("generic-spa-deferred.html"))],
-      [thin, htmlResponse(thinWithIsland)],
-    ])),
+    fetchImpl: stubFetch(
+      new Map([
+        [mirror, htmlResponse(readFixture("generic-spa-mirror.html"))],
+        [GENERIC_REF, htmlResponse(readFixture("generic-spa-deferred.html"))],
+        [thin, htmlResponse(thinWithIsland)],
+      ]),
+    ),
     now: () => new Date("2026-08-18T09:00:00.000Z"),
   });
 
@@ -2113,7 +2198,8 @@ test("only the generic adapter measures islands, and it can never reach a termin
     source: readFileSync(join(repoRoot, "tools/vacancy-fetch/adapters", `${entry.id}.mjs`), "utf8"),
   }));
   assert.deepEqual(
-    adapterSources.filter((entry) => entry.source.includes("deferred-content.mjs"))
+    adapterSources
+      .filter((entry) => entry.source.includes("deferred-content.mjs"))
       .map((entry) => entry.id),
     ["generic-html"],
   );
@@ -2161,16 +2247,23 @@ test("the CLI refuses a malformed invocation before it reads anything", async ()
     ["--on-rate-limit", "panic"],
   ];
   for (const [flag, value] of numeric) {
-    await assert.rejects(cliMain([
-      "fetch",
-      "--input-file", "input-00000000000000000000000000000000.json",
-      "--out-dir", "/tmp",
-      "--batch", "cli-3",
-      flag, value,
-    ]), (error) => {
-      assert.equal(error.code, "invalid_cli_arguments", `${flag} ${value}`);
-      return true;
-    });
+    await assert.rejects(
+      cliMain([
+        "fetch",
+        "--input-file",
+        "input-00000000000000000000000000000000.json",
+        "--out-dir",
+        "/tmp",
+        "--batch",
+        "cli-3",
+        flag,
+        value,
+      ]),
+      (error) => {
+        assert.equal(error.code, "invalid_cli_arguments", `${flag} ${value}`);
+        return true;
+      },
+    );
   }
 });
 
@@ -2197,7 +2290,7 @@ test("the tool README states the same numbers the code enforces", () => {
     "| `--max-redirects` | `5` |",
     "| `--on-rate-limit` | `stop` |",
   ]) {
-    assert.ok(readme.includes(claim), claim);
+    assert.ok(flat.includes(claim), claim);
   }
   assert.equal(transportDefaults.timeoutMs, 20_000);
   assert.equal(transportDefaults.maxBytes, 5_242_880);
@@ -2216,12 +2309,22 @@ test("the tool README states the same numbers the code enforces", () => {
   const readings = fixtureManifest
     .filter((entry) => entry.expectation !== null)
     .map((entry) => replayFixture(entry));
-  assert.equal(readings.some((entry) => entry.reading.unlisted === true), false);
-  assert.equal(readings.some((entry) => entry.verdict.outcome === "private"), false);
+  assert.equal(
+    readings.some((entry) => entry.reading.unlisted === true),
+    false,
+  );
+  assert.equal(
+    readings.some((entry) => entry.verdict.outcome === "private"),
+    false,
+  );
   assert.deepEqual(
-    [...new Set(readings
-      .filter((entry) => entry.verdict.outcome === "closed")
-      .map((entry) => entry.reading.statusWord))],
+    [
+      ...new Set(
+        readings
+          .filter((entry) => entry.verdict.outcome === "closed")
+          .map((entry) => entry.reading.statusWord),
+      ),
+    ],
     ["closed"],
   );
 
@@ -2285,12 +2388,13 @@ test("this CLI's envelope schema is bounded and accepts nothing else", (t) => {
   const inputRoot = inputRootIn(realpathSync(environment.workspaceRoot));
   const read = (values, options) => {
     const basename = writeEnvelope(inputRoot, values, options);
-    return () => readSafeCliInput({
-      basename,
-      command: vacancyFetchCommand,
-      inputRoot,
-      schemas: vacancyFetchInputSchemas,
-    });
+    return () =>
+      readSafeCliInput({
+        basename,
+        command: vacancyFetchCommand,
+        inputRoot,
+        schemas: vacancyFetchInputSchemas,
+      });
   };
 
   const accepted = read({ urls: [LINKEDIN_REF, GENERIC_REF], userAgent: "agent/1" })();
@@ -2300,10 +2404,7 @@ test("this CLI's envelope schema is bounded and accepts nothing else", (t) => {
   // Frozen literals, so widening a bound is a deliberate edit in two places.
   const limits = vacancyFetchInputSchemas[vacancyFetchCommand].stringListLimits.urls;
   assert.deepEqual(limits, { maxItems: 256, itemMaxBytes: 2048 });
-  assert.deepEqual(
-    vacancyFetchInputSchemas[vacancyFetchCommand].required,
-    ["urls"],
-  );
+  assert.deepEqual(vacancyFetchInputSchemas[vacancyFetchCommand].required, ["urls"]);
 
   for (const values of [
     { urls: new Array(257).fill(GENERIC_REF) },
@@ -2335,12 +2436,7 @@ test("the scanner stays linear on a document built out of close-tag-less element
   // performance assertion — it is the only way to state "not quadratic" as a check, and a
   // quadratic scanner misses it by seconds, not by milliseconds.
   const budgetMs = 2000;
-  for (const shape of [
-    "<meta>",
-    "<link rel=\"stylesheet\">",
-    "<noscript>",
-    "<script>x</script>",
-  ]) {
+  for (const shape of ["<meta>", '<link rel="stylesheet">', "<noscript>", "<script>x</script>"]) {
     const html = `<html><body>${shape.repeat(40_000)}<p>tail</p></body></html>`;
     const started = process.hrtime.bigint();
     const parsed = parseHtml(html);
@@ -2357,7 +2453,7 @@ test("a solidus only closes a tag when it stands immediately before the angle br
   // A latched self-closing flag makes the element void, so its real children attach to its parent
   // and the subtree disappears from every container lookup — a whole job description lost to one
   // stray slash in an attribute list.
-  const stray = parseHtml("<div class=\"a\" / data-x=\"1\"><p>Child content</p></div>");
+  const stray = parseHtml('<div class="a" / data-x="1"><p>Child content</p></div>');
   const div = stray.root.children.find((node) => node.tag === "div");
   assert.notEqual(div, undefined);
   assert.equal(div.children.length, 1);
@@ -2366,13 +2462,16 @@ test("a solidus only closes a tag when it stands immediately before the angle br
   // The genuine self-closing form still closes.
   const closed = parseHtml("<div><br/><p>After</p></div>");
   const outer = closed.root.children.find((node) => node.tag === "div");
-  assert.deepEqual(outer.children.map((node) => node.tag ?? node.type), ["br", "p"]);
+  assert.deepEqual(
+    outer.children.map((node) => node.tag ?? node.type),
+    ["br", "p"],
+  );
 
   // And the container lookup the LinkedIn adapter depends on survives a stray solidus.
   const container = findElement(
     parseHtml(
-      "<div class=\"description__text\" / data-tracking=\"1\">"
-      + "<div class=\"show-more-less-html__markup\"><p>Body</p></div></div>",
+      '<div class="description__text" / data-tracking="1">' +
+        '<div class="show-more-less-html__markup"><p>Body</p></div></div>',
     ).root,
     (node) => hasClassContaining(node, "show-more-less-html__markup"),
   );
@@ -2383,8 +2482,11 @@ test("a solidus only closes a tag when it stands immediately before the angle br
 test("RCDATA content resolves character references and CDATA content does not", () => {
   // `textarea` and `title` are RCDATA: an `&amp;` inside them is an ampersand on the page, so it
   // must be one in the persisted text. `script` and `style` are CDATA and are dropped whole.
-  assert.equal(collectText(parseHtml("<textarea>a &amp; b &lt;x&gt;</textarea>").root), "a & b <x>");
-  const script = collectText(parseHtml("<script>var s = \"&amp;\";</script><p>after</p>").root);
+  assert.equal(
+    collectText(parseHtml("<textarea>a &amp; b &lt;x&gt;</textarea>").root),
+    "a & b <x>",
+  );
+  const script = collectText(parseHtml('<script>var s = "&amp;";</script><p>after</p>').root);
   assert.equal(script.includes("&amp;"), false);
   assert.equal(script.includes("var s"), false);
   assert.match(script, /after/u);
@@ -2452,11 +2554,17 @@ test("the generic adapter reads a LinkedIn wall from the final URL, and only on 
   };
 
   for (const path of ["/uas/login", "/login/", "/authwall", "/signup/cold-join"]) {
-    assert.deepEqual(read(`https://nl.linkedin.com${path}`),
-      { reasons: ["auth_wall"], outcome: "access_failure", barrier: "authentication" }, path);
+    assert.deepEqual(
+      read(`https://nl.linkedin.com${path}`),
+      { reasons: ["auth_wall"], outcome: "access_failure", barrier: "authentication" },
+      path,
+    );
   }
-  assert.deepEqual(read("https://www.linkedin.com/checkpoint/challenge"),
-    { reasons: ["anti_bot_page"], outcome: "access_failure", barrier: "anti_bot" });
+  assert.deepEqual(read("https://www.linkedin.com/checkpoint/challenge"), {
+    reasons: ["anti_bot_page"],
+    outcome: "access_failure",
+    barrier: "anti_bot",
+  });
 
   // A LinkedIn page off the wall paths, the same path on a foreign host, a look-alike host, and a
   // missing final URL all leave the body to the text checks, which this body passes.
@@ -2467,8 +2575,11 @@ test("the generic adapter reads a LinkedIn wall from the final URL, and only on 
     "https://evil-linkedin.com/login",
     null,
   ]) {
-    assert.deepEqual(read(finalUrl),
-      { reasons: [], outcome: "active", barrier: null }, String(finalUrl));
+    assert.deepEqual(
+      read(finalUrl),
+      { reasons: [], outcome: "active", barrier: null },
+      String(finalUrl),
+    );
   }
 });
 
@@ -2480,11 +2591,15 @@ test("a batch hands a LinkedIn sign-in redirect to the browser and persists noth
     outDir,
     batch: "gate-wall",
     delayMs: 0,
-    fetchImpl: stubFetch(new Map([
-      [requested, redirectResponse("https://nl.linkedin.com/uas/login?session_redirect=x")],
-      ["https://nl.linkedin.com/uas/login?session_redirect=x",
-        htmlResponse(readFixture("generic-linkedin-login-localized.html"))],
-    ])),
+    fetchImpl: stubFetch(
+      new Map([
+        [requested, redirectResponse("https://nl.linkedin.com/uas/login?session_redirect=x")],
+        [
+          "https://nl.linkedin.com/uas/login?session_redirect=x",
+          htmlResponse(readFixture("generic-linkedin-login-localized.html")),
+        ],
+      ]),
+    ),
     sleep: async () => {},
     now: () => new Date("2026-09-23T09:00:00.000Z"),
   });
@@ -2497,17 +2612,21 @@ test("a batch hands a LinkedIn sign-in redirect to the browser and persists noth
   assert.equal(record.usable, false);
   assert.equal(record.fallback, "browser");
   assert.equal(record.persisted, null);
-  assert.deepEqual(readdirSync(outDir).filter((entry) => entry.endsWith(".txt")), []);
+  assert.deepEqual(
+    readdirSync(outDir).filter((entry) => entry.endsWith(".txt")),
+    [],
+  );
 });
 
 test("the transport separates its own timeout from a caller abort", async () => {
-  const pending = async (_url, options) => new Promise((_resolve, reject) => {
-    options.signal.addEventListener("abort", () => {
-      const error = new Error("aborted");
-      error.name = "AbortError";
-      reject(error);
+  const pending = async (_url, options) =>
+    new Promise((_resolve, reject) => {
+      options.signal.addEventListener("abort", () => {
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        reject(error);
+      });
     });
-  });
   // The internal deadline fires: the bounded code is `timeout`, not `aborted`.
   const timedOut = await fetchDocument({
     url: "https://jobs.example.com/slow",
@@ -2569,9 +2688,9 @@ test("a closed posting read from an intact page is terminal and needs no fallbac
     outDir,
     batch: "gate-11",
     delayMs: 0,
-    fetchImpl: stubFetch(new Map([
-      [GUEST_URL, htmlResponse(readFixture("linkedin-guest-closed.html"))],
-    ])),
+    fetchImpl: stubFetch(
+      new Map([[GUEST_URL, htmlResponse(readFixture("linkedin-guest-closed.html"))]]),
+    ),
     now: () => new Date("2026-08-18T09:00:00.000Z"),
   });
   const [record] = manifest.records;
@@ -2597,10 +2716,13 @@ test("captures without a manifest occupy a directory just as a manifest does", a
   // must fail before the first request, not collide on an exclusive create halfway through after
   // re-requesting every earlier URL.
   writeFileSync(join(orphaned, "001.capture.txt"), "leftover\n", { mode: 0o600 });
-  assert.throws(() => prepareOutDir(orphaned), (error) => {
-    assert.equal(error.code, "out_dir_occupied");
-    return true;
-  });
+  assert.throws(
+    () => prepareOutDir(orphaned),
+    (error) => {
+      assert.equal(error.code, "out_dir_occupied");
+      return true;
+    },
+  );
   // An unrelated file is not a batch and does not occupy the directory.
   const notes = join(outDir, "notes");
   mkdirSync(notes, { mode: 0o700 });
@@ -2614,19 +2736,25 @@ test("a batch that fails mid-run still writes the manifest it earned", async (t)
   // The delay between requests is where a run most plausibly dies without a fetch failing. The
   // first record is complete and persisted by then, so losing the manifest would throw away the
   // record of requests that were already politely spent.
-  await assert.rejects(runVacancyFetchBatch({
-    urls: [GENERIC_REF, "https://careers.example/second"],
-    outDir,
-    batch: "gate-12",
-    delayMs: 10,
-    sleep: async () => {
-      throw new Error("host went to sleep");
-    },
-    fetchImpl: stubFetch(fixtureRoutes(), calls),
-    now: () => new Date("2026-08-18T09:00:00.000Z"),
-  }), /host went to sleep/u);
+  await assert.rejects(
+    runVacancyFetchBatch({
+      urls: [GENERIC_REF, "https://careers.example/second"],
+      outDir,
+      batch: "gate-12",
+      delayMs: 10,
+      sleep: async () => {
+        throw new Error("host went to sleep");
+      },
+      fetchImpl: stubFetch(fixtureRoutes(), calls),
+      now: () => new Date("2026-08-18T09:00:00.000Z"),
+    }),
+    /host went to sleep/u,
+  );
 
-  assert.deepEqual(calls.map((call) => call.url), [GENERIC_REF]);
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    [GENERIC_REF],
+  );
   const manifest = JSON.parse(readFileSync(join(outDir, manifestBasename), "utf8"));
   assert.equal(manifest.stoppedEarly, "failed");
   assert.equal(manifest.records.length, 1);
@@ -2648,8 +2776,9 @@ test("a close tag is located by scanning the source, never a re-cased copy of it
   assert.equal("İ".toLowerCase().length, 2);
 
   const dotted = "İ".repeat(14);
-  const withDots = `<main><p>${dotted} office</p><script>var s = 1;</script>`
-    + "<p>Requirements: Playwright</p><p>Salary 90000 EUR</p></main>";
+  const withDots =
+    `<main><p>${dotted} office</p><script>var s = 1;</script>` +
+    "<p>Requirements: Playwright</p><p>Salary 90000 EUR</p></main>";
   const control = withDots.replaceAll("İ", "I");
   const extract = (html) => normalizeExtractedText(collectText(parseHtml(html).root)).text;
   // The only difference between the two documents is the letter, so the extracted text may differ
@@ -2696,39 +2825,45 @@ test("a manifest that cannot be written does not replace the failure it was writ
   // batch takes when the disk or the sandbox is the underlying problem. The record error is the
   // root cause and must survive; the write error is a consequence of the same bad state.
   await sealing("sealed", async (target) => {
-    await assert.rejects(runVacancyFetchBatch({
-      urls: [GENERIC_REF, "https://careers.example/second"],
-      outDir: target,
-      batch: "gate-13",
-      delayMs: 10,
-      sleep: async () => {
-        chmodSync(target, 0o500);
-        throw new Error("root cause to keep");
-      },
-      fetchImpl: stubFetch(fixtureRoutes()),
-      now: () => new Date("2026-08-18T09:00:00.000Z"),
-    }), /root cause to keep/u);
+    await assert.rejects(
+      runVacancyFetchBatch({
+        urls: [GENERIC_REF, "https://careers.example/second"],
+        outDir: target,
+        batch: "gate-13",
+        delayMs: 10,
+        sleep: async () => {
+          chmodSync(target, 0o500);
+          throw new Error("root cause to keep");
+        },
+        fetchImpl: stubFetch(fixtureRoutes()),
+        now: () => new Date("2026-08-18T09:00:00.000Z"),
+      }),
+      /root cause to keep/u,
+    );
     chmodSync(target, 0o700);
     assert.equal(existsSync(join(target, manifestBasename)), false);
   });
 
   // A capture that cannot be written is its own bounded code, raised before the manifest.
   await sealing("sealed-capture", async (target) => {
-    await assert.rejects(runVacancyFetchBatch({
-      urls: [GENERIC_REF],
-      outDir: target,
-      batch: "gate-14",
-      delayMs: 0,
-      fetchImpl: async (url, options) => {
-        chmodSync(target, 0o500);
-        return stubFetch(fixtureRoutes())(url, options);
+    await assert.rejects(
+      runVacancyFetchBatch({
+        urls: [GENERIC_REF],
+        outDir: target,
+        batch: "gate-14",
+        delayMs: 0,
+        fetchImpl: async (url, options) => {
+          chmodSync(target, 0o500);
+          return stubFetch(fixtureRoutes())(url, options);
+        },
+        now: () => new Date("2026-08-18T09:00:00.000Z"),
+      }),
+      (error) => {
+        assert.ok(error instanceof VacancyFetchError);
+        assert.equal(error.code, "capture_write_failed");
+        return true;
       },
-      now: () => new Date("2026-08-18T09:00:00.000Z"),
-    }), (error) => {
-      assert.ok(error instanceof VacancyFetchError);
-      assert.equal(error.code, "capture_write_failed");
-      return true;
-    });
+    );
   });
 
   // And with every record complete and nothing pending, a manifest that cannot be written is
@@ -2740,22 +2875,25 @@ test("a manifest that cannot be written does not replace the failure it was writ
   // fails loudly on the wrong bounded code rather than quietly testing nothing.
   await sealing("sealed-manifest", async (target) => {
     let clockReads = 0;
-    await assert.rejects(runVacancyFetchBatch({
-      urls: [GENERIC_REF],
-      outDir: target,
-      batch: "gate-15",
-      delayMs: 0,
-      fetchImpl: stubFetch(fixtureRoutes()),
-      now: () => {
-        clockReads += 1;
-        if (clockReads === 4) chmodSync(target, 0o500);
-        return new Date("2026-08-18T09:00:00.000Z");
+    await assert.rejects(
+      runVacancyFetchBatch({
+        urls: [GENERIC_REF],
+        outDir: target,
+        batch: "gate-15",
+        delayMs: 0,
+        fetchImpl: stubFetch(fixtureRoutes()),
+        now: () => {
+          clockReads += 1;
+          if (clockReads === 4) chmodSync(target, 0o500);
+          return new Date("2026-08-18T09:00:00.000Z");
+        },
+      }),
+      (error) => {
+        assert.ok(error instanceof VacancyFetchError);
+        assert.equal(error.code, "manifest_write_failed");
+        return true;
       },
-    }), (error) => {
-      assert.ok(error instanceof VacancyFetchError);
-      assert.equal(error.code, "manifest_write_failed");
-      return true;
-    });
+    );
     chmodSync(target, 0o700);
     assert.equal(existsSync(join(target, manifestBasename)), false);
     assert.equal(existsSync(join(target, captureBasename(1))), true);

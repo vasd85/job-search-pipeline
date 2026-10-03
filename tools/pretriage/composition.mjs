@@ -27,13 +27,18 @@ export const compositionBuckets = Object.freeze(["1", "2", "3", "outside", "unkn
 
 const WORK_FORMATS = Object.freeze(["Remote", "Hybrid", "On-site", "Unknown"]);
 const COMPANY_REGIONS = Object.freeze(["WEST", "HOME", "OTHER", "UNKNOWN"]);
-const KNOWN_COMPANY_REGIONS = Object.freeze(COMPANY_REGIONS.filter((region) => region !== "UNKNOWN"));
+const KNOWN_COMPANY_REGIONS = Object.freeze(
+  COMPANY_REGIONS.filter((region) => region !== "UNKNOWN"),
+);
 const SPONSORSHIP = Object.freeze(["available", "unavailable", "unknown"]);
 const west = new Set(WEST_COUNTRY_CODES);
 
 function enumValue(value, allowed, field) {
   if (!allowed.includes(value)) {
-    fail("pretriage_observation_invalid", `The observation field ${field} carries an unknown value.`);
+    fail(
+      "pretriage_observation_invalid",
+      `The observation field ${field} carries an unknown value.`,
+    );
   }
   return value;
 }
@@ -53,12 +58,17 @@ function distinctList(value, accepts) {
 function checkedPriorities(options) {
   const priorities = isPlainObject(options) ? options.priorities : undefined;
   if (
-    !isPlainObject(priorities)
-    || !distinctList(priorities.remoteCompanyRegions, (region) => KNOWN_COMPANY_REGIONS.includes(region))
-    || typeof priorities.relocationWest !== "boolean"
-    || !distinctList(priorities.relocationCountries, isCountryCode)
+    !isPlainObject(priorities) ||
+    !distinctList(priorities.remoteCompanyRegions, (region) =>
+      KNOWN_COMPANY_REGIONS.includes(region),
+    ) ||
+    typeof priorities.relocationWest !== "boolean" ||
+    !distinctList(priorities.relocationCountries, isCountryCode)
   ) {
-    fail("pretriage_priorities_invalid", "The priorities must be the candidate layer's, as candidatePriorities returns them.");
+    fail(
+      "pretriage_priorities_invalid",
+      "The priorities must be the candidate layer's, as candidatePriorities returns them.",
+    );
   }
   return priorities;
 }
@@ -119,18 +129,20 @@ export function priorityClassFor(observation, options) {
   if (Object.hasOwn(observation, "relocation_destination")) {
     // The field that named the country by name. A caller still writing it would have its
     // destination silently ignored, so it is refused and the refusal names the field that replaced it.
-    fail("pretriage_observation_invalid", "The observation names its relocation country by code, in relocation_destination_code.");
+    fail(
+      "pretriage_observation_invalid",
+      "The observation names its relocation country by code, in relocation_destination_code.",
+    );
   }
   const workFormat = enumValue(observation.work_format, WORK_FORMATS, "work_format");
   const companyRegion = enumValue(observation.company_region, COMPANY_REGIONS, "company_region");
-  const sponsorship = enumValue(
-    observation.sponsorship ?? "unknown",
-    SPONSORSHIP,
-    "sponsorship",
-  );
+  const sponsorship = enumValue(observation.sponsorship ?? "unknown", SPONSORSHIP, "sponsorship");
   const code = observation.relocation_destination_code;
   if (code !== undefined && code !== null && !isCountryCode(code)) {
-    fail("pretriage_observation_invalid", "The observation field relocation_destination_code must be an ISO 3166-1 alpha-2 code or null.");
+    fail(
+      "pretriage_observation_invalid",
+      "The observation field relocation_destination_code must be an ISO 3166-1 alpha-2 code or null.",
+    );
   }
 
   if (workFormat === "Unknown") return "unknown";

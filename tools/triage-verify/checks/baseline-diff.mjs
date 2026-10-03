@@ -77,9 +77,10 @@ export function run(context) {
   // The plan's own problems are reported once, by `completeness`, which runs at every cadence.
   const rows = plan.rows === null ? null : rowsByKey(plan);
   const fetchedAt = batchInstant(context.records, context.manifest ?? null);
-  const ledgerRows = context.ledger === null
-    ? new Map()
-    : new Map(context.ledger.entries.map((entry) => [entry.key, entry]));
+  const ledgerRows =
+    context.ledger === null
+      ? new Map()
+      : new Map(context.ledger.entries.map((entry) => [entry.key, entry]));
   /**
    * The ledger row that can serve as a baseline: one observed before this batch fetched. A row
    * carrying this batch's own write-back is not a baseline, and a batch with no instant at all
@@ -98,8 +99,9 @@ export function run(context) {
   // terminal action gets no such reading - a record under `skip_closed` is a finding of its own,
   // and the row still has to support what the plan said.
   const recordedKeys = new Set();
-  const dropped = (key, row) => SKIP_PLAN_ACTIONS.has(row.action)
-    && (TERMINAL_PLAN_ACTIONS.has(row.action) || !recordedKeys.has(key));
+  const dropped = (key, row) =>
+    SKIP_PLAN_ACTIONS.has(row.action) &&
+    (TERMINAL_PLAN_ACTIONS.has(row.action) || !recordedKeys.has(key));
 
   for (const record of context.records) {
     if (record.sourceRef === null) {
@@ -150,9 +152,8 @@ export function run(context) {
     // The policy of the batch under verification. `completeness` has already refused any input
     // whose policy is not the live one, so a trace that reaches this check states the policy its
     // own decision was produced under.
-    const currentPolicyId = typeof record.trace?.policy_id === "string"
-      ? record.trace.policy_id
-      : null;
+    const currentPolicyId =
+      typeof record.trace?.policy_id === "string" ? record.trace.policy_id : null;
     /** Both ends of a move, so no reader has to guess which policy either side belongs to. */
     const policyStamp = {
       ...(typeof priorPolicyId === "string" ? { fromPolicyId: priorPolicyId } : {}),
@@ -190,11 +191,10 @@ export function run(context) {
   let ledgerChecked = 0;
   let skipsCorroborated = 0;
   let skipsUndecidable = 0;
-  const skips = rows === null
-    ? []
-    : [...rows.entries()]
-      .filter(([key, row]) => dropped(key, row))
-      .map(([, row]) => row);
+  const skips =
+    rows === null
+      ? []
+      : [...rows.entries()].filter(([key, row]) => dropped(key, row)).map(([, row]) => row);
   if (context.ledger !== null && rows !== null) {
     for (const [key, item] of rows) {
       const row = ledgerRows.get(key);
@@ -231,13 +231,14 @@ export function run(context) {
       }
       const sameStatus = item.status === undefined || item.status === row.status;
       const sameDecision = item.decision === undefined || item.decision === row.decision;
-      const sameFlags = item.flags === undefined
-        || equalFlags(sortedFlags(item.flags), sortedFlags(row.flags));
+      const sameFlags =
+        item.flags === undefined || equalFlags(sortedFlags(item.flags), sortedFlags(row.flags));
       // `policy_id` is corroborated on the same terms as the three above, which is what keeps it
       // out of the fourth branch `plan.mjs` forbids: a declared policy the ledger row does not
       // carry is the plan describing a baseline that never existed.
-      const samePolicy = item.policyId === undefined
-        || item.policyId === (Object.hasOwn(row, "policy_id") ? row.policy_id : undefined);
+      const samePolicy =
+        item.policyId === undefined ||
+        item.policyId === (Object.hasOwn(row, "policy_id") ? row.policy_id : undefined);
       if (!sameStatus || !sameDecision || !sameFlags || !samePolicy) {
         findings.push({ code: "plan_disagrees_with_ledger", planPosition: item.planPosition });
       }

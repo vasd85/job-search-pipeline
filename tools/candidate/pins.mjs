@@ -27,7 +27,9 @@ import {
 } from "../cover-letter/validate.mjs";
 
 function describe(findings) {
-  return findings.length === 0 ? "no finding" : findings.map((finding) => `"${finding}"`).join("; ");
+  return findings.length === 0
+    ? "no finding"
+    : findings.map((finding) => `"${finding}"`).join("; ");
 }
 
 /** Every finding the letter gate reaches on one pin, as the messages a publication would report. */
@@ -73,9 +75,10 @@ export function runCandidatePins({ root } = {}) {
   for (const language of context.languages) {
     for (const pin of language.pins) {
       const findings = pinFindings(pin, language, context);
-      const held = pin.expect === "accept"
-        ? findings.length === 0
-        : findings.length === 1 && findings[0] === pin.finding;
+      const held =
+        pin.expect === "accept"
+          ? findings.length === 0
+          : findings.length === 1 && findings[0] === pin.finding;
       if (!held) {
         throw new CandidateError(
           "candidate_pin_failed",

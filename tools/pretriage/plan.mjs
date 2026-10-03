@@ -118,7 +118,10 @@ export function planPreTriage({
     // of equal length are otherwise indistinguishable, and a plan built from a different collection
     // would attach one vacancy's ledger answer to another's link.
     if (typeof item.link === "string" && item.link !== link.url) {
-      fail("pretriage_ledger_plan_mismatch", `The ledger plan item ${inputIndex} is about another link.`);
+      fail(
+        "pretriage_ledger_plan_mismatch",
+        `The ledger plan item ${inputIndex} is about another link.`,
+      );
     }
     const base = {
       input_index: inputIndex,
@@ -238,7 +241,10 @@ export function applyLivenessSweep(plan, { manifest, manifests } = {}) {
     const observation = observations[position];
     const row = plan.links.find((entry) => entry.input_index === swept[position].input_index);
     if (row === undefined || row.disposition !== "pending_sweep") {
-      fail("pretriage_manifest_link_mismatch", `Swept position ${position + 1} has no pending link.`);
+      fail(
+        "pretriage_manifest_link_mismatch",
+        `Swept position ${position + 1} has no pending link.`,
+      );
     }
     // The identity check has no escape for a record that carries no requested URL. Every link this
     // plan sweeps parsed as http(s) on the way in, so the layer records a requested URL for each of
@@ -258,7 +264,12 @@ export function applyLivenessSweep(plan, { manifest, manifests } = {}) {
     const classified = byInputIndex.get(row.input_index);
     if (classified === undefined) return { ...row };
     if (classified.verdict === "gone") {
-      return { ...row, disposition: "terminal_gone", reason: classified.reason, liveness: classified };
+      return {
+        ...row,
+        disposition: "terminal_gone",
+        reason: classified.reason,
+        liveness: classified,
+      };
     }
     return {
       ...row,

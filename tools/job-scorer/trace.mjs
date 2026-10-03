@@ -33,11 +33,13 @@ function commonFields(outcome) {
     location_raw: input.source.locationRaw,
     work_format_raw: input.source.workFormatRaw,
     salary_raw: input.source.salaryRaw,
-    work_formats_observed: outcome.selection?.observedFormats
-      ?? [...new Set(input.offers.map((offer) => offer.workFormat))],
+    work_formats_observed: outcome.selection?.observedFormats ?? [
+      ...new Set(input.offers.map((offer) => offer.workFormat)),
+    ],
     selected_work_format: selected?.workFormat ?? null,
-    company_regions_observed: outcome.selection?.observedRegions
-      ?? [...new Set(input.offers.map((offer) => offer.companyRegion))],
+    company_regions_observed: outcome.selection?.observedRegions ?? [
+      ...new Set(input.offers.map((offer) => offer.companyRegion)),
+    ],
     selected_company_region: selected?.companyRegion ?? null,
     sponsorship: selectedOrUnanimous(outcome, "sponsorship"),
     workAuthorization: selectedOrUnanimous(outcome, "workAuthorization"),
@@ -135,18 +137,20 @@ export function rankDecisionTraces(traces) {
   if (!Array.isArray(traces)) throw new TypeError("traces must be an array");
   const evaluated = traces
     .filter((trace) => trace.decision === "EVALUATED")
-    .sort((left, right) => (
-      BUCKET_ORDER[left.bucket] - BUCKET_ORDER[right.bucket]
-      || right.match_percent - left.match_percent
-      || right.C_score - left.C_score
-      || right.M_score - left.M_score
-      || right.D_score - left.D_score
-      || right.S_score - left.S_score
-      || left.input_index - right.input_index
-    ));
-  const byInput = (decision) => traces
-    .filter((trace) => trace.decision === decision)
-    .sort((left, right) => left.input_index - right.input_index);
+    .sort(
+      (left, right) =>
+        BUCKET_ORDER[left.bucket] - BUCKET_ORDER[right.bucket] ||
+        right.match_percent - left.match_percent ||
+        right.C_score - left.C_score ||
+        right.M_score - left.M_score ||
+        right.D_score - left.D_score ||
+        right.S_score - left.S_score ||
+        left.input_index - right.input_index,
+    );
+  const byInput = (decision) =>
+    traces
+      .filter((trace) => trace.decision === decision)
+      .sort((left, right) => left.input_index - right.input_index);
   return Object.freeze({
     evaluated: Object.freeze(evaluated),
     blocked: Object.freeze(byInput("BLOCKED")),
@@ -178,9 +182,10 @@ function shortStack(trace) {
   if (Array.isArray(trace.tool_breakdown)) {
     // Read saved category-era traces without recomputing or altering them.
     for (const requirement of ["required", "optional", "observed"]) {
-      for (const row of trace.tool_breakdown) for (const item of row.observed_tools) {
-        if (item.requirement === requirement) add(item.name);
-      }
+      for (const row of trace.tool_breakdown)
+        for (const item of row.observed_tools) {
+          if (item.requirement === requirement) add(item.name);
+        }
     }
     for (const name of trace.unclassified_tools ?? []) add(name);
   } else {
@@ -209,9 +214,10 @@ export function summaryRow(trace) {
     input_index: trace.input_index,
     job_title: trace.job_title,
     company: trace.company,
-    decision: trace.decision === "EVALUATED"
-      ? `${trace.bucket} ${trace.match_percent}%`
-      : `${trace.decision}: ${trace[codeField]}`,
+    decision:
+      trace.decision === "EVALUATED"
+        ? `${trace.bucket} ${trace.match_percent}%`
+        : `${trace.decision}: ${trace[codeField]}`,
     stack: shortStack(trace),
     ai: `${trace.ai_in_product.value} / ${trace.ai_in_work.value}`,
     link: trace.source_ref,

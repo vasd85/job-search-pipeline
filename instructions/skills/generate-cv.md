@@ -80,6 +80,7 @@ missing brief, or reinterpret the request as a general CV.
    The builder must produce the candidate DOCX beside staged `cv.json`; PDF/PNG QA stays under the
    same staging directory. Do not use the default canonical-path build mode for a file-backed
    pipeline publication.
+
 4. Inspect every returned page image at 100% zoom in one pass. Check clipping, overlap, glyph
    corruption, orphaned role headings, and illogical splits. Apply a documented pagination
    override only when rendered evidence requires it, then rerun the same controlled entrypoint.
@@ -180,7 +181,7 @@ process, read the step record, and open the revision.
   Read that result before assuming an adoption happened. The command refuses with
   `adoption_target_unchanged` when every canonical file still matches its committed digest and no
   adoption is open yet: nothing was edited, so the request belongs to the chat-command channel. When
-  an adoption *is* already open and the divergence is gone — the user reverted the file — it
+  an adoption _is_ already open and the divergence is gone — the user reverted the file — it
   discards that base and opens an ordinary revision whose result carries no `adoption` at all;
   stage the candidate yourself, exactly as in the chat-command channel.
 
@@ -363,6 +364,7 @@ guesses, and neither do you.
    conditions to publish through. Never publish a pair that disagrees with itself: close the attempt
    with `fail-step` as below, so the revision does not sit open blocking every other entrypoint, and
    report which of the two you found.
+
 6. Inspect only the rendered page(s) whose content changed, at 100% zoom, from the PNGs this build
    returned: clipping, overlap, glyph corruption, orphaned role headings, and illogical splits.
    Inspect the neighbouring page as well when the edit moved a page break. The every-page pass

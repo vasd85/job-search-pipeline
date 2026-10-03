@@ -55,14 +55,14 @@ missing information: there is no source text for anything to be missing from.
 The legacy label "middle" in explanations means this configured unknown value, not a computed midpoint.
 Use the configured value when a component cannot be measured:
 
-| Component | Setting | Applied when |
-| --- | --- | --- |
-| M | `candidate.config.scoring.m.unknown` | no mobility branch resolves |
-| C | `candidate.config.scoring.c.unknown` | salary absent or not comparable |
-| AutomationShare | `candidate.config.scoring.s.automation.unknown` | automation share unknown |
-| ToolMatch | 2 per absent main half | no main language or framework observation in that half |
-| SeniorityFit | `candidate.config.scoring.s.seniority.unknown` | seniority unknown |
-| D | `candidate.config.scoring.d.unknown` | domain unclear |
+| Component       | Setting                                         | Applied when                                           |
+| --------------- | ----------------------------------------------- | ------------------------------------------------------ |
+| M               | `candidate.config.scoring.m.unknown`            | no mobility branch resolves                            |
+| C               | `candidate.config.scoring.c.unknown`            | salary absent or not comparable                        |
+| AutomationShare | `candidate.config.scoring.s.automation.unknown` | automation share unknown                               |
+| ToolMatch       | 2 per absent main half                          | no main language or framework observation in that half |
+| SeniorityFit    | `candidate.config.scoring.s.seniority.unknown`  | seniority unknown                                      |
+| D               | `candidate.config.scoring.d.unknown`            | domain unclear                                         |
 
 Named main languages and frameworks with no priced match produce measured zero in their half;
 only an absent main half takes 2. Record the same gaps even when a configured value is zero.
@@ -89,34 +89,34 @@ from the trace:
 - **C - a default this record prescribes.** Every `assumption:` token is class C. It is not a
   review question, and a different default is an edit of this record.
 
-| Token | Class | What would price it |
-| --- | --- | --- |
-| `gap:automation_share_absent` | A | - |
-| `gap:company_region_absent` | A | - |
-| `gap:compensation_absent` | A | - |
-| `gap:domain_unclear` | A | - |
-| `gap:mobility_branch_unresolved` | A | - |
-| `gap:relocation_country_absent` | A | - |
-| `gap:residence_restriction_absent` | A | - |
-| `gap:seniority_absent` | A | - |
-| `gap:stack_absent` | A | - |
-| `gap:test_language_absent` | A | - |
-| `gap:test_framework_absent` | A | - |
-| `gap:stack_ambiguous` | B | - |
-| `gap:work_format_absent` | A | - |
-| `gap:compensation_basis_incomparable` | B | the advertised-basis reading, for a market it does not name; the extractor, where it observed no offer or missed a market the listing named; nothing where the listing places the posting nowhere, where the floor is net, or where the basis was stated |
-| `gap:compensation_fx_unavailable` | B | the official rate, which the run supplies |
-| `gap:compensation_market_curve_absent` | B | a branch C reference band of [the compensation score](#32-c--compensation--contract-fit) for the market |
-| `gap:compensation_period_absent` | B | nothing |
-| `gap:relocation_country_unlisted` | B | a RelocationCountryScore tier of [the mobility score](#31-m--mobility--work-feasibility) for the country |
-| `gap:relocation_country_unresolved` | B | the extractor: the name it recorded carries no code |
-| `gap:residence_requirement_country_unresolved` | B | the extractor: the name it recorded carries no code |
-| `assumption:compensation.basis_advertised_gross` | C | - |
-| `assumption:compensation.floor_currency_fallback` | C | - |
-| `assumption:compensation.range_crosses_floor` | C | - |
-| `assumption:engagement_path.home_employment` | C | - |
-| `assumption:engagement_path.outside_home_contractor` | C | - |
-| `assumption:engagement_path.relocation` | C | - |
+| Token                                                | Class | What would price it                                                                                                                                                                                                                                      |
+| ---------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gap:automation_share_absent`                        | A     | -                                                                                                                                                                                                                                                        |
+| `gap:company_region_absent`                          | A     | -                                                                                                                                                                                                                                                        |
+| `gap:compensation_absent`                            | A     | -                                                                                                                                                                                                                                                        |
+| `gap:domain_unclear`                                 | A     | -                                                                                                                                                                                                                                                        |
+| `gap:mobility_branch_unresolved`                     | A     | -                                                                                                                                                                                                                                                        |
+| `gap:relocation_country_absent`                      | A     | -                                                                                                                                                                                                                                                        |
+| `gap:residence_restriction_absent`                   | A     | -                                                                                                                                                                                                                                                        |
+| `gap:seniority_absent`                               | A     | -                                                                                                                                                                                                                                                        |
+| `gap:stack_absent`                                   | A     | -                                                                                                                                                                                                                                                        |
+| `gap:test_language_absent`                           | A     | -                                                                                                                                                                                                                                                        |
+| `gap:test_framework_absent`                          | A     | -                                                                                                                                                                                                                                                        |
+| `gap:stack_ambiguous`                                | B     | -                                                                                                                                                                                                                                                        |
+| `gap:work_format_absent`                             | A     | -                                                                                                                                                                                                                                                        |
+| `gap:compensation_basis_incomparable`                | B     | the advertised-basis reading, for a market it does not name; the extractor, where it observed no offer or missed a market the listing named; nothing where the listing places the posting nowhere, where the floor is net, or where the basis was stated |
+| `gap:compensation_fx_unavailable`                    | B     | the official rate, which the run supplies                                                                                                                                                                                                                |
+| `gap:compensation_market_curve_absent`               | B     | a branch C reference band of [the compensation score](#32-c--compensation--contract-fit) for the market                                                                                                                                                  |
+| `gap:compensation_period_absent`                     | B     | nothing                                                                                                                                                                                                                                                  |
+| `gap:relocation_country_unlisted`                    | B     | a RelocationCountryScore tier of [the mobility score](#31-m--mobility--work-feasibility) for the country                                                                                                                                                 |
+| `gap:relocation_country_unresolved`                  | B     | the extractor: the name it recorded carries no code                                                                                                                                                                                                      |
+| `gap:residence_requirement_country_unresolved`       | B     | the extractor: the name it recorded carries no code                                                                                                                                                                                                      |
+| `assumption:compensation.basis_advertised_gross`     | C     | -                                                                                                                                                                                                                                                        |
+| `assumption:compensation.floor_currency_fallback`    | C     | -                                                                                                                                                                                                                                                        |
+| `assumption:compensation.range_crosses_floor`        | C     | -                                                                                                                                                                                                                                                        |
+| `assumption:engagement_path.home_employment`         | C     | -                                                                                                                                                                                                                                                        |
+| `assumption:engagement_path.outside_home_contractor` | C     | -                                                                                                                                                                                                                                                        |
+| `assumption:engagement_path.relocation`              | C     | -                                                                                                                                                                                                                                                        |
 
 Unknown-data values may exceed measured low scores. The configured M unknown value also
 passes through the configured mobility cap. Neither silence nor a measured zero is a terminal
@@ -154,14 +154,14 @@ not this step's business: the SKIP precedence of
 path trips several rules. A listing offering "Remote, EU residents only" beside "On-site <city>,
 relocation covered" is therefore scored on the on-site path rather than skipped on the remote one: a
 listing that offers a workable path is not refused because it also offers an unworkable one.
-Selection never chooses the most favourable *interpretation* of one path - that is still the pairing
+Selection never chooses the most favourable _interpretation_ of one path - that is still the pairing
 contradiction above - it chooses between paths the listing actually offers. Two situations still stop the selection, and both are contradictions in
 the source rather than gaps in it: a listing whose several regions/formats cannot be paired, and a
 selected format that carries several distinct feasible paths at once. Both return `MANUAL_REVIEW:
 policy_undefined`; do not create a Cartesian product or choose the most favourable interpretation. A
 listing that simply names no format and no region is not one of them: it is scored, with a middle
 and a `gap:` annotation wherever a branch needs one - which is the M middle only when no branch
-resolves, and the relocation lane's own middle inside branch D. A missing *feasibility* fact is not
+resolves, and the relocation lane's own middle inside branch D. A missing _feasibility_ fact is not
 covered by this sentence at all: on a WEST Hybrid/On-site path its absence is closing sign 3, the
 one deliberate exception, and the vacancy is skipped.
 
@@ -226,7 +226,7 @@ asymmetry is not read as an oversight.
 largest of the three this section records - the accepted asymmetry above, the cost of closing
 sign 3 below, and this one. On a Hybrid or On-site path no rule consumes `residenceRestriction` at all: this branch
 reads sponsorship and work authorization, and rule 3 reads residence only on a Remote path. A
-listing demanding that the candidate *already* live in the destination - "MUST BE currently based in
+listing demanding that the candidate _already_ live in the destination - "MUST BE currently based in
 <country>", measured at `EVALUATED 62 consider` on a synthetic offer during the 2026-08-18 review,
 not on a vacancy of that batch - is therefore scored, not skipped, although the candidate cannot
 comply and the listing offers no move. Closing it means a fourth closing
@@ -259,7 +259,7 @@ door. That is not an oversight: it is precisely the class the WEST tier of branc
 and it is the ordinary shape of a relocation posting.
 
 Hard-SKIP rules 1 and 3 of [the mobility score](#31-m--mobility--work-feasibility) keep their
-thresholds. Rule 3's *input* changes through the feasible-residence set of
+thresholds. Rule 3's _input_ changes through the feasible-residence set of
 [the mobility score](#31-m--mobility--work-feasibility); its structure does not.
 
 #### Engagement-path defaults
@@ -275,12 +275,12 @@ an observed but unclassifiable one pick the same default, and the trace still te
 two columns are therefore total over the values
 [the Decision Trace contract](#7-decision-trace-contract) admits.
 
-| Selected path | Default `engagement_path` | Token |
-| --- | --- | --- |
+| Selected path                                       | Default `engagement_path` | Token                                                |
+| --------------------------------------------------- | ------------------------- | ---------------------------------------------------- |
 | Remote or unresolved, region WEST, OTHER or UNKNOWN | `outside_home_contractor` | `assumption:engagement_path.outside_home_contractor` |
-| Remote or unresolved, region HOME | `home_employment` | `assumption:engagement_path.home_employment` |
-| Hybrid or On-site, region WEST, OTHER or UNKNOWN | `relocation_employment` | `assumption:engagement_path.relocation` |
-| Hybrid or On-site, region HOME | `home_employment` | `assumption:engagement_path.home_employment` |
+| Remote or unresolved, region HOME                   | `home_employment`         | `assumption:engagement_path.home_employment`         |
+| Hybrid or On-site, region WEST, OTHER or UNKNOWN    | `relocation_employment`   | `assumption:engagement_path.relocation`              |
+| Hybrid or On-site, region HOME                      | `home_employment`         | `assumption:engagement_path.home_employment`         |
 
 Every row keys on the pair, so the table is total over the format classes and the region enum
 together and `engagement_path: unknown` has no remaining producer. An unresolved format joins the
@@ -345,7 +345,7 @@ the candidate configuration: an amount, the currencies it is stated in and a gro
 - an explicit user override must include amount, currency, gross/net basis, period, and scope. It
   supersedes the ordinary floor only for that scored batch and is recorded in the trace. An override
   that cannot be normalized is the one compensation outcome that stays `MANUAL_REVIEW:
-  policy_undefined`: it is a defect in the operator's own batch input rather than a property of the
+policy_undefined`: it is a defect in the operator's own batch input rather than a property of the
   vacancy, and guessing at it would silently rescore the batch.
 
 The candidate may lower a floor for one batch by an explicit override. `/score-jobs` copies the
@@ -523,7 +523,7 @@ different precision, so the fallback is scoped rather than general:
   configured for that lane while the same listing naming a WEST city scores the WEST tier, and that tier would be
   unreachable for the ordinary shape of the class it was added for.
 - **Rule 4** - the exclusion of `candidate.config.mobility.excluded_destinations` reads a named
-  country *or* a stated residence requirement, and a region never stands in for either: `WEST` does
+  country _or_ a stated residence requirement, and a region never stands in for either: `WEST` does
   not tell you whether the country is an excluded one. When neither names it, rule 4 does not fire.
 - **An unresolved spelling** - the three rules read the country a name refers to, so the pipeline
   identifies that country before any of them reads it. A name it cannot identify is an undecidable
@@ -540,7 +540,7 @@ different precision, so the fallback is scoped rather than general:
   requirement names, which rule 4 reads on every format. Both are recorded whichever branch of this
   section scores the selected path, including the branches that resolve before the tier is consulted
   - an unidentified destination that reaches no scored branch would otherwise turn the candidate's
-  exclusion off in silence.
+    exclusion off in silence.
 
   An undecidable destination changes nothing about how
   [the decision record](#22-accepted-triage-decision-record) counts the paths a listing offers. The
@@ -561,7 +561,7 @@ membership. `relocation_destination` in [the Decision Trace contract](#7-decisio
 records the named country and `null` when the listing named none; the region that answered a
 membership question is already in `selected_company_region` and is not copied there.
 
-The set is a set of *residences*, and membership in it carries the right to work there as well as to
+The set is a set of _residences_, and membership in it carries the right to work there as well as to
 live there: the configuration lists exactly the countries the candidate can take up without any
 employer involvement. It is not a revival of the retired combined `rr` flag: the five
 feasibility facts of [the decision record](#22-accepted-triage-decision-record) stay independent
@@ -646,8 +646,8 @@ Hard SKIP rules (feasibility blockers):
    state rather than a low score: a score of 0 would leave the vacancy ranked as if it were under
    consideration. The rule keys on the requirement rather than the work format, because a remote
    role that demands residence in an excluded country asks for the same move an on-site one does,
-   and the contractor escape of rule 3 would otherwise let it through. A remote role merely *offered
-   by* a company of that country demands no move and is scored normally.
+   and the contractor escape of rule 3 would otherwise let it through. A remote role merely _offered
+   by_ a company of that country demands no move and is scored normally.
 
 These four rules are not an evaluation order. When more than one is satisfied, the SKIP precedence of
 [the decision record](#22-accepted-triage-decision-record) selects the reported code, and it puts
@@ -894,16 +894,16 @@ extended only by a deliberate edit here and in the taxonomy. Aliases resolve to 
 private records use canonical names only. A known runner can be the best framework even when a
 required mobile framework has no direct experience. Prices remain independent of class.
 
-| Class | Frameworks |
-| --- | --- |
-| `web_ui` | Playwright, Selenium, Selenide, Cypress, WebdriverIO, Puppeteer, TestCafe, Nightwatch, Protractor, Capybara, Synpress, Dappwright |
-| `codeless` | Tosca, TestComplete, Katalon, Ranorex, UFT, SikuliX, Squish, EggPlant, Testim, Mabl, WinAppDriver, AutoIt |
-| `mobile` | Appium, Espresso, Kaspresso, UIAutomator, XCUITest, EarlGrey, Detox, Patrol, Maestro |
-| `api_test` | REST Assured, Karate, Supertest |
-| `runner` | JUnit, TestNG, Spock, Kotest, PyTest, unittest, Jest, Mocha, Vitest, Jasmine, NUnit, xUnit, MSTest, RSpec, PHPUnit, Ginkgo, testify, Arquillian |
-| `specification` | Cucumber, Gherkin, SpecFlow, Behave, Robot Framework, Serenity |
-| `performance` | k6, Gatling, Locust, Artillery, JMeter, LoadRunner, NeoLoad, Yandex.Tank, ZeroCode BDD |
-| `contract` | Pact, Spring Cloud Contract |
+| Class           | Frameworks                                                                                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `web_ui`        | Playwright, Selenium, Selenide, Cypress, WebdriverIO, Puppeteer, TestCafe, Nightwatch, Protractor, Capybara, Synpress, Dappwright               |
+| `codeless`      | Tosca, TestComplete, Katalon, Ranorex, UFT, SikuliX, Squish, EggPlant, Testim, Mabl, WinAppDriver, AutoIt                                       |
+| `mobile`        | Appium, Espresso, Kaspresso, UIAutomator, XCUITest, EarlGrey, Detox, Patrol, Maestro                                                            |
+| `api_test`      | REST Assured, Karate, Supertest                                                                                                                 |
+| `runner`        | JUnit, TestNG, Spock, Kotest, PyTest, unittest, Jest, Mocha, Vitest, Jasmine, NUnit, xUnit, MSTest, RSpec, PHPUnit, Ginkgo, testify, Arquillian |
+| `specification` | Cucumber, Gherkin, SpecFlow, Behave, Robot Framework, Serenity                                                                                  |
+| `performance`   | k6, Gatling, Locust, Artillery, JMeter, LoadRunner, NeoLoad, Yandex.Tank, ZeroCode BDD                                                          |
+| `contract`      | Pact, Spring Cloud Contract                                                                                                                     |
 
 Test-language names: TypeScript, JavaScript, Java, Kotlin, Groovy, Scala, Python, C#, F#, Go, Ruby, PHP, Swift, Objective-C, Dart, C, C++, Rust, Perl.
 
@@ -929,22 +929,22 @@ below. How much a domain is worth is the candidate's own placement: each name is
 candidate configuration, and its value must be a member of `candidate.config.scoring.d.steps`.
 These private integer steps begin at zero and end at the configured D maximum.
 
-| Name | The product | Placed by |
-| --- | --- | --- |
-| `agency_outsourcing_vendor` | Generic agency/outsourcing/testing vendor without product ownership | `candidate.config.domain_fit.agency_outsourcing_vendor` |
-| `complex_saas_b2b` | Complex SaaS / B2B platforms | `candidate.config.domain_fit.complex_saas_b2b` |
-| `data_platforms` | Data platforms | `candidate.config.domain_fit.data_platforms` |
-| `developer_tools` | Developer tools | `candidate.config.domain_fit.developer_tools` |
-| `distributed_systems` | Distributed systems | `candidate.config.domain_fit.distributed_systems` |
-| `fintech_payments_trading` | Fintech/payments/trading platforms | `candidate.config.domain_fit.fintech_payments_trading` |
-| `healthcare_biotech` | Healthcare/biotech | `candidate.config.domain_fit.healthcare_biotech` |
-| `infra_platforms` | Infra platforms | `candidate.config.domain_fit.infra_platforms` |
-| `marketplaces` | Marketplaces | `candidate.config.domain_fit.marketplaces` |
-| `media_entertainment` | Media/entertainment | `candidate.config.domain_fit.media_entertainment` |
-| `other_complex` | Other complex domains | `candidate.config.domain_fit.other_complex` |
-| `security_tooling` | Security tooling | `candidate.config.domain_fit.security_tooling` |
-| `telecom` | Telecom | `candidate.config.domain_fit.telecom` |
-| `web3` | Web3/Blockchain/DeFi/Crypto infrastructure (wallets, exchanges, L2, bridges, smart contracts, onchain products) | `candidate.config.domain_fit.web3` |
+| Name                        | The product                                                                                                     | Placed by                                               |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `agency_outsourcing_vendor` | Generic agency/outsourcing/testing vendor without product ownership                                             | `candidate.config.domain_fit.agency_outsourcing_vendor` |
+| `complex_saas_b2b`          | Complex SaaS / B2B platforms                                                                                    | `candidate.config.domain_fit.complex_saas_b2b`          |
+| `data_platforms`            | Data platforms                                                                                                  | `candidate.config.domain_fit.data_platforms`            |
+| `developer_tools`           | Developer tools                                                                                                 | `candidate.config.domain_fit.developer_tools`           |
+| `distributed_systems`       | Distributed systems                                                                                             | `candidate.config.domain_fit.distributed_systems`       |
+| `fintech_payments_trading`  | Fintech/payments/trading platforms                                                                              | `candidate.config.domain_fit.fintech_payments_trading`  |
+| `healthcare_biotech`        | Healthcare/biotech                                                                                              | `candidate.config.domain_fit.healthcare_biotech`        |
+| `infra_platforms`           | Infra platforms                                                                                                 | `candidate.config.domain_fit.infra_platforms`           |
+| `marketplaces`              | Marketplaces                                                                                                    | `candidate.config.domain_fit.marketplaces`              |
+| `media_entertainment`       | Media/entertainment                                                                                             | `candidate.config.domain_fit.media_entertainment`       |
+| `other_complex`             | Other complex domains                                                                                           | `candidate.config.domain_fit.other_complex`             |
+| `security_tooling`          | Security tooling                                                                                                | `candidate.config.domain_fit.security_tooling`          |
+| `telecom`                   | Telecom                                                                                                         | `candidate.config.domain_fit.telecom`                   |
+| `web3`                      | Web3/Blockchain/DeFi/Crypto infrastructure (wallets, exchanges, L2, bridges, smart contracts, onchain products) | `candidate.config.domain_fit.web3`                      |
 
 Two names are resolved without a domain placement:
 
@@ -1018,7 +1018,7 @@ Do not convert a technical access failure into a SKIP.
 ### 6.3. MANUAL_REVIEW codes
 
 - `MANUAL_REVIEW: policy_undefined` - the source is usable, no higher-precedence terminal rule
-  applies, and the source data that is *present* cannot be reconciled, or the operator's own batch
+  applies, and the source data that is _present_ cannot be reconciled, or the operator's own batch
   override cannot be normalized. [The decision record](#22-accepted-triage-decision-record)
   enumerates the three surviving reasons and they are the whole set.
 
@@ -1076,7 +1076,7 @@ fields are required for all decisions:
 - `fx_provider`, `fx_rate_date`, `fx_rate` - the exact normalization record, or all `null` when no
   conversion was needed.
 - `ai_in_product`, `ai_in_work` - what the description says about AI, each as `{value,
-  evidence_quote}`. An observation of the description: no dimension, cap, bucket, or rank reads it.
+evidence_quote}`. An observation of the description: no dimension, cap, bucket, or rank reads it.
   The AI observation paragraph below owns the values.
 - `decision` - `BLOCKED`, `SKIP`, `MANUAL_REVIEW`, or `EVALUATED`.
 - `data_gaps` - the `gap:` tokens this decision recorded, verbatim. Always present; an empty list is
@@ -1142,7 +1142,7 @@ Required in addition to common fields:
 - `skip_reason` — one line explaining why it was skipped
 - `evidence_quote` — a short exact quote supporting the reason. It may be `null` in exactly two
   cases: `vacancy_unavailable` whose status is exposed solely through HTTP 404, and
-  `skip_basis: west_relocation_authorization_silent`, where the reason *is* the absence of text and
+  `skip_basis: west_relocation_authorization_silent`, where the reason _is_ the absence of text and
   no quote can support it - record the location or format phrase that established the lane instead
   when one exists. The evidence requirement of
   [evidence and uncertainty](#5-evidence-and-uncertainty) bends here and nowhere else.
