@@ -502,5 +502,8 @@ On those paths the rules of this document hold, not a mechanism.
 owned by the user. Its development entry point and command approvals are in
 [codex-development.md](codex-development.md); this document owns the flow. In the operational folder
 Codex follows
-[ops-pipeline-codex.md](ops-pipeline-codex.md), its section for the folder. Whether Codex opens a
-folder without `.git` as a project has not been measured; a refusal is a stop for the user.
+[ops-pipeline-codex.md](ops-pipeline-codex.md). Opening a folder without `.git` was measured at the
+architecture switch, but native proxy discovery and the capabilities of each installed runtime
+still require separate checks. Codex does not acquire the Claude guard by opening that folder:
+measure sandbox access, follow the zone rules, and use the runbook's capability stops. Manifest
+verification detects drift; it does not mechanically prevent writes.

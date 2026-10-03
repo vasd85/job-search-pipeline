@@ -365,9 +365,12 @@ one post's text may sway the reader's verdict on a neighbour of the same batch (
 sources, and a "no" over a strong role word lands in the discrepancy list); the reading tool is not
 bounded to the sweep directory, so the reader can read any file the user can — what leaves it is
 a few small integers per vacancy and the reply text the session writes verbatim and does not act
-on; a cheap model is easier to sway than a strong one. In Codex there is no subagent with a tool
-allowlist: the session reads the batches itself, and the checks above — the answer schema, the
-code-built cards, the discrepancy list — are all there is.
+on; a cheap model is easier to sway than a strong one. In Codex the skill starts a fresh subagent
+with `fork_turns: none`, passes the canonical instruction and one batch path, and assigns only
+structured reading of that file. The parent never opens the batch. This is a behavioural
+assignment: Codex does not mechanically remove the subagent's other tools or filesystem access.
+The answer schema, code-built cards and discrepancy list remain the deterministic checks;
+an unavailable independent reader stops the skill instead of falling back to parent reading.
 
 ## Output directory
 
