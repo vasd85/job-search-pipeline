@@ -19,7 +19,7 @@ output directory you build and a channel handle the user typed.
 
 ## Where it runs
 
-A sweep requests live pages. Run it only in the operational checkout or in a rehearsal worktree,
+A sweep requests live pages. Run it only in the operational folder or in a sealed rehearsal folder,
 never in `main` or a task worktree.
 
 ## Which sources
@@ -51,21 +51,26 @@ Never run `init` on your own to get past a refusal.
    the user's word leave it — a new `sweep` walks the same posts again, and a stale one
    `finalize` refuses by itself (`state_changed`).
 1. Build the output directory: `<checkout root>/telegram-sweeps/<UTC date>-<n>`, absolute, where
-   `<n>` is the first number whose directory does not exist. In a rehearsal worktree use
+   `<n>` is the first number whose directory does not exist. In a rehearsal folder use
    `<tree root>/.rehearsal/batches/<batch-label>/` instead.
 2. Run `node tools/telegram-collect/cli.mjs sweep --out-dir <that directory>`. One run, strictly
    sequential; do not start a second sweep in parallel and do not retry a `rate_limited` sweep in
    the same session. Read the one JSON object on stdout. With `completed: true` go to step 4.
 3. With `stage: "awaiting_answers"` the reader's batches are in `reader-in/` and stdout lists them.
-   For every batch, in Claude Code, call the `telegram-reader` agent. The reader agent receives one
+   For every batch, call the `telegram-reader` agent. The reader agent receives one
    argument: the absolute path of one batch file, and nothing else. The working session never opens
-   a batch file in Claude Code. Write the agent's reply verbatim into `reader-out/<batch name>.json`
+   a batch file in either runtime. Write the agent's reply verbatim into `reader-out/<batch name>.json`
    with the file-write tool; do not parse, trim or repair it. When the `telegram-reader` agent is
-   not available, stop and tell the user; do not read the batches in the session instead. In Codex
-   there is no such agent: read each batch file yourself, following
-   [instructions/agents/telegram-reader.md](../agents/telegram-reader.md) as your instruction, and
-   write the answer the same way — that runtime has no tool boundary around the reading, which
-   the report's discrepancy list is the only check on. Then run
+   not available, stop and tell the user; do not read the batches in the session instead.
+   In Codex, spawn a fresh subagent with `fork_turns: none`. Put the canonical instruction from
+   [instructions/agents/telegram-reader.md](../agents/telegram-reader.md) in its task message,
+   followed only by that one batch path. Give it a read-only assignment: use the runtime's
+   structured file-reading API for that file only, return the canonical JSON, and perform no
+   other file access, shell execution, network, writes or delegation.
+   This is a behavioural assignment, not a mechanical tool allowlist. The subagent shares
+   the filesystem and available tools; do not claim a Claude Code `Read` allowlist in Codex.
+   If a fresh context or structured reading is unavailable, or an out-of-scope action is observed,
+   stop instead of substituting the working session. Then run
    `node tools/telegram-collect/cli.mjs finalize --out-dir <that directory>`. On `answers_invalid`,
    rename each named batch's answer to `reader-out/<batch name>.rejected.json`, call the reader
    once more for those batches, write the new replies and run `finalize` again; on a second

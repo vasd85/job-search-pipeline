@@ -20,16 +20,19 @@ executable only at cutover, in the operational folder.
    `status: current` with 26 files and no drift. A development session records that the gate
    covered it rather than running it a second time.
 2. **[cutover]** Run `node tools/process-log.mjs validate` — it resolves the real ledger.
-3. **[cutover]** Confirm both runtimes discover `get-vacancy` from their native skill directory.
+3. **[cutover]** For each runtime selected for this cutover, record whether `get-vacancy` appears
+   in the initial native catalogue or its proxy is loaded directly. Files on disk alone do not
+   prove discovery. Record a deferred runtime explicitly rather than claiming it was tested.
 4. **[cutover]** Record the checksum or Git diff of `process-log.json`.
-5. **[cutover]** In Claude Code, invoke `get-vacancy` with a `source_ref` already present in the
+5. **[cutover]** In Claude Code, when selected in step 3, invoke `get-vacancy` with a `source_ref` already present in the
    log. Expect:
    - the proxy reads `instructions/skills/get-vacancy.md` first;
    - `runner_id` resolves to `claude-code`;
    - the CLI reports `status: duplicate` before any vacancy fetch;
    - no new process is written unless the user explicitly chooses a new attempt.
-6. **[cutover]** Repeat in Codex. The expected behavior is identical except `runner_id` resolves
-   to `codex`.
+6. **[cutover]** In Codex, when selected in step 3, invoke `get-vacancy` with a `source_ref` already
+   present in the log. The expected behavior is the duplicate check of step 5, with `runner_id`
+   resolving to `codex`; no Claude invocation is a prerequisite.
 7. **[cutover]** Confirm `process-log.json` is byte-for-byte unchanged and no output directory was
    created.
 8. **[cutover]** Run `npm run candidate:check` in the operational folder. Expect `status: ready`
@@ -38,9 +41,17 @@ executable only at cutover, in the operational folder.
    arrive from the candidate tag during [cutover](runbooks/ops-cutover.md), before this check.
 
 So a development session whose diff matches the globs above owes one line in its `## Result`: the
-globs matched, the gate covered step 1, and steps 2-8 are owed by the next cutover. That is the
-whole of it — and it is the honest shape, because no archived task ever executed the live steps
-and every one of them carried the same disclaimer instead.
+globs matched, the gate covered step 1, and the applicable steps 2-8 are owed by the next cutover.
+Steps 2-4 and 7-8 are required; steps 5-6 are required for the selected runtimes.
+A deferred runtime remains explicitly unverified. Historical switch evidence may cover an earlier pair of tags; it does not
+execute these checks for a new pair or establish full pipeline readiness.
+
+When adapting an operational runtime, keep a separate capability record: root/contract loading,
+all seven explicit skills, structured input transport, fresh blind readers with audited inputs,
+CV page inspection, Telegram finalization, triage verification, duplicate without mutation,
+new-session continuation, retry/recovery and material revisions. Record runtime versions,
+permissions, tags and source class. Disposable fixtures, actual model skill runs and live
+rehearsal are distinct evidence. No CI or synthetic result replaces the live cutover marks above.
 
 Run live agent smoke tests only in a trusted environment: each runtime may send repository context to
 its configured model provider. The automated test suite validates the same proxy, runner, duplicate,

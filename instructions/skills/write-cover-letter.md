@@ -119,6 +119,17 @@ one JSON object — a phrase per paragraph saying what that paragraph claims and
 lists of sentence addresses (`reread`, `unclear_reference`, `missing_link`, `translated`), and what
 a skim of the title and the first sentences gives.
 
+In Codex, spawn a fresh subagent with `fork_turns: none`. Put the canonical reader instruction
+in its task message, followed only by the permitted input paths. Do not pass the author's
+conversation, brief, letter plan, company research, or a summary of them. Give it a read-only
+assignment: read those inputs and return the canonical JSON, with no other file access, shell
+execution, network, writes, or delegation. Use the runtime's structured file-reading API.
+This is a behavioural assignment, not a mechanical tool allowlist. Codex subagents share the
+filesystem and available tools; a fresh conversation does not restrict those tools. Check the
+returned JSON against the canonical shape and the actual paragraph/sentence addresses before
+using it. An unavailable reading API, inherited author context, an out-of-scope action or an
+invalid answer means the reading did not complete; follow the stop below.
+
 What the author does with the answer:
 
 - **Compare the retelling with the letter plan, paragraph by paragraph.** A paragraph retold as
@@ -144,8 +155,8 @@ the staged bytes became, the agent's answer as it came, and for each flagged add
 itself as the letter held it — a later revision resolves the place by that sentence, because the
 addresses point into a text that has changed.
 
-When the reading cannot be performed — the `letter-reader` agent is not available in Claude Code, or
-the runtime has no subagents at all, as Codex does not — do not read the letter in the session that
+When the reading cannot be performed — the `letter-reader` agent is unavailable or a fresh
+independent context cannot be started — do not read the letter in the session that
 wrote it: that session holds the brief. Stop before publishing, say so, and leave to the user
 whether to publish without the reading.
 

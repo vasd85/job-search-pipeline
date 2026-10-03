@@ -68,8 +68,16 @@ stop at a required independent-review step and report the missing capability.
 ## Operational readiness
 
 Development review does not replace the operational `letter-reader` and `telegram-reader`
-procedures. Their Codex support and opening the operational folder without `.git` belong to task
-232; rehearsal isolation belongs to task 44. Full pipeline validation belongs to
-task 233. Until the operational checks and required canonical changes are complete, follow the
-operational runbook's capability stops. Task 216 owns the separate terminal CLI checks. Before cutover, record the chosen operational runtime and any unverified capabilities
-in the switch evidence; development CI alone does not establish production readiness.
+procedures. Both canonical skills now specify a fresh Codex context and their exact allowed
+inputs, with behavioural read-only assignments and explicit capability stops. Opening a nongit
+folder, native skill discovery, structured transport, reader behaviour, end-to-end model runs
+and live-source connectivity are separate checks; one result never substitutes for the others.
+Use [ops-pipeline-codex.md](ops-pipeline-codex.md) for daily operation and its direct-loader route
+when the installed runtime does not register repository proxies in the initial catalogue.
+
+Run disposable probes on fictional data before real-source rehearsal. Measure writes on
+disposable zones, distinguish sandbox restrictions from the manifest's drift detection and
+behavioural rules, and preserve the production ledger/output untouched. Before cutover, record
+the chosen operational runtime, tags and any unverified capabilities in the switch evidence;
+development CI alone does not establish production readiness. Updated procedures need merge
+and an explicitly authorized release before live rehearsal can test that release.
