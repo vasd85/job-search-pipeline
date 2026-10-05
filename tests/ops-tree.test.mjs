@@ -26,6 +26,8 @@ import {
   MANIFEST_FILE_NAME,
   readManifest,
   verifyFolder,
+  compareFiles,
+  digestTree,
   zoneOf,
   zoneTableFor,
 } from "../tools/ops-tree/manifest.mjs";
@@ -293,6 +295,116 @@ test("export builds a folder without .git from two tags and records both, the zo
     "private research never enters the folder",
   );
   assert.equal(verifyFolder(root).status, "clean");
+});
+
+// The literal is the measured network profile, including the protected workspace subpaths.
+// Reading the delivered file makes a missing or broadened release setting fail before export.
+const CODEX_NETWORK_CONFIG = `default_permissions = "pipeline-network-probe"
+
+[permissions.pipeline-network-probe]
+extends = ":workspace"
+
+[permissions.pipeline-network-probe.filesystem.":workspace_roots"]
+".git" = "read"
+".agents" = "read"
+".codex" = "read"
+".aws" = "read"
+
+[permissions.pipeline-network-probe.network]
+enabled = true
+`;
+
+function shippedCodexConfig() {
+  const bytes = readFileSync(join(repoRoot, ".codex/config.toml"), "utf8");
+  assert.equal(bytes, CODEX_NETWORK_CONFIG);
+  return bytes;
+}
+
+test("the shipped Codex network profile enters a tagged export as sealed engine bytes", (t) => {
+  const bytes = shippedCodexConfig();
+  const { root } = fixtureFolder(t, { extra: { ".codex/config.toml": bytes } });
+  const manifest = readManifest(root);
+  assert.equal(zoneOf(manifest.zones, ".codex/config.toml"), "engine");
+  assert.equal(readFileSync(join(root, ".codex/config.toml"), "utf8"), bytes);
+  assert.deepEqual(manifest.files.engine[".codex/config.toml"], {
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    executable: false,
+  });
+  assert.equal(verifyFolder(root).status, "clean");
+});
+
+test("Codex config mutations and unlisted .codex files remain engine drift", (t) => {
+  const bytes = shippedCodexConfig();
+  const cases = [
+    [
+      "modified",
+      true,
+      (root) => writeFileSync(join(root, ".codex/config.toml"), bytes + "# changed\n"),
+      ".codex/config.toml",
+    ],
+    ["removed", true, (root) => rmSync(join(root, ".codex/config.toml")), ".codex/config.toml"],
+    [
+      "added",
+      false,
+      (root) => writeTree(root, { ".codex/config.toml": bytes }),
+      ".codex/config.toml",
+    ],
+    [
+      "added",
+      true,
+      (root) => writeFileSync(join(root, ".codex/stray.toml"), "stray\n"),
+      ".codex/stray.toml",
+    ],
+  ];
+  for (const [kind, hasConfig, mutate, path] of cases) {
+    const { root } = fixtureFolder(t, { extra: hasConfig ? { ".codex/config.toml": bytes } : {} });
+    const manifestBefore = readFileSync(join(root, MANIFEST_FILE_NAME));
+    mutate(root);
+    assertCode(() => verifyFolder(root), "engine_tree_drift");
+    assert.deepEqual(
+      compareFiles(readManifest(root).files, digestTree(root, readManifest(root).zones)),
+      [{ kind, path, zone: "engine" }],
+    );
+    assert.deepEqual(readFileSync(join(root, MANIFEST_FILE_NAME)), manifestBefore);
+  }
+});
+
+test("cutover and rollback carry Codex config bytes while retaining candidate and state", (t) => {
+  const bytes = shippedCodexConfig();
+  for (const previousConfig of [null, bytes]) {
+    const fixture = fixtureFolder(t, {
+      extra: previousConfig === null ? {} : { ".codex/config.toml": previousConfig },
+    });
+    const { root } = fixture;
+    const candidatePin = readManifest(root).candidate;
+    const protectedSnapshot = () =>
+      Object.fromEntries(
+        Object.entries(treeSnapshot(root)).filter(([path]) =>
+          ["candidate", "state"].includes(zoneOf(readManifest(root).zones, path)),
+        ),
+      );
+    const before = protectedSnapshot();
+    const nextConfig = bytes + "# next fixture release\n";
+    nextRelease(fixture, "release-20260902", { ".codex/config.toml": nextConfig });
+    cutoverFolder(
+      { candidate: "candidate-20260901", release: "release-20260902", root },
+      context(),
+    );
+    assert.equal(readFileSync(join(root, ".codex/config.toml"), "utf8"), nextConfig);
+    assert.equal(verifyFolder(root).status, "clean");
+    assert.deepEqual(readManifest(root).candidate, candidatePin);
+    assert.deepEqual(protectedSnapshot(), before);
+    rollbackFolder({ root }, context({ now: () => new Date("2026-09-24T13:00:00.000Z") }));
+    assert.equal(verifyFolder(root).status, "clean");
+    assert.deepEqual(readManifest(root).candidate, candidatePin);
+    assert.deepEqual(protectedSnapshot(), before);
+    if (previousConfig === null) {
+      assert.equal(existsSync(join(root, ".codex/config.toml")), false);
+      assert.equal(readManifest(root).files.engine[".codex/config.toml"], undefined);
+    } else {
+      assert.equal(readFileSync(join(root, ".codex/config.toml"), "utf8"), previousConfig);
+    }
+  }
 });
 
 test("export refuses a root inside a repository, a non-empty root, a malformed tag and a non-tag", (t) => {

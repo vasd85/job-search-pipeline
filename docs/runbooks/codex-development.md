@@ -25,6 +25,25 @@ package there. This checklist supplies the Codex entry point and permission hand
 
 Recheck access to the private clone and GitHub on a new machine.
 
+## Project network profile
+
+The repository supplies the same `pipeline-network-probe` profile used by tagged operational exports.
+Use the [one-time setup and effective-policy check](ops-pipeline-codex.md#one-time-project-network-setup)
+for the exact Local project path. Trust, loading the config and selecting the profile are separate
+checks. Network access covers all commands in the selected chat; the config adds no writable roots
+or approval overrides. The explicit protected subpaths retain the measured workspace restrictions.
+
+Desktop UI selection was retained in a second clean chat on the measured version. Tool-created
+chats did not honor the project default; inspect their active profile rather than assuming they
+inherit a UI choice. The separate CLI measurement established config parsing, not ordinary
+desktop transport. Existing chats can retain earlier permissions after config changes.
+
+Run neutral network/write probes only on disposable projects with fictional data. Real vacancy
+sources remain in the authorized operational or rehearsal folder. A project profile does not
+make the common Git directory, private clone or sibling task directory writable: use the exact
+command's approval route below when needed. Managed restrictions remain a capability stop.
+Deliver config changes through a PR and tagged export; never patch an existing sealed folder.
+
 ## Permissions
 
 Keep the chat in `workspace-write` with approvals available. Inspect the session's actual writable
