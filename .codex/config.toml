@@ -1,0 +1,13 @@
+default_permissions = "pipeline-network-probe"
+
+[permissions.pipeline-network-probe]
+extends = ":workspace"
+
+[permissions.pipeline-network-probe.filesystem.":workspace_roots"]
+".git" = "read"
+".agents" = "read"
+".codex" = "read"
+".aws" = "read"
+
+[permissions.pipeline-network-probe.network]
+enabled = true
