@@ -375,7 +375,8 @@ letter-correction record, such as the `teach` mark, included — committed to it
    value; the tests pass. Pull request, server, the user merges.
 3. The user names the value; the session writes it into `config.json` of the private repository,
    runs `npm run candidate:check -- --root "$private"`, commits and pushes.
-4. The user: "cut the release". The session sets both tags and records them in the task
+4. The user: "cut the release". The session checks and publishes the selected pair, creating tags
+   for its changed components and reusing explicitly selected existing tags, and records it in the task
    ([release and cutover](#8-release-and-cutover)).
 5. The user, when ready: the cutover of the operational folder
    ([release and cutover](#8-release-and-cutover)).
@@ -405,18 +406,108 @@ letter-correction record, such as the `teach` mark, included — committed to it
 
 ## 8. Release and cutover
 
-- **The release.** On the user's word "cut the release" the session sets two annotated tags:
-  `release-<YYYYMMDD>` on the commit of engine `main` whose `gate` run on the server is green
-  (`gh run list --commit <sha> --json conclusion`), and `candidate-<YYYYMMDD>` on private `main`.
-  A second tag of the same day takes the suffix `.2`, then `.3`. The session pushes both and
-  records both in the task in which the user said it. Without the user's word no tag is set.
-- **The cutover.** The user decides when the operational folder takes a release. The cutover runs
-  in the folder, on the user's word, by the user or by a session living there — a development
-  session cannot write into the folder. The procedure — dry run, gates, the swap, the backup check,
-  rollback, drift — is the folder cutover section of [ops-cutover.md](ops-cutover.md); the tool is
-  [tools/ops-tree/README.md](../../tools/ops-tree/README.md). The steps marked `[cutover]` in the
-  smoke checklist run there, after the swap; the user or the operational session reports their
-  outcome, and a development session records it in the task that cut the release.
+A release is a checked pair of an engine version and a candidate version. Both are pinned by
+tags; only components whose exported content changes need new tags. An existing tag for the
+selected revision can be reused. The user authorizes the selected pair and its scope; no tag is
+created or pushed without the user's word. Different tag dates are allowed, and equal dates prove
+no compatibility. This amends the release rule of ADR 0024 decision 11 through
+[ADR 0029](../adr/0029-compatible-release-pairs.md).
+
+### 8.1. Select the versions
+
+The comparison baseline is the pair in the intended operational folder's `ops-manifest.json`,
+read without writing into that folder. Record its tags, commits and trees. If the user chooses
+another approved baseline, name it and record the difference from the installed pair. For a first
+export, record that there is no installed pair and name any comparison pair explicitly. The latest
+tags, repository HEADs and the last release record are never an implicit baseline or counterpart.
+
+Select new revisions from each repository's `main` at full commit SHAs. Name every reused tag
+explicitly. Review the difference from the baseline in exported paths, bytes, executable modes and
+symlink targets. For candidate, remove the top-level exclusions owned by the builder's
+[zone table](../../tools/ops-tree/README.md#zones); board, research and other excluded records do
+not change operational inputs. Review changes to the builder and zone table too: an old exclusion
+list cannot establish equality under changed export rules. The full tracked engine tree is
+exported, including documentation. A path list helps review; it cannot prove independence.
+
+| Included change                                                                | Selected pair and tag outcome                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Profile, levers or personal rules only                                         | Changed candidate with an explicitly selected existing engine tag, after that engine accepts the layer and the rules are reviewed. A new candidate tag is needed unless this revision is already tagged.                   |
+| Engine only; the existing layer is supported                                   | Changed engine with an explicitly selected existing candidate tag, after the engine's gate and exact-pair checks.                                                                                                          |
+| A required key, schema, file or rule contract changes across both repositories | Include both completed halves. Tag each changed revision that lacks a suitable tag. An old counterpart is allowed only if it already supports the target contract, with evidence. An unsupported mixture is not a release. |
+| Both repositories changed independently                                        | The user selects one or both changes. Any excluded component stays on its explicitly selected approved tag; do not take its HEAD incidentally. Check the resulting combination.                                            |
+| Private changes only in excluded records                                       | Reuse the candidate tag. With no engine change, there is no operational-input release to make. A release record does not trigger another release.                                                                          |
+| Rebuild the installed pair after drift, or roll back                           | Use the same pinned pair for rebuild, or the retained tree for rollback. No new tags; record recovery under the cutover procedure.                                                                                         |
+
+### 8.2. Check and publish the pair
+
+1. Review the selected changes and the tasks that require both halves. For each affected contract,
+   record what the consumer requires and where the selected counterpart supplies it: config keys
+   and schema, required files and headings, constraints, language packs, and the meaning of prose
+   rules. A schema pass does not prove that a personal rule is supported by an older engine.
+   Unresolved dependencies or semantic compatibility leave the pair unready.
+2. Confirm a successful server `gate` for the selected engine commit, including a reused engine.
+   Inspect the completed `ci` workflow for that exact SHA, for example
+   `gh run list --workflow ci.yml --commit <sha> --status completed --json conclusion,headSha,url`,
+   and retain the successful run URL. A saved run for the same SHA can supply this evidence.
+3. After the user's release authorization, create only the missing annotated tags locally at the
+   recorded SHAs: engine `release-<YYYYMMDD>[.N]`, private `candidate-<YYYYMMDD>[.N]`. The next
+   tag of the same component on that day takes `.2`, then `.3`; the other component's suffix is
+   independent. Before creating a tag, inspect both local and remote refs. Reuse an existing ref
+   only when it matches the recorded identity; a conflict is a stop, never a force or retarget.
+4. Build the exact tagged pair into a separate empty temporary folder outside git:
+
+   ```sh
+   npm run ops:export -- --release <engine-tag> --candidate <candidate-tag> --engine-repo <absolute-engine-repository> --candidate-repo <absolute-private-repository> --root <absolute-pair-check-folder>
+   ```
+
+   Record the builder revision and the command/result. The export verifies paths, bytes, modes
+   and symlinks against the tagged trees, installs dependencies and checks candidate with the
+   selected image's engine. That candidate check covers schema, required inputs, document shape,
+   constraints, language packs and their pins. It proves neither production-state readability nor
+   the meaning of the rules, model output or runtime readiness. A check of the live private HEAD
+   by the development checkout is not evidence for another selected pair. Do not initialize a real
+   ledger or run a pipeline step in this validation folder.
+
+5. Push only the new tags, without bypassing their guards. Verify both remote tag objects and
+   peeled commits against the selected local refs and recorded SHAs, including reused tags.
+   Record the pair as published only after both refs match and the checks above pass. Publication
+   does not authorize a cutover; readiness for the installed state is checked in that folder.
+
+Two repositories do not publish atomically. If only one push succeeds, record the pair as
+partially published and stop; one visible tag does not make the pair ready. On resume, read the
+record, verify the same SHAs and existing refs, and push only what is missing. A tag at another
+commit, or a different tag object for the same commit, is a conflict to put to the user. Never
+delete, move or overwrite a tag to complete a release. A changed target needs a new explicit
+selection and renewed checks; a later HEAD does not replace an interrupted release's revision.
+
+### 8.3. Record the release and the cutover
+
+Keep the release record in the private task in which the user authorized it, under `## Result`.
+Record the following as prose, with the working language and English headings of the board:
+
+- the user's authorization, scope, baseline and any difference from the installed pair;
+- each target tag, tag object, commit and tree; which refs are new or reused, and which pending
+  changes are outside this release;
+- the exported difference, related tasks and semantic compatibility conclusion, with pointers;
+- the exact engine gate, builder revision, export check and their outcomes and limits;
+- publication progress, verification of both remote refs, and any unresolved failure;
+- the subsequent folder's baseline and target identities, dry-run result, user authorization,
+  cutover or rollback stamp, manifest identity, backup and applicable smoke results.
+
+The record may follow the candidate tag: board is excluded from export. No release registry or
+manifest schema is added. Real layer contents, private repository addresses and release evidence
+stay private. `ops-manifest.json` records the actual tags, commits, trees and file digests; the
+private record connects that identity to `.ops-tree/cutovers/<stamp>.json`. The tool does not read
+the private record, check remote publication or enforce this procedural connection.
+
+The user decides when the operational folder takes the pair. The user or a session living in that
+folder follows [ops-cutover.md](ops-cutover.md): ref verification, dry run against its current
+state, gates, explicit cutover authorization, swap, backup and recovery. A development session
+does not perform those writes. Record expected stale briefs separately from an incompatible pair;
+the cutover does not regenerate materials. The applicable `[cutover]` smoke checks are determined
+by the change and the selected runtime, never reduced by the number of new tags. Their result is
+reported by the user or operational session and recorded in the same private task. A rebuild or
+rollback is a recovery event, not a new release.
 
 ## 9. The operational session
 

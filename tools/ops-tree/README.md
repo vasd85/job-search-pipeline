@@ -6,7 +6,10 @@ own state, with no `.git` anywhere in it. `ops-manifest.json` at its root record
 table and a digest of every file of the read-only zones. This tool builds such a folder, checks it,
 replaces its pair of tags and puts the previous pair back. The decision is
 [ADR 0024](../../docs/adr/0024-two-repositories-one-snapshot.md), decision 1; the operator's
-procedure is [docs/runbooks/ops-cutover.md](../../docs/runbooks/ops-cutover.md).
+procedure is [docs/runbooks/ops-cutover.md](../../docs/runbooks/ops-cutover.md). Release selection
+and publication follow [development flow](../../docs/runbooks/development-flow.md#8-release-and-cutover)
+and [ADR 0029](../../docs/adr/0029-compatible-release-pairs.md): both versions are named, while
+new tags are needed only for included changes without suitable existing tags.
 
 ## Commands
 
@@ -20,8 +23,13 @@ npm run ops:verify
 `export` builds a new folder at `--root`, which must not exist or be empty and must not lie inside a
 git repository. Every other command acts on the folder the tool itself lies in; no argument names
 it. `cutover` without `--engine-repo`/`--candidate-repo` takes the repositories the manifest
-recorded. A cutover onto the current pair rebuilds both zones after drift; a cutover onto the
-current release and a new layer tag replaces only the layer.
+recorded. A cutover onto the current pair rebuilds both zones after drift. With the current release
+and a new layer tag, only the selected candidate version changes; the tool still exports both
+parts, installs dependencies and swaps both zones. The same applies when only the engine version
+changes. Tags need not share a date. Each tag is resolved independently to a commit and tree;
+the tool does not choose the latest counterpart, require a new tag for an unchanged component,
+or verify remote publication and semantic compatibility. Release records belong in the private
+task, not in a new tool registry.
 
 `--kind rehearsal` builds a sealed folder on the real layer for a run against real vacancies. Its
 zone table adds `.rehearsal/` to the state zone; the backup refuses it.
@@ -60,6 +68,11 @@ without that file would otherwise bring the board into the folder.
 | `zones`               | the zone table above                                                                                            |
 | `files`               | `{engine, dependencies, candidate}`: path → `{sha256, executable}` for a file, `{symlink: <target>}` for a link |
 
+The manifest records the built pair, not approval to release or cut over. It carries no tag-object
+identity or semantic-review verdict. The operator compares its tags/commits/trees to the private
+release record and connects that record to the cutover evidence's stamp; the tool does not read
+that record or enforce the connection.
+
 ## The drift check
 
 `verifyFolder` in `manifest.mjs` is called with the root of the tree the calling code lies in —
@@ -90,12 +103,19 @@ Not covered: the collector's other commands (`init`, `reset-cursor`, `render-bat
 3. Export both tags into `.ops-tree/staging/<stamp>/`, compare each export with `git ls-tree` of the
    same commit, refuse any path that falls in a state, handover or service zone, run `npm ci` where
    a lockfile names packages, and write the image's manifest.
-4. Copy `process-log.json` and `output/` into the image under the ledger lock. Run the new engine's
-   `tools/bootstrap.mjs --check` against the image and its `tools/process-log.mjs validate --deep`
-   against the copy; the current engine's `validate --deep` of the live folder is the baseline. The
-   report names, per process, what the new engine reports that the current one does not — the
-   processes the swap will stop until their brief is republished.
-5. `--dry-run` stops here. Nothing in the folder has moved at any point before this step.
+4. With a ledger, copy `process-log.json` and `output/` into the image under the ledger lock. Run
+   the selected image's `tools/bootstrap.mjs --check` and its
+   `tools/process-log.mjs validate --deep` against the copy; the current engine's deep validation
+   of the live folder is the baseline. Without a ledger, run the image's
+   `tools/candidate/cli.mjs --check`, as `export` does. The candidate CLI checks config/schema,
+   documents, required inputs, constraints, language packs and pins; bootstrap does not run those
+   pins. A refused pair check or unreadable deep report stops before swap. A readable deep report
+   may contain issues: `stopped_by_swap` names, per process, findings newly reported against the
+   baseline, not only stale briefs. Triage batches and other state are not copied into this check.
+5. `--dry-run` stops here and returns the report, with tag names but no target commit/tree fields.
+   It uses service lock/staging files, removes its image, and leaves working zones in place.
+   Save its result and separately resolved version identities for the operator's review;
+   dry run does not automatically write a cutover evidence file.
 6. The swap: a journal of renames is written and synced, the manifest is marked `building`, the
    nested state children move into the image, then each swapped top-level entry moves out to
    `.ops-tree/previous/<stamp>/` and its replacement moves in, `package.json` and `tools/` last.
@@ -107,6 +127,12 @@ Not covered: the collector's other commands (`init`, `reset-cursor`, `render-bat
 
 The swap never touches the state zones, so the daily backup is not unloaded around it; a backup
 run that starts between the two renames of `tools/` fails once and the next run passes.
+
+These checks establish export integrity, candidate shape and the reported effects on copied
+process state. They do not prove prose rules agree, exercise model-driven steps or establish full
+runtime readiness. An expected stale brief is handled by republishing Step 3; an incompatible
+schema or a corrupted artifact needs its own resolution. The operator's release/cutover procedure
+owns those conclusions. New tag count does not change the required checks or smoke.
 
 ## Rollback and recovery
 
@@ -132,6 +158,12 @@ Without a journal, `rollback` swaps the folder back to the retained tree `--to <
 manifest's `previous`, after checking that tree against its own manifest, under the same gates and
 override. The tree it leaves becomes a retained tree in turn, so a rollback can itself be rolled
 back.
+
+Rollback uses the retained manifest's pair without creating tags or fetching refs. It preserves
+current state; it does not restore an earlier ledger or validate that state with the older engine
+before the swap. Review the state/version compatibility under the operator's runbook before an
+authorized rollback. A rebuild onto the installed tags and a rollback are recovery events, not
+new releases.
 
 ## The lock
 

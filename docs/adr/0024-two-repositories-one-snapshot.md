@@ -21,6 +21,11 @@ instead of closing it.
 
 ## Context
 
+Release tag creation in decision 11 is amended by
+[ADR 0029](0029-compatible-release-pairs.md): a checked snapshot still names two pinned versions,
+but unchanged components reuse explicitly selected tags. The historical decisions below remain
+as recorded; the current procedure belongs to the development flow.
+
 ADR 0023 decided _that_ the engine is published and the candidate stays private. It deliberately
 left the shape open: the private layer's form was a working hypothesis of epic 146, and how tasks
 are documented after the move was handed to a separate task. Three requirements the user stated
