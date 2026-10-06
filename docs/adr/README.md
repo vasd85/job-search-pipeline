@@ -26,12 +26,13 @@ the published arrangement; their status notices identify when it takes effect.
 | [0021](0021-uncertainty-tolerant-triage-policy.md)              | Triage tolerates uncertainty — absent data scores a defined middle instead of ending the vacancy | Accepted; amended scoring configuration in ADR 0026                    |
 | [0022](0022-three-lanes-derived-from-the-diff.md)               | Ceremony is three lanes derived from the diff, not two                                           | Accepted; development ceremony superseded in part by ADR 0024          |
 | [0023](0023-public-engine-and-private-candidate-layer.md)       | Publish the engine, keep the candidate in a private layer                                        | Accepted                                                               |
-| [0024](0024-two-repositories-one-snapshot.md)                   | Two repositories, one snapshot                                                                   | Accepted                                                               |
+| [0024](0024-two-repositories-one-snapshot.md)                   | Two repositories, one snapshot                                                                   | Accepted; release tag creation amended by ADR 0029                     |
 | [0025](0025-markets-are-candidate-configuration.md)             | Markets and the presented location are candidate configuration                                   | Accepted; replaces candidate-specific market and location decisions    |
 | [0026](0026-scoring-values-are-candidate-configuration.md)      | Scoring values are candidate configuration                                                       | Accepted; amendments include independent ToolMatch dimensions          |
 | [0027](0027-tool-prices-are-candidate-configuration.md)         | ToolMatch prices are candidate configuration                                                     | Accepted; amended to score main languages and frameworks independently |
 | [0028](0028-domain-fit-placement-is-candidate-configuration.md) | Domain Fit placement is candidate configuration                                                  | Accepted; amended Domain Fit scale                                     |
+| [0029](0029-compatible-release-pairs.md)                        | Checked release pairs reuse unchanged component tags                                             | Accepted; amends ADR 0024 decision 11                                  |
 
 For development, read [ADR 0024](0024-two-repositories-one-snapshot.md) alongside
-[development-flow](../runbooks/development-flow.md). Older development ADRs explain the earlier
+[ADR 0029](0029-compatible-release-pairs.md) and [development-flow](../runbooks/development-flow.md). Older development ADRs explain the earlier
 arrangement; they do not override the current procedure in that runbook.
