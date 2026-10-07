@@ -30,6 +30,23 @@ language of [operating-contract.md](../operating-contract.md). Machine-readable 
 terminal codes, exact observed values, and evidence quotes remain verbatim and untranslated. What
 this procedure writes into chat around those fields follows the chat rule of the same contract.
 
+## Batch directory and helper workspace
+
+Before the first helper write, follow the
+[shared helper lifecycle](../../tools/ops-tree/README.md#agent-helper-workspaces) and allocate a
+fresh `.temp-docs/score-jobs/<batch_id>-<session-suffix>/` using its structured filesystem recipe.
+Keep the returned path and identity. Helper `.mjs` files, `pretriage-plan.json`, header observations,
+composition/drafts JSON and the `recordBatch` payload belong in this workspace. Use the runbook's
+[helper executor](../../docs/runbooks/triage-review.md#helper-executor) for imports, invocation root
+and the payload; vacancy values remain file data and never enter shell program text.
+
+The batch's own directory keeps the artifact contract: captures, `plan.json`, normalized inputs,
+traces, required verification evidence/report and immutable `ledger-record.json`. Helpers do not
+belong in that directory. Once verification, recording and flagged-results review are complete,
+check the archive/ledger digest, preserve all needed results at their owners and remove only this
+run's helper workspace under the shared cleanup checks. Unfinished work, unknown outcomes or files
+that cannot yet be classified or saved retain it, with the exact path and reason in the return.
+
 ## Executable scoring boundary
 
 The model extracts explicit source observations; it does not calculate policy outcomes. Construct

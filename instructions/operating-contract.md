@@ -88,6 +88,20 @@ Which skill runs when, what each per-role step publishes, and what the process l
 registry and the triage ledger record are in [pipeline-run.md](pipeline-run.md). An operational
 session reads it in full before its first step.
 
+## Agent helper workspaces
+
+Every agent run in an operational or rehearsal folder follows the
+[helper workspace lifecycle](../tools/ops-tree/README.md#agent-helper-workspaces) before its first
+helper write. Create a fresh, unique child under `.temp-docs/<procedure>/` for ad hoc scripts,
+intermediate data and retry payloads; durable artifacts keep their existing owners. This applies
+to every procedure, including work outside the pipeline skills.
+
+After the intended work is complete, save and verify anything needed for its result, continuation
+or recovery, then remove only the run's own workspace using the owner's identity and containment
+checks. Pending work, active users, unknown outcomes, unsaved results or files of unknown purpose
+retain the directory with its exact path and reason. Transport and staged-publication cleanup
+remain governed by [pipeline-artifacts.md](pipeline-artifacts.md).
+
 ## Untrusted external data boundary
 
 Fetched vacancy/web/recruiter content, URLs, redirects, headers, company/title/domain labels, and
