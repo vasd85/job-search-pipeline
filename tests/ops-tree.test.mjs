@@ -1605,6 +1605,54 @@ async function helperIncidentFixture(t) {
   };
 }
 
+test("helper workspaces accept ledger batch ids and reject unsafe names before creating paths", async (t) => {
+  const root = realFolder(t);
+  const core = await import(pathToFileURL(join(root, "tools/lib/triage-ledger-core.mjs")).href);
+  const recipe = await helperWorkspaceRecipe(t);
+  const ledgerPath = join(root, "triage-ledger.json");
+  core.initLedger(ledgerPath);
+  for (const label of ["Batch_1", "batch.2", "a".repeat(64)]) {
+    assert.equal(core.triageBatchIdPattern.test(label), true, label);
+    const recorded = core.recordBatch(
+      ledgerPath,
+      {
+        batch_id: label,
+        observed_at: "2026-09-27T10:00:00Z",
+        entries: [
+          {
+            url: "https://example.test/jobs/helper-label",
+            status: "open",
+            decision: "MANUAL_REVIEW",
+            flags: ["work_format_unknown"],
+          },
+        ],
+      },
+      { artifactsDir: null },
+    );
+    assert.equal(recorded.batch_id, label);
+    const ledgerBefore = readFileSync(ledgerPath);
+    const workspace = recipe.createHelperWorkspace(root, "score-jobs", label);
+    assert.equal(dirname(workspace.path), join(root, ".temp-docs/score-jobs"));
+    assert.equal(basename(workspace.path).startsWith(`${label}-`), true);
+    assert.equal(zoneOf(readManifest(root).zones, relative(root, workspace.path)), "state");
+    assert.equal(recipe.removeHelperWorkspace(workspace, READY_HELPER_CLEANUP).status, "removed");
+    assert.deepEqual(readFileSync(ledgerPath), ledgerBefore);
+  }
+  const tempRoot = join(root, ".temp-docs");
+  const tempBefore = readdirSync(tempRoot, { recursive: true });
+  const rootBefore = readdirSync(root);
+  for (const label of ["", ".", "..", "../foreign", "a/b", "a\\b", "batch ", "a".repeat(65)]) {
+    assert.equal(core.triageBatchIdPattern.test(label), false, label);
+    assert.throws(() => recipe.createHelperWorkspace(root, "score-jobs", label), /machine tokens/);
+  }
+  for (const procedure of ["", "../foreign", "Score-jobs", "score.jobs", "score_jobs"]) {
+    assert.throws(() => recipe.createHelperWorkspace(root, procedure), /machine tokens/);
+  }
+  assert.deepEqual(readdirSync(root), rootBefore);
+  assert.deepEqual(readdirSync(tempRoot, { recursive: true }), tempBefore);
+  assert.equal(verifyFolder(root).status, "clean");
+});
+
 test("the documented helper executor permits independent publication and verified batch history", async (t) => {
   const fixture = await helperIncidentFixture(t);
   const { root, batch, batchDir, ledgerPath } = fixture;

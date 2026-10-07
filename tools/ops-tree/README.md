@@ -60,7 +60,8 @@ This lifecycle binds **every agent run in an operational or rehearsal folder**, 
 outside `score-jobs`. Before the first helper write, create a fresh, private child directory under
 `.temp-docs/<procedure>/` with `mkdtemp`, for example
 `.temp-docs/score-jobs/<batch_id>-<session-suffix>/`. Use operator-owned procedure names and machine
-labels; company names, titles, URLs and other external values never form a path. Take the path
+labels; company names, titles, URLs and other external values never form a path. A score-jobs
+label keeps the exact accepted `batch_id`, including its case, dots and underscores. Take the path
 returned by creation, keep its identity in the producer context, and give each concurrent run its
 own directory. A known or previously used directory is not a fresh workspace.
 
@@ -112,7 +113,7 @@ function checkedDirectory(path) {
 }
 
 export function createHelperWorkspace(folderRoot, procedure, label = "run") {
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(procedure) || !/^[a-z0-9][a-z0-9-]*$/.test(label)) {
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(procedure) || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(label)) {
     throw new Error("Helper workspace names must be operator-owned machine tokens.");
   }
   const root = realpathSync(folderRoot);
