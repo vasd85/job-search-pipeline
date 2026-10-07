@@ -54,6 +54,106 @@ A file nobody listed is an added `engine` file, and the check refuses it. The ca
 are the engine's list, not the private repository's `.gitattributes`: a tag cut from a commit
 without that file would otherwise bring the board into the folder.
 
+## Agent helper workspaces
+
+This lifecycle binds **every agent run in an operational or rehearsal folder**, including runs
+outside `score-jobs`. Before the first helper write, create a fresh, private child directory under
+`.temp-docs/<procedure>/` with `mkdtemp`, for example
+`.temp-docs/score-jobs/<batch_id>-<session-suffix>/`. Use operator-owned procedure names and machine
+labels; company names, titles, URLs and other external values never form a path. Take the path
+returned by creation, keep its identity in the producer context, and give each concurrent run its
+own directory. A known or previously used directory is not a fresh workspace.
+
+Ad hoc scripts, intermediate observations and retry payloads belong here. Durable artifacts keep
+their owners: batch captures, inputs, traces, plan, verification report and immutable record in
+the [batch store](../../docs/runbooks/triage-review.md#11-batch-store-the-history-beside-the-index);
+per-role results through their [staging and publication contract](../../instructions/pipeline-artifacts.md);
+development task drafts in `outbox/tasks/`. Arbitrary helpers in a batch directory violate its
+artifact whitelist. `.temp-docs/` is not covered by the operational backup.
+
+**Cleanup is mandatory when the intended work is complete.** Stop the run's readers and writers,
+inspect every file in its workspace and save anything needed for the result, continuation or
+recovery at its responsible owner. A temporary path does not prove the file is disposable: it may
+hold the only observations, an unsaved report, a retry payload or recovery evidence. Verify the
+saved result before deletion: for a batch, compare its archive and ledger `entries_digest`; for a
+per-role result, check its published bundle and ledger. Preserve required reports and task drafts
+under their existing contracts too. Do not invent new filenames in a restricted artifact store.
+
+Keep the workspace while work is pending, a reader or writer is active, a publication is prepared,
+a mutation's outcome is unknown, or a retry still needs its files. After a crash, inspect the
+ledger, staging and archive before retry or cleanup. If a file's purpose is unknown or saving it
+would exceed the authorized scope, retain the directory and report its exact path and reason;
+cleanup is not ready. Final abandonment first preserves the necessary evidence, then removes the
+run's directory. These are agent decisions: the recipe below cannot infer a file's value.
+
+Remove **only the exact fresh leaf created by this run**, after checking its recorded identity,
+non-symlink path and containment. Never remove `.temp-docs/`, its procedure parent, another run's
+workspace or old directories by glob or age. Keep all relevant users stopped through the checks
+and removal; the identity check is not an atomic defense against concurrent path replacement.
+`.pipeline-input/` transport files and `.pipeline-tmp/` staged publications keep their separate
+cleanup and recovery procedures; this helper recipe does not delete them.
+
+Use this recipe in the runtime's structured filesystem context. The descriptor stays in that
+context, never reconstructed from external input. If the functions are saved as a module, save it
+inside the newly created leaf. `review` records the agent's checks above, not an automatic file
+classifier or an engine lifecycle schema.
+
+```js
+// helper-workspace.mjs
+import { lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { dirname, join, sep } from "node:path";
+
+function checkedDirectory(path) {
+  const info = lstatSync(path);
+  if (!info.isDirectory() || info.isSymbolicLink() || realpathSync(path) !== path) {
+    throw new Error("Helper workspace path is not a real directory.");
+  }
+  return info;
+}
+
+export function createHelperWorkspace(folderRoot, procedure, label = "run") {
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(procedure) || !/^[a-z0-9][a-z0-9-]*$/.test(label)) {
+    throw new Error("Helper workspace names must be operator-owned machine tokens.");
+  }
+  const root = realpathSync(folderRoot);
+  const tempRoot = join(root, ".temp-docs");
+  mkdirSync(tempRoot, { recursive: true, mode: 0o700 });
+  checkedDirectory(tempRoot);
+  const parent = join(tempRoot, procedure);
+  mkdirSync(parent, { recursive: true, mode: 0o700 });
+  checkedDirectory(parent);
+  const path = mkdtempSync(join(parent, `${label}-`));
+  const { dev, ino } = checkedDirectory(path);
+  return Object.freeze({ root, tempRoot, parent, path, dev, ino });
+}
+
+export function removeHelperWorkspace(workspace, review) {
+  for (const [check, reason] of [
+    ["complete", "work_incomplete"],
+    ["noActiveUsers", "active_users"],
+    ["outcomeKnown", "outcome_unknown"],
+    ["allFilesClassified", "file_purpose_unknown"],
+    ["neededFilesSavedAndVerified", "needed_files_unsaved"],
+  ]) {
+    if (review[check] !== true) return { status: "retained", path: workspace.path, reason };
+  }
+  if (workspace.tempRoot !== join(workspace.root, ".temp-docs") ||
+      !workspace.parent.startsWith(`${workspace.tempRoot}${sep}`) ||
+      dirname(workspace.path) !== workspace.parent) {
+    throw new Error("Helper workspace is outside its recorded parent.");
+  }
+  checkedDirectory(workspace.root);
+  checkedDirectory(workspace.tempRoot);
+  checkedDirectory(workspace.parent);
+  const current = checkedDirectory(workspace.path);
+  if (current.dev !== workspace.dev || current.ino !== workspace.ino) {
+    throw new Error("Helper workspace identity changed; retain it for its owner.");
+  }
+  rmSync(workspace.path, { recursive: true });
+  return { status: "removed", path: workspace.path };
+}
+```
+
 ## The manifest
 
 `ops-manifest.json`, schema `job-search-pipeline/ops-manifest`, version 1:

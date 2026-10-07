@@ -126,8 +126,10 @@ See [write boundary](development-flow.md#12-write-boundary-and-the-second-runner
 External values need the structured filesystem API and the shared
 [safe input-file procedure](../../instructions/pipeline-artifacts.md#safe-input-file-producer-procedure),
 or a true structured argv API without a shell. An unavailable producer is a stop, not permission
-to write envelopes with shell quoting, heredocs or encoded strings. Put generated helper scripts
-in an allowed state directory such as `.temp-docs/`, never at an unlisted root path.
+to write envelopes with shell quoting, heredocs or encoded strings. Every run follows the
+[shared helper lifecycle](../../tools/ops-tree/README.md#agent-helper-workspaces): allocate its own
+fresh directory before helper writes, then save and verify needed results and remove only that
+directory when the work is complete. Retain pending or unclassified files with a reported reason.
 
 ## Explicit Codex skill invocations
 

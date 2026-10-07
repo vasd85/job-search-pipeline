@@ -11,13 +11,15 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
+  symlinkSync,
   realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 
@@ -38,6 +40,13 @@ import {
   releaseLock,
   rollbackFolder,
 } from "../tools/ops-tree/tree.mjs";
+
+import {
+  batchId as replayBatchId,
+  links as replayLinks,
+  writePriorLedger,
+  writeReplayBatch,
+} from "./fixtures/triage-verify/replay-batch.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const treeModuleUrl = pathToFileURL(join(repoRoot, "tools/ops-tree/tree.mjs")).href;
@@ -1395,4 +1404,543 @@ test("historical manifest zones survive verification and rollback; residual rese
   rollbackFolder({ root }, context({ now: () => new Date("2026-09-25T12:00:00.000Z") }));
   assert.equal(zoneOf(readManifest(root).zones, "candidate/research/note.md"), "state");
   assert.equal(verifyFolder(root).status, "clean");
+});
+
+// The helper path and executor come from the operator's example, not a test-only rewrite.
+function ledgerExecutorExample(document) {
+  const match = document.match(/```js\n(\/\/ [^\n]*record-batch\.mjs[^\n]*\n[\s\S]*?)\n```/);
+  assert.ok(match, "the runbook must carry an executable record-batch example");
+  return {
+    source: match[1],
+    path: match[1].split("\n")[0].slice(3).split(" — ")[0],
+  };
+}
+
+function runInFolder(root, entry, args = []) {
+  return spawnSync(process.execPath, [entry, ...args], {
+    cwd: root,
+    encoding: "utf8",
+    env: gitEnvironment(),
+  });
+}
+
+async function helperWorkspaceRecipe(t) {
+  const document = readFileSync(join(repoRoot, "tools/ops-tree/README.md"), "utf8");
+  const match = document.match(/```js\n\/\/ helper-workspace\.mjs\n([\s\S]*?)\n```/);
+  assert.ok(match, "the zone owner must carry the helper lifecycle recipe");
+  const path = join(scratch(t, "ops-helper-recipe-"), "helper-workspace.mjs");
+  writeFileSync(path, match[1]);
+  return import(pathToFileURL(path).href);
+}
+
+async function documentedExecutor(t, root, batch, document = null) {
+  const example = ledgerExecutorExample(
+    document ??
+      readFileSync(
+        process.env.OPS_HELPER_EXAMPLE_DOCUMENT ?? join(repoRoot, "docs/runbooks/triage-review.md"),
+        "utf8",
+      ),
+  );
+  let workspace = null;
+  let relativePath = example.path.replaceAll("<batch_id>", batch.batch_id);
+  if (relativePath.includes("<session-suffix>")) {
+    const recipe = await helperWorkspaceRecipe(t);
+    workspace = recipe.createHelperWorkspace(root, "score-jobs", batch.batch_id);
+    relativePath = relativePath.replaceAll(
+      "<session-suffix>",
+      basename(workspace.path).slice(batch.batch_id.length + 1),
+    );
+  }
+  const path = join(root, relativePath);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(
+    path,
+    example.source
+      .replaceAll("<repo>", root)
+      .replaceAll("<operational-checkout>", root)
+      .replaceAll("<batch_id>", batch.batch_id),
+  );
+  writeFileSync(join(dirname(path), "batch.json"), `${JSON.stringify(batch, null, 2)}\n`);
+  for (const name of ["pretriage-plan.json", "headers.json", "composition.json", "drafts.json"]) {
+    writeFileSync(join(dirname(path), name), '{"synthetic":true}\n');
+  }
+  return { path, workspace };
+}
+
+async function helperIncidentFixture(t) {
+  const root = realFolder(t);
+  const seed = scratch(t, "ops-helper-batch-");
+  const replay = writeReplayBatch(seed);
+  const ledgerPath = join(root, "triage-ledger.json");
+  copyFileSync(writePriorLedger(seed), ledgerPath);
+  const batchDir = join(root, "triage-batches", replayBatchId);
+  mkdirSync(dirname(batchDir), { recursive: true });
+  renameSync(replay.artifactsDir, batchDir);
+  const linksFile = join(root, "telegram-sweeps/fixture/collection.links.txt");
+  mkdirSync(dirname(linksFile), { recursive: true });
+  copyFileSync(replay.linksFile, linksFile);
+  const core = await import(pathToFileURL(join(root, "tools/lib/triage-ledger-core.mjs")).href);
+  const plan = core.planBatch(core.readLedger(ledgerPath), replayLinks, {
+    asOf: "2026-08-23T09:00:00.000Z",
+  });
+  writeFileSync(join(batchDir, "plan.json"), `${JSON.stringify(plan, null, 2)}\n`);
+  const batch = {
+    batch_id: replayBatchId,
+    observed_at: "2026-08-23T09:15:00.000Z",
+    policy_id: "triage-policy-v2-2026-08-21",
+    entries: replay.records.map((record) => {
+      const trace = JSON.parse(
+        readFileSync(
+          join(batchDir, "traces", `${String(record.index).padStart(3, "0")}.trace.json`),
+          "utf8",
+        ),
+      );
+      return {
+        url: record.link,
+        status: record.input.source.accessOutcome === "closed" ? "closed" : "open",
+        decision: trace.decision,
+        flags: [
+          ...(trace.data_gaps ?? []),
+          ...(trace.review_reason ? [trace.review_reason] : []),
+          ...(trace.blocker_code ? [trace.blocker_code] : []),
+        ],
+      };
+    }),
+  };
+  const verifyBatch = () =>
+    runInFolder(root, join(root, "tools/triage-verify/cli.mjs"), [
+      "--artifacts-dir",
+      batchDir,
+      "--links-file",
+      linksFile,
+      "--from",
+      "1",
+      "--to",
+      "6",
+      "--ledger",
+      ledgerPath,
+    ]);
+  const verification = verifyBatch();
+  assert.equal(verification.status, 0, verification.stderr || verification.stdout);
+  assert.equal(JSON.parse(verification.stdout).status, "pass");
+  const logPath = join(root, "process-log.json");
+  const emptyLog = { ...createValidV3Log(), processes: [], companies: [] };
+  writeFileSync(logPath, `${JSON.stringify(emptyLog, null, 2)}\n`);
+  mkdirSync(join(root, "output"));
+  const processLog = join(root, "tools/process-log.mjs");
+  const command = (...args) => runInFolder(root, processLog, args);
+  const success = (...args) => {
+    const result = command(...args);
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  const started = success(
+    "start",
+    "--source-ref",
+    "https://example.test/jobs/helper-safety",
+    "--runner",
+    "codex",
+  );
+  const id = started.process.id;
+  const attemptId = started.process.steps.get_vacancy.active_attempt.id;
+  success(
+    "update",
+    "--id",
+    id,
+    "--company-observed",
+    "Example Labs",
+    "--role",
+    "Senior Quality Engineer",
+  );
+  const reserved = success("reserve-output", "--id", id);
+  const publicationId = "publication_helper_safety_001";
+  const output = join(root, reserved.output_dir);
+  const staging = join(output, ".pipeline-tmp", publicationId);
+  mkdirSync(staging, { recursive: true });
+  copyFileSync(
+    join(root, "tools/pipeline-artifacts/fixtures/vacancy-v2-completed/job-description.txt"),
+    join(staging, "job-description.txt"),
+  );
+  const vacancy = JSON.parse(
+    readFileSync(
+      join(root, "tools/pipeline-artifacts/fixtures/vacancy-v2-completed/vacancy.json"),
+      "utf8",
+    ),
+  );
+  vacancy.process = {
+    ...vacancy.process,
+    id,
+    sourceRef: started.process.source_ref,
+    finalUrl: started.process.source_ref,
+    outputDir: reserved.output_dir,
+  };
+  writeFileSync(join(staging, "vacancy.json"), `${JSON.stringify(vacancy, null, 2)}\n`);
+  const publicationArgs = [
+    "publish-step",
+    "--id",
+    id,
+    "--step",
+    "get_vacancy",
+    "--attempt-id",
+    attemptId,
+    "--publication-id",
+    publicationId,
+    "--outcome",
+    "completed",
+  ];
+  return {
+    root,
+    core,
+    ledgerPath,
+    logPath,
+    batch,
+    batchDir,
+    output,
+    staging,
+    command,
+    publicationArgs,
+    verifyBatch,
+    id,
+    attemptId,
+  };
+}
+
+test("the documented helper executor permits independent publication and verified batch history", async (t) => {
+  const fixture = await helperIncidentFixture(t);
+  const { root, batch, batchDir, ledgerPath } = fixture;
+  const executor = await documentedExecutor(t, root, batch);
+  const verification = fixture.verifyBatch();
+  assert.equal(verification.status, 0, verification.stderr || verification.stdout);
+  assert.equal(JSON.parse(verification.stdout).status, "pass");
+  assert.deepEqual(JSON.parse(verification.stdout).findingCodes, []);
+  const stagedBefore = treeSnapshot(fixture.staging);
+  const published = fixture.command(...fixture.publicationArgs);
+  assert.equal(published.status, 0, published.stderr);
+  assert.equal(JSON.parse(published.stdout).status, "completed");
+  assert.deepEqual(treeSnapshot(fixture.output), stagedBefore);
+  const recorded = runInFolder(root, executor.path);
+  assert.equal(recorded.status, 0, recorded.stderr);
+  assert.equal(verifyFolder(root).status, "clean");
+  const archive = JSON.parse(readFileSync(join(batchDir, "ledger-record.json"), "utf8"));
+  const ledger = fixture.core.readLedger(ledgerPath);
+  assert.equal(
+    archive.entries_digest,
+    ledger.batches.find((row) => row.batch_id === batch.batch_id).entries_digest,
+  );
+  assert.equal(archive.entries.length, 5);
+  assert.equal(existsSync(join(batchDir, "batch.json")), false);
+  assert.equal(existsSync(join(batchDir, "record-batch.mjs")), false);
+  assert.deepEqual(JSON.parse(recorded.stdout), {
+    status: "recorded",
+    batch_id: replayBatchId,
+    added: 3,
+    updated: 2,
+    ledger_entries: 6,
+    archived: true,
+  });
+  const recipe = await helperWorkspaceRecipe(t);
+  const other = recipe.createHelperWorkspace(root, "score-jobs", batch.batch_id);
+  assert.notEqual(other.path, executor.workspace.path);
+  writeFileSync(join(other.path, "pending.json"), '{"retry":true}\n');
+  assert.equal(zoneOf(readManifest(root).zones, relative(root, executor.path)), "state");
+  const permanent = {
+    archive: treeSnapshot(batchDir),
+    output: treeSnapshot(fixture.output),
+    log: readFileSync(fixture.logPath),
+    ledger: readFileSync(ledgerPath),
+    other: treeSnapshot(other.path),
+  };
+  assert.equal(
+    recipe.removeHelperWorkspace(executor.workspace, READY_HELPER_CLEANUP).status,
+    "removed",
+  );
+  assert.equal(existsSync(executor.workspace.path), false);
+  assert.equal(existsSync(other.path), true);
+  assert.deepEqual(treeSnapshot(batchDir), permanent.archive);
+  assert.deepEqual(treeSnapshot(fixture.output), permanent.output);
+  assert.deepEqual(readFileSync(fixture.logPath), permanent.log);
+  assert.deepEqual(readFileSync(ledgerPath), permanent.ledger);
+  assert.deepEqual(treeSnapshot(other.path), permanent.other);
+  assert.equal(verifyFolder(root).status, "clean");
+});
+
+const READY_HELPER_CLEANUP = Object.freeze({
+  complete: true,
+  noActiveUsers: true,
+  outcomeKnown: true,
+  allFilesClassified: true,
+  neededFilesSavedAndVerified: true,
+});
+
+function assertHelperDriftPreservesWriters(fixture) {
+  const { core, root, ledgerPath, logPath, staging, batchDir, batch } = fixture;
+  const before = {
+    ledger: readFileSync(ledgerPath),
+    log: readFileSync(logPath),
+    staged: treeSnapshot(staging),
+    batch: treeSnapshot(batchDir),
+  };
+  for (const args of [
+    fixture.publicationArgs,
+    [
+      "fail-step",
+      "--id",
+      fixture.id,
+      "--step",
+      "get_vacancy",
+      "--attempt-id",
+      fixture.attemptId,
+      "--error-json",
+      JSON.stringify({
+        code: "helper_fixture_failure",
+        message: "Synthetic failure.",
+        details: [],
+      }),
+    ],
+  ]) {
+    const result = fixture.command(...args);
+    assert.equal(result.status, 1);
+    assert.equal(JSON.parse(result.stderr).error.code, "engine_tree_drift");
+  }
+  const ledger = core.readLedger(ledgerPath);
+  assertCode(
+    () => core.planBatch(ledger, replayLinks, { asOf: batch.observed_at }),
+    "engine_tree_drift",
+  );
+  assertCode(
+    () => core.recordBatch(ledgerPath, batch, { artifactsDir: batchDir }),
+    "engine_tree_drift",
+  );
+  assert.deepEqual(readFileSync(ledgerPath), before.ledger);
+  assert.deepEqual(readFileSync(logPath), before.log);
+  assert.deepEqual(treeSnapshot(staging), before.staged);
+  assert.deepEqual(treeSnapshot(batchDir), before.batch);
+  assert.equal(existsSync(`${ledgerPath}.lock`), false);
+  assert.equal(existsSync(`${logPath}.lock`), false);
+  const step = JSON.parse(before.log).processes[0].steps.get_vacancy;
+  assert.equal(step.state, "running");
+  assert.equal(step.active_attempt.id, fixture.attemptId);
+  assert.equal(step.publication_transaction, null);
+  assert.equal(zoneOf(readManifest(root).zones, "scratchpad/helper.mjs"), "engine");
+}
+
+test("helper-only recovery preserves bytes and resumes the same attempt and batch payload", async (t) => {
+  const fixture = await helperIncidentFixture(t);
+  const { root, batch, batchDir } = fixture;
+  const document = readFileSync(join(repoRoot, "docs/runbooks/triage-review.md"), "utf8");
+  const wrong = await documentedExecutor(
+    t,
+    root,
+    batch,
+    document.replace("// .temp-docs/score-jobs/", "// scratchpad/score-jobs/"),
+  );
+  const wrongDir = dirname(wrong.path);
+  const captureHelper = join(wrongDir, "verify-folder.mjs");
+  writeFileSync(
+    captureHelper,
+    'import { verifyFolder } from "../../../tools/ops-tree/manifest.mjs";\nconsole.log(verifyFolder(process.cwd()).status);\n',
+  );
+  const inventory = treeSnapshot(wrongDir);
+  const originalPlan = readFileSync(join(batchDir, "plan.json"));
+  assertHelperDriftPreservesWriters(fixture);
+  try {
+    verifyFolder(root);
+    assert.fail("the misplaced helpers must be named in the complete drift report");
+  } catch (error) {
+    assert.equal(error.code, "engine_tree_drift");
+    assert.equal(error.details.drift.length, Object.keys(inventory).length);
+    assert.equal(
+      error.details.drift.every(
+        (row) =>
+          row.kind === "added" &&
+          row.zone === "engine" &&
+          row.path.startsWith(`${relative(root, wrongDir)}/`),
+      ),
+      true,
+    );
+  }
+  const recipe = await helperWorkspaceRecipe(t);
+  const recovered = recipe.createHelperWorkspace(root, "score-jobs", batch.batch_id);
+  const moved = join(recovered.path, "work");
+  renameSync(wrongDir, moved);
+  assert.deepEqual(
+    treeSnapshot(moved),
+    inventory,
+    "move preserves every inventoried byte and mode",
+  );
+  assert.equal(verifyFolder(root).status, "clean");
+  const brokenImport = runInFolder(root, join(moved, "verify-folder.mjs"));
+  assert.notEqual(
+    brokenImport.status,
+    0,
+    "relative imports need review after a move changes their depth",
+  );
+  writeFileSync(
+    join(moved, "verify-folder.mjs"),
+    'import { join } from "node:path";\nimport { pathToFileURL } from "node:url";\nconst { verifyFolder } = await import(pathToFileURL(join(process.cwd(), "tools/ops-tree/manifest.mjs")).href);\nconsole.log(verifyFolder(process.cwd()).status);\n',
+  );
+  const checked = runInFolder(root, join(moved, "verify-folder.mjs"));
+  assert.equal(checked.status, 0, checked.stderr);
+  assert.equal(checked.stdout.trim(), "clean");
+  assert.deepEqual(readFileSync(join(batchDir, "plan.json")), originalPlan);
+  const verification = fixture.verifyBatch();
+  assert.equal(verification.status, 0, verification.stderr || verification.stdout);
+  const published = fixture.command(...fixture.publicationArgs);
+  assert.equal(published.status, 0, published.stderr);
+  const publication = JSON.parse(published.stdout).process.steps.get_vacancy;
+  assert.equal(publication.attempt, 1);
+  assert.equal(publication.active_attempt, null);
+  assert.equal(publication.publication_transaction, null);
+  assert.equal(publication.attempt_history[0].publication_id, "publication_helper_safety_001");
+  const recorded = runInFolder(root, join(moved, "record-batch.mjs"));
+  assert.equal(recorded.status, 0, recorded.stderr);
+  const payload = JSON.parse(readFileSync(join(moved, "batch.json"), "utf8"));
+  assert.deepEqual(payload, batch);
+  const archive = JSON.parse(readFileSync(join(batchDir, "ledger-record.json"), "utf8"));
+  assert.equal(archive.observed_at, batch.observed_at);
+  assert.equal(
+    archive.entries_digest,
+    fixture.core
+      .readLedger(fixture.ledgerPath)
+      .batches.find((row) => row.batch_id === batch.batch_id).entries_digest,
+  );
+  const evidencePath = join(root, "outbox/tasks/helper-drift.md");
+  mkdirSync(dirname(evidencePath), { recursive: true });
+  writeFileSync(
+    evidencePath,
+    `# Synthetic helper recovery evidence\n\n${JSON.stringify(inventory, null, 2)}\n`,
+  );
+  assert.match(readFileSync(evidencePath, "utf8"), /verify-folder\.mjs/);
+  const permanent = treeSnapshot(batchDir);
+  assert.equal(recipe.removeHelperWorkspace(recovered, READY_HELPER_CLEANUP).status, "removed");
+  assert.equal(existsSync(recovered.path), false);
+  assert.deepEqual(treeSnapshot(batchDir), permanent);
+  assert.equal(existsSync(evidencePath), true);
+  assert.equal(verifyFolder(root).status, "clean");
+});
+
+test("a genuine engine addition still refuses publication, failure, planning and recording", async (t) => {
+  const fixture = await helperIncidentFixture(t);
+  await documentedExecutor(t, fixture.root, fixture.batch);
+  writeFileSync(join(fixture.root, "tools/unlisted-helper.mjs"), "// synthetic engine drift\n");
+  assertHelperDriftPreservesWriters(fixture);
+  rmSync(join(fixture.root, "tools/unlisted-helper.mjs"));
+  assert.equal(verifyFolder(fixture.root).status, "clean");
+});
+
+test("helper cleanup retains pending, unknown and unsaved work until preservation is verified", async (t) => {
+  const { root } = fixtureFolder(t, { withState: false });
+  const recipe = await helperWorkspaceRecipe(t);
+  const workspace = recipe.createHelperWorkspace(root, "analysis");
+  const other = recipe.createHelperWorkspace(root, "analysis");
+  writeFileSync(join(workspace.path, "retry.json"), '{"onlyObservation":"synthetic"}\n');
+  writeFileSync(
+    join(workspace.path, ".unsaved-report.md"),
+    "Synthetic result needing preservation.\n",
+  );
+  writeFileSync(join(other.path, "reader.json"), '{"active":true}\n');
+  const before = treeSnapshot(workspace.path);
+  for (const [check, reason] of [
+    ["complete", "work_incomplete"],
+    ["noActiveUsers", "active_users"],
+    ["outcomeKnown", "outcome_unknown"],
+    ["allFilesClassified", "file_purpose_unknown"],
+    ["neededFilesSavedAndVerified", "needed_files_unsaved"],
+  ]) {
+    const result = recipe.removeHelperWorkspace(workspace, {
+      ...READY_HELPER_CLEANUP,
+      [check]: false,
+    });
+    assert.deepEqual(result, { status: "retained", path: workspace.path, reason });
+    assert.deepEqual(treeSnapshot(workspace.path), before);
+  }
+  // The agent classifies these synthetic files: the completed operation no longer needs retry,
+  // but the report is still its only result. Preserve and verify that result before attesting.
+  const savedReport = join(root, "outbox/tasks/helper-result.md");
+  mkdirSync(dirname(savedReport), { recursive: true });
+  copyFileSync(join(workspace.path, ".unsaved-report.md"), savedReport);
+  assert.deepEqual(
+    readFileSync(savedReport),
+    readFileSync(join(workspace.path, ".unsaved-report.md")),
+  );
+  assert.equal(recipe.removeHelperWorkspace(workspace, READY_HELPER_CLEANUP).status, "removed");
+  assert.equal(existsSync(workspace.path), false);
+  assert.equal(existsSync(other.path), true);
+  assert.equal(existsSync(savedReport), true);
+  assert.equal(verifyFolder(root).status, "clean");
+});
+
+test("helper cleanup refuses a replaced leaf, symlink, changed identity or parent escape", async (t) => {
+  const { root } = fixtureFolder(t, { withState: false });
+  const recipe = await helperWorkspaceRecipe(t);
+  const workspace = recipe.createHelperWorkspace(root, "analysis");
+  writeFileSync(join(workspace.path, "kept.txt"), "original bytes\n");
+  const foreign = recipe.createHelperWorkspace(root, "analysis");
+  writeFileSync(join(foreign.path, "kept.txt"), "foreign bytes\n");
+  const before = treeSnapshot(foreign.path);
+  assert.throws(
+    () =>
+      recipe.removeHelperWorkspace({ ...workspace, ino: workspace.ino + 1 }, READY_HELPER_CLEANUP),
+    /identity changed/,
+  );
+  assert.throws(
+    () =>
+      recipe.removeHelperWorkspace({ ...workspace, dev: workspace.dev + 1 }, READY_HELPER_CLEANUP),
+    /identity changed/,
+  );
+  assert.throws(
+    () =>
+      recipe.removeHelperWorkspace({ ...workspace, path: workspace.parent }, READY_HELPER_CLEANUP),
+    /outside its recorded parent/,
+  );
+  assert.throws(
+    () =>
+      recipe.removeHelperWorkspace(
+        { ...workspace, path: join(root, "candidate") },
+        READY_HELPER_CLEANUP,
+      ),
+    /outside its recorded parent/,
+  );
+  const original = `${workspace.path}-held`;
+  renameSync(workspace.path, original);
+  mkdirSync(workspace.path);
+  writeFileSync(join(workspace.path, "replacement.txt"), "new owner's bytes\n");
+  assert.throws(
+    () => recipe.removeHelperWorkspace(workspace, READY_HELPER_CLEANUP),
+    /identity changed/,
+  );
+  assert.equal(existsSync(join(workspace.path, "replacement.txt")), true);
+  rmSync(workspace.path, { recursive: true });
+  symlinkSync(foreign.path, workspace.path, "dir");
+  assert.throws(
+    () => recipe.removeHelperWorkspace(workspace, READY_HELPER_CLEANUP),
+    /not a real directory/,
+  );
+  assert.equal(lstatSync(workspace.path).isSymbolicLink(), true);
+  assert.deepEqual(treeSnapshot(foreign.path), before);
+  assert.equal(readFileSync(join(original, "kept.txt"), "utf8"), "original bytes\n");
+  assert.equal(verifyFolder(root).status, "clean");
+});
+
+test("every agent entrypoint routes helper lifecycle to the zone owner", () => {
+  for (const path of [
+    "instructions/operating-contract.md",
+    "instructions/skills/score-jobs.md",
+    "docs/runbooks/ops-pipeline-codex.md",
+    "docs/runbooks/triage-review.md",
+  ]) {
+    assert.match(
+      readFileSync(join(repoRoot, path), "utf8"),
+      /tools\/ops-tree\/README\.md#agent-helper-workspaces/,
+      path,
+    );
+  }
+  const example = ledgerExecutorExample(
+    readFileSync(join(repoRoot, "docs/runbooks/triage-review.md"), "utf8"),
+  );
+  assert.equal(example.path, ".temp-docs/score-jobs/<batch_id>-<session-suffix>/record-batch.mjs");
+  assert.match(
+    readFileSync(join(repoRoot, "instructions/skills/score-jobs.md"), "utf8"),
+    /triage-review\.md#helper-executor/,
+  );
 });

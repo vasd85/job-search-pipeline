@@ -105,20 +105,43 @@ read-only plus `init`, and it accepts only machine tokens (`--as-of`, `--compact
 from a shell is ever needed, it goes through the shared transport
 `--input-file input-<32-hex>.json` and no other way.
 
-The executor script is written with a file tool and contains no interpolation (the same rule as for
-the scorer):
+### Helper executor
+
+Before writing any helper, allocate a fresh workspace with the
+[shared helper lifecycle](../../tools/ops-tree/README.md#agent-helper-workspaces). For this batch
+it is `.temp-docs/score-jobs/<batch_id>-<session-suffix>/`; keep the returned path and identity.
+Write `batch.json` and the executor there with a file tool. The payload contains the original
+observation time and entries as data. Helpers and intermediate JSON stay out of the batch store.
+
+Invoke the executor from the declared operational/rehearsal **folder root**, using the returned
+absolute script path as a structured argv value. Its tool imports come from that same export;
+the payload is beside the script, while the archive is the existing batch directory. Moving a
+helper does not change any of those owners. The script contains no external-value interpolation
+and prints counts and status rather than vacancy keys or the payload.
+
+This example declares the operational batch store. When the rehearsal procedure uses
+`.rehearsal/batches/<batch-label>/`, declare that existing absolute directory as `artifactsDir`
+instead; the helper's location never determines the archive path:
 
 ```js
-// scratchpad/record-batch.mjs — run as `node record-batch.mjs`
+// .temp-docs/score-jobs/<batch_id>-<session-suffix>/record-batch.mjs — invoke from the folder root
 import { readFileSync } from "node:fs";
-import { recordBatch } from "<repo>/tools/lib/triage-ledger-core.mjs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
+const root = process.cwd();
+const { recordBatch } = await import(pathToFileURL(join(root, "tools/lib/triage-ledger-core.mjs")).href);
 const batch = JSON.parse(readFileSync(new URL("./batch.json", import.meta.url), "utf8"));
-console.log(recordBatch(
-  "<operational-checkout>/triage-ledger.json",
-  batch,
-  { artifactsDir: "<operational-checkout>/triage-batches/<batch_id>" },
-));
+const artifactsDir = join(root, "triage-batches", batch.batch_id);
+const result = recordBatch(join(root, "triage-ledger.json"), batch, { artifactsDir });
+console.log(JSON.stringify({
+  status: "recorded",
+  batch_id: result.batch_id,
+  added: result.added.length,
+  updated: result.updated.length,
+  ledger_entries: result.ledger_entries,
+  archived: result.record !== null,
+}));
 ```
 
 `observed_at` is the time the batch actually observed (when the pages were fetched), not "now": the
@@ -133,6 +156,34 @@ A batch is recorded in the ledger only after the per-batch set of `tools/triage-
 In short: `recordBatch` overwrites the vacancy's row, so a write before verification deprives the
 baseline diff of its own reconciliation with the ledger, and a red set means there is nothing to
 record yet.
+
+### Recovering added helper drift
+
+This recovery applies when an agent put **only its own added helpers** in an unlisted path and
+the integrity gate consequently blocks its batch or another process. The gate checks the whole
+folder; `fail-step` is also a mutation and refuses drift. Preserve the running attempt and staging.
+
+1. Pause the helper owner's writers and readers. Run `npm run ops:verify` and read the complete
+   drift report. Establish ownership of every path: proceed only for the run's own additions with
+   no modified or removed canonical files. Leave foreign or uncertain files to their owner.
+   Other drift follows [operational recovery/cutover](ops-cutover.md); do not patch a manifest or
+   canonical files to make a check green.
+2. Inventory the owned directory, including hidden files, and retain byte digests. Create a fresh
+   allowed helper workspace using the shared recipe. Move only the inventoried helpers with a
+   structured filesystem API and compare the moved files to the inventory. Keep required batch
+   captures, inputs, traces and the original `plan.json` in their batch directory. Restore the
+   executor's export imports and declared invocation root; review any relative imports in other
+   helpers before running them. Save the recovery evidence at its responsible owner before cleanup.
+3. Run `npm run ops:verify` again; it must report `clean`. The process owner then inspects the ledger
+   and staged bundle. A running attempt with no prepared transaction can publish with its original
+   attempt/publication tokens. A prepared transaction uses `reconcile-step` under the
+   [publication contract](../../instructions/pipeline-artifacts.md); an unknown mutation outcome
+   is checked there before a retry. Do not recreate an attempt or edit the ledger by hand.
+4. Verify the batch before recording it. Retry its original payload with its original observation
+   time and plan; the ordinary concurrency and idempotency guards still apply. Check archive and
+   ledger digests after success. Complete the flagged-results review, preserve anything else still
+   needed and remove only the owner's fresh workspace under the shared cleanup checks. An
+   unresolved outcome, unsaved result or unknown file purpose keeps it and is named in the return.
 
 ## 1.1. Batch store: the history beside the index
 
@@ -173,7 +224,7 @@ the repair of each:
 | `triage_ledger_record_schema_version`                                                                                | the record's version is not the one this build reads                                                                                                                                                    | **do not delete.** It is not a truncated file: a build of its own version must read it                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `triage_ledger_record_dir_missing`                                                                                   | the batch directory does not exist                                                                                                                                                                      | create the directory before the run; the tool does not make it up                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `triage_ledger_entry_without_trace`                                                                                  | `entries` holds an entry whose link has no trace in the batch directory's `traces/`: the batch did not observe this vacancy                                                                             | the ledger and the directory are untouched. Remove every entry without a trace from `entries` and repeat `recordBatch`. Do not switch to `{artifactsDir: null}`: that is a write without an archive. A repeat of an already recorded batch is not subject to this check and is accepted as before                                                                                                                                                                                                                                 |
-| `engine_tree_drift`, `candidate_snapshot_drift`, `ops_tree_building`, `ops_manifest_missing`, `ops_manifest_invalid` | the operational folder diverged from its manifest, its swap is not finished, or the manifest is unreadable; the meaning of the codes — [tools/ops-tree/README.md](../../tools/ops-tree/README.md#codes) | the ledger and the directory are untouched. Do not record the batch; `npm run ops:verify` names the paths. Repairing the folder is the operational-folder section of [ops-cutover.md](ops-cutover.md); repeating `recordBatch` after the repair is on the user's word                                                                                                                                                                                                                                                             |
+| `engine_tree_drift`, `candidate_snapshot_drift`, `ops_tree_building`, `ops_manifest_missing`, `ops_manifest_invalid` | the operational folder diverged from its manifest, its swap is not finished, or the manifest is unreadable; the meaning of the codes — [tools/ops-tree/README.md](../../tools/ops-tree/README.md#codes) | the ledger and the directory are untouched. Do not record the batch; `npm run ops:verify` names the paths. For the run's own added helpers, follow [added helper recovery](#recovering-added-helper-drift). Other drift follows the operational-folder section of [ops-cutover.md](ops-cutover.md), with its authorization requirements                                                                                                                                                                                           |
 | `triage_ledger_record_unwritable`                                                                                    | the file could not be created or completed (permissions, space)                                                                                                                                         | the ledger is untouched. If the file did appear, it is truncated — continue with the `_unreadable` row; then fix the directory and repeat                                                                                                                                                                                                                                                                                                                                                                                         |
 
 **An orphaned record.** There is a window between the write of the file and the write of the
