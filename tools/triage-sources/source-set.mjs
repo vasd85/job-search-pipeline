@@ -21,6 +21,8 @@ export const sourceRoles = Object.freeze([
 ]);
 export const descriptionKinds = Object.freeze(["full_description", "summary", "unknown"]);
 export const mappingStatuses = Object.freeze(["resolved", "unresolved_oversize"]);
+export const exclusionReasons = Object.freeze(["non_qa_vacancy", "non_vacancy"]);
+export const MAX_EXCLUDED_REGIONS_PER_POST = 20;
 export const MAX_SOURCE_SET_BYTES = 16 * 1024 * 1024;
 export const MAX_SOURCE_POST_BYTES = 1024 * 1024;
 export const MAX_SOURCE_SNAPSHOTS = 2000;
@@ -50,6 +52,68 @@ const keys = (value, expected) =>
 const index = (value) => Number.isSafeInteger(value) && value > 0;
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Numbers-only exclusions account for known non-QA text without giving its anchors QA roles. */
+export function excludedRegionsProblem(regions, { lineCount, anchors, cards }) {
+  if (
+    !Array.isArray(regions) ||
+    regions.length > MAX_EXCLUDED_REGIONS_PER_POST ||
+    (regions.length > 0 && cards.length === 0)
+  )
+    return "Excluded regions must be a bounded list beside vacancy cards.";
+  const offered = new Map(
+    anchors
+      .filter((anchor) => ["url", "tg", "email", "tg_other"].includes(anchor.type))
+      .map((anchor) => [anchor.index, anchor]),
+  );
+  const mapped = new Set(cards.flatMap((card) => card.links.map((link) => link.anchor)));
+  const sorted = [];
+  const excluded = new Set();
+  for (const region of regions) {
+    if (
+      !keys(region, ["start_line", "end_line", "reason", "anchors"]) ||
+      !index(region.start_line) ||
+      !index(region.end_line) ||
+      region.start_line > region.end_line ||
+      region.end_line > lineCount ||
+      !exclusionReasons.includes(region.reason) ||
+      !Array.isArray(region.anchors) ||
+      region.anchors.length > anchors.length
+    )
+      return "Excluded region has invalid bounds, reason or anchors.";
+    if (
+      cards.some((card) => region.start_line <= card.end_line && card.start_line <= region.end_line)
+    )
+      return "Excluded region overlaps a vacancy's own text.";
+    const own = new Set();
+    for (const number of region.anchors) {
+      const anchor = offered.get(number);
+      if (
+        !index(number) ||
+        anchor === undefined ||
+        excluded.has(number) ||
+        mapped.has(number) ||
+        (anchor.line !== null && (anchor.line < region.start_line || anchor.line > region.end_line))
+      )
+        return "Excluded anchor is absent, repeated, mapped or outside its region.";
+      own.add(number);
+      excluded.add(number);
+    }
+    for (const anchor of offered.values())
+      if (
+        anchor.line !== null &&
+        anchor.line >= region.start_line &&
+        anchor.line <= region.end_line &&
+        !own.has(anchor.index)
+      )
+        return "Excluded region does not account for every offered anchor in its text.";
+    sorted.push(region);
+  }
+  sorted.sort((a, b) => a.start_line - b.start_line);
+  if (sorted.some((region, at) => at > 0 && region.start_line <= sorted[at - 1].end_line))
+    return "Excluded regions overlap.";
+  return null;
+}
 
 export class SourceSetError extends Error {
   constructor(message) {
@@ -183,7 +247,7 @@ export function sourceAnchorUrl(anchor) {
 }
 
 /** An explicit constructor for fictional fixtures and collector publication. */
-export function createSourceSet({ collectionText, snapshots, cards }) {
+export function createSourceSet({ collectionText, snapshots, cards, excludedRegions = [] }) {
   const ordered = [...cards].sort(
     (a, b) =>
       a.snapshot_ref.localeCompare(b.snapshot_ref) ||
@@ -213,13 +277,23 @@ export function createSourceSet({ collectionText, snapshots, cards }) {
     collection_sha256: hash(collectionText ?? ""),
     snapshots,
     cards: records,
+    ...(!Array.isArray(excludedRegions) || excludedRegions.length > 0
+      ? { excluded_regions: excludedRegions }
+      : {}),
   };
-  return validateSourceSet(set, { collectionText: collectionText ?? "" });
+  validateSourceSet(set, { collectionText: collectionText ?? "" });
+  if (set.excluded_regions)
+    set.excluded_regions = [...set.excluded_regions]
+      .sort((a, b) => a.snapshot_ref.localeCompare(b.snapshot_ref) || a.start_line - b.start_line)
+      .map((region) => ({ ...region, anchors: [...region.anchors].sort((a, b) => a - b) }));
+  return set;
 }
 
 export function validateSourceSet(set, { collectionText, captureRoot } = {}) {
+  const setKeys = ["schema_version", "collection_sha256", "snapshots", "cards"];
+  if (plain(set) && Object.hasOwn(set, "excluded_regions")) setKeys.push("excluded_regions");
   if (
-    !keys(set, ["schema_version", "collection_sha256", "snapshots", "cards"]) ||
+    !keys(set, setKeys) ||
     set.schema_version !== 1 ||
     !HEX.test(set.collection_sha256 ?? "") ||
     !Array.isArray(set.snapshots) ||
@@ -401,6 +475,25 @@ export function validateSourceSet(set, { collectionText, captureRoot } = {}) {
     if (!bySnapshot.has(card.snapshot_ref)) bySnapshot.set(card.snapshot_ref, []);
     bySnapshot.get(card.snapshot_ref).push(card);
   }
+  const excludedBySnapshot = new Map();
+  if (Object.hasOwn(set, "excluded_regions")) {
+    if (
+      !Array.isArray(set.excluded_regions) ||
+      set.excluded_regions.length > MAX_SOURCE_SNAPSHOTS * MAX_EXCLUDED_REGIONS_PER_POST
+    )
+      refuse("Source exclusions must be a bounded list.");
+    for (const region of set.excluded_regions) {
+      if (
+        !keys(region, ["snapshot_ref", "start_line", "end_line", "reason", "anchors"]) ||
+        !bySnapshot.has(region.snapshot_ref)
+      )
+        refuse("Source exclusion has invalid fields or no vacancy snapshot.");
+      if (!excludedBySnapshot.has(region.snapshot_ref))
+        excludedBySnapshot.set(region.snapshot_ref, []);
+      const { snapshot_ref: ref, ...numbers } = region;
+      excludedBySnapshot.get(ref).push(numbers);
+    }
+  }
   for (const [ref, cards] of bySnapshot) {
     cards.sort((a, b) => a.start_line - b.start_line);
     if (cards.length > 20) refuse("A snapshot exceeds the vacancy limit.");
@@ -408,6 +501,14 @@ export function validateSourceSet(set, { collectionText, captureRoot } = {}) {
       if (card.vacancy_no !== at + 1 || (at > 0 && card.start_line <= cards[at - 1].end_line))
         refuse("Vacancy boundaries overlap or display ordinals are not in source order.");
     const snapshot = snapshots.get(ref);
+    const regions = excludedBySnapshot.get(ref) ?? [];
+    const problem = excludedRegionsProblem(regions, {
+      lineCount: snapshot.lines.length,
+      anchors: snapshot.anchors,
+      cards,
+    });
+    if (problem !== null) refuse(problem);
+    const excluded = new Set(regions.flatMap((region) => region.anchors));
     for (const anchor of snapshot.anchors) {
       const assignments = cards.flatMap((card) =>
         card.links
@@ -417,9 +518,10 @@ export function validateSourceSet(set, { collectionText, captureRoot } = {}) {
       if (
         ["url", "tg", "tg_other", "email"].includes(anchor.type) &&
         anchorUrl(anchor) !== null &&
-        !assignments.length
+        !assignments.length &&
+        !excluded.has(anchor.index)
       )
-        refuse("A usable anchor has no explicit source mapping.");
+        refuse("A usable anchor has no explicit source mapping or exclusion.");
       if (assignments.length > 1 && assignments.some(({ role }) => role !== "company_context"))
         refuse("Only company context anchors may be shared between vacancies.");
     }
@@ -540,6 +642,7 @@ export function buildSourceSet({ cards, collectionText, captures, captureRoot })
   const set = createSourceSet({
     collectionText,
     snapshots: [...snapshots.values()],
+    excludedRegions: cards.flatMap((card) => card.sourceExclusions ?? []),
     cards: cards
       .filter((card) => card.sourceSnapshot)
       .map((card) => ({

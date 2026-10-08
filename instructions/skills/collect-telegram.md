@@ -33,7 +33,10 @@ collection only through the reader — the code picks the posts in which a word 
 `role_words` stands, and the `telegram-reader` agent reads those and names the QA vacancies; a post
 outside the word list is counted, not read. The user says which of the two a source is; when that is
 not plain, ask. Both source types use answer version 2; no parent inference substitutes for that
-mapping. The author remains contact metadata and does not merge roles or replace a stated form.
+mapping. Scope remains QA vacancies only. The reader may explicitly exclude known non-QA or
+non-vacancy regions with the answer contract's closed reasons; uncertain roles remain unknown for
+source review. Exclusions retain their complete source text and anchors in the immutable source-set.
+The author remains contact metadata and does not merge roles or replace a stated form.
 
 ## Working files
 
@@ -79,7 +82,7 @@ Never run `init` on your own to get past a refusal.
    `answers_invalid` run `finalize --out-dir <that directory> --accept-invalid` and name the
    rejected posts in the chat summary. Then read `sweep-report.md`.
 4. Read `sweep-report.md` in the output directory, including source memberships and unresolved
-   mappings. Exit code `2` means at least one source did not
+   mappings, and review any recorded `excluded_regions` audit in `source-set.json`. Exit code `2` means at least one source did not
    complete; the report names it. A collection is handed to scoring only when stdout says
    `completed: true` and `collection_path` is not null. Keep `source-set.json` and its referenced
    saved HTML files beside the collection; the scoring handoff verifies digests and reparses the

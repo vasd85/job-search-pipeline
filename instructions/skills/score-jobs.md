@@ -520,6 +520,11 @@ for upgrade, recording and correction APIs. All observations and payloads remain
    A separate target needs a usable full JD, checked destination identity and an explicit employer
    mismatch, or a different known role family supported by both sources' own role facts. Title,
    seniority, salary and date differences alone remain publication conflicts.
+   A linked summary with `input: null` requires source review because destination identity is
+   unproven. Matching employer and role require explicit facts in both the original and linked
+   publication; incidental body mentions cannot fill an absent identity fact.
+   Canonical aliases of a different target reconcile into one logical vacancy with the complete
+   union of its observations. Preserve each raw outcome and review their contradictions.
    Do not transfer salary, Junior+, work format or any field between descriptions.
 5. Call `resolveSourceSet`/`publishSourceResolution` with the exact full collection bytes, selected
    card/range, observations and candidate validation options. The publisher copies saved Telegram
@@ -537,6 +542,9 @@ for upgrade, recording and correction APIs. All observations and payloads remain
 6. Run triage verification on that batch and the original selected URL range with the ledger;
    current source artifacts require policy v9. A pass proves exact collection/HTML custody,
    URL/card coverage, own-body quotes, source-plan baselines and primary/result reconstruction.
+   Corroborate every parent reference against the immutable ledger batch index before record or
+   index writes, including replay and orphan adoption. Record source batches only in their declared
+   real directory, with no symlink in the archive path.
    Record only through `recordSourceBatch`, after verifying all required evidence. The immutable
    batch record is written before the mutable ledger. Concurrency, aliases, parent-bound context
    corrections and orphan replay use the runbook's guarded APIs; do not edit the ledger or old

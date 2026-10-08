@@ -4631,6 +4631,656 @@ test("source-set validation binds exact collection and HTML bytes and rejects sp
   invalid(set);
 });
 
+function mixedDigestFixture({
+  floating = false,
+  advertisement = false,
+  sameUrl = false,
+  skippedFirst = false,
+  secondTitle = "Graphic Designer",
+} = {}) {
+  const company = "https://company.example.test/";
+  const qaUrl = "https://ats.example.test/qa";
+  const siblingUrl = sameUrl ? qaUrl : "https://ats.example.test/design";
+  const lines = [
+    `${skippedFirst ? '<a href="tg://resolve?domain=example">App link</a> ' : ""}Company <a href="${company}">Example Company</a>`,
+    "QA Analyst",
+    "Responsibilities: test APIs",
+    "Requirements: Playwright",
+    `Apply QA <a href="${qaUrl}">QA form</a>`,
+    secondTitle,
+    secondTitle === "Graphic Designer"
+      ? "Requirements: Figma"
+      : "Responsibilities: software quality",
+    floating ? "Apply via preview" : `Apply Designer <a href="${siblingUrl}">Design form</a>`,
+    ...(advertisement
+      ? [
+          "Newsletter advertisement",
+          'Subscribe <a href="https://news.example.test/subscribe">Newsletter</a>',
+        ]
+      : []),
+  ];
+  const html = pageHtml({
+    posts: [
+      {
+        ...post(829, day(13), lines.join("<br/>")),
+        extra: floating
+          ? `<a class="tgme_widget_message_link_preview" href="${siblingUrl}">Design preview</a>`
+          : "",
+      },
+    ],
+    older: false,
+  });
+  const parsed = parsePage(html, { handle: "examplejobs" }).posts[0];
+  const item = { post: parsed, entries: linksOf(parsed) };
+  const snapshot = snapshotFromHtml(html, {
+    handle: "examplejobs",
+    postId: 829,
+    file: "001.page.html",
+    capturedAt: "2026-09-14T12:00:00.000Z",
+  });
+  const qa = mappedVac(
+    2,
+    2,
+    5,
+    [
+      { anchor: 1, role: "company_context" },
+      { anchor: 2, role: "apply" },
+    ],
+    "full_description",
+    [{ via: "url", link: 2 }],
+  );
+  const regions = [
+    { start_line: 6, end_line: 8, reason: "non_qa_vacancy", anchors: [3] },
+    ...(advertisement
+      ? [{ start_line: 9, end_line: 10, reason: "non_vacancy", anchors: [4] }]
+      : []),
+  ];
+  const shift = skippedFirst ? 1 : 0;
+  const collectionText = `${company}\n${qaUrl}\n${snapshot.original_url}\n`;
+  const sourceCard = {
+    snapshot_ref: snapshot.snapshot_ref,
+    title_line: 2,
+    start_line: 2,
+    end_line: 5,
+    description_kind: "full_description",
+    links: [
+      { anchor: 1 + shift, role: "company_context", url: company },
+      { anchor: 2 + shift, role: "apply", url: qaUrl },
+      { anchor: null, role: "original_post", url: snapshot.original_url },
+    ],
+  };
+  const sourceRegions = regions.map((region) => ({
+    snapshot_ref: snapshot.snapshot_ref,
+    ...region,
+    anchors: region.anchors.map((anchor) => anchor + shift),
+  }));
+  return {
+    html,
+    item,
+    snapshot,
+    qa,
+    regions,
+    sourceCard,
+    sourceRegions,
+    company,
+    qaUrl,
+    siblingUrl,
+    collectionText,
+  };
+}
+
+function checkedMixedAnswer(fixture, edit = () => {}) {
+  const mapped = mappedAnswer(fixture.item, [fixture.qa]);
+  mapped.answer.posts[0].excluded_regions = structuredClone(fixture.regions);
+  edit(mapped.answer.posts[0]);
+  return { ...mapped, checked: checkAnswer(mapped.answer, mapped.batch) };
+}
+
+test("reader2 mixed QA/non-QA digest finalizes without relabeling the sibling form as company context", async (t) => {
+  const root = disposableRoot(t, "telegram-mixed-source-");
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "mixed");
+  writeFileSync(configPath, JSON.stringify(rawConfig()));
+  initStateCurrent(statePath);
+  const beforeState = readFileSync(statePath, "utf8");
+  const html = pageHtml({
+    posts: [
+      post(
+        829,
+        day(13),
+        'Company <a href="https://company.example.test/">Example Company</a><br/>QA Analyst<br/>Responsibilities: test APIs<br/>Requirements: Playwright<br/>Apply QA <a href="https://ats.example.test/qa">QA form</a><br/>Graphic Designer<br/>Requirements: Figma<br/>Apply Designer <a href="https://ats.example.test/design">Design form</a>',
+      ),
+    ],
+    older: false,
+  });
+  const run = await executeSweepCurrent({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: html } }),
+  });
+  assert.equal(run.awaiting, true);
+  assert.equal(readFileSync(statePath, "utf8"), beforeState);
+  const stage = JSON.parse(readFileSync(join(outDir, "sweep-stage.json"), "utf8"));
+  assert.equal(stage.schema_version, 2);
+  assert.match(JSON.stringify(stage.walk), /Graphic Designer/u);
+  assert.match(JSON.stringify(stage.walk), /https:\/\/ats\.example\.test\/design/u);
+  const batch = run.batches[0];
+  const batchName = batch.file.replace(/\.txt$/u, "");
+  assert.deepEqual(
+    batch.posts[0].links.map(({ j, line }) => ({ j, line })),
+    [
+      { j: 1, line: 1 },
+      { j: 2, line: 5 },
+      { j: 3, line: 8 },
+    ],
+  );
+  mkdirSync(join(outDir, "reader-out"));
+  writeFileSync(
+    join(outDir, "reader-out", `${batchName}.json`),
+    JSON.stringify({
+      schema_version: 2,
+      batch: batchName,
+      posts: [
+        {
+          post: 1,
+          vacancies: [
+            mappedVac(
+              2,
+              2,
+              5,
+              [
+                { anchor: 1, role: "company_context" },
+                { anchor: 2, role: "apply" },
+              ],
+              "full_description",
+              [{ via: "url", link: 2 }],
+            ),
+          ],
+          excluded_regions: [
+            { start_line: 6, end_line: 8, reason: "non_qa_vacancy", anchors: [3] },
+          ],
+        },
+      ],
+    }),
+  );
+  const answerPath = join(outDir, "reader-out", `${batchName}.json`);
+  const validAnswerText = readFileSync(answerPath, "utf8");
+  const incomplete = JSON.parse(validAnswerText);
+  delete incomplete.posts[0].excluded_regions;
+  writeFileSync(answerPath, JSON.stringify(incomplete));
+  refusal(() => executeFinalize({ outDir, statePath, repoRoot: root }), "answers_invalid");
+  assert.equal(readFileSync(statePath, "utf8"), beforeState);
+  assert.equal(existsSync(join(outDir, "vacancies.jsonl")), false);
+  assert.equal(existsSync(join(outDir, "sweep-manifest.json")), false);
+  writeFileSync(answerPath, validAnswerText);
+  const done = executeFinalize({ outDir, statePath, repoRoot: root });
+  const collectionText = readFileSync(done.collectionPath, "utf8");
+  const saved = readSourceSet(done.sourceSetPath, { collectionText });
+  const set = saved.sourceSet;
+  assert.equal(set.cards.length, 1);
+  assert.equal(set.cards[0].title_line, 2);
+  assert.equal(set.cards[0].description_kind, "full_description");
+  assert.equal(set.cards[0].mapping_status, "resolved");
+  assert.deepEqual(set.excluded_regions, [
+    {
+      snapshot_ref: set.snapshots[0].snapshot_ref,
+      start_line: 6,
+      end_line: 8,
+      reason: "non_qa_vacancy",
+      anchors: [3],
+    },
+  ]);
+  assert.equal(set.snapshots[0].lines[5].text, "Graphic Designer");
+  assert.equal(set.snapshots[0].anchors[2].href, "https://ats.example.test/design");
+  assert.equal(cardBody(set, set.cards[0]).includes("Graphic Designer"), false);
+  const handoff = readCollection(done.collectionPath, { sourceSetPath: done.sourceSetPath });
+  assert.deepEqual(handoff.source_set.excluded_regions, set.excluded_regions);
+  assert.equal(handoff.source_set_sha256, saved.digest);
+  assert.deepEqual(sourceSetMemberships(set, "https://ats.example.test/design"), []);
+  assert.deepEqual(
+    set.cards[0].links.filter(({ role }) => role === "company_context"),
+    [{ anchor: 1, role: "company_context", url: "https://company.example.test/" }],
+  );
+  assert.deepEqual(
+    readLinksFile(done.collectionPath).map(({ url }) => url),
+    [
+      "https://company.example.test/",
+      "https://ats.example.test/qa",
+      "https://t.me/examplejobs/829?embed=1",
+    ],
+  );
+  assert.equal(done.result.cards[0].entries[2].fate, "not_cited");
+  const record = JSON.parse(readFileSync(done.cardsPath, "utf8").trim());
+  assert.equal(cardProblem(record), null);
+  assert.equal(record.schema_version, 4);
+  assert.equal(
+    record.source_links.some(({ anchor }) => anchor === 3),
+    false,
+  );
+  assert.deepEqual(done.manifest.source_set, {
+    file: "source-set.json",
+    sha256: saved.digest,
+    snapshots: 1,
+    cards: 1,
+  });
+  assert.equal(done.manifest.accepted_invalid, 0);
+  assert.equal(readState(statePath).schema_version, 3);
+});
+
+test("reader2 exclusions keep non-QA and non-vacancy outside links explicit and refuse unknown, missing, overlapping or QA-owned exclusions", () => {
+  const fixture = mixedDigestFixture({ advertisement: true });
+  const checked = checkedMixedAnswer(fixture).checked.results.get(1);
+  assert.equal(checked.kind, "vacancy");
+  assert.deepEqual(checked.excluded_regions, fixture.regions);
+  assert.deepEqual(checked.vacancies, [fixture.qa]);
+  for (const mutate of [
+    (entry) => {
+      delete entry.excluded_regions;
+    },
+    (entry) => {
+      entry.excluded_regions = null;
+    },
+    (entry) => {
+      entry.excluded_regions = {};
+    },
+    (entry) => {
+      entry.excluded_regions = [];
+    },
+    (entry) => {
+      entry.excluded_regions[0].reason = "unknown";
+    },
+    (entry) => {
+      entry.excluded_regions[0].reason = "unconfirmed_role";
+    },
+    (entry) => {
+      entry.excluded_regions[0].extra = 1;
+    },
+    (entry) => {
+      entry.excluded_regions[0].start_line = 0;
+    },
+    (entry) => {
+      entry.excluded_regions[0].end_line = 99;
+    },
+    (entry) => {
+      entry.excluded_regions[0].start_line = 8;
+      entry.excluded_regions[0].end_line = 6;
+    },
+    (entry) => {
+      entry.excluded_regions[0].end_line = 7;
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [3, 3];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [4];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [5];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [0];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = ["3"];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [null];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = "3";
+    },
+    (entry) => {
+      entry.excluded_regions[1].start_line = 8;
+      entry.excluded_regions[1].anchors = [3, 4];
+    },
+    (entry) => {
+      entry.excluded_regions.push({
+        start_line: 6,
+        end_line: 7,
+        reason: "non_vacancy",
+        anchors: [],
+      });
+    },
+    (entry) => {
+      entry.excluded_regions[0] = {
+        start_line: 2,
+        end_line: 5,
+        reason: "non_qa_vacancy",
+        anchors: [2],
+      };
+    },
+    (entry) => {
+      entry.vacancies[0].links.push({ anchor: 3, role: "company_context" });
+    },
+    (entry) => {
+      entry.vacancies[0].links.push({ anchor: 3, role: "unknown" });
+    },
+    (entry) => {
+      entry.vacancies = [];
+    },
+  ])
+    assert.deepEqual(checkedMixedAnswer(fixture, mutate).checked.results.get(1), {
+      kind: "invalid",
+      code: "post_invalid",
+    });
+  const onlyNonQa = mixedDigestFixture();
+  assert.equal(mappedAnswer(onlyNonQa.item, [onlyNonQa.qa]).checked.results.get(1).kind, "invalid");
+  const twoQaFixture = mixedDigestFixture({ secondTitle: "QA Lead" });
+  const twoQa = mappedAnswer(twoQaFixture.item, [
+    twoQaFixture.qa,
+    mappedVac(6, 6, 8, [{ anchor: 3, role: "apply" }], "summary", [{ via: "url", link: 3 }]),
+  ]);
+  assert.equal(twoQa.checked.results.get(1).kind, "vacancy", "two QA mappings need no exclusions");
+  const uncertainFixture = mixedDigestFixture({ secondTitle: "Software Quality Specialist" });
+  const uncertain = mappedAnswer(uncertainFixture.item, [
+    uncertainFixture.qa,
+    mappedVac(6, 6, 8, [{ anchor: 3, role: "unknown" }], "unknown"),
+  ]);
+  assert.equal(uncertain.checked.results.get(1).kind, "vacancy");
+  assert.equal(uncertain.checked.results.get(1).vacancies[1].description_kind, "unknown");
+  assert.equal(uncertain.checked.results.get(1).vacancies[1].links[0].role, "unknown");
+  assert.equal(Object.hasOwn(uncertain.checked.results.get(1), "excluded_regions"), false);
+  const uncertainSet = createSourceSet({
+    collectionText: uncertainFixture.collectionText,
+    snapshots: [uncertainFixture.snapshot],
+    cards: [
+      uncertainFixture.sourceCard,
+      {
+        snapshot_ref: uncertainFixture.snapshot.snapshot_ref,
+        title_line: 6,
+        start_line: 6,
+        end_line: 8,
+        description_kind: "unknown",
+        links: [
+          { anchor: 3, role: "unknown", url: uncertainFixture.siblingUrl },
+          { anchor: null, role: "original_post", url: uncertainFixture.snapshot.original_url },
+        ],
+      },
+    ],
+  });
+  assert.equal(uncertainSet.cards[1].description_kind, "unknown");
+  assert.deepEqual(
+    sourceSetMemberships(uncertainSet, uncertainFixture.siblingUrl).map(({ role }) => role),
+    ["unknown"],
+  );
+  assert.equal(Object.hasOwn(uncertainSet, "excluded_regions"), false);
+});
+
+test("source-set exclusions preserve saved non-QA body and reject malformed audit, hidden anchors and excluded-only collection URLs", (t) => {
+  const root = disposableRoot(t, "telegram-exclusion-custody-");
+  const fixture = mixedDigestFixture({ advertisement: true });
+  writeFileSync(join(root, "001.page.html"), fixture.html);
+  const set = createSourceSet({
+    collectionText: fixture.collectionText,
+    snapshots: [fixture.snapshot],
+    cards: [fixture.sourceCard],
+    excludedRegions: fixture.sourceRegions,
+  });
+  const path = join(root, "source-set.json");
+  writeFileSync(path, serializeSourceSet(set));
+  assert.deepEqual(
+    readSourceSet(path, { collectionText: fixture.collectionText }).sourceSet.excluded_regions,
+    fixture.sourceRegions,
+  );
+  assert.equal(set.snapshots[0].lines[5].text, "Graphic Designer");
+  assert.equal(set.snapshots[0].anchors[2].href, fixture.siblingUrl);
+  assert.deepEqual(sourceSetMemberships(set, fixture.siblingUrl), []);
+  assert.deepEqual(sourceSetMemberships(set, "https://news.example.test/subscribe"), []);
+  for (const mutate of [
+    (value) => {
+      delete value.excluded_regions;
+    },
+    (value) => {
+      value.excluded_regions = null;
+    },
+    (value) => {
+      value.excluded_regions = [];
+    },
+    (value) => {
+      value.excluded_regions[0].snapshot_ref = "tg-snapshot:sha256:" + "a".repeat(64);
+    },
+    (value) => {
+      value.excluded_regions[0].reason = "unknown";
+    },
+    (value) => {
+      value.excluded_regions[0].extra = "data";
+    },
+    (value) => {
+      value.excluded_regions[0].start_line = 0;
+    },
+    (value) => {
+      value.excluded_regions[0].end_line = 11;
+    },
+    (value) => {
+      value.excluded_regions[0].end_line = 7;
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = [];
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = [3, 3];
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = [4];
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = [5];
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = ["3"];
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = {};
+    },
+    (value) => {
+      value.excluded_regions[1].start_line = 8;
+      value.excluded_regions[1].anchors = [3, 4];
+    },
+    (value) => {
+      value.excluded_regions.push({
+        snapshot_ref: value.snapshots[0].snapshot_ref,
+        start_line: 6,
+        end_line: 7,
+        reason: "non_vacancy",
+        anchors: [],
+      });
+    },
+    (value) => {
+      value.excluded_regions[0] = {
+        snapshot_ref: value.snapshots[0].snapshot_ref,
+        start_line: 2,
+        end_line: 5,
+        reason: "non_qa_vacancy",
+        anchors: [2],
+      };
+    },
+    (value) => {
+      value.cards[0].links.push({ anchor: 3, role: "company_context", url: fixture.siblingUrl });
+    },
+    (value) => {
+      value.cards[0].links.push({ anchor: 3, role: "unknown", url: fixture.siblingUrl });
+    },
+    (value) => {
+      value.snapshots[0].lines[5].text = "Invented sibling text";
+      value.snapshots[0].snapshot_ref = snapshotRef(value.snapshots[0]);
+      value.cards[0].snapshot_ref = value.snapshots[0].snapshot_ref;
+      value.cards[0].card_ref = cardRef(value.cards[0]);
+      for (const region of value.excluded_regions)
+        region.snapshot_ref = value.snapshots[0].snapshot_ref;
+    },
+  ]) {
+    const changed = structuredClone(set);
+    mutate(changed);
+    writeFileSync(path, serializeSourceSet(changed));
+    assert.throws(
+      () => readSourceSet(path, { collectionText: fixture.collectionText }),
+      (error) => error.code === "source_set_invalid",
+    );
+  }
+  for (const url of [fixture.siblingUrl, "https://news.example.test/subscribe"]) {
+    const collectionText = `${fixture.collectionText}${url}\n`;
+    const changed = structuredClone(set);
+    changed.collection_sha256 = sourceSetDigest(collectionText);
+    assert.throws(
+      () => validateSourceSet(changed, { collectionText, captureRoot: root }),
+      (error) => error.code === "source_set_invalid",
+      "an excluded-only URL cannot acquire a QA membership",
+    );
+  }
+  const duplicate = mixedDigestFixture({ sameUrl: true });
+  for (const excludedRegions of [null, {}, "regions", [null], [{ reason: "non_qa_vacancy" }]])
+    assert.throws(
+      () =>
+        createSourceSet({
+          collectionText: duplicate.collectionText,
+          snapshots: [duplicate.snapshot],
+          cards: [
+            {
+              ...duplicate.sourceCard,
+              links: [
+                ...duplicate.sourceCard.links,
+                { anchor: 3, role: "company_context", url: duplicate.qaUrl },
+              ],
+            },
+          ],
+          excludedRegions,
+        }),
+      (error) => error.code === "source_set_invalid",
+      "the constructor must refuse malformed exclusions even when all anchors already have roles",
+    );
+  const sharedUrl = createSourceSet({
+    collectionText: duplicate.collectionText,
+    snapshots: [duplicate.snapshot],
+    cards: [duplicate.sourceCard],
+    excludedRegions: duplicate.sourceRegions,
+  });
+  assert.deepEqual(
+    sourceSetMemberships(sharedUrl, duplicate.qaUrl).map(({ anchor }) => anchor),
+    [2],
+  );
+  assert.equal(sharedUrl.excluded_regions[0].anchors[0], 3);
+});
+
+test("collector exclusions convert offered ordinals to original anchors and preserve one explicit floating non-QA anchor", async (t) => {
+  const root = disposableRoot(t, "telegram-exclusion-ordinals-");
+  const configPath = join(root, "telegram-sources.json");
+  writeFileSync(configPath, JSON.stringify(rawConfig()));
+  for (const [label, options, excludedIndex] of [
+    ["skipped", { skippedFirst: true }, 4],
+    ["floating", { floating: true }, 3],
+  ]) {
+    const fixture = mixedDigestFixture(options);
+    const mapped = checkedMixedAnswer(fixture);
+    assert.equal(mapped.checked.results.get(1).kind, "vacancy");
+    const statePath = join(root, `${label}-state.json`);
+    const outDir = join(root, "telegram-sweeps", label);
+    initStateCurrent(statePath);
+    const run = await executeSweepCurrent({
+      configPath,
+      statePath,
+      outDir,
+      repoRoot: root,
+      ...sweepDeps({ [P1]: { body: fixture.html } }),
+    });
+    const batchName = run.batches[0].file.replace(/\.txt$/u, "");
+    mkdirSync(join(outDir, "reader-out"));
+    writeFileSync(
+      join(outDir, "reader-out", `${batchName}.json`),
+      JSON.stringify({
+        ...mapped.answer,
+        batch: batchName,
+      }),
+    );
+    const done = executeFinalize({ outDir, statePath, repoRoot: root });
+    const set = readSourceSet(done.sourceSetPath, {
+      collectionText: readFileSync(done.collectionPath, "utf8"),
+    }).sourceSet;
+    assert.deepEqual(set.excluded_regions[0].anchors, [excludedIndex]);
+    assert.deepEqual(done.result.cards[0].sourceExclusions[0].anchors, [excludedIndex]);
+    if (label === "skipped") {
+      assert.equal(run.batches[0].posts[0].links[2].entryIndex, 3);
+      assert.equal(set.snapshots[0].anchors[0].type, "non_web");
+      assert.deepEqual(
+        set.cards[0].links.map(({ anchor }) => anchor),
+        [2, 3, null],
+      );
+    } else {
+      assert.equal(set.snapshots[0].anchors[2].line, null);
+      for (const mutate of [
+        (entry) => {
+          entry.vacancies[0].links.push({ anchor: 3, role: "unknown" });
+        },
+        (entry) => {
+          entry.excluded_regions.push({
+            start_line: 6,
+            end_line: 7,
+            reason: "non_vacancy",
+            anchors: [3],
+          });
+        },
+      ])
+        assert.equal(checkedMixedAnswer(fixture, mutate).checked.results.get(1).kind, "invalid");
+    }
+    assert.deepEqual(sourceSetMemberships(set, fixture.siblingUrl), []);
+  }
+});
+
+test("legacy reader1/card3/stage1 keeps the mixed digest QA-only mapping and rejects reader2 exclusion fields", async (t) => {
+  const root = disposableRoot(t, "telegram-mixed-legacy-");
+  const fixture = mixedDigestFixture();
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "legacy");
+  writeFileSync(
+    configPath,
+    JSON.stringify(rawConfig({ channels: [{ handle: "examplejobs", thematic: false }] })),
+  );
+  initState(statePath);
+  const run = await executeSweep({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: fixture.html } }),
+  });
+  assert.equal(run.stage.schema_version, 1);
+  const batchName = run.batches[0].file.replace(/\.txt$/u, "");
+  const answer = {
+    schema_version: 1,
+    batch: batchName,
+    posts: [
+      {
+        post: 1,
+        vacancies: [{ title_line: 2, details_link: 2, apply: [{ via: "url", link: 2 }] }],
+      },
+    ],
+  };
+  const descriptor = { name: batchName, posts: run.batches[0].posts };
+  assert.equal(checkAnswer(answer, descriptor).results.get(1).kind, "vacancy");
+  const wrongEpoch = structuredClone(answer);
+  wrongEpoch.posts[0].excluded_regions = fixture.regions;
+  assert.deepEqual(checkAnswer(wrongEpoch, descriptor).results.get(1), {
+    kind: "invalid",
+    code: "post_invalid",
+  });
+  mkdirSync(join(outDir, "reader-out"));
+  writeFileSync(join(outDir, "reader-out", `${batchName}.json`), JSON.stringify(answer));
+  const done = executeFinalize({ outDir, statePath, repoRoot: root });
+  assert.equal(done.sourceSetPath, null);
+  assert.equal(Object.hasOwn(done.manifest, "source_set"), false);
+  assert.equal(readState(statePath).schema_version, 2);
+  const card = JSON.parse(readFileSync(done.cardsPath, "utf8").trim());
+  assert.equal(card.schema_version, 3);
+  assert.equal(cardProblem(card), null);
+  assert.deepEqual(card.score_urls, [fixture.qaUrl]);
+});
+
 test("full description with company and contact preserves original JD; oversize mapping is explicit and never truncated", async (t) => {
   const root = disposableRoot(t, "telegram-full-source-");
   const configPath = join(root, "telegram-sources.json");

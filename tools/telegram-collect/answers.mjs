@@ -15,7 +15,11 @@
 // post that showed a single line, a `title_line` the post does not have is read as that line. The
 // corrected numbers of a post come back as `repairs`, so the sweep can print them.
 
-import { descriptionKinds, sourceRoles } from "../triage-sources/source-set.mjs";
+import {
+  descriptionKinds,
+  excludedRegionsProblem,
+  sourceRoles,
+} from "../triage-sources/source-set.mjs";
 
 export const answerSchemaVersion = 2;
 export const acceptedAnswerSchemaVersions = Object.freeze([1, 2]);
@@ -169,15 +173,24 @@ function checkMappedVacancy(vacancy, descriptor) {
   return { vacancy, repaired: null };
 }
 
-function mappingIsComplete(checked, descriptor) {
+function mappingIsComplete(checked, descriptor, excludedRegions) {
   const vacancies = checked.map((item) => item.vacancy).sort((a, b) => a.start_line - b.start_line);
   if (vacancies.some((vacancy, at) => at > 0 && vacancy.start_line <= vacancies[at - 1].end_line))
     return false;
+  if (
+    excludedRegionsProblem(excludedRegions, {
+      lineCount: descriptor.shown.length,
+      anchors: descriptor.links.map((link) => ({ ...link, index: link.j })),
+      cards: vacancies,
+    }) !== null
+  )
+    return false;
+  const excluded = new Set(excludedRegions.flatMap((region) => region.anchors));
   for (const link of descriptor.links) {
     const roles = vacancies.flatMap((vacancy) =>
       vacancy.links.filter((mapping) => mapping.anchor === link.j).map((mapping) => mapping.role),
     );
-    if (roles.length === 0 && vacancies.length > 0) return false;
+    if (roles.length === 0 && vacancies.length > 0 && !excluded.has(link.j)) return false;
     if (roles.length > 1 && roles.some((role) => role !== "company_context")) return false;
   }
   return true;
@@ -220,8 +233,12 @@ export function checkAnswer(answer, batch) {
       continue;
     }
     const descriptor = byNumber.get(number);
+    const postKeys = ["post", "vacancies"];
+    const hasExclusions = answer.schema_version === 2 && Object.hasOwn(entry, "excluded_regions");
+    if (hasExclusions) postKeys.push("excluded_regions");
+    const excludedRegions = hasExclusions ? entry.excluded_regions : [];
     const checked =
-      !keysAre(entry, ["post", "vacancies"]) ||
+      !keysAre(entry, postKeys) ||
       !Array.isArray(entry.vacancies) ||
       entry.vacancies.length > MAX_VACANCIES_PER_POST
         ? null
@@ -233,7 +250,7 @@ export function checkAnswer(answer, batch) {
     if (
       checked === null ||
       checked.includes(null) ||
-      (answer.schema_version === 2 && !mappingIsComplete(checked, descriptor))
+      (answer.schema_version === 2 && !mappingIsComplete(checked, descriptor, excludedRegions))
     ) {
       results.set(number, invalid("post_invalid"));
       continue;
@@ -246,6 +263,7 @@ export function checkAnswer(answer, batch) {
             kind: "vacancy",
             vacancies: checked.map((item) => item.vacancy),
             repairs: checked.filter((item) => item.repaired !== null).map((item) => item.repaired),
+            ...(excludedRegions.length > 0 ? { excluded_regions: excludedRegions } : {}),
           },
     );
   }

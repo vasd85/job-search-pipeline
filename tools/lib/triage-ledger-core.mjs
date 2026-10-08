@@ -33,6 +33,8 @@
 
 import {
   closeSync,
+  constants,
+  fstatSync,
   mkdirSync,
   lstatSync,
   openSync,
@@ -1611,6 +1613,39 @@ export function ledgerSnapshotDigest(ledger) {
   return hashBytes(serializeLedger(validateLedger(ledger)));
 }
 
+function assertRealBatchDirectory(root, code) {
+  try {
+    for (let path = resolve(root); ; path = dirname(path)) {
+      const stats = lstatSync(path);
+      if (!stats.isDirectory() || stats.isSymbolicLink())
+        fail(code, "The batch path must contain real directories without symlinks.");
+      if (dirname(path) === path) break;
+    }
+  } catch (error) {
+    if (error instanceof TriageLedgerError) throw error;
+    fail(code, "The batch directory cannot be read.");
+  }
+}
+
+function matchesIndexedBatchRecord(ledger, record) {
+  const indexed = ledger.batches.filter((batch) => batch.batch_id === record.batch_id);
+  if (indexed.length !== 1) return false;
+  const batch = indexed[0];
+  return (
+    batch.entries_digest === record.entries_digest &&
+    batch.recorded_at === record.observed_at &&
+    batch.entry_count ===
+      (record.schema_version === 2 ? record.logical_entries : record.entries).length &&
+    batch.policy_id === record.policy_id &&
+    (record.schema_version === 2
+      ? batch.record_schema_version === 2 &&
+        ["source_set_sha256", "source_resolution_sha256", "plan_sha256"].every(
+          (key) => batch[key] === record[key],
+        )
+      : batch.record_schema_version === undefined)
+  );
+}
+
 /**
  * A prior resolution is evidence only through its immutable, indexed batch. The returned
  * reference carries machine tokens and digests; a later verifier locates that batch as a sibling
@@ -1628,17 +1663,7 @@ export function readSourcePlanPriorResolution(
   if (typeof captureRoot !== "string" || captureRoot.length === 0)
     fail(code, "The prior resolution requires a real batch directory.");
   const root = resolve(captureRoot);
-  try {
-    for (let path = root; ; path = dirname(path)) {
-      const stats = lstatSync(path);
-      if (!stats.isDirectory() || stats.isSymbolicLink())
-        fail(code, "The prior batch path must contain real directories without symlinks.");
-      if (dirname(path) === path) break;
-    }
-  } catch (error) {
-    if (error instanceof TriageLedgerError) throw error;
-    fail(code, "The prior batch directory cannot be read.");
-  }
+  assertRealBatchDirectory(root, code);
   const recordPath = join(root, triageBatchRecordFileName);
   try {
     lstatSync(recordPath);
@@ -1656,17 +1681,9 @@ export function readSourcePlanPriorResolution(
     if (!(error instanceof TriageLedgerError)) throw error;
     fail(code, "The prior batch record or its bound source artifacts are invalid.");
   }
-  const indexed = ledger.batches.filter((batch) => batch.batch_id === record.batch_id);
   if (
     basename(root) !== record.batch_id ||
-    indexed.length !== 1 ||
-    indexed[0].record_schema_version !== 2 ||
-    indexed[0].recorded_at !== record.observed_at ||
-    indexed[0].entry_count !== record.logical_entries.length ||
-    indexed[0].policy_id !== record.policy_id ||
-    ["entries_digest", "source_set_sha256", "source_resolution_sha256", "plan_sha256"].some(
-      (key) => indexed[0][key] !== record[key],
-    ) ||
+    !matchesIndexedBatchRecord(ledger, record) ||
     parseInstant(record.observed_at, code) >= parseInstant(asOf, code) ||
     record.source_set_sha256 !== sourceSetDigest(sourceSet) ||
     typeof collectionText !== "string" ||
@@ -1971,15 +1988,22 @@ function validateSourceBatchRecord(record) {
 }
 
 function readArtifact(path, code) {
+  let descriptor;
   try {
-    const stats = lstatSync(path);
-    if (!stats.isFile() || stats.isSymbolicLink() || stats.size > maxRecordBytes)
+    const before = lstatSync(path);
+    if (!before.isFile() || before.isSymbolicLink() || before.size > maxRecordBytes)
       fail(code, `${path} is not a bounded regular artifact.`);
-    const bytes = readFileSync(path);
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const stats = fstatSync(descriptor);
+    if (!stats.isFile() || stats.size > maxRecordBytes)
+      fail(code, `${path} is not a bounded regular artifact.`);
+    const bytes = readFileSync(descriptor);
     return { value: JSON.parse(bytes.toString("utf8")), digest: hashBytes(bytes), bytes };
   } catch (error) {
     if (error instanceof TriageLedgerError) throw error;
     fail(code, `${path} could not be read as a bounded JSON artifact.`);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
   }
 }
 
@@ -2337,6 +2361,16 @@ export function inspectTerminalSourceObservations(ledger, sourceSet, resolution,
   );
 }
 
+function rememberParentReference(parents, reference) {
+  const previous = parents.get(reference.batch_id);
+  if (previous && JSON.stringify(previous) !== JSON.stringify(reference))
+    fail(
+      "triage_ledger_source_parent_invalid",
+      "The parent record changed while its references were being derived.",
+    );
+  parents.set(reference.batch_id, reference);
+}
+
 function readParent(artifactsDir, batchId, expectedDigest, parents) {
   if (!identifierPattern.test(batchId ?? ""))
     fail(
@@ -2344,18 +2378,10 @@ function readParent(artifactsDir, batchId, expectedDigest, parents) {
       "A parent batch id must be a bounded machine token.",
     );
   const parentDir = join(dirname(artifactsDir), batchId);
-  try {
-    const stats = lstatSync(parentDir);
-    if (!stats.isDirectory() || stats.isSymbolicLink())
-      fail(
-        "triage_ledger_source_parent_invalid",
-        "A parent batch must be a real directory in the same store.",
-      );
-  } catch (error) {
-    if (error instanceof TriageLedgerError) throw error;
-    fail("triage_ledger_source_parent_invalid", "The parent batch directory cannot be read.");
-  }
-  const record = readBatchRecord(parentDir);
+  const code = "triage_ledger_source_parent_invalid";
+  assertRealBatchDirectory(parentDir, code);
+  const archived = readArtifact(join(parentDir, triageBatchRecordFileName), code);
+  const record = validateBatchRecord(archived.value);
   if (record.batch_id !== batchId || record.entries_digest !== expectedDigest)
     fail(
       "triage_ledger_source_parent_invalid",
@@ -2364,10 +2390,38 @@ function readParent(artifactsDir, batchId, expectedDigest, parents) {
   const reference = {
     batch_id: batchId,
     entries_digest: expectedDigest,
-    record_sha256: hashBytes(readFileSync(join(parentDir, triageBatchRecordFileName))),
+    record_sha256: archived.digest,
   };
-  parents.set(batchId, reference);
+  rememberParentReference(parents, reference);
   return { record, parentDir, reference };
+}
+
+// Parent references bind immutable history, including on orphan recovery and indexed replay.
+// Their mutable URL/logical rows may have advanced; their batch index and exact bytes may not.
+function assertIndexedSourceParents(ledger, artifactsDir, references) {
+  for (const reference of references) {
+    const parent = readParent(
+      artifactsDir,
+      reference.batch_id,
+      reference.entries_digest,
+      new Map(),
+    );
+    if (
+      parent.reference.record_sha256 !== reference.record_sha256 ||
+      !matchesIndexedBatchRecord(ledger, parent.record)
+    )
+      fail(
+        "triage_ledger_source_parent_invalid",
+        "A parent record must match its exact bytes and unique immutable ledger batch.",
+      );
+  }
+}
+
+function assertSourceArchiveDirectory(artifactsDir, batchId) {
+  const code = "triage_ledger_record_dir_invalid";
+  if (basename(resolve(artifactsDir)) !== batchId)
+    fail(code, "A source archive directory must be named by its bounded batch id.");
+  assertRealBatchDirectory(artifactsDir, code);
 }
 
 function normalizeCorrections(rawCorrections, sourceSet, resolution, batch, artifactsDir, parents) {
@@ -2771,6 +2825,7 @@ export function recordSourceBatch(path, batch, options) {
       "triage_ledger_record_undeclared",
       "A version 2 source batch always keeps an immutable archive.",
     );
+  assertSourceArchiveDirectory(archiveDir, batch.batch_id);
   for (const key of ["entries", "aliases", "corrections"])
     if (Object.hasOwn(batch, key) && (!Array.isArray(batch[key]) || batch[key].length > maxEntries))
       fail("triage_ledger_invalid_batch", `${key} must be a bounded array.`);
@@ -2849,7 +2904,7 @@ export function recordSourceBatch(path, batch, options) {
       "triage_ledger_refetched_closed_source",
       "A terminal job source has a fresh or unproven observation.",
     );
-  for (const reuse of carried.reused) parents.set(reuse.parent.batch_id, reuse.parent);
+  for (const reuse of carried.reused) rememberParentReference(parents, reuse.parent);
   const entries = (batch.entries ?? [])
     .map((item, index) => normalizeBatchEntry(item, index, batch))
     .sort((a, b) => a.key.localeCompare(b.key));
@@ -2919,6 +2974,8 @@ export function recordSourceBatch(path, batch, options) {
         "triage_ledger_batch_id_reused",
         "The source batch id is already recorded with different immutable content.",
       );
+    assertSourceArchiveDirectory(archiveDir, batch.batch_id);
+    assertIndexedSourceParents(ledger, archiveDir, record.parents);
     const existing = persistedRecordState(archiveDir, batch.batch_id, record.entries_digest);
     if (!previous && existing === "absent") {
       assertSourcePlanUnmoved(ledger, plan, resolution.groups);

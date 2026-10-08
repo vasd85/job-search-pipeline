@@ -337,7 +337,12 @@ resolution contract, then derives the logical rows and source dispositions. `val
 the supported languages and scoring snapshot when the archived epoch requires them. The batch
 payload names `batch_id`, `observed_at`, `policy_id`, `source_set_sha256`,
 `source_resolution_sha256` and `plan_sha256`; optional `entries` are actual URL observations
-with a matching validated trace. Version 2 always declares an archive.
+with a matching validated trace. Version 2 always declares an archive. Its existing directory
+must be named by `batch_id`, and every directory in its path must be real, without symlinks.
+The recorder checks that path before reading artifacts and again under the ledger lock, so a
+redirected or renamed archive is refused with `triage_ledger_record_dir_invalid` before any
+record or index write. Keep the batch in its declared store directory; a symlink to moved
+artifacts cannot preserve its archive address.
 
 The immutable version 2 `ledger-record.json` binds all three artifacts, logical results, URL
 observations, memberships and verified parent references. It is written before the ledger. A
@@ -349,6 +354,15 @@ returns without changing the ledger. A different payload under the same batch id
 Historical version 1 records retain their original schema and digest calculation. Replay compares
 the actual payload and bound artifacts with the frozen archive; a later confirmed alias cannot
 reinterpret that historical record's logical key or digest.
+
+Every parent reference is corroborated under the ledger lock against one matching immutable
+`ledger.batches` row: record version, observation time, count, policy, entries digest and, for
+version 2, all three bound artifact digests. The parent JSON and its byte digest come from the
+same bounded regular file, read without following a record symlink. This parent proof is required
+on a first write, orphan adoption and indexed replay even when mutable observations have since
+advanced. A changed, ambiguous or unindexed parent is `triage_ledger_source_parent_invalid`;
+the recorder leaves the index and archive untouched. Restore the indexed parent's original
+archive or report the missing proof; supplying the changed file's own digest does not repair it.
 
 Before a first archive write, a non-different immutable card may not overlap another current
 logical row under a new key. Adding a lexically smaller card to a confirmed group therefore
@@ -362,8 +376,9 @@ Review excludes a superseded row only for the aliased same-vacancy identity; a s
 runtime after release and cutover, with a new correction batch. Development tests use disposable
 roots. `correctSourceObservations` accepts the ordinary source-batch digest fields and
 `corrections: [{parent_batch_id, parent_entries_digest, card_ref, url}]`. The named parent is read
-from the same batch store and its immutable record/digest must confirm that open BLOCKED URL
-observation. The new source set and resolution must prove `company_context` for the named card.
+from the same batch store and its immutable record must match the indexed parent and confirm
+that open BLOCKED URL observation. The new source set and resolution must prove `company_context`
+for the named card.
 The archive retains the parent record's byte digest, old observation time and exact source
 anchor. Archive-before-ledger, concurrency, orphan recovery and replay guards all apply.
 

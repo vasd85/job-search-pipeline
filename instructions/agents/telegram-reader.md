@@ -32,7 +32,9 @@ automation, SDET, QA lead, QA/test analyst, test engineer for software. It is no
 person looking for work; a course, a channel or a service advertisement; hardware or laboratory
 testing; penetration testing; a "we are hiring across engineering" post that names no QA role.
 Name each QA vacancy of a digest separately. When a role is uncertain, include the vacancy with
-unknown description or link roles so later review can resolve it.
+unknown description or link roles so later review can resolve it. Exclude a region only when the
+visible text clearly establishes a non-QA vacancy or non-vacancy content; uncertainty never
+justifies exclusion.
 
 ## Output
 
@@ -43,7 +45,8 @@ Answer with exactly one JSON object and nothing else - no prose, no fence, no no
   {"post":1,"vacancies":[{"title_line":1,"start_line":1,"end_line":5,
     "description_kind":"summary",
     "links":[{"anchor":1,"role":"company_context"},{"anchor":2,"role":"apply"}],
-    "apply":[{"via":"url","link":2}]}]},
+    "apply":[{"via":"url","link":2}]}],
+    "excluded_regions":[{"start_line":6,"end_line":8,"reason":"non_qa_vacancy","anchors":[3]}]},
   {"post":2,"vacancies":[]}
 ]}
 ```
@@ -57,8 +60,8 @@ Answer with exactly one JSON object and nothing else - no prose, no fence, no no
   for a brief introduction whose fuller description is elsewhere, and `unknown` when the full
   visible text leaves this uncertain. A few requirements and a read-more link are a summary;
   a title and contact alone never prove a full description.
-- `links` accounts for every offered anchor of a post with vacancies. Each entry contains its `j`
-  as `anchor` and one role: `company_context`, `details`, `apply`, `contact` or `unknown`.
+- `links` and optional `excluded_regions` account for every offered anchor of a post with QA
+  vacancies. Each `links` entry contains its `j` as `anchor` and one role: `company_context`, `details`, `apply`, `contact` or `unknown`.
   Company/about/product references explicitly introduced as company context are `company_context`;
   a fuller vacancy description is `details`; an explicit application route is `apply`; a person
   or email is `contact`; unresolved meaning remains `unknown`. Use surrounding wording,
@@ -68,6 +71,15 @@ Answer with exactly one JSON object and nothing else - no prose, no fence, no no
   vacancies, including outside their boundaries. A details/apply/contact anchor belongs inside
   its vacancy; a button with `line=none` belongs to only one. A shared homepage or author never
   makes separate roles one vacancy.
+- `excluded_regions` is optional and names up to twenty known non-QA or non-vacancy regions of
+  a post with QA vacancies. Each has inclusive `start_line`/`end_line`, `reason` equal to
+  `non_qa_vacancy` or `non_vacancy`, and `anchors` containing every offered `j` in that region.
+  Its boundaries are disjoint from every QA card and other exclusion. An excluded anchor appears
+  exactly once, in no card's `links`; a known-line anchor must lie inside its exclusion, and a
+  `line=none` anchor needs one explicit owner. Use only these two reasons, never `unknown` or an
+  exclusion for an uncertain role. Keep uncertain vacancies and links as `unknown` for source
+  review. Do not label a sibling's job form as company context to satisfy coverage. Code preserves
+  excluded text, anchors and reasons in the source-set without adding them to QA memberships.
 - `apply` lists up to five routes. `via` is `url`, `tg`, `email`, `phone`, `dm_author` or
   `unspecified`. For `url`, `tg` and `email`, `link` names an offered anchor of that type, with
   its matching `apply` or `contact` role in `links`; for the other three it is `null`.

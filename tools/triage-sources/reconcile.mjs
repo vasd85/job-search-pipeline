@@ -555,10 +555,10 @@ function relationConfirmed(observation, original, set, card) {
   if (!checkedTargetIdentity(observation)) return false;
   for (const field of ["company", "role"]) {
     const fact = observation.facts[field];
-    if (fact === null) return false;
-    if (original?.facts[field] !== null && original?.facts[field] !== undefined) {
-      if (fold(original.facts[field].value) !== fold(fact.value)) return false;
-    } else if (!fold(cardBody(set, card)).includes(fold(fact.value))) return false;
+    const originalFact = original?.facts[field];
+    // A product, client or incidental role mention is not the original job's identity fact.
+    if (fact === null || originalFact == null) return false;
+    if (fold(originalFact.value) !== fold(fact.value)) return false;
   }
   return true;
 }
@@ -637,11 +637,13 @@ function groupFor(card, set, observations, { separate = false, excludedSources =
     reasons.push("source_not_observed");
   if (
     full.some((observation) => !confirmed.includes(observation)) ||
-    observations.some(
-      (observation) =>
-        observation.identity_status === "linked_unconfirmed" &&
-        observation.input?.source.accessOutcome === "usable",
-    )
+    (!separate &&
+      observations.some(
+        (observation) =>
+          observationRole(card, observation.source_ref) !== "original_post" &&
+          (observation.input === null || observation.input.source.accessOutcome === "usable") &&
+          !relationConfirmed(observation, original, set, card),
+      ))
   )
     reasons.push("identity_unconfirmed");
   reasons.push(...materialConflicts(observations));
@@ -666,7 +668,7 @@ function groupFor(card, set, observations, { separate = false, excludedSources =
     result = { decision: "MANUAL_REVIEW", review_code: "source_review", reason_codes: conflicts };
   return {
     logical_key: separate
-      ? logicalVacancyKey(`${card.card_ref}\0${observations[0].source_ref}`)
+      ? logicalVacancyKey(`${card.card_ref}\0${vacancyIdentity(observations[0].source_ref).key}`)
       : logicalVacancyKey(card.card_ref),
     card_refs: [card.card_ref],
     identity_status: separate
@@ -702,16 +704,18 @@ function postingSources(group, observations, set) {
           item.card_ref === source.card_ref &&
           observationRole(card, item.source_ref) === "original_post",
       );
-      return relationConfirmed(observation, original, set, card);
+      return observation.identity_status === "different"
+        ? observedDifferentPublication(observation, original)
+        : relationConfirmed(observation, original, set, card);
     })
     .map((source) => vacancyIdentity(source.source_ref).key);
 }
 function mergeConfirmed(groups, observations, set) {
   const result = [];
   const eligible = (group) =>
-    group.identity_status !== "different" &&
     group.primary !== null &&
-    group.conflicts.every((code) => materialConflictCodes.has(code));
+    (group.identity_status === "different" ||
+      group.conflicts.every((code) => materialConflictCodes.has(code)));
   const related = (left, right) => {
     if (!eligible(left) || !eligible(right)) return false;
     const postings = postingSources(left, observations, set);
@@ -720,6 +724,9 @@ function mergeConfirmed(groups, observations, set) {
       !postingSources(right, observations, set).some((key) => postings.includes(key))
     )
       return false;
+    // Both targets have independently proved their distinction from their own originals. A
+    // common checked posting links them to each other; employer/role disagreements stay review.
+    if (left.identity_status === "different" && right.identity_status === "different") return true;
     const primary = observations.find((item) => item.observation_ref === left.primary);
     const prior = observations.find((item) => item.observation_ref === right.primary);
     return ["company", "role"].every(
@@ -732,8 +739,13 @@ function mergeConfirmed(groups, observations, set) {
     );
   };
   const merge = (left, right) => {
-    left.card_refs = [...left.card_refs, ...right.card_refs].sort();
-    left.logical_key = logicalVacancyKey(left.card_refs[0]);
+    const differentKeys = [left, right]
+      .filter((group) => group.identity_status === "different")
+      .map((group) => group.logical_key)
+      .sort();
+    left.card_refs = [...new Set([...left.card_refs, ...right.card_refs])].sort();
+    // Retain a target-derived key so the original job sharing its card remains a separate row.
+    left.logical_key = differentKeys[0] ?? logicalVacancyKey(left.card_refs[0]);
     left.sources.push(...right.sources);
     left.alternatives.push(...right.alternatives);
     const choices = [left.primary, right.primary].map((ref) =>
@@ -751,10 +763,25 @@ function mergeConfirmed(groups, observations, set) {
     const refs = new Set(left.sources.map((source) => source.observation_ref));
     // Recheck all bodies after every union. A null primary fact cannot bridge two contradictory
     // alternatives, and material review does not break their independently confirmed posting link.
-    left.conflicts = materialConflicts(
-      observations.filter((item) => refs.has(item.observation_ref)),
-    );
-    left.identity_status = left.conflicts.length ? "linked_unconfirmed" : "confirmed";
+    const union = observations.filter((item) => refs.has(item.observation_ref));
+    left.conflicts = materialConflicts(union);
+    if (
+      differentKeys.length &&
+      union.some((observation, at) =>
+        union
+          .slice(at + 1)
+          .some((other) =>
+            ["company", "role"].some((field) => !explicitCompatible(observation, other, field)),
+          ),
+      )
+    )
+      left.conflicts.push("identity_unconfirmed");
+    left.conflicts = [...new Set(left.conflicts)].sort();
+    left.identity_status = differentKeys.length
+      ? "different"
+      : left.conflicts.length
+        ? "linked_unconfirmed"
+        : "confirmed";
     left.result = left.conflicts.length
       ? { decision: "MANUAL_REVIEW", review_code: "source_review", reason_codes: left.conflicts }
       : choices[0].trace;
@@ -836,16 +863,15 @@ export function resolveSourceSet({
     );
     groups.push(base);
     for (const observation of different) {
-      const extra = groupFor(card, sourceSet, [observation], { separate: true });
+      const extra = groupFor(card, sourceSet, [observation], {
+        separate: true,
+        excludedSources: card.links
+          .filter((link) => sourceUrl(link.url) !== sourceUrl(observation.source_ref))
+          .map((link) => link.url),
+      });
       extra.sources = extra.sources.filter(
         (source) => source.observation_ref === observation.observation_ref,
       );
-      extra.conflicts = [];
-      extra.result = observation.trace ?? {
-        decision: "MANUAL_REVIEW",
-        review_code: "source_review",
-        reason_codes: ["no_full_jd"],
-      };
       groups.push(extra);
     }
   }

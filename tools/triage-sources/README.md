@@ -24,6 +24,12 @@ Every web anchor has an explicit role: `company_context`, `details`, `apply`, `o
 The original source remains available even if the flat collection contains only company and
 apply/detail URLs. Unknown roles remain visible and cannot become confirmed identity.
 
+Optional `excluded_regions` explicitly preserves known non-QA/non-vacancy regions with snapshot,
+inclusive line bounds, closed reason and original anchor indices. Exclusions are disjoint from
+cards and each other; every offered anchor belongs to its card mapping or a declared exclusion.
+Full snapshot text and HTML retain excluded content for audit. Excluded anchors create no vacancy
+membership or flat input; an uncertain role cannot be silently excluded.
+
 `validateSourceSet(set, {collectionText, captureRoot})` checks digests, bounds, closed fields,
 code-derived references, full anchor coverage and HTML extraction. Persisted readers always supply
 `captureRoot`; an in-memory fixture validation without it establishes shape, not capture custody.
@@ -71,7 +77,10 @@ cannot prove closure of an unconfirmed logical vacancy. All-closed observations 
 terminal behavior. General homepage/not-a-vacancy codes belong elsewhere.
 
 Membership alone does not confirm identity. A direct details/apply link also needs checked target
-identity and matching explicit employer/role. Final URLs retain only origin/path under the URL
+identity and matching explicit employer/role facts in both publications. An incidental product,
+client or role mention cannot replace a missing original identity fact. A linked summary with
+`input: null` has no independently checked destination identity and remains in source review.
+Final URLs retain only origin/path under the URL
 privacy rule; that projection cannot confirm a posting distinguished by a meaningful query parameter.
 Do not restore a filtered query to manufacture identity. A primary HTTP capture must agree with its
 actual manifest record's final URL even when the optional `transport` reference is omitted. A
@@ -84,7 +93,11 @@ Explicit material facts in summaries also constrain the linked full JD without s
 Independently confirmed cards merge through a common job posting and matching employer/role. Every
 observation in the union is compared, including nonprimary alternatives. A contradiction keeps
 one linked `source_review` row and all raw outcomes; an absent primary fact cannot bridge conflicting
-alternatives. A `different` target is a separate logical group, with its own result and key.
+alternatives. A `different` target is another logical vacancy, with its own result and key.
+Canonical aliases to that posting merge into one target group across cards, retaining every source
+and outcome. Its complete observation union also constrains the result: conflicting Senior/Junior,
+salary or identity facts require review, rather than separate optimistic rows. The target-derived
+key and `different` relation keep the original job sharing its card a separate logical row.
 It requires a usable full target, checked destination identity and an explicit employer mismatch,
 or a different known role family supported by both sources' own role facts. Title, seniority, salary
 and date changes alone remain publication conflicts; a `different` label cannot waive them.

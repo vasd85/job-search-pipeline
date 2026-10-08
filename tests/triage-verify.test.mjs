@@ -4707,6 +4707,7 @@ function publishFileBackedSourceCase(
     targetFailureRecord = null,
     browserRescue = false,
     originalBrowserClosure = false,
+    additionalTargets = [],
   } = {},
 ) {
   const root = disposableRoot(t);
@@ -4792,12 +4793,58 @@ function publishFileBackedSourceCase(
       }),
     );
   }
+  const additionalRecords = additionalTargets.map((observation, at) => {
+    const index = 8 + at;
+    const digest = sha256Utf8(observation.body);
+    observation.capture = { file: `${String(index).padStart(3, "0")}.capture.txt`, sha256: digest };
+    observation.input.sourceContext.primaryCaptureSha256 = digest;
+    const finalUrl = observation.input.source.finalUrl;
+    writeFileSync(
+      join(artifactsDir, observation.capture.file),
+      renderCaptureFile({
+        body: observation.body,
+        header: {
+          index,
+          adapter: "generic-html@1",
+          "source-id": "generic",
+          "requested-url": observation.source_ref,
+          "final-url": finalUrl,
+          "fetched-at": fixtureCaptureAt,
+          "http-status": 200,
+          outcome: "active",
+          "access-barrier": null,
+          "response-sha256": digest,
+          "response-bytes": Buffer.byteLength(observation.body),
+          "extracted-sha256": digest,
+          "normalized-sha256": digest,
+          "body-bytes": Buffer.byteLength(observation.body),
+          normalization: "none",
+        },
+      }),
+    );
+    return {
+      index,
+      requestedUrl: observation.source_ref,
+      finalUrl,
+      fetchedAt: fixtureCaptureAt,
+      outcome: "active",
+      usable: true,
+      fallback: null,
+      skipped: false,
+      response: { sha256: digest },
+      persisted: { ...observation.capture },
+    };
+  });
   const manifest = `${JSON.stringify(
     {
       schemaVersion: 2,
       tool: "vacancy-fetch",
       startedAt: fixtureCaptureAt,
-      records: [targetRecord, ...(originalFailureRecord === null ? [] : [originalFailureRecord])],
+      records: [
+        targetRecord,
+        ...additionalRecords,
+        ...(originalFailureRecord === null ? [] : [originalFailureRecord]),
+      ],
     },
     null,
     2,
@@ -4806,6 +4853,12 @@ function publishFileBackedSourceCase(
   if (includeTransport)
     target.transport = { file: "fetch-manifest.json", sha256: sha256Utf8(manifest), index: 7 };
   else delete target.transport;
+  for (const [at, observation] of additionalTargets.entries())
+    observation.transport = {
+      file: "fetch-manifest.json",
+      sha256: sha256Utf8(manifest),
+      index: additionalRecords[at].index,
+    };
   if (originalFailureRecord !== null)
     fixture.original.transport = {
       file: "fetch-manifest.json",
@@ -5510,4 +5563,362 @@ test("file-backed source compiler retains unresolved posting query identity in o
       (entry) => entry.trace.decision === "EVALUATED",
     ),
   );
+});
+
+// W/X/Y: publication and both verifier cadences retain identity evidence from every source.
+function verifyFileBackedSourceCadences(prepared) {
+  addSourcePlan(prepared, { final: true });
+  const observation = prepared.resolution.observations.find((entry) => entry.input !== null);
+  assert.ok(observation);
+  mkdirSync(join(prepared.artifactsDir, "blind"));
+  const blind = structuredClone(observation.input);
+  blind.role.evidence.role = "QA";
+  const prefix = String(blind.inputIndex).padStart(3, "0");
+  writeFileSync(
+    join(prepared.artifactsDir, "blind", `${prefix}.input.json`),
+    JSON.stringify(blind),
+  );
+  writeFileSync(
+    join(prepared.artifactsDir, "attestation.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      probes: ["phase0_capability_probe", "transport_hypotheses"].map((probe) => ({
+        probe,
+        ranAt: fixtureCaptureAt,
+        verdict: "held",
+      })),
+    }),
+  );
+  const reports = ["per-batch", "full"].map((cadence) => verifySource(prepared, cadence));
+  for (const report of reports) assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(checkOf(reports[1], "blind-extraction").counts.compared, 1);
+  return reports;
+}
+
+function rebindFileBackedSourceHtml(fixture, html, collectionText = fixture.collectionText) {
+  const snapshot = snapshotFromHtml(html, {
+    handle: fixture.snapshot.handle,
+    postId: fixture.snapshot.post_id,
+    file: fixture.snapshot.capture.file,
+    capturedAt: fixture.snapshot.capture.captured_at,
+  });
+  const links = snapshot.anchors.map((anchor) => ({
+    anchor: anchor.index,
+    url: anchor.href,
+    role: fixture.card.links.find((link) => link.url === anchor.href)?.role ?? "apply",
+  }));
+  links.push({ anchor: null, role: "original_post", url: snapshot.original_url });
+  const sourceSet = createSourceSet({
+    collectionText,
+    snapshots: [snapshot],
+    cards: [
+      {
+        ...fixture.card,
+        snapshot_ref: snapshot.snapshot_ref,
+        end_line: snapshot.lines.length,
+        links,
+      },
+    ],
+  });
+  fixture.html = html;
+  fixture.collectionText = collectionText;
+  fixture.snapshot = snapshot;
+  fixture.sourceSet = sourceSet;
+  fixture.card = sourceSet.cards[0];
+  fixture.original.body = cardBody(sourceSet, fixture.card);
+  fixture.original.capture = { file: snapshot.capture.file, sha256: snapshot.capture.sha256 };
+  for (const observation of fixture.observations) {
+    observation.card_ref = fixture.card.card_ref;
+    if (observation.input === null) continue;
+    Object.assign(observation.input.sourceContext, {
+      sourceSetSha256: sourceSetDigest(sourceSet),
+      cardRef: fixture.card.card_ref,
+      snapshotRef: snapshot.snapshot_ref,
+      ...(observation === fixture.original
+        ? {
+            primaryCaptureSha256: snapshot.capture.sha256,
+            startLine: fixture.card.start_line,
+            endLine: fixture.card.end_line,
+          }
+        : {}),
+    });
+  }
+  return fixture;
+}
+
+function linkedTargetSummary(fixture, company = "Fictional Labs") {
+  Object.assign(fixture.target, {
+    description_kind: "summary",
+    body: `QA Engineer\nCompany ${company}\nRead the role overview`,
+    input: null,
+    facts: {
+      company: { value: company, evidence_quote: `Company ${company}` },
+      title: { value: "QA Engineer", evidence_quote: "QA Engineer" },
+      role: { value: "QA Engineer", evidence_quote: "QA Engineer" },
+      seniority: null,
+      salary: null,
+      published_at: null,
+    },
+  });
+  return fixture;
+}
+
+for (const kind of [
+  "explicit unconfirmed identity",
+  "different employer",
+  "redirected posting",
+  "unscored matching summary",
+]) {
+  test(`file-backed source compiler keeps a full original with a linked summary in source review for ${kind}`, (t) => {
+    const fixture = linkedTargetSummary(
+      fictionalSourceFixture(),
+      kind === "different employer" ? "Beta Labs" : "Fictional Labs",
+    );
+    if (kind === "explicit unconfirmed identity")
+      fixture.target.identity_status = "linked_unconfirmed";
+    const options =
+      kind === "redirected posting"
+        ? {
+            captureFinalUrl: "https://jobs.example.test/qa/999",
+            manifestFinalUrl: "https://jobs.example.test/qa/999",
+          }
+        : {};
+    const prepared = publishFileBackedSourceCase(t, fixture, options);
+    const reports = verifyFileBackedSourceCadences(prepared);
+    const group = prepared.resolution.groups[0];
+    assert.equal(group.identity_status, "linked_unconfirmed");
+    assert.equal(group.result.decision, "MANUAL_REVIEW");
+    assert.equal(group.result.review_code, "source_review");
+    assert.ok(group.conflicts.includes("identity_unconfirmed"));
+    assert.equal(
+      group.primary,
+      prepared.resolution.observations.find(
+        (entry) => entry.source_ref === fixture.original.source_ref,
+      ).observation_ref,
+    );
+    assert.equal(group.alternatives.length, 1);
+    assert.equal(group.alternatives[0].trace.decision, "EVALUATED");
+    const summary = prepared.resolution.observations.find(
+      (entry) => entry.source_ref === fixture.target.source_ref,
+    );
+    assert.equal(summary.input, null);
+    assert.equal(summary.trace, null);
+    assert.equal(summary.transport.index, 7);
+    assert.ok(
+      group.sources.some(
+        (source) =>
+          source.observation_ref === summary.observation_ref && source.disposition === "summary",
+      ),
+    );
+    for (const report of reports) {
+      assert.equal(report.counts.records, 1);
+      assert.equal(report.counts.logicalVacancies, 1);
+      assert.equal(report.counts.sourceHtmlCaptures, 1);
+    }
+  });
+}
+
+for (const [options, decision, skipCode] of [
+  [{}, "EVALUATED", null],
+  [{ manual: true }, "SKIP", "manual_role"],
+  [{ junior: true }, "SKIP", "junior_role"],
+]) {
+  test(`file-backed source compiler preserves full original ${skipCode ?? "evaluation"} with a checked matching full target`, (t) => {
+    const fixture = fictionalSourceFixture(options);
+    const prepared = publishFileBackedSourceCase(t, fixture);
+    verifyFileBackedSourceCadences(prepared);
+    const group = prepared.resolution.groups[0];
+    assert.equal(group.identity_status, "confirmed");
+    assert.deepEqual(group.conflicts, []);
+    assert.equal(group.result.decision, decision);
+    assert.equal(group.result.skip_code ?? null, skipCode);
+    assert.equal(group.alternatives.length, 2);
+    const original = prepared.resolution.observations.find(
+      (entry) => entry.source_ref === fixture.original.source_ref,
+    );
+    assert.equal(group.primary, original.observation_ref);
+    assert.deepEqual(group.result, original.trace);
+    for (const alternative of group.alternatives) {
+      assert.equal(alternative.trace.decision, decision);
+      assert.equal(alternative.trace.skip_code ?? null, skipCode);
+    }
+  });
+}
+
+for (const missingFact of ["company", "role"]) {
+  test(`file-backed source compiler does not infer summary ${missingFact} from an incidental matching product mention`, (t) => {
+    const fixture = fictionalSourceFixture({ kind: "summary" });
+    fixture.original.facts[missingFact] = null;
+    let html;
+    if (missingFact === "company") {
+      html = fixture.html
+        .replace(">Fictional Labs</a>", ">Employer undisclosed</a>")
+        .replace(
+          "Read the full description below",
+          "Integration with Fictional Labs products<br/>Read the full description below",
+        );
+    } else {
+      fixture.original.facts.title = null;
+      html = fixture.html
+        .replace(
+          'tgme_widget_message_text">QA Engineer',
+          'tgme_widget_message_text">Role undisclosed',
+        )
+        .replace(
+          "Read the full description below",
+          "Integration with the QA Engineer dashboard<br/>Read the full description below",
+        );
+    }
+    rebindFileBackedSourceHtml(fixture, html);
+    const prepared = publishFileBackedSourceCase(t, fixture);
+    const reports = verifyFileBackedSourceCadences(prepared);
+    const group = prepared.resolution.groups[0];
+    assert.equal(group.identity_status, "linked_unconfirmed");
+    assert.equal(group.result.review_code, "source_review");
+    assert.ok(group.conflicts.includes("identity_unconfirmed"));
+    assert.equal(group.primary, null);
+    assert.equal(group.alternatives.length, 1);
+    assert.equal(group.alternatives[0].trace.decision, "EVALUATED");
+    const original = prepared.resolution.observations.find(
+      (entry) => entry.source_ref === fixture.original.source_ref,
+    );
+    assert.equal(original.facts[missingFact], null);
+    assert.equal(original.input, null);
+    assert.ok(
+      original.body.includes(
+        missingFact === "company" ? "Fictional Labs products" : "QA Engineer dashboard",
+      ),
+    );
+    for (const report of reports) {
+      assert.equal(report.counts.records, 1);
+      assert.equal(report.counts.logicalVacancies, 1);
+    }
+  });
+}
+
+test("file-backed source compiler confirms a linked full target from explicit matching summary employer and role facts", (t) => {
+  const fixture = fictionalSourceFixture({ kind: "summary" });
+  const prepared = publishFileBackedSourceCase(t, fixture);
+  verifyFileBackedSourceCadences(prepared);
+  const group = prepared.resolution.groups[0];
+  assert.equal(group.identity_status, "confirmed");
+  assert.deepEqual(group.conflicts, []);
+  assert.equal(group.result.decision, "EVALUATED");
+  assert.equal(
+    group.primary,
+    prepared.resolution.observations.find((entry) => entry.source_ref === fixture.target.source_ref)
+      .observation_ref,
+  );
+});
+
+function twoDifferentEmployerTargets({ distinctId = false, juniorAlias = false } = {}) {
+  const firstUrl = "https://www.linkedin.com/jobs/view/7712345601";
+  const secondUrl = distinctId
+    ? "https://www.linkedin.com/jobs/view/senior-qa-engineer-at-beta-labs-7712345602"
+    : "https://www.linkedin.com/jobs/view/senior-qa-engineer-at-beta-labs-7712345601";
+  const fixture = fictionalSourceFixture({ jobUrl: firstUrl });
+  fixture.target.identity_status = "different";
+  fixture.target.body = fixture.target.body.replaceAll("Fictional Labs", "Beta Labs");
+  fixture.target.facts.company = { value: "Beta Labs", evidence_quote: "Company Beta Labs" };
+  fixture.target.input.source.company = "Beta Labs";
+  const alias = structuredClone(fixture.target);
+  alias.source_ref = secondUrl;
+  alias.input.inputIndex = 3;
+  Object.assign(alias.input.source, { sourceRef: secondUrl, finalUrl: secondUrl });
+  alias.input.sourceContext.primarySourceRef = secondUrl;
+  if (juniorAlias) {
+    alias.body = alias.body.replace("Senior QA Engineer", "Junior+");
+    alias.facts.seniority = { value: "Junior+", evidence_quote: "Junior+" };
+    alias.input.role.seniority = "junior";
+    alias.input.role.evidence.seniority = "Junior+";
+  }
+  alias.input.sourceContext.endLine = alias.body.split("\n").length;
+  fixture.observations.push(alias);
+  const html = fixture.html.replace(
+    '</div><div class="tgme_widget_message_footer">',
+    `<br/>Apply through <a href="${secondUrl}">another route</a></div><div class="tgme_widget_message_footer">`,
+  );
+  rebindFileBackedSourceHtml(fixture, html, `${fixture.collectionText}${secondUrl}\n`);
+  return { fixture, alias };
+}
+
+for (const juniorAlias of [false, true]) {
+  test(`file-backed source compiler groups checked LinkedIn aliases of a different employer with ${juniorAlias ? "Senior and Junior conflict" : "matching facts"}`, (t) => {
+    const { fixture, alias } = twoDifferentEmployerTargets({ juniorAlias });
+    const prepared = publishFileBackedSourceCase(t, fixture, { additionalTargets: [alias] });
+    const reports = verifyFileBackedSourceCadences(prepared);
+    assert.equal(prepared.resolution.groups.length, 2);
+    assert.equal(prepared.resolution.observations.length, 3);
+    const group = prepared.resolution.groups.find((entry) =>
+      entry.sources.some((source) => source.source_ref === fixture.target.source_ref),
+    );
+    assert.ok(group);
+    assert.deepEqual(
+      group.sources.map((source) => source.source_ref).sort(),
+      [fixture.target.source_ref, alias.source_ref].sort(),
+    );
+    assert.equal(group.alternatives.length, 2);
+    if (juniorAlias) {
+      assert.equal(group.result.decision, "MANUAL_REVIEW");
+      assert.equal(group.result.review_code, "source_review");
+      assert.deepEqual(group.conflicts, ["conflicting_seniority"]);
+    } else {
+      assert.equal(group.identity_status, "different");
+      assert.equal(group.result.decision, "EVALUATED");
+      assert.deepEqual(group.conflicts, []);
+    }
+    for (const [source, index, decision, skipCode] of [
+      [fixture.target.source_ref, 2, "EVALUATED", null],
+      [alias.source_ref, 3, juniorAlias ? "SKIP" : "EVALUATED", juniorAlias ? "junior_role" : null],
+    ]) {
+      const observation = prepared.resolution.observations.find(
+        (entry) => entry.source_ref === source,
+      );
+      assert.ok(
+        group.alternatives.some((entry) => entry.observation_ref === observation.observation_ref),
+      );
+      assert.ok(
+        group.sources.some(
+          (entry) =>
+            entry.observation_ref === observation.observation_ref &&
+            entry.disposition === "description",
+        ),
+      );
+      const trace = JSON.parse(
+        readFileSync(
+          join(prepared.artifactsDir, "traces", `${String(index).padStart(3, "0")}.trace.json`),
+        ),
+      );
+      assert.equal(trace.decision, decision);
+      assert.equal(trace.skip_code ?? null, skipCode);
+      const capture = verifyCaptureFile(
+        readFileSync(join(prepared.artifactsDir, observation.capture.file), "utf8"),
+      );
+      assert.equal(capture.ok, true);
+      assert.equal(capture.header["requested-url"], source);
+      assert.equal(capture.header["final-url"], source);
+    }
+    for (const report of reports) {
+      assert.equal(report.counts.records, 3);
+      assert.equal(report.counts.logicalVacancies, 2);
+      assert.equal(report.counts.sourceHtmlCaptures, 1);
+    }
+  });
+}
+
+test("file-backed source compiler keeps genuinely distinct LinkedIn posting IDs separate despite equal employer and body", (t) => {
+  const { fixture, alias } = twoDifferentEmployerTargets({ distinctId: true });
+  const prepared = publishFileBackedSourceCase(t, fixture, { additionalTargets: [alias] });
+  const reports = verifyFileBackedSourceCadences(prepared);
+  assert.equal(prepared.resolution.groups.length, 3);
+  assert.equal(
+    prepared.resolution.groups.filter((entry) => entry.identity_status === "different").length,
+    2,
+  );
+  for (const group of prepared.resolution.groups) {
+    assert.equal(group.result.decision, "EVALUATED");
+    assert.deepEqual(group.conflicts, []);
+    assert.equal(group.alternatives.length, 1);
+  }
+  for (const report of reports) assert.equal(report.counts.logicalVacancies, 3);
 });

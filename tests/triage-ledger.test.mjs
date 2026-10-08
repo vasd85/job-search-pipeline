@@ -16,6 +16,7 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -2615,6 +2616,320 @@ test("three historical homepage BLOCKED observations get a separate evidence-bou
   );
 });
 
+test("a self-valid changed correction parent cannot suppress the indexed BLOCKED observation", (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet();
+  const parentId = "correction-indexed-parent";
+  const parentDir = join(context.store, parentId);
+  mkdirSync(parentDir);
+  seedTraces(parentDir, [fixture.homepage]);
+  seedPlan(parentDir, context.path, [fixture.homepage]);
+  recordBatch(
+    context.path,
+    batch({
+      batch_id: parentId,
+      policy_id: "legacy-policy",
+      entries: [
+        entry({ url: fixture.homepage, decision: "BLOCKED", flags: ["vacancy_unavailable"] }),
+      ],
+    }),
+    { artifactsDir: parentDir },
+  );
+  const parentPath = join(parentDir, "ledger-record.json");
+  const parentBytes = readFileSync(parentPath);
+  const original = readBatchRecord(parentDir);
+  const changed = structuredClone(original);
+  changed.entries[0].title = "Different parent metadata";
+  changed.entries_digest = digest(JSON.stringify(changed.entries));
+  writeFileSync(parentPath, JSON.stringify(changed));
+  assert.equal(validateBatchRecord(changed), changed, "the changed record validates itself");
+  assert.notEqual(changed.entries_digest, readLedger(context.path).batches[0].entries_digest);
+  const staged = sourceBatchDir(context, fixture, "correction-changed-parent", {
+    corrections: [
+      {
+        parent_batch_id: parentId,
+        parent_entries_digest: changed.entries_digest,
+        card_ref: fixture.sourceSet.cards[0].card_ref,
+        url: fixture.homepage,
+      },
+    ],
+  });
+  sourceFullEvidence(staged, sourceInstant);
+  for (const cadence of ["per-batch", "full"]) {
+    const report = verifySourceBatch(context, staged, fixture, cadence);
+    assert.equal(report.status, "pass", `${cadence}: ${report.findingCodes.join(",")}`);
+  }
+  const ledgerBytes = readFileSync(context.path);
+  assert.equal(reviewLedger(readLedger(context.path), { asOf: sourceInstant }).totals.entries, 1);
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+        artifactsDir: staged.dir,
+      }),
+    ),
+    "triage_ledger_source_parent_invalid",
+  );
+  assert.deepEqual(readFileSync(context.path), ledgerBytes);
+  assert.equal(existsSync(join(staged.dir, "ledger-record.json")), false);
+  assert.equal(reviewLedger(readLedger(context.path), { asOf: sourceInstant }).totals.entries, 1);
+  assert.equal(existsSync(`${context.path}.lock`), false);
+
+  writeFileSync(parentPath, parentBytes);
+  staged.payload.corrections[0].parent_entries_digest = original.entries_digest;
+  assert.equal(
+    ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+      artifactsDir: staged.dir,
+    }).corrections,
+    1,
+  );
+  assert.equal(reviewLedger(readLedger(context.path), { asOf: sourceInstant }).totals.entries, 0);
+  const indexedParent = readLedger(context.path).batches.find((item) => item.batch_id === parentId);
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: { ...ledger, batches: ledger.batches.filter((item) => item.batch_id !== parentId) },
+  }));
+  const unindexedBytes = readFileSync(context.path);
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+        artifactsDir: staged.dir,
+      }),
+    ),
+    "triage_ledger_source_parent_invalid",
+    "an indexed replay still needs the immutable parent index",
+  );
+  assert.deepEqual(readFileSync(context.path), unindexedBytes);
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: { ...ledger, batches: [...ledger.batches, indexedParent] },
+  }));
+  assert.equal(
+    ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+      artifactsDir: staged.dir,
+    }).replayed,
+    true,
+  );
+});
+
+test("a self-valid changed alias parent cannot add a card to the indexed logical vacancy", (t) => {
+  const context = sourceLedger(t);
+  const details = "https://jobs.acme.example/vacancy/731";
+  const original = fictionalSourceSet({ details });
+  const first = sourceBatchDir(context, original, "alias-indexed-parent", {
+    ...linkedSourceObservations(original),
+    prefetchPlan: true,
+  });
+  recordSource(context.path, first);
+  const parentPath = join(first.dir, "ledger-record.json");
+  const parentBytes = readFileSync(parentPath);
+  const parent = readBatchRecord(first.dir);
+  const changed = structuredClone(parent);
+  changed.logical_entries[0].title = "Different retained parent metadata";
+  const { entries_digest: ignored, ...changedPayload } = changed;
+  changed.entries_digest = digest(JSON.stringify(changedPayload));
+  writeFileSync(parentPath, JSON.stringify(changed));
+  assert.equal(validateBatchRecord(changed), changed, "the changed record validates itself");
+  assert.notEqual(changed.entries_digest, readLedger(context.path).batches[0].entries_digest);
+  const edited = fictionalSourceSet({ details, extra: " An independently captured revision." });
+  const second = sourceBatchDir(context, edited, "alias-changed-parent", {
+    ...linkedSourceObservations(edited),
+    observedAt: "2026-10-09T09:00:00Z",
+    prefetchPlan: true,
+  });
+  second.payload.aliases = [
+    {
+      card_ref: edited.sourceSet.cards[0].card_ref,
+      logical_key: parent.logical_entries[0].key,
+      parent_batch_id: first.payload.batch_id,
+      parent_entries_digest: changed.entries_digest,
+      observation_ref: second.resolution.observations.find((item) => item.source_ref === details)
+        .observation_ref,
+      parent_observation_ref: first.resolution.observations.find(
+        (item) => item.source_ref === details,
+      ).observation_ref,
+    },
+  ];
+  sourceFullEvidence(second, second.payload.observed_at);
+  for (const cadence of ["per-batch", "full"]) {
+    const report = verifySourceBatch(context, second, edited, cadence);
+    assert.equal(report.status, "pass", `${cadence}: ${report.findingCodes.join(",")}`);
+  }
+  const ledgerBytes = readFileSync(context.path);
+  assert.equal(
+    errorCode(() => recordSource(context.path, second)),
+    "triage_ledger_source_parent_invalid",
+  );
+  assert.deepEqual(readFileSync(context.path), ledgerBytes);
+  assert.equal(existsSync(join(second.dir, "ledger-record.json")), false);
+  assert.deepEqual(
+    readLedger(context.path).logical_entries[0].card_refs,
+    parent.logical_entries[0].card_refs,
+  );
+  assert.equal(existsSync(`${context.path}.lock`), false);
+
+  writeFileSync(parentPath, parentBytes);
+  second.payload.aliases[0].parent_entries_digest = parent.entries_digest;
+  recordSource(context.path, second);
+  assert.deepEqual(
+    readLedger(context.path).logical_entries[0].card_refs,
+    [original.sourceSet.cards[0].card_ref, edited.sourceSet.cards[0].card_ref].sort(),
+  );
+  assert.equal(readBatchRecord(second.dir).parents[0].record_sha256, digest(parentBytes));
+  const indexedParent = readLedger(context.path).batches.find(
+    (item) => item.batch_id === first.payload.batch_id,
+  );
+  for (const [field, value] of [
+    ["entry_count", indexedParent.entry_count + 1],
+    ["recorded_at", "2026-10-08T09:01:00Z"],
+    ["policy_id", "different-indexed-policy"],
+    ["source_set_sha256", "0".repeat(64)],
+    ["source_resolution_sha256", "0".repeat(64)],
+    ["plan_sha256", "0".repeat(64)],
+  ]) {
+    ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+      ledger: {
+        ...ledger,
+        batches: ledger.batches.map((item) =>
+          item.batch_id === indexedParent.batch_id ? { ...indexedParent, [field]: value } : item,
+        ),
+      },
+    }));
+    const movedIndex = readFileSync(context.path);
+    assert.equal(
+      errorCode(() => recordSource(context.path, second)),
+      "triage_ledger_source_parent_invalid",
+      `indexed replay cannot waive parent ${field}`,
+    );
+    assert.deepEqual(readFileSync(context.path), movedIndex);
+  }
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: {
+      ...ledger,
+      batches: ledger.batches.map((item) =>
+        item.batch_id === indexedParent.batch_id ? indexedParent : item,
+      ),
+    },
+  }));
+  assert.equal(recordSource(context.path, second).replayed, true);
+});
+
+test("a correction parent record symlink is refused before archive or review mutation", (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet();
+  const parentId = "correction-symlink-parent";
+  const parentDir = join(context.store, parentId);
+  mkdirSync(parentDir);
+  seedTraces(parentDir, [fixture.homepage]);
+  seedPlan(parentDir, context.path, [fixture.homepage]);
+  recordBatch(
+    context.path,
+    batch({
+      batch_id: parentId,
+      policy_id: "legacy-policy",
+      entries: [
+        entry({ url: fixture.homepage, decision: "BLOCKED", flags: ["vacancy_unavailable"] }),
+      ],
+    }),
+    { artifactsDir: parentDir },
+  );
+  const parent = readBatchRecord(parentDir);
+  const staged = sourceBatchDir(context, fixture, "correction-record-symlink", {
+    corrections: [
+      {
+        parent_batch_id: parentId,
+        parent_entries_digest: parent.entries_digest,
+        card_ref: fixture.sourceSet.cards[0].card_ref,
+        url: fixture.homepage,
+      },
+    ],
+  });
+  const parentPath = join(parentDir, "ledger-record.json");
+  const detached = join(context.root, "detached-parent-record.json");
+  renameSync(parentPath, detached);
+  symlinkSync(detached, parentPath);
+  const bytes = readFileSync(context.path);
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+        artifactsDir: staged.dir,
+      }),
+    ),
+    "triage_ledger_source_parent_invalid",
+  );
+  assert.deepEqual(readFileSync(context.path), bytes);
+  assert.equal(existsSync(join(staged.dir, "ledger-record.json")), false);
+  assert.equal(reviewLedger(readLedger(context.path), { asOf: sourceInstant }).totals.entries, 1);
+  rmSync(parentPath);
+  renameSync(detached, parentPath);
+  assert.equal(
+    ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+      artifactsDir: staged.dir,
+    }).corrections,
+    1,
+  );
+});
+
+test("a source archive must remain in real directories before write and indexed-prior planning", (t) => {
+  for (const variant of ["batch-symlink", "store-symlink", "wrong-batch-name"]) {
+    const context = sourceLedger(t);
+    const fixture = fictionalSourceSet();
+    const staged = sourceBatchDir(context, fixture, `bounded-archive-${variant}`, {
+      prefetchPlan: true,
+    });
+    sourceFullEvidence(staged, sourceInstant);
+    const declared = staged.dir;
+    let detached;
+    let archivePath;
+    if (variant === "store-symlink") {
+      detached = join(context.root, "store-alias");
+      symlinkSync(context.store, detached);
+      archivePath = join(detached, staged.payload.batch_id);
+    } else {
+      detached = join(context.root, "detached-batch");
+      renameSync(declared, detached);
+      if (variant === "batch-symlink") {
+        symlinkSync(detached, declared);
+        archivePath = declared;
+      } else archivePath = detached;
+    }
+    const misplaced = { ...staged, dir: archivePath };
+    for (const cadence of ["per-batch", "full"]) {
+      const report = verifySourceBatch(context, misplaced, fixture, cadence);
+      assert.equal(
+        report.status,
+        "pass",
+        `${variant}, ${cadence}: ${report.findingCodes.join(",")}`,
+      );
+    }
+    const ledgerBytes = readFileSync(context.path);
+    assert.equal(
+      errorCode(() => recordSource(context.path, misplaced)),
+      "triage_ledger_record_dir_invalid",
+      variant,
+    );
+    assert.deepEqual(readFileSync(context.path), ledgerBytes);
+    assert.equal(
+      existsSync(join(archivePath, "ledger-record.json")),
+      false,
+      "no escaped immutable write",
+    );
+    assert.equal(existsSync(`${context.path}.lock`), false);
+    if (variant === "store-symlink") rmSync(detached);
+    else {
+      if (variant === "batch-symlink") rmSync(declared);
+      renameSync(detached, declared);
+    }
+    assert.equal(recordSource(context.path, staged).record.written, true);
+    const plan = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+      asOf: "2026-10-09T09:00:00Z",
+      resolution: staged.resolution,
+      collectionText: fixture.collectionText,
+      captureRoot: staged.dir,
+    });
+    assert.equal(plan.prior_resolution.batch_id, staged.payload.batch_id);
+    assert.equal(plan.prior_resolution.entries_digest, readBatchRecord(staged.dir).entries_digest);
+    assert.equal(recordSource(context.path, staged).replayed, true);
+  }
+});
+
 test("a version 2 orphan survives index failure and replays without replacing a newer observation", (t) => {
   const context = sourceLedger(t);
   const fixture = fictionalSourceSet();
@@ -3794,6 +4109,27 @@ test("an orphaned correction replays while retaining a later standalone URL obse
       ],
     }),
   );
+  const parentId = staged.payload.corrections[0].parent_batch_id;
+  const indexedParent = readLedger(context.path).batches.find((item) => item.batch_id === parentId);
+  const orphanBytes = readFileSync(join(staged.dir, "ledger-record.json"));
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: { ...ledger, batches: ledger.batches.filter((item) => item.batch_id !== parentId) },
+  }));
+  const unindexedBytes = readFileSync(context.path);
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+        artifactsDir: staged.dir,
+      }),
+    ),
+    "triage_ledger_source_parent_invalid",
+    "orphan adoption cannot waive the parent index",
+  );
+  assert.deepEqual(readFileSync(context.path), unindexedBytes);
+  assert.deepEqual(readFileSync(join(staged.dir, "ledger-record.json")), orphanBytes);
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: { ...ledger, batches: [...ledger.batches, indexedParent] },
+  }));
   const later = structuredClone(readLedger(context.path).entries[0]);
   ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
     artifactsDir: staged.dir,

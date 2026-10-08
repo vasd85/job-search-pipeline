@@ -100,6 +100,7 @@ function rebindSourceFixture(fixture) {
   });
   fixture.target.card_ref = fixture.card.card_ref;
   for (const observation of fixture.observations) {
+    observation.card_ref = fixture.card.card_ref;
     if (observation.input === null) continue;
     Object.assign(observation.input.sourceContext, {
       sourceSetSha256: sourceSetDigest(fixture.sourceSet),
@@ -3639,3 +3640,128 @@ for (const variant of ["other_employer", "other_family"]) {
     assert.deepEqual(different.conflicts, []);
   });
 }
+
+for (const variant of ["matching summary", "different employer summary", "unconfirmed summary"]) {
+  test(`an unscored linked ${variant} does not prove destination identity`, () => {
+    const fixture = fictionalSourceFixture();
+    const target = fixture.target;
+    const company = variant === "different employer summary" ? "Beta Labs" : "Fictional Labs";
+    target.description_kind = "summary";
+    target.input = null;
+    target.identity_status = variant === "unconfirmed summary" ? "linked_unconfirmed" : "confirmed";
+    target.body = `QA Engineer\nCompany ${company}\nRead the full description elsewhere`;
+    target.capture.sha256 = sourceSetDigest(target.body);
+    target.facts.company = { value: company, evidence_quote: `Company ${company}` };
+    target.facts.seniority = null;
+    const resolution = resolveSourceSet(fixture);
+    assert.equal(resolution.groups.length, 1);
+    assert.equal(resolution.groups[0].identity_status, "linked_unconfirmed");
+    assert.equal(resolution.groups[0].result.review_code, "source_review");
+    assert.ok(resolution.groups[0].conflicts.includes("identity_unconfirmed"));
+    assert.equal(resolution.groups[0].alternatives.length, 1);
+    assert.equal(
+      resolution.observations.find((item) => item.source_ref === target.source_ref).trace,
+      null,
+    );
+    validateSourceResolution(resolution, fixture);
+  });
+}
+
+test("incidental product mentions cannot replace explicit original employer identity facts", () => {
+  const fixture = fictionalSourceFixture({ kind: "summary" });
+  fixture.html = fixture.html.replace(
+    'Company <a href="https://fictional-labs.example.test/">Fictional Labs</a>',
+    'We evaluate products from <a href="https://fictional-labs.example.test/">Fictional Labs</a><br/>Employer undisclosed',
+  );
+  fixture.original.facts.company = null;
+  rebindSourceFixture(fixture);
+  const resolution = resolveSourceSet(fixture);
+  assert.equal(resolution.groups[0].identity_status, "linked_unconfirmed");
+  assert.equal(resolution.groups[0].result.review_code, "source_review");
+  assert.ok(resolution.groups[0].conflicts.includes("identity_unconfirmed"));
+  const matching = fictionalSourceFixture({ kind: "summary" });
+  assert.equal(resolveSourceSet(matching).groups[0].identity_status, "confirmed");
+});
+
+function canonicalDifferentFixture({ distinct = false, junior = false, postId = 7011 } = {}) {
+  const firstUrl = "https://www.linkedin.com/jobs/view/1234512345";
+  const secondUrl = `https://www.linkedin.com/jobs/view/qa-engineer-at-beta-${distinct ? "2234512345" : "1234512345"}`;
+  const fixture = fictionalSourceFixture({ jobUrl: firstUrl, postId });
+  fixture.target.identity_status = "different";
+  fixture.target.body = fixture.target.body.replaceAll("Fictional Labs", "Beta Labs");
+  fixture.target.facts.company = { value: "Beta Labs", evidence_quote: "Company Beta Labs" };
+  fixture.target.input.source.company = "Beta Labs";
+  fixture.target.capture.sha256 = sourceSetDigest(fixture.target.body);
+  fixture.target.input.sourceContext.primaryCaptureSha256 = fixture.target.capture.sha256;
+  const second = structuredClone(fixture.target);
+  second.source_ref = secondUrl;
+  second.capture.file = "003.capture.txt";
+  second.input.inputIndex = 3;
+  second.input.source.sourceRef = secondUrl;
+  second.input.source.finalUrl = secondUrl;
+  second.input.sourceContext.primarySourceRef = secondUrl;
+  if (junior) {
+    second.body = second.body.replace("Senior QA Engineer", "Junior+");
+    second.facts.seniority = { value: "Junior+", evidence_quote: "Junior+" };
+    second.input.role.seniority = "junior";
+    second.input.role.evidence.seniority = "Junior+";
+    second.capture.sha256 = sourceSetDigest(second.body);
+    second.input.sourceContext.primaryCaptureSha256 = second.capture.sha256;
+  }
+  fixture.html = fixture.html.replace(
+    `Apply <a href="${firstUrl}">here</a>`,
+    `Apply <a href="${firstUrl}">here</a><br/>Details <a href="${secondUrl}">here</a>`,
+  );
+  fixture.collectionText += `${secondUrl}\n`;
+  fixture.card.links.push({ anchor: 3, role: "details", url: secondUrl });
+  fixture.observations.push(second);
+  rebindSourceFixture(fixture);
+  return fixture;
+}
+
+test("canonical aliases of one different target yield one logical target with all outcomes", () => {
+  const fixture = canonicalDifferentFixture();
+  const resolution = resolveSourceSet(fixture);
+  assert.equal(resolution.groups.length, 2);
+  const target = resolution.groups.find((group) => group.identity_status === "different");
+  assert.equal(target.sources.length, 2);
+  assert.equal(target.alternatives.length, 2);
+  assert.deepEqual(target.conflicts, []);
+  assert.equal(target.result.decision, "EVALUATED");
+  validateSourceResolution(resolution, fixture);
+});
+
+test("canonical aliases of one different target reconcile their Senior and Junior alternatives", () => {
+  const fixture = canonicalDifferentFixture({ junior: true });
+  const resolution = resolveSourceSet(fixture);
+  assert.equal(resolution.groups.length, 2);
+  const target = resolution.groups.find((group) => group.identity_status === "different");
+  assert.equal(target.sources.length, 2);
+  assert.equal(target.result.review_code, "source_review");
+  assert.ok(target.conflicts.includes("conflicting_seniority"));
+  assert.ok(target.alternatives.some((item) => item.trace.skip_code === "junior_role"));
+  assert.ok(target.alternatives.some((item) => item.trace.decision === "EVALUATED"));
+});
+
+test("genuinely distinct posting IDs remain two different target jobs", () => {
+  const resolution = resolveSourceSet(canonicalDifferentFixture({ distinct: true }));
+  assert.equal(resolution.groups.length, 3);
+  assert.equal(
+    resolution.groups.filter((group) => group.identity_status === "different").length,
+    2,
+  );
+});
+
+test("different target aliases repeated across cards still yield one target job", () => {
+  const fixture = combineSourceFixtures([
+    canonicalDifferentFixture({ postId: 7021 }),
+    canonicalDifferentFixture({ postId: 7022 }),
+  ]);
+  const resolution = resolveSourceSet(fixture);
+  assert.equal(resolution.groups.length, 3);
+  const targets = resolution.groups.filter((group) => group.identity_status === "different");
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0].card_refs.length, 2);
+  assert.equal(targets[0].sources.length, 4);
+  assert.equal(targets[0].alternatives.length, 4);
+});

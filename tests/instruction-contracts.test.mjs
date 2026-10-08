@@ -3890,8 +3890,28 @@ test("source-aware scoring has explicit artifact and logical-result boundaries",
     "Title, seniority, salary and date differences alone remain publication conflicts.",
     "Never publish a new observation for a `skip_closed` source.",
     "A carried closure requires matching archived observation, capture and transport proof and retains its original source clock.",
+    "A linked summary with `input: null` requires source review because destination identity is unproven.",
+    "Matching employer and role require explicit facts in both the original and linked publication; incidental body mentions cannot fill an absent identity fact.",
+    "Canonical aliases of a different target reconcile into one logical vacancy with the complete union of its observations.",
+    "Corroborate every parent reference against the immutable ledger batch index before record or index writes, including replay and orphan adoption.",
+    "Record source batches only in their declared real directory, with no symlink in the archive path.",
   ])
     assert.ok(flatSkill.includes(clause), clause);
+  for (const [path, clause] of [
+    [
+      "instructions/agents/telegram-reader.md",
+      "Do not label a sibling's job form as company context to satisfy coverage.",
+    ],
+    [
+      "instructions/agents/telegram-reader.md",
+      "Its boundaries are disjoint from every QA card and other exclusion.",
+    ],
+    [
+      "instructions/skills/collect-telegram.md",
+      "Exclusions retain their complete source text and anchors in the immutable source-set.",
+    ],
+  ])
+    assert.ok(read(path).replace(/\s+/g, " ").includes(clause), clause);
 });
 
 test("every annotation token declares one class, and the review reads the class", () => {

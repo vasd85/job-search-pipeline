@@ -203,7 +203,17 @@ export function citedEntriesOf(vacancy, descriptor) {
  */
 export function readerCardOf(
   post,
-  { handle, decided, knownUrls, vacancy, cited, vacancyNo, first, descriptor },
+  {
+    handle,
+    decided,
+    knownUrls,
+    vacancy,
+    cited,
+    vacancyNo,
+    first,
+    descriptor,
+    excludedRegions = [],
+  },
 ) {
   const lines = numberedLines(post);
   const named = [...decided.keys()]
@@ -280,6 +290,14 @@ export function readerCardOf(
   };
   if (mapped) {
     card.sourceSnapshot = snapshotOf(post, { handle });
+    if (first && excludedRegions.length > 0)
+      card.sourceExclusions = excludedRegions.map((region) => ({
+        snapshot_ref: card.sourceSnapshot.snapshot_ref,
+        start_line: region.start_line,
+        end_line: region.end_line,
+        reason: region.reason,
+        anchors: region.anchors.map((j) => descriptor.links[j - 1].entryIndex + 1),
+      }));
     card.titleLine = vacancy.title_line;
     card.startLine = vacancy.start_line;
     card.endLine = vacancy.end_line;

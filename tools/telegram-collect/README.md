@@ -279,14 +279,27 @@ never supplies title/URL/contact text.
    At most twenty vacancies per post, five apply routes per vacancy. `description_kind` is
    `full_description`, `summary` or `unknown`. Boundaries are inclusive, disjoint, inside the full
    post, and contain the actual title line. There is no title-number repair in this epoch.
-   Every offered anchor is assigned explicitly; a card cannot quietly discard an uncited URL.
-   Roles follow surrounding text: `company_context`, `details`, `apply`, `contact`, `unknown`.
+   Every offered anchor is assigned explicitly to a QA card or a known excluded region; a card
+   cannot quietly discard an uncited URL. Roles follow surrounding text: `company_context`, `details`, `apply`, `contact`, `unknown`.
    Code adds the derived `original_post` membership. Only company context may be shared between
    cards or sit outside their own boundaries. A details/apply/contact/unknown anchor of a sibling is
    rejected; a button without a line may belong to one card only. A link that provides both full
    details and an explicit application route uses `apply`. `unknown` stays reviewable.
    `apply` keeps the existing `url`, `tg`, `email`, `phone`, `dm_author`, `unspecified` codes;
    numbered routes must match their anchor type and role. Reader order does not control identity.
+
+   A post with QA cards may optionally carry `excluded_regions`, up to twenty records:
+   `{"start_line":6,"end_line":8,"reason":"non_qa_vacancy","anchors":[3]}`. The only reasons
+   are `non_qa_vacancy` and `non_vacancy`; uncertain roles remain cards with unknown mapping for
+   source review. Exclusion bounds are inclusive and disjoint from every QA card and other
+   exclusion. Every offered anchor inside the excluded text must be listed; a listed known-line
+   anchor must lie inside its region, while a floating anchor needs one explicit owner. No
+   excluded anchor may also have any card role, including company context or unknown. Missing,
+   malformed, overlapping, QA-owned or unknown exclusions are `post_invalid`. The complete body
+   and anchors stay in the saved snapshot, with numbers and the auditable reason in the source-set.
+   Excluded anchors create no QA source membership or collection URL; the same URL may still be
+   offered through a separate legitimate QA anchor. Absence of this additive optional field keeps
+   the original answer2 coverage contract; answer1 does not accept it.
 
 4. **Cards.** Code sorts vacancies by their own start/title lines and assigns `vacancy_no` only
    for display. `source_snapshot_ref` binds handle, post id, publication instant, and the digest
@@ -350,10 +363,16 @@ state last. With nothing to emit no collection file is written; with no card, no
   `{file, sha256, captured_at}`, every full numbered source line and every code-extracted anchor.
   `captured_at` is code-owned capture time, distinct from the post's publication instant. Cards
   retain their title/boundaries/completeness, all semantic link roles and source-order display
-  ordinal. The original post remains a source when absent from flat inputs. Snapshot refs are
+  ordinal. Optional top-level `excluded_regions` retain `snapshot_ref`, inclusive line bounds,
+  the closed `reason` and original anchor indices for known non-QA/non-vacancy regions. They are
+  disjoint from cards and each other, account explicitly for their anchors, and preserve complete
+  saved text without assigning it a QA source role. This additive field changes no existing epoch
+  field or reference meaning and is absent from historical fixtures. The original post remains a
+  source when absent from flat inputs. Snapshot refs are
   `tg-snapshot:sha256:<64 lowercase hex>`; card refs `tg-card:sha256:<64 lowercase hex>`.
   `validateSourceSet(set,{collectionText,captureRoot})` checks closed keys, limits, derived refs,
-  coverage, disjoint bounds, anchor roles/URLs, exact collection/capture digests and reparses
+  coverage across cards/exclusions, disjoint bounds, anchor roles/URLs, exact collection/capture
+  digests and reparses
   saved HTML to reject rewritten source text. Capture paths must be relative and non-symlink.
   `readSourceSet` returns `{sourceSet,digest,text}` and reparses by default from its directory.
   `sourceSetMemberships` preserves all card memberships on URL normalization; `cardBody` renders

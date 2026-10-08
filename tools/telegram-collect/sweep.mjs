@@ -700,6 +700,7 @@ export function resolveSweep({ config, state, walk, answers = null, readerVersio
           vacancyNo: at + 1,
           first: at === 0,
           descriptor: answer.descriptor,
+          excludedRegions: answer.excluded_regions ?? [],
         });
         cards.push(card);
         for (const entry of card.marked)
