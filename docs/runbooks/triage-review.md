@@ -330,6 +330,38 @@ resolution cannot substitute for that proof. Initial plans and plans reproduced 
 resolution remain readable without a prior reference; they do not grant an existing derived
 group a missing baseline.
 
+For a changed set, retain its own validated prefetch resolution with
+`publishSourcePlan(ledgerPath, sourceSet, {asOf: runStartedAt, resolution: prefetchResolution, collectionText, captureRoot: prefetchCaptureDir, artifactsDir: claimedBatchDir, validation})`.
+The claimed batch directory must be unused. The publisher copies the exact collection, canonical
+source set and resolution, every saved HTML/capture dependency and any explicit or implicit fetch
+manifest into a fixed `source-plan/` child, then writes `plan.json` exclusively. All collector,
+capture and available manifest clocks must be usable and no later than `asOf`; a body-less
+prefetch observation needs its own manifest record's clock. Logical and scoped source baselines
+must predate the plan. The publisher compares the reproduced plan with its original ledger
+snapshot and items before writing it; a changed index refuses publication with
+`triage_ledger_concurrent_observation` and retains the partial proof. A repeated or interrupted
+publication never overwrites any plan or proof; retain it for diagnosis.
+
+The optional `prefetch_resolution` reference has closed version 1 fields: `schema_version`,
+`batch_id`, `source_set_sha256`, `source_resolution_sha256` and `proof_sha256`. It names no path.
+The fixed `source-plan/proof.json` binds those artifacts, the exact collection, batch id and plan
+instant to a sorted inventory of full-file byte counts and digests. The proof allows at most 4096
+files and 256 MiB in total; source set, resolution, HTML, stamped captures and manifests retain
+their own byte ceilings. Paths are bounded relative names; every directory is real and every
+file is regular, with no symlinks, missing dependencies or extra files/directories. Verification
+accepts this subtree only after reproducing the proof and excludes its earlier captures from the
+final observation inventory and clock window. Neither final observations nor later captures can
+replace it. A plan cannot combine `prefetch_resolution` and `prior_resolution`, and the indexed
+prior path keeps its exact-set parent guard.
+
+`planSourceBatch` remains read-only. To reproduce a published current-set plan, pass its bounded
+reference as `prefetchProof` and its declared batch directory as `artifactsDir`, with the same
+`asOf`, collection and validation options. Do not combine this option with another resolution,
+capture root or selection. `readSourcePlanPrefetchResolution` also remains read-only and checks
+the fixed proof without consulting a ledger. Recording and indexed replay recheck its custody;
+a missing or changed proof refuses before any record or index write. Existing plans without the
+new reference and all historical ledger/record versions keep their earlier meanings.
+
 `recordSourceBatch(path, batch, {artifactsDir, validation})` is an in-process mutation, with no
 shell-facing source values. It reads `source-set.json`, `source-resolution.json` and `plan.json`
 from the existing batch directory, verifies the declared byte digests and the independent source

@@ -53,14 +53,22 @@ import { fileURLToPath } from "node:url";
 import { detectJobSource } from "../job-sources/registry.mjs";
 import { OpsTreeError, verifyFolder } from "../ops-tree/manifest.mjs";
 import {
+  MAX_SOURCE_CAPTURE_BYTES,
+  MAX_SOURCE_SET_BYTES,
   cardRefPattern,
   readSourceSet,
   snapshotRefPattern,
   sourceRoles,
   sourceSetDigest,
+  serializeSourceSet,
   validateSourceSet,
 } from "../triage-sources/source-set.mjs";
-import { sourceResolutionDigest, validateSourceResolution } from "../triage-sources/reconcile.mjs";
+import {
+  MAX_RESOLUTION_BYTES,
+  serializeSourceResolution,
+  sourceResolutionDigest,
+  validateSourceResolution,
+} from "../triage-sources/reconcile.mjs";
 import { verifyCaptureFile } from "../vacancy-fetch/persist.mjs";
 
 export const triageLedgerSchemaVersion = 2;
@@ -68,6 +76,12 @@ export const triageLegacyLedgerSchemaVersion = 1;
 export const triageSourceBatchRecordSchemaVersion = 2;
 export const triageSourceSetFileName = "source-set.json";
 export const triageSourceResolutionFileName = "source-resolution.json";
+/** A write-once current-set prefetch proof, separate from final fetched observations. */
+export const triageSourcePlanProofDirName = "source-plan";
+export const triageSourcePlanProofFileName = "proof.json";
+const maxSourcePlanProofFiles = 4096;
+const maxSourcePlanProofBytes = 256 * 1024 * 1024;
+const sourcePlanProofCode = "triage_ledger_source_plan_prefetch_invalid";
 
 /** Schema of the immutable per-batch record this module writes into a batch's own directory. */
 export const triageBatchRecordSchemaVersion = 1;
@@ -1702,6 +1716,427 @@ export function readSourcePlanPriorResolution(
   };
 }
 
+function sourcePlanProofPath(file) {
+  if (
+    typeof file !== "string" ||
+    file.length > 256 ||
+    isAbsolute(file) ||
+    !/^[A-Za-z0-9._/-]+$/u.test(file) ||
+    file.split("/").some((part) => ["", ".", ".."].includes(part))
+  )
+    fail(sourcePlanProofCode, "A prefetch proof dependency has an invalid relative path.");
+  return file;
+}
+
+function sourcePlanProofBytes(root, file, limit) {
+  sourcePlanProofPath(file);
+  const path = join(root, file);
+  assertRealBatchDirectory(dirname(path), sourcePlanProofCode);
+  let descriptor;
+  try {
+    const before = lstatSync(path);
+    if (!before.isFile() || before.isSymbolicLink() || before.size > limit)
+      fail(sourcePlanProofCode, "A prefetch dependency must be a bounded regular file.");
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+    const stats = fstatSync(descriptor);
+    if (!stats.isFile() || stats.size > limit)
+      fail(sourcePlanProofCode, "A prefetch dependency must be a bounded regular file.");
+    const bytes = readFileSync(descriptor);
+    if (bytes.length > limit)
+      fail(sourcePlanProofCode, "A prefetch dependency exceeds its byte limit.");
+    return bytes;
+  } catch (error) {
+    if (error instanceof TriageLedgerError) throw error;
+    fail(sourcePlanProofCode, "A prefetch proof dependency cannot be read.");
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function sourcePlanProofClock(value, asOf) {
+  if (
+    typeof value !== "string" ||
+    !/(?:Z|[+-]\d{2}:\d{2})$/u.test(value) ||
+    !Number.isFinite(Date.parse(value)) ||
+    Date.parse(value) > asOf
+  )
+    fail(
+      sourcePlanProofCode,
+      "Every prefetch observation needs a usable clock no later than the plan.",
+    );
+}
+
+function sourcePlanProofDependencies(sourceSet, resolution, root, asOf) {
+  const files = new Map();
+  const add = (file, limit) => {
+    sourcePlanProofPath(file);
+    if (
+      [
+        triageSourceSetFileName,
+        triageSourceResolutionFileName,
+        "collection.links.txt",
+        triageSourcePlanProofFileName,
+      ].includes(file)
+    )
+      fail(sourcePlanProofCode, "A prefetch dependency conflicts with a reserved proof artifact.");
+    files.set(file, Math.min(files.get(file) ?? limit, limit));
+  };
+  const plannedAt = parseInstant(asOf, sourcePlanProofCode);
+  const htmlPaths = new Set(sourceSet.snapshots.map((snapshot) => snapshot.capture.file));
+  for (const snapshot of sourceSet.snapshots) {
+    sourcePlanProofClock(snapshot.capture.captured_at, plannedAt);
+    add(snapshot.capture.file, MAX_SOURCE_CAPTURE_BYTES);
+  }
+  const stamped = new Set();
+  const transports = new Set();
+  for (const observation of resolution.observations) {
+    if (observation.capture !== null && !htmlPaths.has(observation.capture.file)) {
+      add(observation.capture.file, 10 * 1024 * 1024);
+      stamped.add(observation.capture.file);
+    }
+    if (observation.transport !== null) {
+      add(observation.transport.file, 8 * 1024 * 1024);
+      transports.add(observation.transport.file);
+    }
+  }
+  try {
+    lstatSync(join(root, "fetch-manifest.json"));
+    add("fetch-manifest.json", 8 * 1024 * 1024);
+    transports.add("fetch-manifest.json");
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      if (error instanceof TriageLedgerError) throw error;
+      fail(sourcePlanProofCode, "The prefetch manifest cannot be inspected.");
+    }
+  }
+  for (const file of stamped) {
+    const capture = verifyCaptureFile(
+      sourcePlanProofBytes(root, file, files.get(file)).toString("utf8"),
+    );
+    if (!capture.ok)
+      fail(sourcePlanProofCode, "A prefetch capture does not verify against its stamp.");
+    sourcePlanProofClock(capture.header["fetched-at"], plannedAt);
+  }
+  for (const file of transports) {
+    let manifest;
+    try {
+      manifest = JSON.parse(sourcePlanProofBytes(root, file, files.get(file)).toString("utf8"));
+    } catch (error) {
+      if (error instanceof TriageLedgerError) throw error;
+      fail(sourcePlanProofCode, "A prefetch manifest cannot be read.");
+    }
+    if (
+      ![1, 2].includes(manifest?.schemaVersion) ||
+      manifest.tool !== "vacancy-fetch" ||
+      !Array.isArray(manifest.records) ||
+      manifest.records.length > maxSourcePlanProofFiles
+    )
+      fail(
+        sourcePlanProofCode,
+        "A prefetch manifest does not match its bounded transport contract.",
+      );
+    for (const key of ["startedAt", "finishedAt", "completedAt"])
+      if (manifest[key] !== undefined) sourcePlanProofClock(manifest[key], plannedAt);
+    for (const record of manifest.records)
+      if (record.fetchedAt !== undefined) sourcePlanProofClock(record.fetchedAt, plannedAt);
+    for (const observation of resolution.observations.filter(
+      (item) => item.capture === null && item.transport?.file === file,
+    )) {
+      const record = manifest.records.find((item) => item.index === observation.transport.index);
+      sourcePlanProofClock(record?.fetchedAt, plannedAt);
+    }
+  }
+  if (files.size + 3 > maxSourcePlanProofFiles)
+    fail(sourcePlanProofCode, "The prefetch proof has too many dependencies.");
+  return files;
+}
+
+function sourcePlanProofInventory(root) {
+  const files = [];
+  const directories = [];
+  let bytes = 0;
+  const scan = (parent, prefix = "") => {
+    for (const entry of readdirSync(parent, { withFileTypes: true })) {
+      const file = sourcePlanProofPath(`${prefix}${entry.name}`);
+      if (entry.isDirectory()) {
+        directories.push(file);
+        if (directories.length + files.length > maxSourcePlanProofFiles * 2)
+          fail(sourcePlanProofCode, "The prefetch proof exceeds its bounded directory inventory.");
+        scan(join(parent, entry.name), `${file}/`);
+      } else if (entry.isFile()) {
+        if (file === triageSourcePlanProofFileName) continue;
+        files.push(file);
+        bytes += lstatSync(join(root, file)).size;
+        if (
+          files.length > maxSourcePlanProofFiles ||
+          directories.length + files.length > maxSourcePlanProofFiles * 2 ||
+          bytes > maxSourcePlanProofBytes
+        )
+          fail(sourcePlanProofCode, "The prefetch proof exceeds its bounded inventory.");
+      } else
+        fail(
+          sourcePlanProofCode,
+          "A prefetch proof may contain only real directories and regular files.",
+        );
+    }
+  };
+  try {
+    scan(root);
+  } catch (error) {
+    if (error instanceof TriageLedgerError) throw error;
+    fail(sourcePlanProofCode, "The prefetch proof inventory cannot be read.");
+  }
+  if (directories.some((directory) => !files.some((file) => file.startsWith(`${directory}/`))))
+    fail(sourcePlanProofCode, "The prefetch proof contains an unbound directory.");
+  return files.sort();
+}
+
+/** Validate retained current-set evidence without reading a ledger or writing any file. */
+export function readSourcePlanPrefetchResolution(
+  sourceSet,
+  { asOf, collectionText, artifactsDir, reference, validation = {} } = {},
+) {
+  const code = sourcePlanProofCode;
+  assertExactKeys(
+    reference,
+    ["schema_version", "batch_id", "source_set_sha256", "source_resolution_sha256", "proof_sha256"],
+    [],
+    code,
+    "The prefetch resolution reference",
+  );
+  if (reference.schema_version !== 1 || !identifierPattern.test(reference.batch_id ?? ""))
+    fail(code, "The prefetch resolution reference has an unsupported version or batch id.");
+  for (const key of ["source_set_sha256", "source_resolution_sha256", "proof_sha256"])
+    assertDigest(reference[key], code, key);
+  if (
+    typeof artifactsDir !== "string" ||
+    !isAbsolute(artifactsDir) ||
+    !identifierPattern.test(basename(artifactsDir))
+  )
+    fail(code, "The prefetch proof requires the declared batch directory.");
+  if (reference.batch_id !== basename(artifactsDir))
+    fail(code, "A prefetch proof belongs to its own declared batch.");
+  const root = join(artifactsDir, triageSourcePlanProofDirName);
+  assertRealBatchDirectory(root, code);
+  const saved = readArtifact(join(root, triageSourcePlanProofFileName), code);
+  const proof = saved.value;
+  assertExactKeys(
+    proof,
+    [
+      "schema_version",
+      "batch_id",
+      "as_of",
+      "source_set_sha256",
+      "collection_sha256",
+      "source_resolution_sha256",
+      "files",
+    ],
+    [],
+    code,
+    "The prefetch proof",
+  );
+  if (
+    proof.schema_version !== 1 ||
+    proof.batch_id !== reference.batch_id ||
+    proof.as_of !== asOf ||
+    saved.digest !== reference.proof_sha256 ||
+    proof.source_set_sha256 !== reference.source_set_sha256 ||
+    proof.source_resolution_sha256 !== reference.source_resolution_sha256 ||
+    reference.source_set_sha256 !== sourceSetDigest(sourceSet) ||
+    typeof collectionText !== "string" ||
+    proof.collection_sha256 !== hashBytes(collectionText)
+  )
+    fail(
+      code,
+      "The prefetch proof does not bind this exact source set, collection and plan instant.",
+    );
+  if (!Array.isArray(proof.files) || proof.files.length > maxSourcePlanProofFiles)
+    fail(code, "The prefetch proof has an invalid bounded file inventory.");
+  const names = [];
+  let totalBytes = 0;
+  for (const file of proof.files) {
+    assertExactKeys(file, ["file", "sha256", "bytes"], [], code, "The prefetch dependency");
+    sourcePlanProofPath(file.file);
+    assertDigest(file.sha256, code, "The prefetch dependency digest");
+    if (!Number.isSafeInteger(file.bytes) || file.bytes < 0 || file.bytes > maxRecordBytes)
+      fail(code, "A prefetch dependency has an invalid byte count.");
+    names.push(file.file);
+    totalBytes += file.bytes;
+  }
+  if (
+    totalBytes > maxSourcePlanProofBytes ||
+    new Set(names).size !== names.length ||
+    JSON.stringify(names) !== JSON.stringify([...names].sort()) ||
+    JSON.stringify(names) !== JSON.stringify(sourcePlanProofInventory(root))
+  )
+    fail(code, "The prefetch inventory is incomplete, repeated or exceeds its byte limit.");
+  let storedSet;
+  try {
+    storedSet = readSourceSet(join(root, triageSourceSetFileName), {
+      collectionText,
+      captureRoot: root,
+    });
+  } catch (error) {
+    if (!error?.code) throw error;
+    fail(code, "The retained prefetch source set or its HTML custody is invalid.");
+  }
+  const resolved = readArtifact(join(root, triageSourceResolutionFileName), code);
+  if (
+    storedSet.digest !== reference.source_set_sha256 ||
+    resolved.digest !== reference.source_resolution_sha256
+  )
+    fail(code, "The retained prefetch artifact bytes differ from their reference.");
+  checkedResolution(resolved.value, storedSet.sourceSet, {
+    collectionText,
+    captureRoot: root,
+    languages: validation.languages,
+    scoring: validation.scoring,
+  });
+  const expected = sourcePlanProofDependencies(storedSet.sourceSet, resolved.value, root, asOf);
+  expected.set(triageSourceSetFileName, MAX_SOURCE_SET_BYTES);
+  expected.set(triageSourceResolutionFileName, MAX_RESOLUTION_BYTES);
+  expected.set("collection.links.txt", 1024 * 1024);
+  if (JSON.stringify(names) !== JSON.stringify([...expected.keys()].sort()))
+    fail(code, "The prefetch proof contains a missing or unbound dependency.");
+  for (const file of proof.files) {
+    const bytes = sourcePlanProofBytes(root, file.file, expected.get(file.file));
+    if (
+      bytes.length !== file.bytes ||
+      hashBytes(bytes) !== file.sha256 ||
+      (file.file === "collection.links.txt" && bytes.toString("utf8") !== collectionText)
+    )
+      fail(code, "A retained prefetch dependency differs from its complete byte binding.");
+  }
+  return { resolution: resolved.value, captureRoot: root, reference };
+}
+
+/**
+ * Retain a validated current-set prefetch resolution before fresh fetches. A partial publication
+ * is evidence, never overwritten. The pure planner and proof reader remain read-only.
+ */
+export function publishSourcePlan(
+  ledgerOrPath,
+  sourceSet,
+  { asOf, resolution, collectionText, captureRoot, artifactsDir, validation = {} } = {},
+) {
+  verifyOperationalFolder();
+  const code = sourcePlanProofCode;
+  if (
+    resolution === undefined ||
+    typeof captureRoot !== "string" ||
+    !isAbsolute(captureRoot) ||
+    typeof artifactsDir !== "string" ||
+    !isAbsolute(artifactsDir) ||
+    !identifierPattern.test(basename(artifactsDir))
+  )
+    fail(
+      code,
+      "Current-set prefetch publication requires a resolution and real declared directories.",
+    );
+  assertRealBatchDirectory(captureRoot, code);
+  assertRealBatchDirectory(artifactsDir, code);
+  if (readdirSync(artifactsDir).length !== 0)
+    fail(
+      code,
+      "Prefetch publication requires an unused batch directory; retain any partial publication.",
+    );
+  const plan = planSourceBatch(ledgerOrPath, sourceSet, {
+    asOf,
+    resolution,
+    collectionText,
+    captureRoot,
+    validation,
+  });
+  if (Object.hasOwn(plan, "prior_resolution"))
+    fail(
+      code,
+      "An indexed prior resolution keeps its existing immutable parent planning contract.",
+    );
+  const plannedAt = parseInstant(asOf, code);
+  for (const item of plan.items) {
+    if (item.baseline !== null && parseInstant(item.baseline.last_checked, code) >= plannedAt)
+      fail(code, "The logical prefetch baseline must predate the plan.");
+    for (const source of item.sources)
+      if (source.baseline !== null && parseInstant(source.baseline.observed_at, code) >= plannedAt)
+        fail(code, "The scoped prefetch baseline must predate the plan.");
+  }
+  const dependencies = sourcePlanProofDependencies(sourceSet, resolution, captureRoot, asOf);
+  const files = new Map([
+    [triageSourceSetFileName, Buffer.from(serializeSourceSet(sourceSet))],
+    [triageSourceResolutionFileName, Buffer.from(serializeSourceResolution(resolution))],
+    ["collection.links.txt", Buffer.from(collectionText)],
+  ]);
+  if (files.get("collection.links.txt").length > 1024 * 1024)
+    fail(code, "The prefetch collection exceeds its byte limit.");
+  let totalBytes = [...files.values()].reduce((sum, bytes) => sum + bytes.length, 0);
+  for (const [file, limit] of dependencies) {
+    const bytes = sourcePlanProofBytes(captureRoot, file, limit);
+    totalBytes += bytes.length;
+    if (totalBytes > maxSourcePlanProofBytes)
+      fail(code, "The prefetch proof exceeds its total byte limit.");
+    files.set(file, bytes);
+  }
+  const proof = {
+    schema_version: 1,
+    batch_id: basename(artifactsDir),
+    as_of: asOf,
+    source_set_sha256: sourceSetDigest(sourceSet),
+    collection_sha256: hashBytes(collectionText),
+    source_resolution_sha256: sourceResolutionDigest(resolution),
+    files: [...files].map(([file, bytes]) => ({
+      file,
+      sha256: hashBytes(bytes),
+      bytes: bytes.length,
+    })),
+  };
+  // Use code-unit sorting, the same canonical inventory order the reader checks.
+  proof.files.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+  const proofText = `${JSON.stringify(proof, null, 2)}\n`;
+  const reference = {
+    schema_version: 1,
+    batch_id: proof.batch_id,
+    source_set_sha256: proof.source_set_sha256,
+    source_resolution_sha256: proof.source_resolution_sha256,
+    proof_sha256: hashBytes(proofText),
+  };
+  const root = join(artifactsDir, triageSourcePlanProofDirName);
+  try {
+    mkdirSync(root, { mode: 0o700 });
+    for (const [file, bytes] of files) {
+      const path = join(root, file);
+      mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+      assertRealBatchDirectory(dirname(path), code);
+      writeFileSync(path, bytes, { flag: "wx", mode: 0o600 });
+    }
+    writeFileSync(join(root, triageSourcePlanProofFileName), proofText, {
+      flag: "wx",
+      mode: 0o600,
+    });
+    const frozen = planSourceBatch(ledgerOrPath, sourceSet, {
+      asOf,
+      collectionText,
+      artifactsDir,
+      prefetchProof: reference,
+      validation,
+    });
+    const { prefetch_resolution: retainedReference, ...reproduced } = frozen;
+    if (JSON.stringify(reproduced) !== JSON.stringify(plan))
+      fail(
+        "triage_ledger_concurrent_observation",
+        "The ledger changed while retaining the prefetch proof; the original baseline cannot be replaced.",
+      );
+    writeFileSync(
+      join(artifactsDir, triageBatchPlanFileName),
+      `${JSON.stringify(frozen, null, 2)}\n`,
+      { flag: "wx", mode: 0o600 },
+    );
+    return frozen;
+  } catch (error) {
+    if (error instanceof TriageLedgerError) throw error;
+    fail(code, "Prefetch publication requires unused artifact paths; retain the partial batch.");
+  }
+}
+
 function cardGroups(sourceSet, resolution) {
   if (resolution !== undefined) return resolution.groups;
   return sourceSet.cards.map((card) => ({
@@ -1848,9 +2283,37 @@ function sourcePlanItem(group, ledger, sourceSet) {
 export function planSourceBatch(
   ledgerOrPath,
   sourceSet,
-  { asOf, resolution, collectionText, captureRoot, selection, validation = {} } = {},
+  {
+    asOf,
+    resolution,
+    collectionText,
+    captureRoot,
+    selection,
+    artifactsDir,
+    prefetchProof,
+    validation = {},
+  } = {},
 ) {
   verifyOperationalFolder();
+  const prefetch =
+    prefetchProof === undefined
+      ? null
+      : readSourcePlanPrefetchResolution(sourceSet, {
+          asOf,
+          collectionText,
+          artifactsDir,
+          reference: prefetchProof,
+          validation,
+        });
+  if (prefetch !== null) {
+    if (resolution !== undefined || captureRoot !== undefined || selection !== undefined)
+      fail(
+        sourcePlanProofCode,
+        "A retained prefetch proof cannot be combined with another planning resolution or selection.",
+      );
+    resolution = prefetch.resolution;
+    captureRoot = prefetch.captureRoot;
+  }
   checkedSourceSet(sourceSet, { collectionText, captureRoot });
   if (resolution !== undefined)
     checkedResolution(resolution, sourceSet, { collectionText, captureRoot, ...validation });
@@ -1902,6 +2365,7 @@ export function planSourceBatch(
     source_set_sha256: sourceSetDigest(sourceSet),
     ledger_snapshot_sha256: ledgerSnapshotDigest(ledger),
     ...(prior === null ? {} : { prior_resolution: prior.reference }),
+    ...(prefetch === null ? {} : { prefetch_resolution: prefetch.reference }),
     counts: Object.fromEntries(
       actions.map((action) => [action, items.filter((item) => item.action === action).length]),
     ),
@@ -2079,6 +2543,20 @@ function loadSourceArtifacts(artifactsDir, batch, validation) {
   );
   if (parseInstant(plan.as_of, "triage_ledger_plan_invalid") > parseInstant(batch.observed_at))
     fail("triage_ledger_plan_invalid", "The source plan postdates this observation.");
+  if (Object.hasOwn(plan, "prefetch_resolution")) {
+    if (Object.hasOwn(plan, "prior_resolution"))
+      fail(
+        sourcePlanProofCode,
+        "A source plan cannot combine prior and current-set prefetch proofs.",
+      );
+    readSourcePlanPrefetchResolution(stored.sourceSet, {
+      asOf: plan.as_of,
+      collectionText,
+      artifactsDir,
+      reference: plan.prefetch_resolution,
+      validation,
+    });
+  }
   return { sourceSet: stored.sourceSet, resolution: resolved.value, plan, collectionText };
 }
 

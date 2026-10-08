@@ -61,6 +61,7 @@ import {
   createSourceSet,
   serializeSourceSet,
   sourceSetMemberships,
+  sourceSetDigest,
 } from "../tools/triage-sources/source-set.mjs";
 import { executeFinalize, executeSweep } from "../tools/telegram-collect/persist.mjs";
 import { initState } from "../tools/telegram-collect/state.mjs";
@@ -2244,3 +2245,78 @@ test("pretriage retries a failed job source despite a confirmed known logical va
     "company_context",
   );
 });
+
+for (const variant of ["canonical aliases", "identical URLs", "distinct IDs"]) {
+  test(`source session cuts preserve posting identity and conflicts: ${variant}`, () => {
+    const firstUrl = "https://www.linkedin.com/jobs/view/1234512345";
+    const secondUrl =
+      variant === "identical URLs"
+        ? firstUrl
+        : `https://www.linkedin.com/jobs/view/qa-engineer-at-fictional-${variant === "distinct IDs" ? "2234512345" : "1234512345"}`;
+    const fixtures = [
+      fictionalSourceFixture({ kind: "summary", jobUrl: firstUrl, postId: 811 }),
+      fictionalSourceFixture({ kind: "summary", jobUrl: secondUrl, postId: 812 }),
+    ];
+    const second = fixtures[1].target;
+    second.body = second.body.replace("Senior QA Engineer", "Junior+");
+    second.facts.seniority = { value: "Junior+", evidence_quote: "Junior+" };
+    second.input.role.seniority = "junior";
+    second.input.role.evidence.seniority = "Junior+";
+    second.capture.sha256 = sourceSetDigest(second.body);
+    second.input.sourceContext.primaryCaptureSha256 = second.capture.sha256;
+    const urls = [
+      ...new Set(
+        fixtures.flatMap((fixture) => [fixture.snapshot.original_url, fixture.target.source_ref]),
+      ),
+    ];
+    const collectionText = `${urls.join("\n")}\n`;
+    const sourceSet = createSourceSet({
+      collectionText,
+      snapshots: fixtures.map((fixture) => fixture.snapshot),
+      cards: fixtures.map((fixture) => fixture.card),
+    });
+    const observations = fixtures.flatMap((fixture, at) => {
+      fixture.target.input.inputIndex = at + 1;
+      fixture.target.input.sourceContext.sourceSetSha256 = sourceSetDigest(sourceSet);
+      return fixture.observations;
+    });
+    const whole = resolveSourceSet({ sourceSet, collectionText, observations });
+    const collection = collectionOf(urls, {
+      source_set: sourceSet,
+      collection_text: collectionText,
+    });
+    const split = splitCollection(collection, { groupSize: 2 });
+    if (variant === "distinct IDs") {
+      assert.equal(split.groups.length, 2);
+      assert.deepEqual(
+        split.groups.map((group) => group.card_refs.length),
+        [1, 1],
+      );
+      assert.equal(whole.groups.length, 2);
+      assert.deepEqual(whole.groups.map((group) => group.result.decision).sort(), [
+        "EVALUATED",
+        "SKIP",
+      ]);
+    } else {
+      assert.equal(
+        split.groups.length,
+        1,
+        "canonical posting sources must be reviewed together before ledger write",
+      );
+      assert.equal(split.groups[0].oversize, true);
+      assert.equal(split.groups[0].card_refs.length, 2);
+      assert.equal(whole.groups.length, 1);
+      assert.equal(whole.groups[0].result.review_code, "source_review");
+      assert.ok(whole.groups[0].conflicts.includes("conflicting_seniority"));
+      const range = collectionGroup(collection, split.groups[0]);
+      const sliced = resolveSourceSet({
+        sourceSet,
+        collectionText,
+        observations,
+        selection: range.source_selection,
+      });
+      assert.deepEqual(sliced.groups, whole.groups);
+      assert.deepEqual(split.cross_group_spellings, []);
+    }
+  });
+}

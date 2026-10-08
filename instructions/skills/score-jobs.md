@@ -486,11 +486,16 @@ for upgrade, recording and correction APIs. All observations and payloads remain
    An existing merged or different-target group requires that resolution-aware plan before its next
    fetch; validate the prior artifact against the same exact source set and retained captures as
    the source ledger contract prescribes. A changed source set needs its own validated resolution.
-   Use the indexed prior batch directory as `captureRoot`; the planner emits a bounded
-   `prior_resolution` reference and verification reads its sibling archive. Keep the plan bytes
-   unchanged after fetching; newly observed facts cannot replace the prior proof.
+   For a matching indexed prior set, use its batch directory as `captureRoot`; the planner emits
+   a bounded `prior_resolution` reference and verification reads its sibling archive. For a current
+   set with its own validated prefetch resolution, use `publishSourcePlan` with the claimed batch
+   directory and the retained prefetch captures. Publish the current-set planning proof before refetch.
+   Its bounded `prefetch_resolution` reference binds the fixed `source-plan/` archive, exact set,
+   collection and resolution to captures observed no later than the plan clock. Do not use both
+   proof references. Neither final observations nor later captures can replace the frozen planning proof.
+   Keep the plan bytes unchanged after fetching; newly observed facts cannot replace the prior proof.
    Before fetching, archive that source plan in `plan.json` (directly or as `source_plan` alongside
-   the standalone `planBatch` snapshot). Run `planPreTriage` over the selected collection with both
+   the standalone `planBatch` snapshot, or through the exclusive current-set publisher). Run `planPreTriage` over the selected collection with both
    `ledgerPlan` and `sourcePlan`, then report its URL dispositions and logical counts.
 3. `company_context`, contacts and original summaries enter no JD lane. A fresh original full JD
    uses the collector's code-extracted `cardBody`, HTML digest and own bounds; it costs no second

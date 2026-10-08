@@ -130,6 +130,14 @@ the validated indexed prior resolution and its batch directory as `captureRoot` 
 Its bounded `prior_resolution` reference contains no filesystem path; verification reads the sibling
 archive in the same batch store and binds its record, exact set, resolution and captures to the
 ledger index. New observations cannot replace that prior proof or rewrite the prefetch plan.
+A newly collected set, including unchanged card bodies with a new capture clock, needs its own
+validated prefetch resolution. `publishSourcePlan` retains that exact current-set proof and its
+capture/manifest dependencies under the fixed `source-plan/` archive before exclusively writing
+`plan.json`. The optional bounded `prefetch_resolution` reference has no caller-chosen path.
+Verification reads this past proof independently from the final resolution, checks its exact set,
+collection, digests, captures and pre-plan clocks, and reproduces the frozen plan against its ledger
+snapshot. `planSourceBatch` remains pure. Use only one of `prior_resolution` and
+`prefetch_resolution`; a missing or changed proof cannot authorize an existing derived group.
 Run triage verification before `recordSourceBatch`, with the source selection's original URL range
 and ledger. Use the module
 APIs in the review runbook for an explicit ledger v1→v2 upgrade, revision aliases and corrections.

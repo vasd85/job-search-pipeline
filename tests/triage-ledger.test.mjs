@@ -23,6 +23,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import * as ledgerSourceApi from "../tools/lib/triage-ledger-core.mjs";
 import {
   createSourceSet,
@@ -211,10 +213,12 @@ function sourceBatchDir(
     captures = [],
     prefetchPlan = false,
     planResolution,
+    claimedDir = false,
+    frozenPlan,
   } = {},
 ) {
   const dir = join(context.store, batchId);
-  mkdirSync(dir);
+  if (!claimedDir) mkdirSync(dir);
   writeFileSync(join(dir, fixture.sourceSet.snapshots[0].capture.file), fixture.html);
   for (const [file, bytes] of captures) writeFileSync(join(dir, file), bytes);
   const resolution = publishSourceResolution({
@@ -224,17 +228,20 @@ function sourceBatchDir(
     observations: observations ?? [sourceObservation(fixture)],
     selection: sourceSelection,
   });
-  const plan = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
-    asOf: observedAt,
-    collectionText: fixture.collectionText,
-    ...(planResolution !== undefined
-      ? { resolution: planResolution, captureRoot: dir }
-      : prefetchPlan
-        ? {}
-        : { resolution }),
-  });
+  const plan =
+    frozenPlan ??
+    ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+      asOf: observedAt,
+      collectionText: fixture.collectionText,
+      ...(planResolution !== undefined
+        ? { resolution: planResolution, captureRoot: dir }
+        : prefetchPlan
+          ? {}
+          : { resolution }),
+    });
   const planText = `${JSON.stringify(plan, null, 2)}\n`;
-  writeFileSync(join(dir, "plan.json"), planText);
+  if (frozenPlan === undefined) writeFileSync(join(dir, "plan.json"), planText);
+  else assert.equal(readFileSync(join(dir, "plan.json"), "utf8"), planText);
   const payload = {
     batch_id: batchId,
     observed_at: observedAt,
@@ -4138,4 +4145,700 @@ test("an orphaned correction replays while retaining a later standalone URL obse
   assert.equal(readLedger(context.path).corrections.length, 1);
   assert.equal(reviewLedger(readLedger(context.path), { asOf: sourceInstant }).totals.entries, 1);
   assert.equal(readLedger(context.path).logical_entries.length, 0);
+});
+
+function recollectionPlanningScenario(t) {
+  const context = sourceLedger(t);
+  const details = "https://jobs.acme.example/vacancy/1001";
+  const originalFixture = combinedSourceFixture(
+    fictionalSourceSet({ postId: 1001, details }),
+    fictionalSourceSet({ postId: 1002, details }),
+  );
+  const original = sourceBatchDir(context, originalFixture, "recollection-indexed-parent", {
+    ...linkedSourceObservations(originalFixture),
+    prefetchPlan: true,
+  });
+  sourceFullEvidence(original, sourceInstant);
+  for (const cadence of ["per-batch", "full"]) {
+    const report = verifySourceBatch(context, original, originalFixture, cadence);
+    assert.equal(report.status, "pass", `${cadence}: ${report.findingCodes.join(",")}`);
+  }
+  recordSource(context.path, original);
+  const fixture = structuredClone(originalFixture);
+  for (const snapshot of fixture.sourceSet.snapshots)
+    snapshot.capture.captured_at = "2026-10-09T08:30:00.000Z";
+  assert.deepEqual(fixture.sourceSet.cards, originalFixture.sourceSet.cards);
+  assert.notEqual(sourceSetDigest(fixture.sourceSet), sourceSetDigest(originalFixture.sourceSet));
+  const asOf = "2026-10-09T09:00:00Z";
+  const prefetch = sourceBatchDir(context, fixture, "recollection-own-prefetch", {
+    ...linkedSourceObservations(fixture),
+    observedAt: asOf,
+    prefetchPlan: true,
+  });
+  return { context, details, originalFixture, original, fixture, asOf, prefetch };
+}
+
+function sourceArtifactBytes(dir) {
+  const files = [];
+  const scan = (parent, prefix = "") => {
+    for (const file of readdirSync(parent, { withFileTypes: true })) {
+      const relative = `${prefix}${file.name}`;
+      if (file.isDirectory()) scan(join(parent, file.name), `${relative}/`);
+      else files.push([relative, digest(readFileSync(join(parent, file.name)))]);
+    }
+  };
+  scan(dir);
+  return files.sort(([a], [b]) => a.localeCompare(b));
+}
+
+function publishedPrefetchBatch(
+  scenario,
+  batchId,
+  observations = linkedSourceObservations(scenario.fixture),
+) {
+  const { context, fixture, prefetch, asOf } = scenario;
+  const dir = join(context.store, batchId);
+  mkdirSync(dir);
+  const frozen = ledgerSourceApi.publishSourcePlan(context.path, fixture.sourceSet, {
+    asOf,
+    resolution: prefetch.resolution,
+    collectionText: fixture.collectionText,
+    captureRoot: prefetch.dir,
+    artifactsDir: dir,
+  });
+  const staged = sourceBatchDir(context, fixture, batchId, {
+    ...observations,
+    observedAt: "2026-10-09T09:20:00Z",
+    claimedDir: true,
+    frozenPlan: frozen,
+  });
+  sourceFullEvidence(staged, "2026-10-09T09:20:00Z");
+  return staged;
+}
+
+test("a recollected current-set prefetch plan survives a fresh Senior/Junior conflict at both cadences", (t) => {
+  const { context, details, fixture, asOf, prefetch } = recollectionPlanningScenario(t);
+  const conflictDir = join(context.store, "recollection-current-proof-conflict");
+  mkdirSync(conflictDir);
+  const frozen = ledgerSourceApi.publishSourcePlan(context.path, fixture.sourceSet, {
+    asOf,
+    resolution: prefetch.resolution,
+    collectionText: fixture.collectionText,
+    captureRoot: prefetch.dir,
+    artifactsDir: conflictDir,
+  });
+  assert.equal(frozen.items.length, 1);
+  assert.equal(frozen.items[0].action, "skip_known");
+  assert.equal(Object.hasOwn(frozen, "prior_resolution"), false);
+  const changed = linkedSourceObservations(fixture);
+  changed.observations = changed.observations.map((raw) => {
+    const title = raw.source_ref === details ? "Junior QA Engineer" : fixture.title;
+    if (raw.source_ref === details) {
+      const card = fixture.sourceSet.cards.find((item) => item.card_ref === raw.card_ref);
+      const body = `${title}\nCompany: Acme\nManual testing and Java.`;
+      const capture = { file: raw.capture.file, sha256: digest(body) };
+      const at = changed.captures.findIndex(([file]) => file === capture.file);
+      changed.captures[at] = [
+        capture.file,
+        renderCaptureFile({
+          body,
+          header: {
+            index: Number(capture.file.slice(0, 3)),
+            adapter: "fictional",
+            "source-id": "url",
+            "requested-url": details,
+            "final-url": details,
+            "fetched-at": "2026-10-09T09:10:00Z",
+            "http-status": 200,
+            outcome: "active",
+            "normalized-sha256": digest(body),
+            "body-bytes": Buffer.byteLength(body),
+            normalization: "none",
+          },
+        }),
+      ];
+      raw = sourceObservation(fixture, card, {
+        inputIndex: raw.input.inputIndex,
+        sourceRef: details,
+        body,
+        capture,
+        jobTitle: title,
+      });
+    }
+    raw.facts.seniority = {
+      value: title.startsWith("Junior") ? "Junior" : "Senior",
+      evidence_quote: title,
+    };
+    return raw;
+  });
+  const conflicted = sourceBatchDir(context, fixture, "recollection-current-proof-conflict", {
+    ...changed,
+    observedAt: "2026-10-09T09:20:00Z",
+    claimedDir: true,
+    frozenPlan: frozen,
+  });
+  sourceFullEvidence(conflicted, "2026-10-09T09:20:00Z");
+  assert.ok(conflicted.resolution.groups[0].conflicts.includes("conflicting_seniority"));
+  assert.equal(conflicted.resolution.groups[0].result.review_code, "source_review");
+  const ledgerBytes = readFileSync(context.path);
+  const planBytes = readFileSync(join(conflicted.dir, "plan.json"));
+  const reports = ["per-batch", "full"].map((cadence) => ({
+    cadence,
+    report: verifySourceBatch(context, conflicted, fixture, cadence),
+  }));
+  assert.deepEqual(
+    reports.map(({ cadence, report }) => ({
+      cadence,
+      status: report.status,
+      codes: report.findingCodes,
+    })),
+    ["per-batch", "full"].map((cadence) => ({ cadence, status: "pass", codes: [] })),
+  );
+  assert.deepEqual(readFileSync(context.path), ledgerBytes);
+  assert.deepEqual(readFileSync(join(conflicted.dir, "plan.json")), planBytes);
+  recordSource(context.path, conflicted);
+  assert.equal(readLedger(context.path).logical_entries.length, 1);
+  assert.equal(readLedger(context.path).logical_entries[0].decision, "MANUAL_REVIEW");
+  const recordedBytes = readFileSync(context.path);
+  assert.equal(recordSource(context.path, conflicted).replayed, true);
+  assert.deepEqual(readFileSync(context.path), recordedBytes);
+});
+
+test("current-set prefetch proofs preserve stable controls, pure reproduction and initial-plan guards", (t) => {
+  const scenario = recollectionPlanningScenario(t);
+  const { context, fixture, prefetch, asOf, original, originalFixture } = scenario;
+  const oldBytes = sourceArtifactBytes(original.dir);
+  const ledgerBytes = readFileSync(context.path);
+  const oldPlan = ledgerSourceApi.planSourceBatch(context.path, originalFixture.sourceSet, {
+    asOf,
+    resolution: original.resolution,
+    collectionText: originalFixture.collectionText,
+    captureRoot: original.dir,
+  });
+  assert.ok(oldPlan.prior_resolution);
+  assert.equal(Object.hasOwn(oldPlan, "prefetch_resolution"), false);
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+        asOf,
+        resolution: original.resolution,
+        collectionText: fixture.collectionText,
+        captureRoot: original.dir,
+      }),
+    ),
+    "triage_ledger_source_resolution_invalid",
+  );
+  const currentOnly = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+    asOf,
+    resolution: prefetch.resolution,
+    collectionText: fixture.collectionText,
+    captureRoot: prefetch.dir,
+  });
+  assert.equal(Object.hasOwn(currentOnly, "prefetch_resolution"), false);
+  const compatible = sourceBatchDir(context, fixture, "current-prefetch-legacy-stable", {
+    ...linkedSourceObservations(fixture),
+    observedAt: "2026-10-09T09:20:00Z",
+    prefetchPlan: true,
+  });
+  overwriteSourcePlan(compatible, currentOnly);
+  sourceFullEvidence(compatible, "2026-10-09T09:20:00Z");
+  const stable = publishedPrefetchBatch(scenario, "current-prefetch-proved-stable");
+  const before = sourceArtifactBytes(stable.dir);
+  const ownOptions = {
+    asOf,
+    collectionText: fixture.collectionText,
+    artifactsDir: stable.dir,
+    prefetchProof: stable.plan.prefetch_resolution,
+  };
+  assert.deepEqual(
+    ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, ownOptions),
+    stable.plan,
+  );
+  assert.deepEqual(
+    ledgerSourceApi.planSourceBatch(readLedger(context.path), fixture.sourceSet, ownOptions),
+    stable.plan,
+  );
+  const proof = ledgerSourceApi.readSourcePlanPrefetchResolution(fixture.sourceSet, {
+    ...ownOptions,
+    reference: stable.plan.prefetch_resolution,
+  });
+  assert.deepEqual(proof.resolution, prefetch.resolution);
+  assert.deepEqual(
+    readFileSync(join(proof.captureRoot, "001.capture.txt")),
+    readFileSync(join(prefetch.dir, "001.capture.txt")),
+  );
+  for (const staged of [compatible, stable]) {
+    for (const cadence of ["per-batch", "full"]) {
+      const report = verifySourceBatch(context, staged, fixture, cadence);
+      assert.equal(report.status, "pass", `${cadence}: ${report.findingCodes.join(",")}`);
+    }
+  }
+  assert.deepEqual(sourceArtifactBytes(stable.dir), before);
+  assert.deepEqual(sourceArtifactBytes(original.dir), oldBytes);
+  assert.deepEqual(readFileSync(context.path), ledgerBytes);
+  const initial = sourceBatchDir(context, fixture, "current-prefetch-unproven-derived", {
+    ...linkedSourceObservations(fixture),
+    observedAt: "2026-10-09T09:20:00Z",
+    prefetchPlan: true,
+  });
+  sourceFullEvidence(initial, "2026-10-09T09:20:00Z");
+  for (const cadence of ["per-batch", "full"])
+    assert.ok(
+      verifySourceBatch(context, initial, fixture, cadence).findingCodes.includes(
+        "source_plan_baseline_missing",
+      ),
+    );
+
+  const edited = combinedSourceFixture(
+    fictionalSourceSet({ postId: 1001, details: scenario.details, extra: " Edited card." }),
+    fictionalSourceSet({ postId: 1002, details: scenario.details }),
+  );
+  const editedPlan = ledgerSourceApi.planSourceBatch(context.path, edited.sourceSet, {
+    asOf,
+    collectionText: edited.collectionText,
+  });
+  assert.equal(
+    editedPlan.items.find((item) => item.card_refs.includes(edited.sourceSet.cards[0].card_ref))
+      .action,
+    "fetch_new",
+  );
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.planSourceBatch(context.path, edited.sourceSet, {
+        ...ownOptions,
+        collectionText: edited.collectionText,
+      }),
+    ),
+    "triage_ledger_source_plan_prefetch_invalid",
+  );
+});
+
+test("current-set prefetch custody uses the configured languages at both verifier cadences", (t) => {
+  const { context, fixture, asOf } = recollectionPlanningScenario(t);
+  const languages = ["English", "Russian"];
+  const changed = linkedSourceObservations(fixture);
+  for (const observation of changed.observations) observation.input.role.language = "Russian";
+  const captureRoot = join(context.root, "configured-language-prefetch");
+  mkdirSync(captureRoot);
+  writeFileSync(join(captureRoot, fixture.sourceSet.snapshots[0].capture.file), fixture.html);
+  for (const [file, bytes] of changed.captures) writeFileSync(join(captureRoot, file), bytes);
+  const prefetch = resolveSourceSet({
+    sourceSet: fixture.sourceSet,
+    collectionText: fixture.collectionText,
+    observations: changed.observations,
+    captureRoot,
+    languages,
+  });
+  const dir = join(context.store, "current-proof-configured-language");
+  mkdirSync(dir);
+  const frozen = ledgerSourceApi.publishSourcePlan(context.path, fixture.sourceSet, {
+    asOf,
+    resolution: prefetch,
+    collectionText: fixture.collectionText,
+    captureRoot,
+    artifactsDir: dir,
+    validation: { languages },
+  });
+  const htmlFiles = new Set(fixture.sourceSet.snapshots.map((snapshot) => snapshot.capture.file));
+  for (const [file, bytes] of changed.captures)
+    if (!htmlFiles.has(file)) writeFileSync(join(dir, file), bytes);
+  const resolution = publishSourceResolution({
+    artifactsDir: dir,
+    sourceSet: fixture.sourceSet,
+    collectionText: fixture.collectionText,
+    sourceCaptureRoot: captureRoot,
+    observations: changed.observations,
+    languages,
+  });
+  sourceFullEvidence({ dir, resolution }, "2026-10-09T09:20:00Z");
+  const before = sourceArtifactBytes(dir);
+  const ledgerBytes = readFileSync(context.path);
+  assert.deepEqual(
+    ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+      asOf,
+      collectionText: fixture.collectionText,
+      artifactsDir: dir,
+      prefetchProof: frozen.prefetch_resolution,
+      validation: { languages },
+    }),
+    frozen,
+  );
+  for (const cadence of ["per-batch", "full"]) {
+    const report = runSuite(
+      buildContext({
+        artifactsDir: dir,
+        linksFile: join(dir, "collection.links.txt"),
+        from: 1,
+        to: fixture.collectionText.trim().split("\n").length,
+        ledgerPath: context.path,
+        languages,
+      }),
+      cadence,
+    );
+    assert.equal(report.status, "pass", `${cadence}: ${report.findingCodes.join(",")}`);
+  }
+  assert.deepEqual(sourceArtifactBytes(dir), before);
+  assert.deepEqual(readFileSync(context.path), ledgerBytes);
+});
+
+test("prefetch plan claims cannot forge proof, baseline, source action or a parent fallback", (t) => {
+  const scenario = recollectionPlanningScenario(t);
+  const { context, fixture, original, asOf } = scenario;
+  const staged = publishedPrefetchBatch(scenario, "current-proof-claims");
+  const frozen = structuredClone(staged.plan);
+  const ledgerBytes = readFileSync(context.path);
+  const prior = ledgerSourceApi.planSourceBatch(context.path, scenario.originalFixture.sourceSet, {
+    asOf,
+    resolution: original.resolution,
+    collectionText: scenario.originalFixture.collectionText,
+    captureRoot: original.dir,
+  }).prior_resolution;
+  for (const mutate of [
+    (plan) => {
+      plan.prefetch_resolution.schema_version = 2;
+    },
+    (plan) => {
+      plan.prefetch_resolution.batch_id = "../current-proof-claims";
+    },
+    (plan) => {
+      plan.prefetch_resolution.batch_id = "another-proof-batch";
+    },
+    (plan) => {
+      plan.prefetch_resolution.proof_sha256 = "0".repeat(64);
+    },
+    (plan) => {
+      plan.prefetch_resolution.source_set_sha256 = original.payload.source_set_sha256;
+    },
+    (plan) => {
+      plan.prefetch_resolution.source_resolution_sha256 = "0".repeat(64);
+    },
+    (plan) => {
+      plan.prefetch_resolution.archive_dir = staged.dir;
+    },
+    (plan) => {
+      plan.prior_resolution = prior;
+    },
+    (plan) => {
+      plan.items[0].baseline.decision = "BLOCKED";
+    },
+    (plan) => {
+      plan.items[0].baseline.last_checked = asOf;
+    },
+    (plan) => {
+      plan.items[0].baseline = null;
+    },
+    (plan) => {
+      plan.items[0].action = "skip_closed";
+    },
+    (plan) => {
+      plan.items[0].sources.find((source) => source.role === "details").action = "skip_closed";
+    },
+    (plan) => {
+      plan.items[0].card_refs = ["tg-card:sha256:" + "0".repeat(64)];
+    },
+    (plan) => {
+      plan.ledger_snapshot_sha256 = "0".repeat(64);
+    },
+  ]) {
+    const fake = structuredClone(frozen);
+    mutate(fake);
+    overwriteSourcePlan(staged, fake);
+    for (const cadence of ["per-batch", "full"])
+      assert.ok(
+        verifySourceBatch(context, staged, fixture, cadence).findingCodes.includes(
+          "source_plan_uncorroborated",
+        ),
+      );
+    assert.deepEqual(readFileSync(context.path), ledgerBytes);
+    assert.equal(existsSync(join(staged.dir, "ledger-record.json")), false);
+  }
+  overwriteSourcePlan(staged, frozen);
+  assert.equal(verifySourceBatch(context, staged, fixture).status, "pass");
+  recordSource(context.path, staged);
+  const archived = readFileSync(join(staged.dir, "ledger-record.json"));
+  const recorded = readFileSync(context.path);
+  const missingProof = join(staged.dir, "source-plan", "proof.json");
+  const bytes = readFileSync(missingProof);
+  rmSync(missingProof);
+  assert.equal(
+    errorCode(() => recordSource(context.path, staged)),
+    "triage_ledger_source_plan_prefetch_invalid",
+  );
+  assert.deepEqual(readFileSync(context.path), recorded);
+  assert.deepEqual(readFileSync(join(staged.dir, "ledger-record.json")), archived);
+  writeFileSync(missingProof, bytes);
+  assert.equal(recordSource(context.path, staged).replayed, true);
+  assert.deepEqual(readFileSync(context.path), recorded);
+});
+
+test("retained current-set proof rejects missing, extra, altered and unsafe dependencies", (t) => {
+  const scenario = recollectionPlanningScenario(t);
+  const { context, fixture } = scenario;
+  const staged = publishedPrefetchBatch(scenario, "current-proof-custody");
+  const root = join(staged.dir, "source-plan");
+  const proofPath = join(root, "proof.json");
+  const proofBytes = readFileSync(proofPath);
+  const frozen = structuredClone(staged.plan);
+  const ledgerBytes = readFileSync(context.path);
+  const refused = () => {
+    for (const cadence of ["per-batch", "full"]) {
+      const report = verifySourceBatch(context, staged, fixture, cadence);
+      assert.ok(
+        report.findingCodes.includes("source_plan_uncorroborated"),
+        report.findingCodes.join(","),
+      );
+      assert.ok(
+        report.findingCodes.includes("unexpected_artifact"),
+        "invalid proof subtree cannot be silently ignored",
+      );
+    }
+    assert.notEqual(
+      errorCode(() => recordSource(context.path, staged)),
+      null,
+    );
+    assert.deepEqual(readFileSync(context.path), ledgerBytes);
+    assert.equal(existsSync(join(staged.dir, "ledger-record.json")), false);
+  };
+  for (const file of [
+    "proof.json",
+    "source-set.json",
+    "collection.links.txt",
+    "source-resolution.json",
+    "101.page.html",
+    "001.capture.txt",
+  ]) {
+    const path = join(root, file);
+    const bytes = readFileSync(path);
+    rmSync(path);
+    refused();
+    writeFileSync(path, bytes);
+    writeFileSync(path, file === "proof.json" ? "{ malformed" : `${bytes.toString("utf8")} `);
+    refused();
+    writeFileSync(path, bytes);
+  }
+  for (const file of ["unbound.capture.txt", "unbound.json"]) {
+    writeFileSync(join(root, file), "unbound");
+    refused();
+    rmSync(join(root, file));
+  }
+  mkdirSync(join(root, "empty-unbound"));
+  refused();
+  rmSync(join(root, "empty-unbound"), { recursive: true });
+  for (const mutate of [
+    (proof) => {
+      proof.files[0].file = "../outside";
+    },
+    (proof) => {
+      proof.files[0].bytes = -1;
+    },
+    (proof) => {
+      proof.files[0].sha256 = "0".repeat(64);
+    },
+    (proof) => {
+      proof.files.push(proof.files[0]);
+    },
+    (proof) => {
+      proof.files = Array.from({ length: 4097 }, () => proof.files[0]);
+    },
+    (proof) => {
+      proof.as_of = "2026-10-09T09:01:00Z";
+    },
+    (proof) => {
+      proof.batch_id = "different-proof-batch";
+    },
+    (proof) => {
+      proof.path = root;
+    },
+  ]) {
+    const proof = JSON.parse(proofBytes);
+    mutate(proof);
+    const text = `${JSON.stringify(proof, null, 2)}\n`;
+    writeFileSync(proofPath, text);
+    overwriteSourcePlan(staged, {
+      ...frozen,
+      prefetch_resolution: { ...frozen.prefetch_resolution, proof_sha256: digest(text) },
+    });
+    refused();
+    writeFileSync(proofPath, proofBytes);
+    overwriteSourcePlan(staged, frozen);
+  }
+  for (const file of ["proof.json", "101.page.html", "001.capture.txt"]) {
+    const path = join(root, file);
+    const detached = join(context.root, `detached-${file}`);
+    renameSync(path, detached);
+    symlinkSync(detached, path);
+    refused();
+    rmSync(path);
+    renameSync(detached, path);
+  }
+  const detached = join(context.root, "detached-source-plan");
+  renameSync(root, detached);
+  symlinkSync(detached, root);
+  refused();
+  rmSync(root);
+  renameSync(detached, root);
+  assert.equal(verifySourceBatch(context, staged, fixture).status, "pass");
+});
+
+test("current-set proof clocks reject fresh final facts and publication never overwrites a partial batch", (t) => {
+  const scenario = recollectionPlanningScenario(t);
+  const { context, fixture, prefetch, asOf } = scenario;
+  const staged = publishedPrefetchBatch(scenario, "current-proof-clocks");
+  const frozen = structuredClone(staged.plan);
+  const root = join(staged.dir, "source-plan");
+  const path = join(root, "001.capture.txt");
+  const bytes = readFileSync(path);
+  const proofPath = join(root, "proof.json");
+  const proofBytes = readFileSync(proofPath);
+  const ledgerBytes = readFileSync(context.path);
+  for (const clock of ["2026-10-09T09:00:01Z", "2026-10-09T08:59:00", "not-a-clock"]) {
+    const text = bytes.toString("utf8").replace(/(# fetched-at: )[^\n]+/u, `$1${clock}`);
+    assert.notEqual(text, bytes.toString("utf8"));
+    writeFileSync(path, text);
+    const proof = JSON.parse(proofBytes);
+    Object.assign(
+      proof.files.find((file) => file.file === "001.capture.txt"),
+      { sha256: digest(text), bytes: Buffer.byteLength(text) },
+    );
+    const proofText = `${JSON.stringify(proof, null, 2)}\n`;
+    writeFileSync(proofPath, proofText);
+    overwriteSourcePlan(staged, {
+      ...frozen,
+      prefetch_resolution: { ...frozen.prefetch_resolution, proof_sha256: digest(proofText) },
+    });
+    for (const cadence of ["per-batch", "full"])
+      assert.ok(
+        verifySourceBatch(context, staged, fixture, cadence).findingCodes.includes(
+          "source_plan_uncorroborated",
+        ),
+      );
+    assert.equal(
+      errorCode(() => recordSource(context.path, staged)),
+      "triage_ledger_source_plan_prefetch_invalid",
+    );
+    assert.deepEqual(readFileSync(context.path), ledgerBytes);
+  }
+  writeFileSync(path, bytes);
+  writeFileSync(proofPath, proofBytes);
+  overwriteSourcePlan(staged, frozen);
+  const before = sourceArtifactBytes(staged.dir);
+  const options = {
+    asOf,
+    resolution: prefetch.resolution,
+    collectionText: fixture.collectionText,
+    captureRoot: prefetch.dir,
+    artifactsDir: staged.dir,
+  };
+  assert.equal(
+    errorCode(() => ledgerSourceApi.publishSourcePlan(context.path, fixture.sourceSet, options)),
+    "triage_ledger_source_plan_prefetch_invalid",
+  );
+  assert.deepEqual(sourceArtifactBytes(staged.dir), before);
+
+  const partial = join(context.store, "current-proof-partial");
+  mkdirSync(partial);
+  mkdirSync(join(partial, "source-plan"));
+  writeFileSync(join(partial, "source-plan", "proof.json"), "{ unknown outcome");
+  const partialBefore = sourceArtifactBytes(partial);
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.publishSourcePlan(context.path, fixture.sourceSet, {
+        ...options,
+        artifactsDir: partial,
+      }),
+    ),
+    "triage_ledger_source_plan_prefetch_invalid",
+  );
+  assert.deepEqual(sourceArtifactBytes(partial), partialBefore);
+  assert.equal(existsSync(join(partial, "plan.json")), false);
+
+  const future = join(context.store, "current-proof-future");
+  mkdirSync(future);
+  const prefetchedCapture = join(prefetch.dir, "001.capture.txt");
+  const original = readFileSync(prefetchedCapture);
+  writeFileSync(
+    prefetchedCapture,
+    original.toString("utf8").replace(/(# fetched-at: )[^\n]+/u, "$12026-10-09T09:00:01Z"),
+  );
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.publishSourcePlan(context.path, fixture.sourceSet, {
+        ...options,
+        artifactsDir: future,
+      }),
+    ),
+    "triage_ledger_source_plan_prefetch_invalid",
+  );
+  assert.deepEqual(readdirSync(future), []);
+  writeFileSync(prefetchedCapture, original);
+  const old = join(context.store, "current-proof-indexed-parent");
+  mkdirSync(old);
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.publishSourcePlan(context.path, scenario.originalFixture.sourceSet, {
+        asOf,
+        resolution: scenario.original.resolution,
+        collectionText: scenario.originalFixture.collectionText,
+        captureRoot: scenario.original.dir,
+        artifactsDir: old,
+      }),
+    ),
+    "triage_ledger_source_plan_prefetch_invalid",
+  );
+  assert.deepEqual(readdirSync(old), []);
+  assert.deepEqual(readFileSync(context.path), ledgerBytes);
+});
+
+test("prefetch publication refuses an index move instead of replacing its original frozen baseline", (t) => {
+  const scenario = recollectionPlanningScenario(t);
+  const { context, fixture, prefetch, asOf } = scenario;
+  const dir = join(context.store, "current-proof-concurrent-index");
+  mkdirSync(dir);
+  const originalWrite = fs.writeFileSync;
+  let moved = false;
+  fs.writeFileSync = function (path, ...args) {
+    const result = originalWrite.call(this, path, ...args);
+    if (!moved && path === join(dir, "source-plan", "proof.json")) {
+      moved = true;
+      ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+        ledger: {
+          ...ledger,
+          logical_entries: ledger.logical_entries.map((entry) => ({
+            ...entry,
+            last_checked: "2026-10-09T09:00:01Z",
+            decision: "BLOCKED",
+          })),
+        },
+      }));
+    }
+    return result;
+  };
+  syncBuiltinESMExports();
+  try {
+    assert.equal(
+      errorCode(() =>
+        ledgerSourceApi.publishSourcePlan(context.path, fixture.sourceSet, {
+          asOf,
+          resolution: prefetch.resolution,
+          collectionText: fixture.collectionText,
+          captureRoot: prefetch.dir,
+          artifactsDir: dir,
+        }),
+      ),
+      "triage_ledger_concurrent_observation",
+    );
+  } finally {
+    fs.writeFileSync = originalWrite;
+    syncBuiltinESMExports();
+  }
+  assert.equal(moved, true);
+  assert.equal(existsSync(join(dir, "plan.json")), false);
+  assert.equal(
+    existsSync(join(dir, "source-plan", "proof.json")),
+    true,
+    "partial proof is retained",
+  );
+  assert.equal(existsSync(join(dir, "ledger-record.json")), false);
+  assert.equal(readLedger(context.path).logical_entries[0].decision, "BLOCKED");
+  assert.equal(existsSync(`${context.path}.lock`), false);
 });

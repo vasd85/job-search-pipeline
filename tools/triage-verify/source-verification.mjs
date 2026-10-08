@@ -14,7 +14,6 @@ import {
 import { validateSourceResolution } from "../triage-sources/reconcile.mjs";
 import { verifyCaptureFile } from "../vacancy-fetch/persist.mjs";
 import { sha256 } from "./text-scan.mjs";
-import { captureProvenance } from "./manifest.mjs";
 
 export function deepEqual(left, right) {
   if (left === right) return true;
@@ -253,7 +252,7 @@ function observedScope(context, source, observation, findings) {
     findings.push({ code: "source_capture_mismatch" });
     return null;
   }
-  const loaded = context.batch.captures.find((item) => item.file === observation.capture.file);
+  const loaded = context.captures.find((item) => item.file === observation.capture.file);
   const index = Number(capture.header.index);
   if (loaded === undefined || loaded.index !== index) {
     findings.push({ code: "source_capture_index_mismatch" });
@@ -282,7 +281,14 @@ function verifyExtractions(context, source, findings) {
   for (const observation of observations) {
     const scope = observedScope(context, source, observation, findings);
     if (scope === null) continue;
-    if (scope.transportIndex !== null) source.transportIndices.add(scope.transportIndex);
+    if (scope.transportIndex !== null) {
+      source.transportIndices.add(scope.transportIndex);
+      if (!source.transportScopes.has(scope.transportIndex))
+        source.transportScopes.set(scope.transportIndex, new Set());
+      source.transportScopes
+        .get(scope.transportIndex)
+        .add(context.normalizeUrl(observation.source_ref));
+    }
     if (observation.input === null) continue;
     const index = observation.input.inputIndex;
     if (extracted.has(index)) findings.push({ code: "source_extraction_duplicate", index });
@@ -306,19 +312,7 @@ function verifyExtractions(context, source, findings) {
     record.captures =
       scope.transportIndex === null
         ? []
-        : context.batch.captures
-            .filter((capture) => capture.index === scope.transportIndex)
-            .map((capture) => {
-              const verified = capture.text === null ? null : verifyCaptureFile(capture.text);
-              const checked = { ...capture, verified };
-              return {
-                ...checked,
-                provenance: captureProvenance(
-                  checked,
-                  context.manifest.records?.get(capture.index) ?? null,
-                ),
-              };
-            });
+        : context.captures.filter((capture) => capture.index === scope.transportIndex);
   }
   for (const [index] of extracted) {
     if (!context.records.some((record) => record.input?.inputIndex === index)) {
@@ -326,6 +320,32 @@ function verifyExtractions(context, source, findings) {
     }
   }
   source.scopes = scopes;
+}
+
+/** An index or a selected URL alone cannot bind an extra file to an observed transport. */
+function bindCaptureInventory(context, source) {
+  if (!source.active) return source;
+  for (const capture of context.captures) {
+    const requested = context.normalizeUrl(capture.verified?.header?.["requested-url"]);
+    const scopes = source.transportScopes.get(capture.index);
+    if (requested === null || !scopes?.has(requested)) {
+      source.findings.push({
+        code: "unexpected_artifact",
+        file: capture.file,
+        transportIndex: capture.index,
+      });
+    }
+  }
+  source.valid =
+    source.sourceSet !== null &&
+    source.resolution !== null &&
+    source.chainFindings.length === 0 &&
+    source.findings.length === 0;
+  if (source.valid)
+    source.accountedUrls = new Set(
+      source.accounts.map((account) => context.normalizeUrl(account.url)),
+    );
+  return source;
 }
 
 /** Missing or malformed new artifacts become findings, like defective legacy captures. */
@@ -343,6 +363,7 @@ export function readSourceArtifacts(
     findings: [],
     scopes: new Map(),
     transportIndices: new Set(),
+    transportScopes: new Map(),
     accounts: [],
     htmlCaptures: 0,
     accountedUrls: new Set(),
@@ -350,7 +371,7 @@ export function readSourceArtifacts(
   if (!source.active) {
     for (const capture of context.batch.sourceCaptures)
       source.findings.push({ code: "unexpected_artifact", file: capture.file });
-    return source;
+    return bindCaptureInventory(context, source);
   }
   if (!context.batch.collection.present)
     source.chainFindings.push({ code: "source_collection_absent" });
@@ -363,14 +384,14 @@ export function readSourceArtifacts(
   const file = context.batch.sourceSet;
   if (!file.present) {
     source.chainFindings.push({ code: "source_set_absent" });
-    return source;
+    return bindCaptureInventory(context, source);
   }
   if (file.error !== null || file.value === null) {
     source.chainFindings.push({
       code: "source_set_unreadable",
       reason: file.error ?? "shape_unexpected",
     });
-    return source;
+    return bindCaptureInventory(context, source);
   }
   try {
     const bytes = readSourceFile(context.batch.dir, "source-set.json", MAX_SOURCE_SET_BYTES);
@@ -390,19 +411,19 @@ export function readSourceArtifacts(
     }
   } catch (error) {
     source.chainFindings.push({ code: "source_set_invalid", reason: boundedFailure(error) });
-    return source;
+    return bindCaptureInventory(context, source);
   }
   const resolutionFile = context.batch.sourceResolution;
   if (!resolutionFile.present) {
     source.findings.push({ code: "source_resolution_absent" });
-    return source;
+    return bindCaptureInventory(context, source);
   }
   if (resolutionFile.error !== null || resolutionFile.value === null) {
     source.findings.push({
       code: "source_resolution_unreadable",
       reason: resolutionFile.error ?? "shape_unexpected",
     });
-    return source;
+    return bindCaptureInventory(context, source);
   }
   try {
     if (typeof validateResolution !== "function") throw { code: "source_resolution_unverifiable" };
@@ -417,13 +438,8 @@ export function readSourceArtifacts(
       source.chainFindings.push({ code: "source_set_digest_mismatch" });
     verifyAccounting(context, source, source.findings);
     verifyExtractions(context, source, source.findings);
-    source.valid = source.chainFindings.length === 0 && source.findings.length === 0;
-    if (source.valid)
-      source.accountedUrls = new Set(
-        source.accounts.map((account) => context.normalizeUrl(account.url)),
-      );
   } catch (error) {
     source.findings.push({ code: "source_resolution_invalid", reason: boundedFailure(error) });
   }
-  return source;
+  return bindCaptureInventory(context, source);
 }

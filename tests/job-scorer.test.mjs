@@ -3536,11 +3536,12 @@ test("unread inputs cannot carry concrete stack observations", () => {
   }
 });
 
-function differentClaimFixture(variant) {
+function differentClaimFixture(variant, options = {}) {
   const fixture = fictionalSourceFixture({
     junior: variant === "junior_conflict",
     manual: variant === "manual_original",
     jobUrl: variant === "query_identity" ? "https://jobs.example.test/view?id=101" : undefined,
+    ...options,
   });
   const target = fixture.target;
   if (variant === "junior_conflict") {
@@ -3765,3 +3766,29 @@ test("different target aliases repeated across cards still yield one target job"
   assert.equal(targets[0].sources.length, 4);
   assert.equal(targets[0].alternatives.length, 4);
 });
+
+for (const variant of ["other_employer", "other_family"]) {
+  test(`a direct email contact survives a checked different publication: ${variant}`, () => {
+    const fixture = differentClaimFixture(variant, { contact: true });
+    fixture.target.identity_status = "different";
+    const resolution = resolveSourceSet(fixture);
+    assert.equal(resolution.groups.length, 2);
+    const original = resolution.groups.find((group) => group.identity_status !== "different");
+    const target = resolution.groups.find((group) => group.identity_status === "different");
+    assert.equal(original.result.decision, "EVALUATED");
+    assert.deepEqual(original.conflicts, []);
+    assert.equal(
+      original.sources.find((source) => source.role === "contact").source_ref,
+      "mailto:recruiting@example.test",
+    );
+    assert.equal(
+      original.sources.find((source) => source.role === "contact").disposition,
+      "contact",
+    );
+    assert.equal(target.sources.length, 1);
+    assert.equal(target.sources[0].source_ref, fixture.target.source_ref);
+    assert.deepEqual(target.conflicts, []);
+    assert.equal(target.result.decision, variant === "other_family" ? "SKIP" : "EVALUATED");
+    validateSourceResolution(resolution, fixture);
+  });
+}

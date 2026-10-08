@@ -22,6 +22,8 @@ import {
   triageBatchRecordFileName,
   triageBatchTraceFilePattern,
   triageBatchTracesDirName,
+  triageSourcePlanProofDirName,
+  readSourcePlanPrefetchResolution,
 } from "../lib/triage-ledger-core.mjs";
 
 const MAX_JSON_BYTES = 8 * 1024 * 1024;
@@ -133,7 +135,7 @@ const OPTIONAL_FILE_NAMES = Object.freeze([
  * The returned shape is flat on purpose: every check reads the same record list, so a check cannot
  * accidentally verify a different subset of the batch than its neighbour.
  */
-export function loadBatchArtifacts(artifactsDir) {
+export function loadBatchArtifacts(artifactsDir, { languages } = {}) {
   if (typeof artifactsDir !== "string" || !isAbsolute(artifactsDir)) {
     fail("artifacts_path_invalid", "The artifacts directory must be given as an absolute path.");
   }
@@ -160,6 +162,32 @@ export function loadBatchArtifacts(artifactsDir) {
           !file.split("/").some((part) => ["", ".", ".."].includes(part)),
       ),
   );
+  const plan = optionalJsonFile(artifactsDir, planFileName);
+  const collection = {
+    present: entries.some((entry) => entry.name === collectionFileName),
+    ...readTextFile(join(artifactsDir, collectionFileName), 1024 * 1024),
+  };
+  // Prefetch evidence is a separate, bounded archive. It never enters final observations,
+  // final capture inventory, or the current batch's fetch/probe clock window.
+  let prefetchValid = false;
+  const sourcePlan = plan.value?.source_plan ?? plan.value;
+  if (
+    Object.hasOwn(sourcePlan ?? {}, "prefetch_resolution") &&
+    !Object.hasOwn(sourcePlan, "prior_resolution")
+  ) {
+    try {
+      readSourcePlanPrefetchResolution(sourceSet.value, {
+        asOf: sourcePlan.as_of,
+        collectionText: collection.text,
+        artifactsDir,
+        reference: sourcePlan.prefetch_resolution,
+        validation: { languages },
+      });
+      prefetchValid = true;
+    } catch {
+      /* A malformed or unbound proof remains an unexpected artifact. */
+    }
+  }
   const captures = [];
   const sourceCaptures = [];
   const unexpected = [];
@@ -185,6 +213,7 @@ export function loadBatchArtifacts(artifactsDir) {
   for (const entry of entries) {
     const { name } = entry;
     if (entry.isDirectory()) {
+      if (name === triageSourcePlanProofDirName && prefetchValid) continue;
       if (![inputsDirName, tracesDirName, blindDirName].includes(name)) {
         if ([...sourcePaths].some((file) => file.startsWith(`${name}/`))) scanSourceDirectory(name);
         else unexpected.push(`${name}/`);
@@ -268,12 +297,9 @@ export function loadBatchArtifacts(artifactsDir) {
       sourceResolutionFileName,
       MAX_RESOLUTION_BYTES,
     ),
-    collection: {
-      present: entries.some((entry) => entry.name === collectionFileName),
-      ...readTextFile(join(artifactsDir, collectionFileName), 1024 * 1024),
-    },
+    collection,
     manifest: optionalJsonFile(artifactsDir, manifestFileName),
-    plan: optionalJsonFile(artifactsDir, planFileName),
+    plan,
     disposition: optionalJsonFile(artifactsDir, dispositionFileName),
     attestation: optionalJsonFile(artifactsDir, attestationFileName),
     unexpected: unexpected.sort(),

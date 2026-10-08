@@ -67,7 +67,7 @@ import {
   lineDigest,
 } from "../tools/triage-verify/text-scan.mjs";
 import { buildDecisionTrace } from "../tools/job-scorer/trace.mjs";
-import { manifestSchemaVersion } from "../tools/vacancy-fetch/batch.mjs";
+import { manifestSchemaVersion, runVacancyFetchBatch } from "../tools/vacancy-fetch/batch.mjs";
 import { renderCaptureFile, verifyCaptureFile } from "../tools/vacancy-fetch/persist.mjs";
 import { sha256Utf8 } from "../tools/vacancy-fetch/digest.mjs";
 import { candidateExampleRootFor, candidateScoringValues } from "../tools/candidate/load.mjs";
@@ -5921,4 +5921,328 @@ test("file-backed source compiler keeps genuinely distinct LinkedIn posting IDs 
     assert.equal(group.alternatives.length, 1);
   }
   for (const report of reports) assert.equal(report.counts.logicalVacancies, 3);
+});
+
+function sourceInventoryCapture(
+  index,
+  sourceRef,
+  {
+    normalization = "none",
+    body = "Senior QA Engineer\nFable Instruments\nManual testing only.\n",
+  } = {},
+) {
+  const digest = sha256Utf8(body);
+  return renderCaptureFile({
+    body,
+    header: {
+      index,
+      adapter: "in-app-browser@1",
+      "source-id": "generic",
+      "requested-url": sourceRef,
+      "final-url": sourceRef,
+      "fetched-at": SOURCE_CAPTURED_AT,
+      "http-status": 200,
+      outcome: "active",
+      "access-barrier": null,
+      "response-sha256": digest,
+      "response-bytes": Buffer.byteLength(body),
+      "extracted-sha256": digest,
+      "normalized-sha256": digest,
+      "body-bytes": Buffer.byteLength(body),
+      normalization,
+    },
+  });
+}
+
+test("source capture inventory rejects every orphan stamped artifact at both cadences", (t) => {
+  const results = [];
+  for (const [file, options] of [
+    ["999.capture.txt", { details: true }],
+    ["999.browser.capture.txt", { details: true }],
+    ["001.browser.capture.txt", { partial: true }],
+  ]) {
+    const prepared = prepareSourceBatch(t, options);
+    verifyFileBackedSourceCadences(prepared);
+    const index = Number(file.slice(0, 3));
+    const raw = `${sourceInventoryCapture(index, SOURCE_DETAILS_URL)}After-stamp mutation.\n`;
+    assert.deepEqual(verifyCaptureFile(raw).problems, [
+      "capture_digest_mismatch",
+      "capture_size_mismatch",
+    ]);
+    writeFileSync(join(prepared.artifactsDir, file), raw);
+    for (const cadence of ["per-batch", "full"]) {
+      const report = verifySource(prepared, cadence);
+      results.push({
+        file,
+        cadence,
+        status: report.status,
+        corrupt: codes(report).includes("capture_digest_mismatch"),
+        stray: checkOf(report, "completeness").findings.some(
+          (finding) => finding.code === "unexpected_artifact" && finding.file === file,
+        ),
+      });
+    }
+  }
+  assert.deepEqual(
+    results,
+    results.map((entry) => ({
+      ...entry,
+      status: "fail",
+      corrupt: true,
+      stray: true,
+    })),
+  );
+});
+
+test("source capture inventory rejects a valid stamp without a checked transport scope", (t) => {
+  for (const mode of ["selected_url", "unselected_url", "foreign_url", "wrong_index"]) {
+    const prepared = prepareSourceBatch(
+      t,
+      mode === "foreign_url" || mode === "wrong_index" ? { details: true } : { partial: true },
+    );
+    verifyFileBackedSourceCadences(prepared);
+    const index =
+      mode === "unselected_url" ? 2 : mode === "wrong_index" ? 8 : mode === "foreign_url" ? 7 : 1;
+    const file = `${String(index).padStart(3, "0")}.browser.capture.txt`;
+    const sourceRef =
+      mode === "foreign_url"
+        ? "https://other.example.test/qa/12"
+        : mode === "wrong_index"
+          ? SOURCE_DETAILS_URL
+          : prepared.sourceSet.snapshots[mode === "unselected_url" ? 1 : 0].original_url;
+    const raw = sourceInventoryCapture(index, sourceRef);
+    assert.equal(verifyCaptureFile(raw).ok, true);
+    writeFileSync(join(prepared.artifactsDir, file), raw);
+    for (const cadence of ["per-batch", "full"]) {
+      const report = verifySource(prepared, cadence);
+      assert.equal(report.status, "fail");
+      assert.ok(
+        checkOf(report, "completeness").findings.some(
+          (finding) => finding.code === "unexpected_artifact" && finding.file === file,
+        ),
+      );
+      assert.equal(
+        checkOf(report, "chain-of-custody").counts.capturesVerified,
+        report.counts.captures,
+      );
+      assert.equal(
+        Object.values(report.counts.capturesByProvenance).reduce((a, b) => a + b, 0),
+        report.counts.captures,
+      );
+      assert.ok(!codes(report).includes("input_absent"));
+      assert.ok(!codes(report).includes("trace_absent"));
+    }
+  }
+});
+
+test("source capture inventory checks an HTTP summary whose input is null", (t) => {
+  const fixture = fictionalSourceFixture({ manual: true });
+  fixture.target.description_kind = "summary";
+  fixture.target.input = null;
+  const prepared = publishFileBackedSourceCase(t, fixture);
+  const reports = verifyFileBackedSourceCadences(prepared);
+  for (const report of reports) {
+    assert.equal(report.counts.records, 1);
+    assert.deepEqual(report.counts.capturesByProvenance, {
+      http_fetch: 1,
+      transcript: 0,
+      unverified: 0,
+    });
+    assert.equal(checkOf(report, "chain-of-custody").counts.capturesVerified, 1);
+  }
+  const path = join(prepared.artifactsDir, "007.capture.txt");
+  const raw = readFileSync(path, "utf8").replace("# normalization: none", "# normalization: -");
+  assert.equal(verifyCaptureFile(raw).ok, true);
+  writeFileSync(path, raw);
+  for (const cadence of ["per-batch", "full"]) {
+    const report = verifySource(prepared, cadence);
+    assert.equal(report.status, "fail");
+    assert.ok(
+      checkOf(report, "chain-of-custody").findings.some(
+        (finding) =>
+          finding.code === "capture_normalization_unrecorded" &&
+          finding.file === "007.capture.txt" &&
+          finding.transportIndex === 7,
+      ),
+    );
+    assert.ok(!codes(report).includes("input_absent"));
+    assert.ok(!codes(report).includes("trace_absent"));
+  }
+});
+
+test("source capture inventory accepts further rescues at the observed transport index", (t) => {
+  const prepared = prepareSourceBatch(t, { details: true });
+  writeFileSync(
+    join(prepared.artifactsDir, "007.second-pass.capture.txt"),
+    sourceInventoryCapture(7, SOURCE_DETAILS_URL),
+  );
+  for (const report of verifyFileBackedSourceCadences(prepared)) {
+    assert.equal(report.counts.records, 1);
+    assert.deepEqual(report.counts.capturesByProvenance, {
+      http_fetch: 1,
+      transcript: 1,
+      unverified: 0,
+    });
+    assert.equal(checkOf(report, "chain-of-custody").counts.capturesVerified, 2);
+    assert.equal(checkOf(report, "chain-of-custody").counts.recordsWithCapture, 1);
+  }
+});
+
+test("source capture inventory counts a shared physical transport once for two extractions", (t) => {
+  const first = fictionalSourceFixture({ kind: "summary" });
+  const second = fictionalSourceFixture({ kind: "summary", postId: 102 });
+  const secondSnapshot = snapshotFromHtml(second.html, {
+    handle: "fictionjobs",
+    postId: 102,
+    file: "002.page.html",
+    capturedAt: fixtureCaptureAt,
+  });
+  const sourceSet = createSourceSet({
+    collectionText: first.collectionText,
+    snapshots: [first.snapshot, secondSnapshot],
+    cards: [first.card, second.card],
+  });
+  const root = disposableRoot(t);
+  const artifactsDir = join(root, "artifacts");
+  const collectorDir = join(root, "collector");
+  mkdirSync(artifactsDir);
+  mkdirSync(collectorDir);
+  writeFileSync(join(collectorDir, "001.page.html"), first.html);
+  writeFileSync(join(collectorDir, "002.page.html"), second.html);
+  const digest = sha256Utf8(first.target.body);
+  const observations = [first, second].flatMap((fixture, at) => {
+    fixture.original.capture.file = at === 0 ? "001.page.html" : "002.page.html";
+    fixture.target.capture = { file: "007.capture.txt", sha256: digest };
+    fixture.target.input.inputIndex = at === 0 ? 7 : 9;
+    fixture.target.input.sourceContext.sourceSetSha256 = sourceSetDigest(sourceSet);
+    fixture.target.input.sourceContext.primaryCaptureSha256 = digest;
+    return fixture.observations;
+  });
+  writeFileSync(
+    join(artifactsDir, "007.capture.txt"),
+    sourceInventoryCapture(7, first.target.source_ref, {
+      body: first.target.body,
+    }),
+  );
+  writeFileSync(
+    join(artifactsDir, "fetch-manifest.json"),
+    JSON.stringify({
+      schemaVersion: 2,
+      tool: "vacancy-fetch",
+      startedAt: SOURCE_CAPTURED_AT,
+      records: [
+        {
+          index: 7,
+          requestedUrl: first.target.source_ref,
+          finalUrl: first.target.source_ref,
+          fetchedAt: SOURCE_CAPTURED_AT,
+          outcome: "active",
+          usable: true,
+          fallback: null,
+          skipped: false,
+          response: { sha256: digest },
+          persisted: { file: "007.capture.txt", sha256: digest },
+        },
+      ],
+    }),
+  );
+  const resolution = publishSourceResolution({
+    artifactsDir,
+    sourceSet,
+    sourceCaptureRoot: collectorDir,
+    collectionText: first.collectionText,
+    observations,
+  });
+  const linksFile = join(root, "links.txt");
+  writeFileSync(linksFile, first.collectionText);
+  const prepared = { root, artifactsDir, linksFile, sourceSet, resolution, from: 1, to: 2 };
+  for (const report of verifyFileBackedSourceCadences(prepared)) {
+    assert.equal(report.counts.records, 2);
+    assert.equal(report.counts.captures, 1);
+    assert.deepEqual(report.counts.capturesByProvenance, {
+      http_fetch: 1,
+      transcript: 0,
+      unverified: 0,
+    });
+    assert.equal(checkOf(report, "chain-of-custody").counts.capturesVerified, 1);
+    assert.equal(checkOf(report, "chain-of-custody").counts.recordsWithCapture, 2);
+  }
+});
+
+test("source capture inventory retains a fetch-produced degraded first pass and browser rescue", async (t) => {
+  const fixture = fictionalSourceFixture({
+    kind: "summary",
+    jobUrl: "https://www.linkedin.com/jobs/view/7070707007/",
+  });
+  const root = disposableRoot(t);
+  const artifactsDir = join(root, "artifacts");
+  const collectorDir = join(root, "collector");
+  mkdirSync(artifactsDir);
+  mkdirSync(collectorDir);
+  const prose =
+    "The engineer records test scenarios, reviews product changes, investigates defects, compares expected behavior with actual results, and shares repeatable examples with the team. ";
+  let requests = 0;
+  const fetched = await runVacancyFetchBatch({
+    urls: [fixture.target.source_ref],
+    outDir: artifactsDir,
+    batch: "fictional-inventory-rescue",
+    delayMs: 0,
+    now: () => new Date(fixtureCaptureAt),
+    sleep: async () => {},
+    fetchImpl: async () => {
+      requests += 1;
+      return new Response(`<main data-job-id="7070707007"><p>${prose.repeat(5)}</p></main>`, {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    },
+  });
+  assert.equal(requests, 1);
+  const manifest = JSON.parse(readFileSync(join(artifactsDir, "fetch-manifest.json"), "utf8"));
+  assert.equal(manifest.records[0].usable, false);
+  assert.equal(manifest.records[0].fallback, "browser");
+  assert.equal(manifest.records[0].persisted.file, "001.capture.txt");
+  assert.equal(fetched.summary.persisted, 1);
+  writeFileSync(join(collectorDir, fixture.snapshot.capture.file), fixture.html);
+  fixture.target.capture = {
+    file: "001.browser.capture.txt",
+    sha256: sha256Utf8(fixture.target.body),
+  };
+  fixture.target.input.inputIndex = 9;
+  fixture.target.input.sourceContext.primaryCaptureSha256 = fixture.target.capture.sha256;
+  writeFileSync(
+    join(artifactsDir, fixture.target.capture.file),
+    sourceInventoryCapture(1, fixture.target.source_ref, {
+      body: fixture.target.body,
+    }),
+  );
+  const resolution = publishSourceResolution({
+    artifactsDir,
+    sourceCaptureRoot: collectorDir,
+    sourceSet: fixture.sourceSet,
+    collectionText: fixture.collectionText,
+    observations: fixture.observations,
+  });
+  const linksFile = join(root, "links.txt");
+  writeFileSync(linksFile, fixture.collectionText);
+  const prepared = {
+    root,
+    artifactsDir,
+    linksFile,
+    sourceSet: fixture.sourceSet,
+    resolution,
+    from: 1,
+    to: 2,
+  };
+  for (const report of verifyFileBackedSourceCadences(prepared)) {
+    assert.equal(report.counts.records, 1);
+    assert.deepEqual(report.counts.capturesByProvenance, {
+      http_fetch: 0,
+      transcript: 2,
+      unverified: 0,
+    });
+    assert.equal(checkOf(report, "chain-of-custody").counts.capturesVerified, 2);
+    assert.ok(!codes(report).includes("input_absent"));
+    assert.ok(!codes(report).includes("trace_absent"));
+  }
 });

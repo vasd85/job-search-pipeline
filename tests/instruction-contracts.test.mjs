@@ -3881,6 +3881,8 @@ test("source-aware scoring has explicit artifact and logical-result boundaries",
   assert.ok(flatRubric.includes("Source publication date and capture time are separate facts."));
   for (const clause of [
     "Keep the plan bytes unchanged after fetching; newly observed facts cannot replace the prior proof.",
+    "Publish the current-set planning proof before refetch.",
+    "Neither final observations nor later captures can replace the frozen planning proof.",
     "A saved full original cannot be relabeled unread; a new liveness failure uses its own failed capture or manifest observation.",
     "A sanitized final URL cannot confirm an identity carried only in a meaningful query parameter.",
     "Bind the primary capture's final URL to its actual manifest; a separate browser rescue retains its own identity evidence.",

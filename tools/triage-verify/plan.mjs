@@ -303,12 +303,24 @@ export function readSourcePlan(context) {
   }
   const candidates = [];
   const hasPrior = Object.hasOwn(value, "prior_resolution");
+  const hasPrefetch = Object.hasOwn(value, "prefetch_resolution");
   const prior = hasPrior ? priorResolutionOptions(context, source, value) : null;
-  const options = hasPrior
-    ? prior === null
+  const options =
+    hasPrior && hasPrefetch
       ? []
-      : [prior]
-    : [{ resolution: source.resolution }, { selection: { card_refs: [...new Set(refs)] } }];
+      : hasPrior
+        ? prior === null
+          ? []
+          : [prior]
+        : hasPrefetch
+          ? [
+              {
+                prefetchProof: value.prefetch_resolution,
+                artifactsDir: context.batch.dir,
+                captureRoot: undefined,
+              },
+            ]
+          : [{ resolution: source.resolution }, { selection: { card_refs: [...new Set(refs)] } }];
   for (const candidateOptions of options) {
     try {
       candidates.push(

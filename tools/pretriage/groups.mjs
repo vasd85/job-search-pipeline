@@ -140,11 +140,19 @@ function splitSourceCollection(collection, size) {
   const memberships = collection.links.map((link) => sourceSetMemberships(set, link.url));
   const cards = set.cards;
   const jobPositions = new Map(cards.map((card) => [card.card_ref, []]));
-  memberships.forEach((members, at) =>
-    members
-      .filter((member) => !["company_context", "contact"].includes(member.role))
-      .forEach((member) => jobPositions.get(member.card_ref).push(at + 1)),
-  );
+  const postingPositions = new Map();
+  memberships.forEach((members, at) => {
+    const jobs = members.filter((member) => !["company_context", "contact"].includes(member.role));
+    if (jobs.length === 0) return;
+    const key = vacancyIdentity(collection.links[at].url).key;
+    const posting = postingPositions.get(key) ?? { positions: [], card_refs: new Set() };
+    posting.positions.push(at + 1);
+    for (const member of jobs) posting.card_refs.add(member.card_ref);
+    postingPositions.set(key, posting);
+  });
+  // All spellings of a posting belong to one source unit before any decisions are made.
+  for (const posting of postingPositions.values())
+    for (const ref of posting.card_refs) jobPositions.get(ref).push(...posting.positions);
   for (const card of cards)
     if (!jobPositions.get(card.card_ref).length)
       fail(

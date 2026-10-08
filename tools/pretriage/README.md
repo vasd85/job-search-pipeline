@@ -82,8 +82,10 @@ source group. It packs whole vacancy source units into contiguous URL ranges. Sh
 URLs are accounted once by the nearest job position of a card with an explicit membership; ties use
 the card's first job position and then its reference. A repeated context footer stays with its nearby
 job holder rather than extending the first card's range through unrelated jobs. A shared homepage
-does not establish shared job identity. The noncontext sources of one card remain indivisible, and
-a source unit bigger than the requested group size remains whole and is reported.
+does not establish shared job identity. The noncontext sources of one card remain indivisible.
+Canonical spellings of the same posting identity join their cards into one source unit, so a
+Senior/Junior conflict cannot disappear across session ranges. Genuinely distinct posting IDs
+remain separate. A source unit bigger than the requested group size remains whole and is reported.
 `collectionGroup` retains the full source set and exact original collection bytes plus the selected
 `source_selection`; verification uses the original range. Composition is counted once per logical
 vacancy, using one primary's own facts and unknown when identity or facts are unresolved.

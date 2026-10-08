@@ -135,6 +135,16 @@ result; alternatives do not become independent application chances. The source r
 include `sourceCards`, `logicalVacancies`, `sourceUrlsAccounted` and `sourceHtmlCaptures`. Saved HTML
 is counted separately from stamped HTTP captures and browser transcripts.
 
+Stamped captures have a complete physical inventory independent of extraction ordinals. Custody
+checks each distinct file once, including an HTTP summary with `input: null`, a degraded first pass,
+and further browser rescues. Every file must share a checked observation's transport index and
+requested URL; an index or selected URL alone is insufficient (`unexpected_artifact`). A same-transport
+rescue may retain its own body and digest. `capturesByProvenance` and custody capture counts include
+all these files exactly once, even when several extractions share one transport. Custody findings
+for stamped files name `transportIndex` and `file`; extraction findings keep their own `index`.
+A narrower card selection keeps custody over every saved HTML snapshot in the source set and rejects
+stamped files with no checked transport observation.
+
 A genuine body-less failure needs an exact digest-bound fetch-manifest record for its own requested
 URL and transport index, non-usable access, null facts and no evidence. It keeps its raw unavailable
 trace and retry meaning. A proven company/context link receives a source disposition and needs no

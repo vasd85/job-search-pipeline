@@ -866,7 +866,11 @@ export function resolveSourceSet({
       const extra = groupFor(card, sourceSet, [observation], {
         separate: true,
         excludedSources: card.links
-          .filter((link) => sourceUrl(link.url) !== sourceUrl(observation.source_ref))
+          .filter(
+            (link) =>
+              !["company_context", "contact"].includes(link.role) &&
+              sourceUrl(link.url) !== sourceUrl(observation.source_ref),
+          )
           .map((link) => link.url),
       });
       extra.sources = extra.sources.filter(

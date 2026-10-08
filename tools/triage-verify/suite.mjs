@@ -59,7 +59,19 @@ function safeNormalizeUrl(value) {
   }
 }
 
-function buildRecords(batch, manifestRecords) {
+/** The physical inventory survives source extraction filtering and is verified once per file. */
+function buildCaptures(batch, manifestRecords) {
+  return batch.captures.map((capture) => {
+    const verified = capture.text === null ? null : verifyCaptureFile(capture.text);
+    const checked = { ...capture, verified };
+    return {
+      ...checked,
+      provenance: captureProvenance(checked, manifestRecords?.get(capture.index) ?? null),
+    };
+  });
+}
+
+function buildRecords(batch, captures) {
   const indices =
     batch.sourceSet.present ||
     batch.sourceResolution.present ||
@@ -83,16 +95,7 @@ function buildRecords(batch, manifestRecords) {
     );
     return {
       index,
-      captures: batch.captures
-        .filter((capture) => capture.index === index)
-        .map((capture) => {
-          const verified = capture.text === null ? null : verifyCaptureFile(capture.text);
-          const withVerification = { ...capture, verified };
-          return {
-            ...withVerification,
-            provenance: captureProvenance(withVerification, manifestRecords?.get(index) ?? null),
-          };
-        }),
+      captures: captures.filter((capture) => capture.index === index),
       evidence,
       evidenceDigests,
       input,
@@ -126,7 +129,7 @@ export function buildContext({
 }) {
   const allLinks = readLinksFile(linksFile);
   const links = sliceRange(allLinks, from, to);
-  const batch = loadBatchArtifacts(artifactsDir);
+  const batch = loadBatchArtifacts(artifactsDir, { languages });
   const vocabulary = loadVocabulary(vocabularyPath);
   let ledger = null;
   if (typeof ledgerPath === "string" && ledgerPath.length > 0) {
@@ -140,15 +143,17 @@ export function buildContext({
     }
   }
   const manifest = readManifestRecords(batch);
+  const captures = buildCaptures(batch, manifest.records);
   const context = {
     batch,
+    captures,
     languages,
     ledger,
     links,
     manifest,
     normalizeUrl: safeNormalizeUrl,
     range: { from, to },
-    records: buildRecords(batch, manifest.records),
+    records: buildRecords(batch, captures),
     vocabulary,
   };
   context.sourceVerification = readSourceArtifacts(context, {
@@ -171,7 +176,7 @@ function countAccessOutcomes(records) {
 function findingSortKey(finding) {
   return [
     finding.code ?? "",
-    String(finding.index ?? finding.indices?.[0] ?? ""),
+    String(finding.index ?? finding.transportIndex ?? finding.indices?.[0] ?? ""),
     finding.file ?? "",
     finding.path ?? finding.family ?? finding.probe ?? "",
     String(finding.position ?? ""),
@@ -184,11 +189,57 @@ function stableSort(entries) {
   );
 }
 
+/**
+ * Custody follows physical transports, including unscored summaries and retained first passes.
+ * Only this check receives transport groups; the scoring checks keep extraction records.
+ */
+function sourceCaptureCustody(context) {
+  const transports = new Map();
+  for (const capture of context.captures) {
+    if (!transports.has(capture.index)) {
+      transports.set(capture.index, {
+        index: capture.index,
+        transportIndex: capture.index,
+        captures: [],
+        input: null,
+        evidence: { quotes: [] },
+      });
+    }
+    transports.get(capture.index).captures.push(capture);
+  }
+  const outcome = chainOfCustody.run({
+    ...context,
+    records: [
+      ...context.records.filter((record) => record.captures.length === 0),
+      ...transports.values(),
+    ],
+  });
+  const files = new Map(context.captures.map((capture) => [capture.file, capture.index]));
+  return {
+    ...outcome,
+    findings: outcome.findings.map((finding) => {
+      if (!files.has(finding.file)) return finding;
+      const { index, ...rest } = finding;
+      return { ...rest, transportIndex: files.get(finding.file) };
+    }),
+    counts: {
+      ...outcome.counts,
+      records: context.records.length,
+      recordsWithCapture: context.records.filter(
+        (record) => record.captures.length > 0 || record.sourceScope?.original === true,
+      ).length,
+    },
+  };
+}
+
 /** Run one cadence over one prepared context and return the report object. */
 export function runSuite(context, cadence) {
   const selected = checksFor(cadence);
   const results = selected.map((check) => {
-    const outcome = check.run(context);
+    const outcome =
+      check === chainOfCustody && context.sourceVerification?.active
+        ? sourceCaptureCustody(context)
+        : check.run(context);
     const findings = stableSort(outcome.findings ?? []);
     return {
       id: check.id,
@@ -225,11 +276,7 @@ export function runSuite(context, cadence) {
       capturesByProvenance: Object.fromEntries(
         captureProvenanceClasses.map((entry) => [
           entry,
-          context.records.reduce(
-            (total, record) =>
-              total + record.captures.filter((capture) => capture.provenance === entry).length,
-            0,
-          ),
+          context.captures.filter((capture) => capture.provenance === entry).length,
         ]),
       ),
       accessOutcomes: countAccessOutcomes(context.records),
