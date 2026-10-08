@@ -15,6 +15,8 @@
 // capture is a defect in the blind extraction, and reporting the disagreement without checking that
 // would let a careless second pass discredit a correct first one.
 
+import { evidenceBodies } from "./quote-integrity.mjs";
+import { deepEqual } from "../source-verification.mjs";
 import { buildDecisionTrace } from "../../job-scorer/trace.mjs";
 import { discoverEvidence } from "../evidence.mjs";
 import { findLiteralOccurrences } from "../text-scan.mjs";
@@ -70,9 +72,14 @@ export function run(context) {
       findings.push({ code: "blind_index_unusable", index });
       continue;
     }
-    const bodies = record.captures
-      .filter((capture) => capture.verified?.ok === true)
-      .map((capture) => capture.verified.body);
+    const bodies = evidenceBodies(record, context).map((entry) => entry.body);
+    if (
+      context.sourceVerification?.active &&
+      !deepEqual(entry.value.sourceContext, record.input.sourceContext)
+    ) {
+      findings.push({ code: "blind_source_binding_mismatch", index });
+      continue;
+    }
     if (bodies.length === 0) {
       findings.push({ code: "blind_index_unusable", index });
       continue;

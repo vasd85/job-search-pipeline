@@ -33,7 +33,34 @@ fields.
 
 ### 2.2. Accepted triage decision record
 
-Policy id: `triage-policy-v8-2026-10-01`.
+Policy id: `triage-policy-v9-2026-10-08`.
+
+Normalized input version: 10.
+
+Version 9 adds the source-set resolution below. Its M/C/S/D formulas, ToolMatch prices and
+manual/junior filters are unchanged. Supported normalized input 9 retains
+`triage-policy-v8-2026-10-01` and its original standalone meaning; it is not silently grouped or
+upgraded. Other historical epochs require their own mechanism.
+
+#### Vacancy sources
+
+A supplied URL and a logical vacancy are distinct accounting units. With a verified source set,
+`company_context` and contacts are explicitly accounted sources without a JD trace or technical
+unavailability. A summary is not a full description. A confirmed logical vacancy uses the full
+original JD, or a full details/apply JD when the original is a summary. Every normalized input uses
+one source's fields and quotes; salary, seniority and other facts are never mixed across editions.
+
+A direct link plus checked target identity and matching explicit employer/role can confirm a
+relation. Shared hostname, author, contact or post ordinal cannot. Unknown identity or contradictory
+explicit title/seniority/salary/publication dates/liveness produce `MANUAL_REVIEW: source_review` in the
+source-resolution artifact, with all raw publication outcomes visible and no score or apply bucket.
+Explicit facts from an unscored summary still constrain its linked descriptions. A confirmed common
+posting combines cards only with matching employer/role; the complete union of observations must be
+checked for contradictions, including nonprimary alternatives. Absence never conceals an explicit
+conflict between two other descriptions.
+Missing ordinary scoring fields still use the middles below; missing a complete JD or its identity
+is an unresolved source boundary. Source publication date and capture time are separate facts.
+Genuinely different publications have separate logical results. Bare links keep URL triage.
 
 This record reads component maxima, branch points, unknown-data values and caps from the
 candidate configuration. It adds the four integer scores directly. Earlier records remain
@@ -1017,6 +1044,12 @@ Do not convert a technical access failure into a SKIP.
 
 ### 6.3. MANUAL_REVIEW codes
 
+- `MANUAL_REVIEW: source_review` - a logical source-set result under policy v9 for unresolved
+  mapping, unknown link role, missing complete JD, unconfirmed identity or contradictory explicit
+  source facts. It lives in `source-resolution.json`, keeps raw alternatives, and never substitutes
+  for a publication's own manual_role/junior_role or other trace. It has bounded `reason_codes`,
+  no dimension total, and is excluded from evaluated ranking.
+
 - `MANUAL_REVIEW: policy_undefined` - the source is usable, no higher-precedence terminal rule
   applies, and the source data that is _present_ cannot be reconciled, or the operator's own batch
   override cannot be normalized. [The decision record](#22-accepted-triage-decision-record)
@@ -1030,13 +1063,21 @@ no M/C/S/D total, and is excluded from evaluated ranking.
 
 ## 7. Decision Trace contract
 
-Every input link the batch processed has one trace object or equivalently labelled text block. Two
-kinds of input link are not processed and have none: a link the triage ledger's batch-start plan
+A standalone batch has one trace object per processed input link. A source-aware batch has one
+raw trace per full-JD or failure observation, plus one logical result in `source-resolution.json`
+per resolved vacancy group. Company/contact sources and summaries have no fabricated JD trace.
+The resolution preserves URL accounting and alternative raw outcomes; source review is not a
+rewritten raw trace. Two kinds of standalone input link are not processed and have none: a link the triage ledger's batch-start plan
 withheld, whose last decision stays in its ledger row and in the traces of the batch that row's
 `batch_id` names, and a second spelling of a link the same batch already carries. These common
 fields are required for all decisions:
 
-- `input_index` - one-based position after ordered-input deduplication.
+- `input_index` - one-based position after ordered-input deduplication in a standalone batch;
+  a unique extraction ordinal (1..999) in a source-aware batch. URL positions and logical indices
+  remain in the source resolution.
+- `source_context` - present only on schema 10 inputs with non-null `sourceContext`: the exact
+  source-set digest, card/snapshot references, source reference, capture digest and own line bounds.
+  A body-less typed failure has null capture digest/bounds. Legacy schema 9 has no such field.
 - `source_ref` - original input URL.
 - `final_url` - URL after redirects, or `null` when unavailable.
 - `job_title`, `company`, `location_raw`, `work_format_raw`, `salary_raw` - observed values or
@@ -1085,8 +1126,9 @@ evidence_quote}`. An observation of the description: no dimension, cap, bucket, 
   the rule that emits it, which is why most of them live in [the scoring model](#3-scoring-model)
   rather than in [the decision record](#22-accepted-triage-decision-record).
 - `assumptions` - the `assumption:` tokens this decision recorded, verbatim, under the same rules.
-- `policy_id` - the id of the record the trace was produced under, `triage-policy-v8-2026-10-01`.
-  A trace carrying `triage-policy-v7-2026-10-01` used the previous category ToolMatch. A trace carrying `triage-policy-v6-2026-09-30`, `triage-policy-v5-2026-09-30`, `triage-policy-v4-2026-09-27`,
+- `policy_id` - the id of the record the trace was produced under. Current schema 10 uses
+  `triage-policy-v9-2026-10-08`; supported schema 9 retains `triage-policy-v8-2026-10-01` and
+  its standalone contract. A trace carrying `triage-policy-v7-2026-10-01` used the previous category ToolMatch. A trace carrying `triage-policy-v6-2026-09-30`, `triage-policy-v5-2026-09-30`, `triage-policy-v4-2026-09-27`,
   `triage-policy-v3-2026-09-02`, `triage-policy-v2-2026-08-21` or
   `triage-r1-05a-2026-08-04` was produced under the record its own id names and follows that
   record's branches; two generations are never compared silently.
@@ -1283,8 +1325,9 @@ Both arrays are nonincreasing and have exactly five entries. Below-floor points 
 C.start, and C.start <= C.target <= C.max. Relocation tiers, automation and seniority points
 are ordered. Domain placements and unknown value must belong to the configured domain steps.
 
-Config schema 3 and normalized input schema 9 are required. Copy the complete validated scoring
+Config schema 3 and normalized input schema 10 are required for new batches. Supported legacy
+input 9 retains its complete scoring snapshot and standalone policy v8. Copy the complete validated scoring
 settings into each input. Existing batches retain their original inputs and traces. The current
-scorer refuses earlier input versions rather than reconstructing missing settings; use their
+scorer refuses earlier unsupported input versions rather than reconstructing missing settings; use their
 original engine for historical re-verification, or start an explicit new batch to re-score.
 Apply the updated engine and private configuration as a named pair at an explicit cutover.

@@ -1,9 +1,10 @@
 # score-jobs
 
-Score every supplied vacancy URL against the candidate profile and the authoritative rubric in
+Score supplied vacancies against the candidate profile and the authoritative rubric in
 [knowledge/job-match-rules.md](../../knowledge/job-match-rules.md). Any link that serves a job
 description is in scope. The transport below is source-agnostic; a source is named only where its
-own handling differs from the general rule.
+own handling differs from the general rule. An explicitly paired Telegram source set selects the
+source-aware procedure below; bare URLs and `# via:` comments keep the standalone procedure.
 
 This skill owns batch fetching, ordering, and presentation. `job-match-rules.md` exclusively owns
 scoring formulas, dimension order, caps, evidence requirements, uncertainty
@@ -12,6 +13,8 @@ handling, SKIP/BLOCKED codes, and result fields. Do not restate or extend that p
 **Inputs:**
 
 - ordered vacancy URLs from the user, from any source;
+- optionally an explicitly paired `source-set.json` and its saved HTML from `/collect-telegram`;
+  do not infer this pairing from an adjacent file or a comment;
 - [knowledge/job-match-rules.md](../../knowledge/job-match-rules.md);
 - the candidate profile, `candidate/profile.md` in the candidate layer;
 - `candidate/rules.md` in the candidate layer — the candidate's rules whose `Scope:` names
@@ -72,7 +75,9 @@ rubric leaves unresolved belongs in the supported `unknown` value, and what the 
 is the rubric's business, not this skill's. Under the accepted record that is a defined middle plus a
 gap annotation for absent data, and `MANUAL_REVIEW: policy_undefined` only for the contradictions the
 rubric enumerates. Do not catch either outcome and improvise a score, terminal code, floor, bucket,
-or rank.
+or rank. Source-aware reconciliation additionally returns `MANUAL_REVIEW: source_review` under
+the current rubric when source identity or material observations cannot be reconciled; retain the
+raw scorer outcomes instead of rewriting them.
 
 Extract `role.observedLanguages` separately from `role.observedTools`. For every concrete
 observation record its name, requirement wording, scope, exact nonempty evidence quote and nonempty
@@ -458,7 +463,106 @@ allows exactly one title-only early SKIP, and every other
 [SKIP code](../../knowledge/job-match-rules.md#62-skip-codes) is gated on the description; do not
 extend the stage with a second classifier.
 
-## Procedure
+## Source-aware Telegram procedure
+
+Use this branch only with the explicit source-set input. Read
+[tools/triage-sources/README.md](../../tools/triage-sources/README.md) for the artifact shapes and
+[the source ledger contract](../../docs/runbooks/triage-review.md#12-version-2-logical-vacancies-and-source-memberships)
+for upgrade, recording and correction APIs. All observations and payloads remain helper-file data.
+
+1. Read the exact collection with `readCollection(path, {sourceSetPath, captureRoot})`; validate the
+   saved HTML and complete source set before any cache decision. Split with `splitCollection` and
+   claim a batch as above. Source units are indivisible: a group may exceed the requested URL size,
+   which the split reports explicitly. A shared company homepage never joins different cards.
+   Retain the full immutable set/collection and use `collectionGroup`'s `source_selection` for the
+   selected original URL range and cards. Display `vacancy_no` only; persistent references bind the
+   snapshot, title line and own boundaries.
+2. Explicitly upgrade an existing v1 ledger through `upgradeLedger` before source-aware recording;
+   this preserves its URL rows and immutable historical batches. Build `planSourceBatch` over the
+   validated whole source set with the selected card references, exact collection bytes, capture
+   root and the candidate languages/scoring. If a previously validated resolution of the exact
+   source set is supplied, pass it as `resolution` for a guarded logical baseline. An initial plan
+   without that evidence treats identity as unconfirmed and cannot borrow a standalone URL skip.
+   An existing merged or different-target group requires that resolution-aware plan before its next
+   fetch; validate the prior artifact against the same exact source set and retained captures as
+   the source ledger contract prescribes. A changed source set needs its own validated resolution.
+   For a matching indexed prior set, use its batch directory as `captureRoot`; the planner emits
+   a bounded `prior_resolution` reference and verification reads its sibling archive. For a current
+   set with its own validated prefetch resolution, use `publishSourcePlan` with the claimed batch
+   directory and the retained prefetch captures. Publish the current-set planning proof before refetch.
+   Its bounded `prefetch_resolution` reference binds the fixed `source-plan/` archive, exact set,
+   collection and resolution to captures observed no later than the plan clock. Do not use both
+   proof references. Neither final observations nor later captures can replace the frozen planning proof.
+   Keep the plan bytes unchanged after fetching; newly observed facts cannot replace the prior proof.
+   Before fetching, archive that source plan in `plan.json` (directly or as `source_plan` alongside
+   the standalone `planBatch` snapshot, or through the exclusive current-set publisher). Run `planPreTriage` over the selected collection with both
+   `ledgerPlan` and `sourcePlan`, then report its URL dispositions and logical counts.
+3. `company_context`, contacts and original summaries enter no JD lane. A fresh original full JD
+   uses the collector's code-extracted `cardBody`, HTML digest and own bounds; it costs no second
+   HTTP request. Apply the usual stale-collection liveness gate when required. Every scoped
+   details/apply/unknown job route uses its exact membership's source-plan action and the fetch/retry
+   rules above: `skip_closed` is never fetched; `skip_known` is fetched only for an explicit re-check;
+   `retry_blocked` is fetched like a new source. A failed job source is retryable even when the full original supplied a usable logical result. Context is never
+   recorded as a BLOCKED vacancy. Retain typed manifest evidence when no capture could be written.
+   Never publish a new observation for a `skip_closed` source. A carried closure requires matching
+   archived observation, capture and transport proof and retains its original source clock.
+4. Extract each source independently. Every selected card requires its original observation,
+   including an unscored summary. A full description requires its own scoring or typed unread input;
+   a failed/closed capture or manifest cannot use `input: null`. A summary is an unscored observation,
+   not a shortened JD, and its explicit material facts still constrain the linked sources.
+   Every usable input uses schema 10/policy v9 and non-null `sourceContext`; its quotes and facts
+   must occur within that one observation's body. Assign unique extraction ordinals in 1..999 for
+   input/trace filenames; URL indices, logical indices and reader display numbers are separate.
+   Preserve explicit employer, role/title, seniority, salary and publication-date observations with
+   their own quotes, recording absence as null. Capture/fetch time is never publication time.
+   A saved full original cannot be relabeled unread; a new liveness failure uses its own failed
+   capture or manifest observation. Check target identity and employer/role for direct job links.
+   A sanitized final URL cannot confirm an identity carried only in a meaningful query parameter.
+   Bind the primary capture's final URL to its actual manifest; a separate browser rescue retains
+   its own identity evidence. An unread captured source can claim `closed` only with its own
+   terminal posting stamp; `access_failure` never proves closure. Use `linked_unconfirmed` when
+   identity cannot be established; use `different` only for an observed different job publication.
+   A separate target needs a usable full JD, checked destination identity and an explicit employer
+   mismatch, or a different known role family supported by both sources' own role facts. Title,
+   seniority, salary and date differences alone remain publication conflicts.
+   A linked summary with `input: null` requires source review because destination identity is
+   unproven. Matching employer and role require explicit facts in both the original and linked
+   publication; incidental body mentions cannot fill an absent identity fact.
+   Canonical aliases of a different target reconcile into one logical vacancy with the complete
+   union of its observations. Preserve each raw outcome and review their contradictions.
+   Do not transfer salary, Junior+, work format or any field between descriptions.
+5. Call `resolveSourceSet`/`publishSourceResolution` with the exact full collection bytes, selected
+   card/range, observations and candidate validation options. The publisher copies saved Telegram
+   HTML from `sourceCaptureRoot` into the claimed batch, validates fetched captures/manifests and
+   writes source-set/resolution plus raw inputs/traces exclusively. A full original is primary;
+   a summary needs a full details/apply JD. Explicit contradictions and unconfirmed identity remain
+   `source_review` with every alternative outcome. Reconcile every observation after merging cards,
+   including nonprimary alternatives; an absent primary fact cannot bridge explicit contradictions.
+   A common homepage is no identity evidence. Mixed technical unavailability and closed sources
+   remain an open source review rather than closing an unconfirmed logical vacancy.
+   Count composition once per logical group with `sourceCompositionObservations` and `composeBatch`,
+   from its own primary header facts; unresolved or
+   conflicting facts remain unknown. Never count every URL or assemble a composite offer from
+   several publications.
+6. Run triage verification on that batch and the original selected URL range with the ledger;
+   current source artifacts require policy v9. A pass proves exact collection/HTML custody,
+   URL/card coverage, own-body quotes, source-plan baselines and primary/result reconstruction.
+   Corroborate every parent reference against the immutable ledger batch index before record or
+   index writes, including replay and orphan adoption. Record source batches only in their declared
+   real directory, with no symlink in the archive path.
+   Record only through `recordSourceBatch`, after verifying all required evidence. The immutable
+   batch record is written before the mutable ledger. Concurrency, aliases, parent-bound context
+   corrections and orphan replay use the runbook's guarded APIs; do not edit the ledger or old
+   batches by hand.
+
+The source-aware chat return uses `sourceSummaryRows`/`renderSourceResolution`: one row per logical
+vacancy, linked raw alternatives for `source_review`, separate rows for genuinely different jobs,
+plus explicit company/contact/source dispositions. Report URL accounting and logical job counts
+separately, verification verdict, artifact directory and failed job-source retry counts. Retain raw
+manual/junior outcomes and unknown facts. This replaces the standalone one-row-per-trace/count
+formula below for this branch only. The pretriage spend report still comes from its own rows.
+
+## Procedure — standalone URLs
 
 1. Trim empty lines and deduplicate by full URL while preserving order. When the user names a group
    size, split that deduplicated collection into contiguous groups of that size with
@@ -506,7 +610,7 @@ extend the stage with a second classifier.
 
 ## Output
 
-### Decision Trace
+### Decision Trace — standalone URLs
 
 The traces are published as files: one per planned link, `traces/NNN.trace.json` in the batch's own
 directory in the batch store, with the exact common and decision-specific fields, order, and absence
@@ -518,7 +622,7 @@ emission [the Decision Trace contract](../../knowledge/job-match-rules.md#7-deci
 asks for; a trace is never printed into the chat — the rows and the failed-links block below carry
 the only trace fields that reach it. Do not add a second wrapper or rename rubric fields.
 
-### Chat return
+### Chat return — standalone URLs
 
 The closing summary is a compact one and carries only, in this order: the batch label and
 the per-batch verification verdict, the rows, the failed-links block, the path of the batch

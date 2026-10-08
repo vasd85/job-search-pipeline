@@ -15,6 +15,7 @@
 
 import { sha256Utf8 } from "../vacancy-fetch/digest.mjs";
 import { normalizeLine, normalizedLines, wordsOf } from "./text.mjs";
+import { snapshotBodySha256, snapshotOf } from "../triage-sources/source-set.mjs";
 
 export const MINHASH_SIZE = 64;
 export const SHINGLE_WORDS = 5;
@@ -58,7 +59,7 @@ function minhashOf(words) {
  * The fingerprint of one post with text. `urlKeys` are the normalised addresses of all its unmarked
  * `url` links.
  */
-export function fingerprintOf(post, { handle, urlKeys, seenAt }) {
+export function fingerprintOf(post, { handle, urlKeys, seenAt, sourceMapping = false }) {
   const lines = normalizedLines(post);
   const wordLines = lines.map((line) => wordsOf(line).join(" ")).filter((line) => line.length > 0);
   const words = wordLines.flatMap((line) => line.split(" "));
@@ -73,6 +74,9 @@ export function fingerprintOf(post, { handle, urlKeys, seenAt }) {
     text: isShort ? short(words.join(" ")) : null,
     minhash: isShort ? null : minhashOf(words),
     lines: wordLines.slice(0, MAX_LINE_DIGESTS).map((line) => short(line, 8)),
+    ...(sourceMapping
+      ? { source_body_sha256: snapshotBodySha256(snapshotOf(post, { handle })) }
+      : {}),
   };
 }
 
@@ -112,7 +116,7 @@ export function isExpired(lastSeen, nowMs, memoryDays) {
  * prolongs an original's term, which is what keeps a vacancy raised every week folded; `remove`
  * forgets a fingerprint added this sweep, for a post that ended up no card.
  */
-export function repostIndex(stored, { nowMs, memoryDays }) {
+export function repostIndex(stored, { nowMs, memoryDays, exactSource = false }) {
   const byLegs = new Map();
   const all = [];
   const legs = (fingerprint) => `${fingerprint.head} ${fingerprint.urls}`;
@@ -128,8 +132,13 @@ export function repostIndex(stored, { nowMs, memoryDays }) {
     add,
     find(candidate) {
       return (
-        (byLegs.get(legs(candidate)) ?? []).find((original) => isRepostOf(candidate, original)) ??
-        null
+        (byLegs.get(legs(candidate)) ?? []).find(
+          (original) =>
+            isRepostOf(candidate, original) &&
+            (!exactSource ||
+              (typeof original.source_body_sha256 === "string" &&
+                candidate.source_body_sha256 === original.source_body_sha256)),
+        ) ?? null
       );
     },
     touch(original, seenAt) {

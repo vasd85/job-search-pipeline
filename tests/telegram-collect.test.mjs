@@ -53,7 +53,7 @@ import { boilerplateOf, linksOf } from "../tools/telegram-collect/links.mjs";
 import { parsePage } from "../tools/telegram-collect/parse.mjs";
 import {
   executeFinalize,
-  executeSweep,
+  executeSweep as executeSweepCurrent,
   exitCodeOf,
   prepareOutDir,
   renderLabelBatches,
@@ -61,21 +61,39 @@ import {
 } from "../tools/telegram-collect/persist.mjs";
 import { probeChannel, probeMessage } from "../tools/telegram-collect/probe.mjs";
 import { renderReport, reportTexts, safeTitle } from "../tools/telegram-collect/report.mjs";
-import { initState, readState, resetCursor, writeState } from "../tools/telegram-collect/state.mjs";
+import {
+  initState as initStateCurrent,
+  readState,
+  resetCursor,
+  writeState,
+} from "../tools/telegram-collect/state.mjs";
 import {
   buckets,
   channelOutcomes,
   discrepancyKinds,
   linkFates,
   readOutcomes,
-  resolveSweep,
-  runSweep,
+  resolveSweep as resolveSweepCurrent,
+  runSweep as runSweepCurrent,
   stopReasons,
   sweepTotals,
   verdictKinds,
 } from "../tools/telegram-collect/sweep.mjs";
 import { readCollection } from "../tools/pretriage/collection.mjs";
+import { splitCollection } from "../tools/pretriage/groups.mjs";
 import { readLinksFile } from "../tools/triage-verify/links.mjs";
+import {
+  cardBody,
+  cardRef,
+  createSourceSet,
+  readSourceSet,
+  serializeSourceSet,
+  snapshotFromHtml,
+  snapshotRef,
+  sourceSetDigest,
+  sourceSetMemberships,
+  validateSourceSet,
+} from "../tools/triage-sources/source-set.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureDir = join(repoRoot, "tools", "telegram-collect", "fixtures");
@@ -147,6 +165,12 @@ function rawConfig(overrides = {}) {
 
 const config = (overrides) => parseConfig(rawConfig(overrides));
 const emptyState = () => ({ schema_version: 2, channels: {}, fingerprints: [], emitted_urls: {} });
+// Historical reader1/card3 scenarios run explicitly in their epoch. New production sweeps use
+// reader2/card4; the historical fixtures and expectations below are preserved unchanged.
+const runSweep = (options) => runSweepCurrent({ ...options, readerVersion: 1 });
+const resolveSweep = (options) => resolveSweepCurrent({ ...options, readerVersion: 1 });
+const executeSweep = (options) => executeSweepCurrent({ ...options, readerVersion: 1 });
+const initState = (path) => initStateCurrent(path, { schemaVersion: 2 });
 /** The six buckets, the named ones set: a thematic source fills only empty, repost and card. */
 const B = (partial) => ({
   empty: 0,
@@ -3921,6 +3945,1545 @@ const writeAnswer = (outDir, batch, vacanciesByPost, edit = (answer) => answer) 
   );
 };
 const refusal = (fn, code) => assert.throws(fn, (error) => error.code === code, code);
+
+test("source context regression: a thematic summary keeps company and apply roles and the original snapshot", async (t) => {
+  const root = disposableRoot(t, "telegram-source-context-");
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "context");
+  writeFileSync(configPath, JSON.stringify(rawConfig()));
+  initState(statePath);
+  const html = pageHtml({
+    posts: [
+      {
+        id: 701,
+        datetime: day(13),
+        html: 'Senior QA Tester<br/>About <a href="https://studio.example.test/">Example Studio</a><br/>Remote, mobile games. Read the full role and <a href="https://jobs.example.test/mobile/apply">apply here</a>',
+      },
+    ],
+    older: false,
+  });
+  const run = await executeSweepCurrent({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: html } }),
+  });
+  assert.equal(run.awaiting, true, "thematic posts require isolated source mapping too");
+  const batch = run.batches[0];
+  const inputPath = join(outDir, "reader-in", batch.file);
+  const inputText = readFileSync(inputPath, "utf8");
+  mkdirSync(join(outDir, "reader-out"));
+  writeFileSync(
+    join(outDir, "reader-out", batch.file.replace(/\.txt$/u, ".json")),
+    JSON.stringify({
+      schema_version: 2,
+      batch: batch.file.replace(/\.txt$/u, ""),
+      posts: [
+        {
+          post: 1,
+          vacancies: [
+            {
+              title_line: 1,
+              start_line: 1,
+              end_line: 3,
+              description_kind: "summary",
+              links: [
+                { anchor: 1, role: "company_context" },
+                { anchor: 2, role: "apply" },
+              ],
+              apply: [{ via: "url", link: 2 }],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  writeFileSync(inputPath, inputText.slice(0, 35));
+  assert.throws(
+    () => executeFinalize({ outDir, statePath, repoRoot: root }),
+    (error) => error.code === "stage_invalid",
+  );
+  writeFileSync(inputPath, inputText);
+  const finished = executeFinalize({ outDir, statePath, repoRoot: root });
+  const set = JSON.parse(readFileSync(join(outDir, "source-set.json"), "utf8"));
+  const record = JSON.parse(readFileSync(join(outDir, "vacancies.jsonl"), "utf8").trim());
+  assert.equal(record.schema_version, 4);
+  assert.equal(set.schema_version, 1);
+  assert.equal(set.snapshots.length, 1);
+  assert.equal(set.cards[0].description_kind, "summary");
+  assert.deepEqual(
+    set.cards[0].links.map((link) => link.role),
+    ["company_context", "apply", "original_post"],
+  );
+  assert.equal(
+    set.snapshots[0].lines[2].text,
+    "Remote, mobile games. Read the full role and apply here",
+  );
+  assert.equal(set.snapshots[0].capture.file, "001.page.html");
+  assert.equal(set.snapshots[0].original_url, "https://t.me/examplejobs/701?embed=1");
+  assert.equal(finished.manifest.source_set.file, "source-set.json");
+  assert.ok(
+    !record.score_urls.includes(set.snapshots[0].original_url),
+    "original is retained without becoming a flat summary JD",
+  );
+  const collection = readFileSync(finished.collectionPath, "utf8");
+  assert.equal(
+    readSourceSet(join(outDir, "source-set.json"), { collectionText: collection }).digest,
+    finished.manifest.source_set.sha256,
+  );
+  assert.equal(cardProblem(record), null);
+});
+
+test("source context handoff: a summary with only new company/contact links retains a positioned original when its apply URL is known", async (t) => {
+  for (const kind of ["company only", "known apply", "contact"]) {
+    await t.test(kind, async (t) => {
+      const root = disposableRoot(t, "telegram-summary-handoff-");
+      const configPath = join(root, "telegram-sources.json");
+      const statePath = join(root, "telegram-sweep-state.json");
+      const outDir = join(root, "telegram-sweeps", "summary");
+      const company = "https://studio.example.test/";
+      const apply = "https://jobs.example.test/mobile/apply";
+      const original = "https://t.me/examplejobs/702?embed=1";
+      writeFileSync(configPath, JSON.stringify(rawConfig()));
+      initStateCurrent(statePath);
+      if (kind === "known apply") {
+        const state = readState(statePath);
+        state.emitted_urls[apply] = {
+          handle: "examplejobs",
+          post_id: 700,
+          first_at: "2026-09-12T12:00:00.000Z",
+          last_seen: "2026-09-12T12:00:00.000Z",
+        };
+        writeState(statePath, state);
+      }
+      const ending =
+        kind === "known apply"
+          ? 'Read the full role and <a href="https://jobs.example.test/mobile/apply">apply here</a>'
+          : kind === "contact"
+            ? 'Contact <a href="mailto:hiring@studio.example.test">hiring</a>'
+            : "Remote, mobile games.";
+      const html = pageHtml({
+        posts: [
+          post(
+            702,
+            day(13),
+            `Senior QA Tester<br/>About <a href="https://studio.example.test/">Example Studio</a><br/>${ending}`,
+          ),
+        ],
+        older: false,
+      });
+      const run = await executeSweepCurrent({
+        configPath,
+        statePath,
+        outDir,
+        repoRoot: root,
+        ...sweepDeps({ [P1]: { body: html } }),
+      });
+      const batch = run.batches[0];
+      const mappings = [{ anchor: 1, role: "company_context" }];
+      if (kind !== "company only")
+        mappings.push({ anchor: 2, role: kind === "known apply" ? "apply" : "contact" });
+      mkdirSync(join(outDir, "reader-out"));
+      writeFileSync(
+        join(outDir, "reader-out", batch.file.replace(/\.txt$/u, ".json")),
+        JSON.stringify({
+          schema_version: 2,
+          batch: batch.file.replace(/\.txt$/u, ""),
+          posts: [
+            {
+              post: 1,
+              vacancies: [
+                mappedVac(
+                  1,
+                  1,
+                  3,
+                  mappings,
+                  "summary",
+                  kind === "known apply" ? [{ via: "url", link: 2 }] : [],
+                ),
+              ],
+            },
+          ],
+        }),
+      );
+      const finished = executeFinalize({ outDir, statePath, repoRoot: root });
+      const collection = readCollection(finished.collectionPath, {
+        sourceSetPath: join(outDir, "source-set.json"),
+      });
+      const grouped = splitCollection(collection);
+      assert.equal(grouped.schema_version, 2);
+      assert.equal(grouped.logical_vacancies, 1);
+      assert.deepEqual(
+        collection.links.map((link) => link.url),
+        [company, original],
+      );
+      const set = collection.source_set;
+      const record = JSON.parse(readFileSync(join(outDir, "vacancies.jsonl"), "utf8").trim());
+      assert.equal(record.schema_version, 4);
+      assert.equal(record.description_kind, "summary");
+      assert.equal(set.cards[0].description_kind, "summary");
+      assert.equal(set.cards[0].mapping_status, "resolved");
+      assert.equal(sourceSetMemberships(set, company)[0].role, "company_context");
+      assert.equal(sourceSetMemberships(set, original)[0].role, "original_post");
+      assert.ok(record.score_urls.includes(original));
+      if (kind === "known apply") {
+        assert.equal(sourceSetMemberships(set, apply)[0].role, "apply");
+        assert.equal(record.known_urls[0].url, apply);
+        assert.ok(!record.score_urls.includes(apply));
+      }
+      if (kind === "contact")
+        assert.equal(
+          set.cards[0].links.find((link) => link.url === "mailto:hiring@studio.example.test").role,
+          "contact",
+        );
+      assert.equal(cardProblem(record), null);
+    });
+  }
+});
+
+function mappedAnswer(item, vacancies) {
+  const rendered = renderPost(item, 1, ROLE, { sourceMapping: true });
+  const batch = { name: "fiction-001", schema_version: 2, posts: [rendered.descriptor] };
+  const answer = { schema_version: 2, batch: batch.name, posts: [{ post: 1, vacancies }] };
+  return { rendered, batch, answer, checked: checkAnswer(answer, batch) };
+}
+const mappedVac = (
+  title,
+  start,
+  end,
+  links = [],
+  description = "full_description",
+  apply = [],
+) => ({
+  title_line: title,
+  start_line: start,
+  end_line: end,
+  description_kind: description,
+  links,
+  apply,
+});
+function resolveMapped(walk, cfg, state, vacanciesByRef) {
+  const answers = new Map();
+  for (const item of walk.fresh) {
+    const { checked, rendered } = mappedAnswer(
+      item,
+      vacanciesByRef[`${item.handle}/${item.postId}`] ?? [],
+    );
+    answers.set(`${item.handle}/${item.postId}`, {
+      ...checked.results.get(1),
+      descriptor: rendered.descriptor,
+    });
+  }
+  return resolveSweepCurrent({ config: cfg, state, walk, answers });
+}
+
+test("source mapping2 reads complete thematic/general posts and rejects omitted links, sibling details and duplicate boundaries", () => {
+  const item = parsedPost(
+    'Company <a href="https://company.example.test/about">Example Company</a><br/>Senior QA<br/>Apply <a href="https://ats.example.test/senior">Senior role</a><br/>Junior QA<br/>Apply <a href="https://ats.example.test/junior">Junior role</a>',
+  );
+  const senior = mappedVac(
+    2,
+    2,
+    3,
+    [
+      { anchor: 1, role: "company_context" },
+      { anchor: 2, role: "apply" },
+    ],
+    "full_description",
+    [{ via: "url", link: 2 }],
+  );
+  const junior = mappedVac(
+    4,
+    4,
+    5,
+    [
+      { anchor: 1, role: "company_context" },
+      { anchor: 3, role: "apply" },
+    ],
+    "summary",
+    [{ via: "url", link: 3 }],
+  );
+  assert.equal(mappedAnswer(item, [junior, senior]).checked.results.get(1).kind, "vacancy");
+  for (const vacancies of [
+    [mappedVac(2, 2, 3, [{ anchor: 2, role: "apply" }])],
+    [{ ...senior, links: [...senior.links, { anchor: 3, role: "details" }] }],
+    [senior, { ...junior, start_line: 3 }],
+    [senior, senior],
+    [{ ...senior, links: [...senior.links, { anchor: 2, role: "details" }] }],
+    [{ ...senior, description_kind: "complete" }],
+    [{ ...senior, title_line: 80 }],
+  ])
+    assert.equal(mappedAnswer(item, vacancies).checked.results.get(1).kind, "invalid");
+  const good = mappedAnswer(item, [senior, junior]);
+  good.batch.posts[0].complete = false;
+  assert.equal(checkAnswer(good.answer, good.batch).results.get(1).kind, "invalid");
+  assert.equal(
+    checkAnswer({ ...good.answer, schema_version: 1 }, good.batch).results.get(1).code,
+    "file_invalid",
+  );
+  const long = parsedPost(
+    `Senior QA<br/>${"a".repeat(700)}<br/>${Array.from({ length: 30 }, (_, i) => `body ${i}`).join("<br/>")}`,
+  );
+  const full = renderPost(long, 1, ROLE, { sourceMapping: true });
+  assert.ok(full.text.includes("a".repeat(700)));
+  assert.ok(full.text.includes("|32| body 29"));
+  assert.ok(!full.text.includes("lines hidden"));
+});
+
+function boundaryMappingFixture({ floating = false } = {}) {
+  const company = "https://meadow.example.test/";
+  const unknown = "https://recruit.example.test/postings/alpha";
+  const lines = [
+    `Company <a href="${company}">Meadow Metrics</a>`,
+    "QA Alpha Engineer",
+    "Company Meadow Metrics",
+    "English description",
+    "Remote worldwide",
+    "Primary test automation",
+    "Senior QA Engineer",
+    "B2B data platform",
+    floating ? "Application available" : `Application <a href="${unknown}">Apply online</a>`,
+    "QA Beta Engineer",
+    "Company Meadow Metrics",
+    "English description",
+    "Remote worldwide",
+    "Primary test automation",
+    "Senior QA Engineer",
+    "B2B data platform",
+    "More information",
+  ];
+  const preview = floating
+    ? `<a class="tgme_widget_message_link_preview" href="${unknown}">Preview</a>`
+    : "";
+  const html = `<div class="tgme_widget_message" data-post="meadowqajobs/751"><div class="tgme_widget_message_text">${lines.join("<br/>")}</div>${preview}<div class="tgme_widget_message_footer"><a class="tgme_widget_message_date"><time datetime="2026-10-07T14:00:00+00:00">date</time></a></div></div>`;
+  const post = parsePage(html, { handle: "meadowqajobs" }).posts[0];
+  const item = { post, entries: linksOf(post) };
+  const snapshot = snapshotFromHtml(html, {
+    handle: "meadowqajobs",
+    postId: 751,
+    file: "001.page.html",
+    capturedAt: "2026-10-08T06:00:00.000Z",
+  });
+  const vacancies = (owner, role = "unknown") =>
+    [
+      [2, 9],
+      [10, 17],
+    ].map(([start, end], at) =>
+      mappedVac(start, start, end, [
+        { anchor: 1, role: "company_context" },
+        ...(at === owner ? [{ anchor: 2, role }] : []),
+      ]),
+    );
+  const cards = (owner) =>
+    vacancies(owner).map((vacancy) => ({
+      snapshot_ref: snapshot.snapshot_ref,
+      title_line: vacancy.title_line,
+      start_line: vacancy.start_line,
+      end_line: vacancy.end_line,
+      description_kind: vacancy.description_kind,
+      links: [
+        ...vacancy.links.map((link) => ({
+          ...link,
+          url: link.anchor === 1 ? company : unknown,
+        })),
+        { anchor: null, role: "original_post", url: snapshot.original_url },
+      ],
+    }));
+  return {
+    html,
+    item,
+    snapshot,
+    vacancies,
+    cards,
+    company,
+    unknown,
+    collectionText: `${snapshot.original_url}\n${unknown}\n${company}\n`,
+  };
+}
+
+test("source mapping2 rejects a known-line unknown anchor assigned to a sibling and keeps global context and unique floating anchors", () => {
+  const fixture = boundaryMappingFixture();
+  assert.equal(fixture.snapshot.anchors[1].line, 9);
+  assert.equal(
+    mappedAnswer(fixture.item, fixture.vacancies(1)).checked.results.get(1).kind,
+    "invalid",
+    "unknown at line 9 belongs to 2..9, not the sibling at 10..17",
+  );
+  assert.equal(
+    mappedAnswer(fixture.item, fixture.vacancies(0)).checked.results.get(1).kind,
+    "vacancy",
+  );
+  assert.equal(
+    mappedAnswer(fixture.item, fixture.vacancies(1, "details")).checked.results.get(1).kind,
+    "invalid",
+  );
+  const floating = boundaryMappingFixture({ floating: true });
+  assert.equal(floating.snapshot.anchors[1].line, null);
+  assert.equal(
+    mappedAnswer(floating.item, floating.vacancies(1)).checked.results.get(1).kind,
+    "vacancy",
+  );
+  const duplicate = floating.vacancies(1);
+  duplicate[0].links.push({ anchor: 2, role: "unknown" });
+  assert.equal(mappedAnswer(floating.item, duplicate).checked.results.get(1).kind, "invalid");
+  const legacy = renderPost(fixture.item, 1, ROLE);
+  const batch = { name: "boundary-legacy", schema_version: 1, posts: [legacy.descriptor] };
+  const answer = {
+    schema_version: 1,
+    batch: batch.name,
+    posts: [
+      {
+        post: 1,
+        vacancies: [{ title_line: 10, details_link: 2, apply: [] }],
+      },
+    ],
+  };
+  assert.equal(
+    checkAnswer(answer, batch).results.get(1).kind,
+    "vacancy",
+    "answer1 retains its own contract",
+  );
+});
+
+test("file-backed source-set validation rejects a sibling's known-line unknown anchor and accepts one floating owner", (t) => {
+  const root = disposableRoot(t, "source-boundary-custody-");
+  const fixture = boundaryMappingFixture();
+  const correct = createSourceSet({
+    collectionText: fixture.collectionText,
+    snapshots: [fixture.snapshot],
+    cards: fixture.cards(0),
+  });
+  writeFileSync(join(root, "001.page.html"), fixture.html);
+  const path = join(root, "source-set.json");
+  writeFileSync(path, serializeSourceSet(correct));
+  assert.equal(
+    readSourceSet(path, { collectionText: fixture.collectionText }).sourceSet.cards.length,
+    2,
+  );
+  assert.equal(
+    sourceSetMemberships(correct, fixture.company).length,
+    2,
+    "company_context at line 1 may stay outside and shared by both cards",
+  );
+  const misplaced = structuredClone(correct);
+  const first = misplaced.cards.find((card) => card.start_line === 2);
+  const sibling = misplaced.cards.find((card) => card.start_line === 10);
+  const unknown = first.links.find((link) => link.anchor === 2);
+  first.links = first.links.filter((link) => link.anchor !== 2);
+  sibling.links.push(unknown);
+  writeFileSync(path, serializeSourceSet(misplaced));
+  assert.throws(
+    () => readSourceSet(path, { collectionText: fixture.collectionText }),
+    (error) => error.code === "source_set_invalid",
+    "saved HTML proves line 9 is outside the mapped sibling",
+  );
+  assert.throws(
+    () =>
+      createSourceSet({
+        collectionText: fixture.collectionText,
+        snapshots: [fixture.snapshot],
+        cards: fixture.cards(1),
+      }),
+    (error) => error.code === "source_set_invalid",
+  );
+  const floating = boundaryMappingFixture({ floating: true });
+  const singleOwner = createSourceSet({
+    collectionText: floating.collectionText,
+    snapshots: [floating.snapshot],
+    cards: floating.cards(1),
+  });
+  writeFileSync(join(root, "001.page.html"), floating.html);
+  writeFileSync(path, serializeSourceSet(singleOwner));
+  assert.equal(
+    readSourceSet(path, { collectionText: floating.collectionText }).sourceSet.cards.length,
+    2,
+  );
+  const duplicate = structuredClone(singleOwner);
+  duplicate.cards
+    .find((card) => card.start_line === 2)
+    .links.push({
+      anchor: 2,
+      role: "unknown",
+      url: floating.unknown,
+    });
+  assert.throws(
+    () => validateSourceSet(duplicate),
+    (error) => error.code === "source_set_invalid",
+  );
+});
+
+test("immutable card refs survive answer permutations and adding a missed sibling, but own remapping and edited body change refs", async () => {
+  const cfg = genConfig();
+  const state = emptyState();
+  const table = genPage([
+    post(
+      801,
+      day(13),
+      "Digest<br/>Senior QA<br/>Requirements: Playwright<br/>Junior QA<br/>Requirements: Cypress",
+    ),
+  ]);
+  const first = await runSweepCurrent({ config: cfg, state, ...sweepDeps(table) });
+  const senior = mappedVac(2, 2, 3);
+  const junior = mappedVac(4, 4, 5);
+  const one = resolveMapped(first.walk, cfg, state, { [`${GEN}/801`]: [junior] });
+  const two = resolveMapped(first.walk, cfg, state, { [`${GEN}/801`]: [junior, senior] });
+  const reverse = resolveMapped(first.walk, cfg, state, { [`${GEN}/801`]: [senior, junior] });
+  assert.equal(two.cards.find((card) => card.title === "Junior QA").cardRef, one.cards[0].cardRef);
+  assert.deepEqual(
+    two.cards.map((card) => card.cardRef),
+    reverse.cards.map((card) => card.cardRef),
+  );
+  assert.deepEqual(
+    two.cards.map((card) => [card.title, card.vacancyNo]),
+    [
+      ["Senior QA", 1],
+      ["Junior QA", 2],
+    ],
+  );
+  const remapped = resolveMapped(first.walk, cfg, state, {
+    [`${GEN}/801`]: [mappedVac(2, 1, 3), junior],
+  });
+  assert.notEqual(remapped.cards[0].cardRef, two.cards[0].cardRef);
+  const editedWalk = structuredClone(first.walk);
+  editedWalk.fresh[0].post.lines = editedWalk.fresh[0].post.lines.map((line) =>
+    line === "Junior QA" ? "Senior SDET" : line,
+  );
+  const edited = resolveMapped(editedWalk, cfg, state, { [`${GEN}/801`]: [senior, junior] });
+  assert.notEqual(edited.cards[1].cardRef, two.cards[1].cardRef);
+  assert.notEqual(
+    edited.cards[1].sourceSnapshot.snapshot_ref,
+    two.cards[1].sourceSnapshot.snapshot_ref,
+  );
+});
+
+test("source mapping2 preserves distinct card memberships for shared company URL, known links and URL holders", async () => {
+  const cfg = genConfig();
+  const state = emptyState();
+  const html = (title, job) =>
+    `${title}<br/>Company <a href="https://same-company.example.test/">Example Company</a><br/>Apply <a href="https://ats.example.test/${job}">application</a>`;
+  const first = await runSweepCurrent({
+    config: cfg,
+    state,
+    ...sweepDeps(
+      genPage([
+        post(811, day(12), html("Senior QA", "senior")),
+        post(812, day(13), html("Junior QA", "junior")),
+      ]),
+    ),
+  });
+  const mapped = mappedVac(1, 1, 3, [
+    { anchor: 1, role: "company_context" },
+    { anchor: 2, role: "apply" },
+  ]);
+  const result = resolveMapped(first.walk, cfg, state, {
+    [`${GEN}/811`]: [mapped],
+    [`${GEN}/812`]: [mapped],
+  });
+  assert.equal(result.cards.length, 2);
+  assert.notEqual(result.cards[0].cardRef, result.cards[1].cardRef);
+  assert.equal(
+    result.collection.filter((entry) => entry.url === "https://same-company.example.test/").length,
+    1,
+  );
+  const snapshotList = result.cards.map((card) => ({
+    ...card.sourceSnapshot,
+    capture: {
+      file: `${card.postId}.page.html`,
+      sha256: "a".repeat(64),
+      captured_at: "2026-09-14T12:00:00.000Z",
+    },
+  }));
+  const set = createSourceSet({
+    collectionText: "https://same-company.example.test/\n",
+    snapshots: snapshotList,
+    cards: result.cards.map((card) => ({
+      snapshot_ref: card.sourceSnapshot.snapshot_ref,
+      title_line: card.titleLine,
+      start_line: card.startLine,
+      end_line: card.endLine,
+      description_kind: card.descriptionKind,
+      links: card.sourceLinks,
+    })),
+  });
+  assert.equal(sourceSetMemberships(set, "https://same-company.example.test/").length, 2);
+  const known = {
+    ...state,
+    emitted_urls: {
+      "https://same-company.example.test/": {
+        handle: GEN,
+        post_id: 100,
+        first_at: day(10).replace("+00:00", ".000Z"),
+        last_seen: day(10).replace("+00:00", ".000Z"),
+      },
+    },
+  };
+  const knownResult = resolveMapped(first.walk, cfg, known, {
+    [`${GEN}/811`]: [mapped],
+    [`${GEN}/812`]: [mapped],
+  });
+  assert.equal(knownResult.cards.length, 2);
+  for (const card of knownResult.cards) {
+    assert.equal(card.knownUrls.length, 1);
+    assert.equal(
+      card.sourceLinks.find((link) => link.url === "https://same-company.example.test/").role,
+      "company_context",
+    );
+  }
+});
+
+test("source-set validation binds exact collection and HTML bytes and rejects spoofed body/anchors/bounds/memberships", (t) => {
+  const root = disposableRoot(t, "source-set-validation-");
+  const html = pageHtml({
+    posts: [
+      post(
+        821,
+        day(13),
+        'Senior QA<br/>Build tests using Playwright<br/>Company <a href="https://company.example.test/">Example Company</a><br/>Apply <a href="https://ats.example.test/senior">application</a>',
+      ),
+    ],
+    older: false,
+  });
+  writeFileSync(join(root, "001.page.html"), html);
+  const snapshot = snapshotFromHtml(html, {
+    handle: "examplejobs",
+    postId: 821,
+    capturedAt: "2026-09-14T12:00:00.000Z",
+  });
+  const collection = "https://company.example.test/\nhttps://ats.example.test/senior\n";
+  const set = createSourceSet({
+    collectionText: collection,
+    snapshots: [snapshot],
+    cards: [
+      {
+        snapshot_ref: snapshot.snapshot_ref,
+        title_line: 1,
+        start_line: 1,
+        end_line: 4,
+        description_kind: "full_description",
+        links: [
+          { anchor: 1, role: "company_context", url: "https://company.example.test/" },
+          { anchor: 2, role: "apply", url: "https://ats.example.test/senior" },
+          { anchor: null, role: "original_post", url: snapshot.original_url },
+        ],
+      },
+    ],
+  });
+  assert.equal(validateSourceSet(set, { collectionText: collection, captureRoot: root }), set);
+  assert.throws(
+    () => cardBody(set, { ...set.cards[0], card_ref: "tg-card:sha256:" + "a".repeat(64) }),
+    (error) => error.code === "source_set_invalid",
+  );
+  assert.equal(
+    cardBody(set, set.cards[0]),
+    "Senior QA\nBuild tests using Playwright\nCompany Example Company\nApply application",
+  );
+  writeFileSync(join(root, "source-set.json"), serializeSourceSet(set));
+  assert.equal(
+    readSourceSet(join(root, "source-set.json"), { collectionText: collection }).digest,
+    sourceSetDigest(set),
+  );
+  const invalid = (value, options = { collectionText: collection, captureRoot: root }) =>
+    assert.throws(
+      () => validateSourceSet(value, options),
+      (error) => error.code === "source_set_invalid",
+    );
+  invalid(set, { collectionText: `${collection}\n`, captureRoot: root });
+  for (const mutate of [
+    (value) => {
+      value.cards = [];
+    },
+    (value) => {
+      value.cards[0].links.pop();
+    },
+    (value) => {
+      value.cards[0].links[1].url = "https://other.example.test/role";
+    },
+    (value) => {
+      value.cards[0].end_line = 5;
+    },
+    (value) => {
+      value.cards[0].links[0].role = "company";
+    },
+    (value) => {
+      value.snapshots[0].capture.file = "../001.page.html";
+    },
+    (value) => {
+      value.snapshots[0].anchors[0].href = "https://other.example.test/";
+    },
+    (value) => {
+      value.snapshots[0].lines[1].text = "Invented salary 5000 USD";
+      value.snapshots[0].snapshot_ref = snapshotRef(value.snapshots[0]);
+      value.cards[0].snapshot_ref = value.snapshots[0].snapshot_ref;
+      value.cards[0].card_ref = cardRef(value.cards[0]);
+    },
+  ]) {
+    const changed = structuredClone(set);
+    mutate(changed);
+    invalid(changed);
+  }
+  symlinkSync(join(root, "001.page.html"), join(root, "linked.page.html"));
+  const linked = structuredClone(set);
+  linked.snapshots[0].capture.file = "linked.page.html";
+  invalid(linked);
+  writeFileSync(join(root, "001.page.html"), `${html}<!-- changed bytes -->`);
+  invalid(set);
+});
+
+function mixedDigestFixture({
+  floating = false,
+  advertisement = false,
+  sameUrl = false,
+  skippedFirst = false,
+  secondTitle = "Graphic Designer",
+} = {}) {
+  const company = "https://company.example.test/";
+  const qaUrl = "https://ats.example.test/qa";
+  const siblingUrl = sameUrl ? qaUrl : "https://ats.example.test/design";
+  const lines = [
+    `${skippedFirst ? '<a href="tg://resolve?domain=example">App link</a> ' : ""}Company <a href="${company}">Example Company</a>`,
+    "QA Analyst",
+    "Responsibilities: test APIs",
+    "Requirements: Playwright",
+    `Apply QA <a href="${qaUrl}">QA form</a>`,
+    secondTitle,
+    secondTitle === "Graphic Designer"
+      ? "Requirements: Figma"
+      : "Responsibilities: software quality",
+    floating ? "Apply via preview" : `Apply Designer <a href="${siblingUrl}">Design form</a>`,
+    ...(advertisement
+      ? [
+          "Newsletter advertisement",
+          'Subscribe <a href="https://news.example.test/subscribe">Newsletter</a>',
+        ]
+      : []),
+  ];
+  const html = pageHtml({
+    posts: [
+      {
+        ...post(829, day(13), lines.join("<br/>")),
+        extra: floating
+          ? `<a class="tgme_widget_message_link_preview" href="${siblingUrl}">Design preview</a>`
+          : "",
+      },
+    ],
+    older: false,
+  });
+  const parsed = parsePage(html, { handle: "examplejobs" }).posts[0];
+  const item = { post: parsed, entries: linksOf(parsed) };
+  const snapshot = snapshotFromHtml(html, {
+    handle: "examplejobs",
+    postId: 829,
+    file: "001.page.html",
+    capturedAt: "2026-09-14T12:00:00.000Z",
+  });
+  const qa = mappedVac(
+    2,
+    2,
+    5,
+    [
+      { anchor: 1, role: "company_context" },
+      { anchor: 2, role: "apply" },
+    ],
+    "full_description",
+    [{ via: "url", link: 2 }],
+  );
+  const regions = [
+    { start_line: 6, end_line: 8, reason: "non_qa_vacancy", anchors: [3] },
+    ...(advertisement
+      ? [{ start_line: 9, end_line: 10, reason: "non_vacancy", anchors: [4] }]
+      : []),
+  ];
+  const shift = skippedFirst ? 1 : 0;
+  const collectionText = `${company}\n${qaUrl}\n${snapshot.original_url}\n`;
+  const sourceCard = {
+    snapshot_ref: snapshot.snapshot_ref,
+    title_line: 2,
+    start_line: 2,
+    end_line: 5,
+    description_kind: "full_description",
+    links: [
+      { anchor: 1 + shift, role: "company_context", url: company },
+      { anchor: 2 + shift, role: "apply", url: qaUrl },
+      { anchor: null, role: "original_post", url: snapshot.original_url },
+    ],
+  };
+  const sourceRegions = regions.map((region) => ({
+    snapshot_ref: snapshot.snapshot_ref,
+    ...region,
+    anchors: region.anchors.map((anchor) => anchor + shift),
+  }));
+  return {
+    html,
+    item,
+    snapshot,
+    qa,
+    regions,
+    sourceCard,
+    sourceRegions,
+    company,
+    qaUrl,
+    siblingUrl,
+    collectionText,
+  };
+}
+
+function checkedMixedAnswer(fixture, edit = () => {}) {
+  const mapped = mappedAnswer(fixture.item, [fixture.qa]);
+  mapped.answer.posts[0].excluded_regions = structuredClone(fixture.regions);
+  edit(mapped.answer.posts[0]);
+  return { ...mapped, checked: checkAnswer(mapped.answer, mapped.batch) };
+}
+
+test("reader2 mixed QA/non-QA digest finalizes without relabeling the sibling form as company context", async (t) => {
+  const root = disposableRoot(t, "telegram-mixed-source-");
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "mixed");
+  writeFileSync(configPath, JSON.stringify(rawConfig()));
+  initStateCurrent(statePath);
+  const beforeState = readFileSync(statePath, "utf8");
+  const html = pageHtml({
+    posts: [
+      post(
+        829,
+        day(13),
+        'Company <a href="https://company.example.test/">Example Company</a><br/>QA Analyst<br/>Responsibilities: test APIs<br/>Requirements: Playwright<br/>Apply QA <a href="https://ats.example.test/qa">QA form</a><br/>Graphic Designer<br/>Requirements: Figma<br/>Apply Designer <a href="https://ats.example.test/design">Design form</a>',
+      ),
+    ],
+    older: false,
+  });
+  const run = await executeSweepCurrent({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: html } }),
+  });
+  assert.equal(run.awaiting, true);
+  assert.equal(readFileSync(statePath, "utf8"), beforeState);
+  const stage = JSON.parse(readFileSync(join(outDir, "sweep-stage.json"), "utf8"));
+  assert.equal(stage.schema_version, 2);
+  assert.match(JSON.stringify(stage.walk), /Graphic Designer/u);
+  assert.match(JSON.stringify(stage.walk), /https:\/\/ats\.example\.test\/design/u);
+  const batch = run.batches[0];
+  const batchName = batch.file.replace(/\.txt$/u, "");
+  assert.deepEqual(
+    batch.posts[0].links.map(({ j, line }) => ({ j, line })),
+    [
+      { j: 1, line: 1 },
+      { j: 2, line: 5 },
+      { j: 3, line: 8 },
+    ],
+  );
+  mkdirSync(join(outDir, "reader-out"));
+  writeFileSync(
+    join(outDir, "reader-out", `${batchName}.json`),
+    JSON.stringify({
+      schema_version: 2,
+      batch: batchName,
+      posts: [
+        {
+          post: 1,
+          vacancies: [
+            mappedVac(
+              2,
+              2,
+              5,
+              [
+                { anchor: 1, role: "company_context" },
+                { anchor: 2, role: "apply" },
+              ],
+              "full_description",
+              [{ via: "url", link: 2 }],
+            ),
+          ],
+          excluded_regions: [
+            { start_line: 6, end_line: 8, reason: "non_qa_vacancy", anchors: [3] },
+          ],
+        },
+      ],
+    }),
+  );
+  const answerPath = join(outDir, "reader-out", `${batchName}.json`);
+  const validAnswerText = readFileSync(answerPath, "utf8");
+  const incomplete = JSON.parse(validAnswerText);
+  delete incomplete.posts[0].excluded_regions;
+  writeFileSync(answerPath, JSON.stringify(incomplete));
+  refusal(() => executeFinalize({ outDir, statePath, repoRoot: root }), "answers_invalid");
+  assert.equal(readFileSync(statePath, "utf8"), beforeState);
+  assert.equal(existsSync(join(outDir, "vacancies.jsonl")), false);
+  assert.equal(existsSync(join(outDir, "sweep-manifest.json")), false);
+  writeFileSync(answerPath, validAnswerText);
+  const done = executeFinalize({ outDir, statePath, repoRoot: root });
+  const collectionText = readFileSync(done.collectionPath, "utf8");
+  const saved = readSourceSet(done.sourceSetPath, { collectionText });
+  const set = saved.sourceSet;
+  assert.equal(set.cards.length, 1);
+  assert.equal(set.cards[0].title_line, 2);
+  assert.equal(set.cards[0].description_kind, "full_description");
+  assert.equal(set.cards[0].mapping_status, "resolved");
+  assert.deepEqual(set.excluded_regions, [
+    {
+      snapshot_ref: set.snapshots[0].snapshot_ref,
+      start_line: 6,
+      end_line: 8,
+      reason: "non_qa_vacancy",
+      anchors: [3],
+    },
+  ]);
+  assert.equal(set.snapshots[0].lines[5].text, "Graphic Designer");
+  assert.equal(set.snapshots[0].anchors[2].href, "https://ats.example.test/design");
+  assert.equal(cardBody(set, set.cards[0]).includes("Graphic Designer"), false);
+  const handoff = readCollection(done.collectionPath, { sourceSetPath: done.sourceSetPath });
+  assert.deepEqual(handoff.source_set.excluded_regions, set.excluded_regions);
+  assert.equal(handoff.source_set_sha256, saved.digest);
+  assert.deepEqual(sourceSetMemberships(set, "https://ats.example.test/design"), []);
+  assert.deepEqual(
+    set.cards[0].links.filter(({ role }) => role === "company_context"),
+    [{ anchor: 1, role: "company_context", url: "https://company.example.test/" }],
+  );
+  assert.deepEqual(
+    readLinksFile(done.collectionPath).map(({ url }) => url),
+    [
+      "https://company.example.test/",
+      "https://ats.example.test/qa",
+      "https://t.me/examplejobs/829?embed=1",
+    ],
+  );
+  assert.equal(done.result.cards[0].entries[2].fate, "not_cited");
+  const record = JSON.parse(readFileSync(done.cardsPath, "utf8").trim());
+  assert.equal(cardProblem(record), null);
+  assert.equal(record.schema_version, 4);
+  assert.equal(
+    record.source_links.some(({ anchor }) => anchor === 3),
+    false,
+  );
+  assert.deepEqual(done.manifest.source_set, {
+    file: "source-set.json",
+    sha256: saved.digest,
+    snapshots: 1,
+    cards: 1,
+  });
+  assert.equal(done.manifest.accepted_invalid, 0);
+  assert.equal(readState(statePath).schema_version, 3);
+});
+
+test("reader2 exclusions keep non-QA and non-vacancy outside links explicit and refuse unknown, missing, overlapping or QA-owned exclusions", () => {
+  const fixture = mixedDigestFixture({ advertisement: true });
+  const checked = checkedMixedAnswer(fixture).checked.results.get(1);
+  assert.equal(checked.kind, "vacancy");
+  assert.deepEqual(checked.excluded_regions, fixture.regions);
+  assert.deepEqual(checked.vacancies, [fixture.qa]);
+  for (const mutate of [
+    (entry) => {
+      delete entry.excluded_regions;
+    },
+    (entry) => {
+      entry.excluded_regions = null;
+    },
+    (entry) => {
+      entry.excluded_regions = {};
+    },
+    (entry) => {
+      entry.excluded_regions = [];
+    },
+    (entry) => {
+      entry.excluded_regions[0].reason = "unknown";
+    },
+    (entry) => {
+      entry.excluded_regions[0].reason = "unconfirmed_role";
+    },
+    (entry) => {
+      entry.excluded_regions[0].extra = 1;
+    },
+    (entry) => {
+      entry.excluded_regions[0].start_line = 0;
+    },
+    (entry) => {
+      entry.excluded_regions[0].end_line = 99;
+    },
+    (entry) => {
+      entry.excluded_regions[0].start_line = 8;
+      entry.excluded_regions[0].end_line = 6;
+    },
+    (entry) => {
+      entry.excluded_regions[0].end_line = 7;
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [3, 3];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [4];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [5];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [0];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = ["3"];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = [null];
+    },
+    (entry) => {
+      entry.excluded_regions[0].anchors = "3";
+    },
+    (entry) => {
+      entry.excluded_regions[1].start_line = 8;
+      entry.excluded_regions[1].anchors = [3, 4];
+    },
+    (entry) => {
+      entry.excluded_regions.push({
+        start_line: 6,
+        end_line: 7,
+        reason: "non_vacancy",
+        anchors: [],
+      });
+    },
+    (entry) => {
+      entry.excluded_regions[0] = {
+        start_line: 2,
+        end_line: 5,
+        reason: "non_qa_vacancy",
+        anchors: [2],
+      };
+    },
+    (entry) => {
+      entry.vacancies[0].links.push({ anchor: 3, role: "company_context" });
+    },
+    (entry) => {
+      entry.vacancies[0].links.push({ anchor: 3, role: "unknown" });
+    },
+    (entry) => {
+      entry.vacancies = [];
+    },
+  ])
+    assert.deepEqual(checkedMixedAnswer(fixture, mutate).checked.results.get(1), {
+      kind: "invalid",
+      code: "post_invalid",
+    });
+  const onlyNonQa = mixedDigestFixture();
+  assert.equal(mappedAnswer(onlyNonQa.item, [onlyNonQa.qa]).checked.results.get(1).kind, "invalid");
+  const twoQaFixture = mixedDigestFixture({ secondTitle: "QA Lead" });
+  const twoQa = mappedAnswer(twoQaFixture.item, [
+    twoQaFixture.qa,
+    mappedVac(6, 6, 8, [{ anchor: 3, role: "apply" }], "summary", [{ via: "url", link: 3 }]),
+  ]);
+  assert.equal(twoQa.checked.results.get(1).kind, "vacancy", "two QA mappings need no exclusions");
+  const uncertainFixture = mixedDigestFixture({ secondTitle: "Software Quality Specialist" });
+  const uncertain = mappedAnswer(uncertainFixture.item, [
+    uncertainFixture.qa,
+    mappedVac(6, 6, 8, [{ anchor: 3, role: "unknown" }], "unknown"),
+  ]);
+  assert.equal(uncertain.checked.results.get(1).kind, "vacancy");
+  assert.equal(uncertain.checked.results.get(1).vacancies[1].description_kind, "unknown");
+  assert.equal(uncertain.checked.results.get(1).vacancies[1].links[0].role, "unknown");
+  assert.equal(Object.hasOwn(uncertain.checked.results.get(1), "excluded_regions"), false);
+  const uncertainSet = createSourceSet({
+    collectionText: uncertainFixture.collectionText,
+    snapshots: [uncertainFixture.snapshot],
+    cards: [
+      uncertainFixture.sourceCard,
+      {
+        snapshot_ref: uncertainFixture.snapshot.snapshot_ref,
+        title_line: 6,
+        start_line: 6,
+        end_line: 8,
+        description_kind: "unknown",
+        links: [
+          { anchor: 3, role: "unknown", url: uncertainFixture.siblingUrl },
+          { anchor: null, role: "original_post", url: uncertainFixture.snapshot.original_url },
+        ],
+      },
+    ],
+  });
+  assert.equal(uncertainSet.cards[1].description_kind, "unknown");
+  assert.deepEqual(
+    sourceSetMemberships(uncertainSet, uncertainFixture.siblingUrl).map(({ role }) => role),
+    ["unknown"],
+  );
+  assert.equal(Object.hasOwn(uncertainSet, "excluded_regions"), false);
+});
+
+test("source-set exclusions preserve saved non-QA body and reject malformed audit, hidden anchors and excluded-only collection URLs", (t) => {
+  const root = disposableRoot(t, "telegram-exclusion-custody-");
+  const fixture = mixedDigestFixture({ advertisement: true });
+  writeFileSync(join(root, "001.page.html"), fixture.html);
+  const set = createSourceSet({
+    collectionText: fixture.collectionText,
+    snapshots: [fixture.snapshot],
+    cards: [fixture.sourceCard],
+    excludedRegions: fixture.sourceRegions,
+  });
+  const path = join(root, "source-set.json");
+  writeFileSync(path, serializeSourceSet(set));
+  assert.deepEqual(
+    readSourceSet(path, { collectionText: fixture.collectionText }).sourceSet.excluded_regions,
+    fixture.sourceRegions,
+  );
+  assert.equal(set.snapshots[0].lines[5].text, "Graphic Designer");
+  assert.equal(set.snapshots[0].anchors[2].href, fixture.siblingUrl);
+  assert.deepEqual(sourceSetMemberships(set, fixture.siblingUrl), []);
+  assert.deepEqual(sourceSetMemberships(set, "https://news.example.test/subscribe"), []);
+  for (const mutate of [
+    (value) => {
+      delete value.excluded_regions;
+    },
+    (value) => {
+      value.excluded_regions = null;
+    },
+    (value) => {
+      value.excluded_regions = [];
+    },
+    (value) => {
+      value.excluded_regions[0].snapshot_ref = "tg-snapshot:sha256:" + "a".repeat(64);
+    },
+    (value) => {
+      value.excluded_regions[0].reason = "unknown";
+    },
+    (value) => {
+      value.excluded_regions[0].extra = "data";
+    },
+    (value) => {
+      value.excluded_regions[0].start_line = 0;
+    },
+    (value) => {
+      value.excluded_regions[0].end_line = 11;
+    },
+    (value) => {
+      value.excluded_regions[0].end_line = 7;
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = [];
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = [3, 3];
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = [4];
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = [5];
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = ["3"];
+    },
+    (value) => {
+      value.excluded_regions[0].anchors = {};
+    },
+    (value) => {
+      value.excluded_regions[1].start_line = 8;
+      value.excluded_regions[1].anchors = [3, 4];
+    },
+    (value) => {
+      value.excluded_regions.push({
+        snapshot_ref: value.snapshots[0].snapshot_ref,
+        start_line: 6,
+        end_line: 7,
+        reason: "non_vacancy",
+        anchors: [],
+      });
+    },
+    (value) => {
+      value.excluded_regions[0] = {
+        snapshot_ref: value.snapshots[0].snapshot_ref,
+        start_line: 2,
+        end_line: 5,
+        reason: "non_qa_vacancy",
+        anchors: [2],
+      };
+    },
+    (value) => {
+      value.cards[0].links.push({ anchor: 3, role: "company_context", url: fixture.siblingUrl });
+    },
+    (value) => {
+      value.cards[0].links.push({ anchor: 3, role: "unknown", url: fixture.siblingUrl });
+    },
+    (value) => {
+      value.snapshots[0].lines[5].text = "Invented sibling text";
+      value.snapshots[0].snapshot_ref = snapshotRef(value.snapshots[0]);
+      value.cards[0].snapshot_ref = value.snapshots[0].snapshot_ref;
+      value.cards[0].card_ref = cardRef(value.cards[0]);
+      for (const region of value.excluded_regions)
+        region.snapshot_ref = value.snapshots[0].snapshot_ref;
+    },
+  ]) {
+    const changed = structuredClone(set);
+    mutate(changed);
+    writeFileSync(path, serializeSourceSet(changed));
+    assert.throws(
+      () => readSourceSet(path, { collectionText: fixture.collectionText }),
+      (error) => error.code === "source_set_invalid",
+    );
+  }
+  for (const url of [fixture.siblingUrl, "https://news.example.test/subscribe"]) {
+    const collectionText = `${fixture.collectionText}${url}\n`;
+    const changed = structuredClone(set);
+    changed.collection_sha256 = sourceSetDigest(collectionText);
+    assert.throws(
+      () => validateSourceSet(changed, { collectionText, captureRoot: root }),
+      (error) => error.code === "source_set_invalid",
+      "an excluded-only URL cannot acquire a QA membership",
+    );
+  }
+  const duplicate = mixedDigestFixture({ sameUrl: true });
+  for (const excludedRegions of [null, {}, "regions", [null], [{ reason: "non_qa_vacancy" }]])
+    assert.throws(
+      () =>
+        createSourceSet({
+          collectionText: duplicate.collectionText,
+          snapshots: [duplicate.snapshot],
+          cards: [
+            {
+              ...duplicate.sourceCard,
+              links: [
+                ...duplicate.sourceCard.links,
+                { anchor: 3, role: "company_context", url: duplicate.qaUrl },
+              ],
+            },
+          ],
+          excludedRegions,
+        }),
+      (error) => error.code === "source_set_invalid",
+      "the constructor must refuse malformed exclusions even when all anchors already have roles",
+    );
+  const sharedUrl = createSourceSet({
+    collectionText: duplicate.collectionText,
+    snapshots: [duplicate.snapshot],
+    cards: [duplicate.sourceCard],
+    excludedRegions: duplicate.sourceRegions,
+  });
+  assert.deepEqual(
+    sourceSetMemberships(sharedUrl, duplicate.qaUrl).map(({ anchor }) => anchor),
+    [2],
+  );
+  assert.equal(sharedUrl.excluded_regions[0].anchors[0], 3);
+});
+
+test("collector exclusions convert offered ordinals to original anchors and preserve one explicit floating non-QA anchor", async (t) => {
+  const root = disposableRoot(t, "telegram-exclusion-ordinals-");
+  const configPath = join(root, "telegram-sources.json");
+  writeFileSync(configPath, JSON.stringify(rawConfig()));
+  for (const [label, options, excludedIndex] of [
+    ["skipped", { skippedFirst: true }, 4],
+    ["floating", { floating: true }, 3],
+  ]) {
+    const fixture = mixedDigestFixture(options);
+    const mapped = checkedMixedAnswer(fixture);
+    assert.equal(mapped.checked.results.get(1).kind, "vacancy");
+    const statePath = join(root, `${label}-state.json`);
+    const outDir = join(root, "telegram-sweeps", label);
+    initStateCurrent(statePath);
+    const run = await executeSweepCurrent({
+      configPath,
+      statePath,
+      outDir,
+      repoRoot: root,
+      ...sweepDeps({ [P1]: { body: fixture.html } }),
+    });
+    const batchName = run.batches[0].file.replace(/\.txt$/u, "");
+    mkdirSync(join(outDir, "reader-out"));
+    writeFileSync(
+      join(outDir, "reader-out", `${batchName}.json`),
+      JSON.stringify({
+        ...mapped.answer,
+        batch: batchName,
+      }),
+    );
+    const done = executeFinalize({ outDir, statePath, repoRoot: root });
+    const set = readSourceSet(done.sourceSetPath, {
+      collectionText: readFileSync(done.collectionPath, "utf8"),
+    }).sourceSet;
+    assert.deepEqual(set.excluded_regions[0].anchors, [excludedIndex]);
+    assert.deepEqual(done.result.cards[0].sourceExclusions[0].anchors, [excludedIndex]);
+    if (label === "skipped") {
+      assert.equal(run.batches[0].posts[0].links[2].entryIndex, 3);
+      assert.equal(set.snapshots[0].anchors[0].type, "non_web");
+      assert.deepEqual(
+        set.cards[0].links.map(({ anchor }) => anchor),
+        [2, 3, null],
+      );
+    } else {
+      assert.equal(set.snapshots[0].anchors[2].line, null);
+      for (const mutate of [
+        (entry) => {
+          entry.vacancies[0].links.push({ anchor: 3, role: "unknown" });
+        },
+        (entry) => {
+          entry.excluded_regions.push({
+            start_line: 6,
+            end_line: 7,
+            reason: "non_vacancy",
+            anchors: [3],
+          });
+        },
+      ])
+        assert.equal(checkedMixedAnswer(fixture, mutate).checked.results.get(1).kind, "invalid");
+    }
+    assert.deepEqual(sourceSetMemberships(set, fixture.siblingUrl), []);
+  }
+});
+
+test("legacy reader1/card3/stage1 keeps the mixed digest QA-only mapping and rejects reader2 exclusion fields", async (t) => {
+  const root = disposableRoot(t, "telegram-mixed-legacy-");
+  const fixture = mixedDigestFixture();
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "legacy");
+  writeFileSync(
+    configPath,
+    JSON.stringify(rawConfig({ channels: [{ handle: "examplejobs", thematic: false }] })),
+  );
+  initState(statePath);
+  const run = await executeSweep({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: fixture.html } }),
+  });
+  assert.equal(run.stage.schema_version, 1);
+  const batchName = run.batches[0].file.replace(/\.txt$/u, "");
+  const answer = {
+    schema_version: 1,
+    batch: batchName,
+    posts: [
+      {
+        post: 1,
+        vacancies: [{ title_line: 2, details_link: 2, apply: [{ via: "url", link: 2 }] }],
+      },
+    ],
+  };
+  const descriptor = { name: batchName, posts: run.batches[0].posts };
+  assert.equal(checkAnswer(answer, descriptor).results.get(1).kind, "vacancy");
+  const wrongEpoch = structuredClone(answer);
+  wrongEpoch.posts[0].excluded_regions = fixture.regions;
+  assert.deepEqual(checkAnswer(wrongEpoch, descriptor).results.get(1), {
+    kind: "invalid",
+    code: "post_invalid",
+  });
+  mkdirSync(join(outDir, "reader-out"));
+  writeFileSync(join(outDir, "reader-out", `${batchName}.json`), JSON.stringify(answer));
+  const done = executeFinalize({ outDir, statePath, repoRoot: root });
+  assert.equal(done.sourceSetPath, null);
+  assert.equal(Object.hasOwn(done.manifest, "source_set"), false);
+  assert.equal(readState(statePath).schema_version, 2);
+  const card = JSON.parse(readFileSync(done.cardsPath, "utf8").trim());
+  assert.equal(card.schema_version, 3);
+  assert.equal(cardProblem(card), null);
+  assert.deepEqual(card.score_urls, [fixture.qaUrl]);
+});
+
+test("full description with company and contact preserves original JD; oversize mapping is explicit and never truncated", async (t) => {
+  const root = disposableRoot(t, "telegram-full-source-");
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "full");
+  writeFileSync(configPath, JSON.stringify(rawConfig()));
+  initStateCurrent(statePath);
+  const html = pageHtml({
+    posts: [
+      post(
+        831,
+        day(13),
+        'Middle QA<br/>Responsibilities: test APIs<br/>Requirements: Playwright<br/>Company <a href="https://company.example.test/about">Example Company</a><br/>Write <a href="mailto:recruiter@example.test">recruiter@example.test</a>',
+      ),
+    ],
+    older: false,
+  });
+  const run = await executeSweepCurrent({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: html } }),
+  });
+  mkdirSync(join(outDir, "reader-out"));
+  writeFileSync(
+    join(outDir, "reader-out", "examplejobs-001.json"),
+    JSON.stringify({
+      schema_version: 2,
+      batch: "examplejobs-001",
+      posts: [
+        {
+          post: 1,
+          vacancies: [
+            mappedVac(
+              1,
+              1,
+              5,
+              [
+                { anchor: 1, role: "company_context" },
+                { anchor: 2, role: "contact" },
+              ],
+              "full_description",
+              [{ via: "email", link: 2 }],
+            ),
+          ],
+        },
+      ],
+    }),
+  );
+  const finished = executeFinalize({ outDir, statePath, repoRoot: root });
+  const set = readSourceSet(finished.sourceSetPath, {
+    collectionText: readFileSync(finished.collectionPath, "utf8"),
+  }).sourceSet;
+  assert.ok(readFileSync(finished.collectionPath, "utf8").includes(set.snapshots[0].original_url));
+  assert.equal(set.cards[0].description_kind, "full_description");
+  assert.equal(set.cards[0].links[1].role, "contact");
+  assert.equal(set.snapshots[0].capture.captured_at, "2026-09-14T12:00:00.000Z");
+  assert.notEqual(set.snapshots[0].capture.captured_at, set.snapshots[0].instant);
+  const hugeHtml = pageHtml({
+    posts: [
+      post(
+        832,
+        day(13),
+        `Senior QA<br/>${"Complete long paragraph ".repeat(3000)}<br/>Email <a href="mailto:oversize@example.test">oversize@example.test</a>`,
+      ),
+    ],
+    older: false,
+  });
+  const hugeOut = join(root, "telegram-sweeps", "huge");
+  const huge = await executeSweepCurrent({
+    configPath,
+    statePath,
+    outDir: hugeOut,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: hugeHtml } }),
+  });
+  assert.equal(huge.batches[0].posts[0].complete, false);
+  assert.equal(summarize(huge).unresolved_mappings, 1);
+  assert.equal(summarize(huge).posts_to_read, 0);
+  assert.ok(
+    !readFileSync(join(hugeOut, "reader-in", "examplejobs-001.txt"), "utf8").includes(
+      "Complete long paragraph",
+    ),
+  );
+  const hugeFinished = executeFinalize({ outDir: hugeOut, statePath, repoRoot: root });
+  const hugeSet = readSourceSet(hugeFinished.sourceSetPath, {
+    collectionText: readFileSync(hugeFinished.collectionPath, "utf8"),
+  }).sourceSet;
+  assert.equal(hugeSet.cards[0].mapping_status, "unresolved_oversize");
+  assert.equal(hugeSet.cards[0].description_kind, "unknown");
+  assert.equal(hugeSet.cards[0].links[0].role, "unknown");
+  assert.equal(hugeSet.cards[0].links[0].url, "mailto:oversize@example.test");
+  assert.equal(hugeSet.snapshots[0].lines[1].text, "Complete long paragraph ".repeat(3000).trim());
+  assert.match(readFileSync(hugeFinished.reportPath, "utf8"), /Unresolved source mappings/u);
+});
+
+test("reader2 preserves an unknown email and its positioned original without treating the email as a job URL", async (t) => {
+  const root = disposableRoot(t, "telegram-unknown-email-");
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "unknown-email");
+  writeFileSync(configPath, JSON.stringify(rawConfig()));
+  initStateCurrent(statePath);
+  const html = pageHtml({
+    posts: [
+      post(
+        839,
+        day(13),
+        'Senior QA Engineer<br/>Responsibilities: test service APIs<br/>Email <a href="mailto:reader@example.test">reader@example.test</a>',
+      ),
+    ],
+    older: false,
+  });
+  const run = await executeSweepCurrent({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: html } }),
+  });
+  const answer = {
+    schema_version: 2,
+    batch: "examplejobs-001",
+    posts: [
+      { post: 1, vacancies: [mappedVac(1, 1, 3, [{ anchor: 1, role: "unknown" }], "summary", [])] },
+    ],
+  };
+  assert.deepEqual(
+    [
+      ...checkAnswer(answer, {
+        ...run.batches[0],
+        name: "examplejobs-001",
+        schema_version: 2,
+      }).results.values(),
+    ].map((entry) => entry.kind),
+    ["vacancy"],
+  );
+  mkdirSync(join(outDir, "reader-out"));
+  writeFileSync(join(outDir, "reader-out", "examplejobs-001.json"), JSON.stringify(answer));
+  const finished = executeFinalize({ outDir, statePath, repoRoot: root });
+  const collectionText = readFileSync(finished.collectionPath, "utf8");
+  const set = readSourceSet(finished.sourceSetPath, { collectionText }).sourceSet;
+  assert.equal(set.cards.length, 1);
+  assert.equal(set.cards[0].mapping_status, "resolved");
+  assert.equal(set.cards[0].description_kind, "summary");
+  assert.deepEqual(
+    set.cards[0].links.filter((link) => link.anchor !== null),
+    [{ anchor: 1, role: "unknown", url: "mailto:reader@example.test" }],
+  );
+  assert.deepEqual(
+    collectionText.split("\n").filter((line) => line.startsWith("http")),
+    [set.snapshots[0].original_url],
+  );
+  assert.ok(
+    readFileSync(join(outDir, set.snapshots[0].capture.file), "utf8").includes(
+      "mailto:reader@example.test",
+    ),
+  );
+});
+
+test("reader2 reposts require exact source body: legacy near match and edited Junior+/salary are remapped, exact reposts remain folded", async () => {
+  const cfg = genConfig();
+  const state = emptyState();
+  const description = (level, salary) =>
+    `Performance QA<br/>Example Company<br/>Level: ${level}<br/>Salary: ${salary}<br/>Responsibilities ${"build reliable load tests with JMeter and analyze metrics ".repeat(10)}<br/>Requirements: SQL, Kafka, Linux`;
+  const first = await runSweepCurrent({
+    config: cfg,
+    state,
+    ...sweepDeps(genPage([post(841, day(12), description("Junior+", "80000 RUB"))])),
+  });
+  const result = resolveMapped(first.walk, cfg, state, { [`${GEN}/841`]: [mappedVac(1, 1, 6)] });
+  assert.equal(result.nextState.schema_version, 3);
+  assert.match(result.nextState.fingerprints[0].source_body_sha256, /^[a-f0-9]{64}$/u);
+  const legacy = structuredClone(result.nextState);
+  legacy.schema_version = 2;
+  delete legacy.fingerprints[0].source_body_sha256;
+  legacy.channels = {};
+  const legacyRead = await runSweepCurrent({
+    config: cfg,
+    state: legacy,
+    ...sweepDeps(genPage([post(842, day(13), description("Junior+", "80000 RUB"))])),
+  });
+  assert.equal(legacyRead.awaiting, true);
+  const exactState = { ...result.nextState, channels: {} };
+  const exact = await runSweepCurrent({
+    config: cfg,
+    state: exactState,
+    ...sweepDeps(genPage([post(842, day(13), description("Junior+", "80000 RUB"))])),
+  });
+  assert.equal(exact.awaiting, false);
+  assert.equal(exact.reposts.length, 1);
+  const edited = await runSweepCurrent({
+    config: cfg,
+    state: exactState,
+    ...sweepDeps(genPage([post(841, day(13), description("Senior", "180000 RUB"))])),
+  });
+  assert.equal(edited.awaiting, true);
+  const remapped = resolveMapped(edited.walk, cfg, exactState, {
+    [`${GEN}/841`]: [mappedVac(1, 1, 6)],
+  });
+  assert.notEqual(remapped.cards[0].cardRef, result.cards[0].cardRef);
+});
 
 test("two steps: sweep writes the batches and the stage, touches no state, prints a bounded summary; finalize needs every answer, then finishes in the write order with the state last", async (t) => {
   const run = await twoStep(t, genPage());

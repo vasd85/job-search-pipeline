@@ -22,8 +22,20 @@
 import { applyVias } from "./answers.mjs";
 import { numberedLines } from "./candidates.mjs";
 import { titleLineOf } from "./text.mjs";
+import { normalizeVacancyUrl } from "../lib/triage-ledger-core.mjs";
+import {
+  cardRef,
+  cardRefPattern,
+  descriptionKinds,
+  mappingStatuses,
+  snapshotOf,
+  snapshotRefPattern,
+  sourceAnchorUrl,
+  sourceRoles,
+} from "../triage-sources/source-set.mjs";
 
-export const cardSchemaVersion = 3;
+export const cardSchemaVersion = 4;
+export const acceptedCardSchemaVersions = Object.freeze([3, 4]);
 export const cardsBasename = "vacancies.jsonl";
 export const readers = Object.freeze(["code", "reader"]);
 // A way to apply that is a person, not a page: such a card offers the post address too.
@@ -176,20 +188,32 @@ export function citedEntriesOf(vacancy, descriptor) {
   const cite = (j) => {
     if (j !== null) indexes.add(descriptor.links[j - 1].entryIndex);
   };
-  cite(vacancy.details_link);
+  if (vacancy.links !== undefined) for (const mapping of vacancy.links) cite(mapping.anchor);
+  else cite(vacancy.details_link);
   for (const apply of vacancy.apply) cite(apply.link);
   return indexes;
 }
 
 /**
- * The card of one vacancy the reader named in a post of a general source. `decided` are the
+ * The card of one vacancy the reader named in a post. `decided` are the
  * post's entries with their post-level fates; `cited` the entry indexes this vacancy names. The
  * card offers the links it names that are new and unmarked, plus the post address when it names
- * none or applies through a person; a named marked link is not offered and is listed.
+ * none or applies through a person; a named marked link is not offered and is listed. A mapped
+ * summary needs its original post unless an offered URL positions its own job source.
  */
 export function readerCardOf(
   post,
-  { handle, decided, knownUrls, vacancy, cited, vacancyNo, first },
+  {
+    handle,
+    decided,
+    knownUrls,
+    vacancy,
+    cited,
+    vacancyNo,
+    first,
+    descriptor,
+    excludedRegions = [],
+  },
 ) {
   const lines = numberedLines(post);
   const named = [...decided.keys()]
@@ -200,10 +224,46 @@ export function readerCardOf(
     url: entry.url,
     key: entry.key,
   }));
+  if (vacancy.links !== undefined) {
+    for (const mapping of vacancy.links) {
+      const at = descriptor.links[mapping.anchor - 1].entryIndex;
+      if (decided[at].type !== "tg_other") continue;
+      const url = sourceAnchorUrl(post.anchors[at]);
+      const key = normalizeVacancyUrl(url);
+      if (!knownUrls.has(key) && !newUrls.some((entry) => entry.key === key))
+        newUrls.push({ url, key });
+    }
+  }
   const applyVia = [...new Set(vacancy.apply.map((apply) => apply.via))];
   const byPerson = applyVia.some((via) => contactVias.includes(via));
-  const postAddress = newUrls.length === 0 || byPerson ? embedUrl(handle, post.id) : null;
-  return {
+  const mapped = vacancy.links !== undefined;
+  const offeredKeys = new Set(newUrls.map((entry) => entry.key));
+  const hasOfferedJobUrl =
+    mapped &&
+    vacancy.links.some((mapping) => {
+      if (["company_context", "contact"].includes(mapping.role)) return false;
+      const at = descriptor.links[mapping.anchor - 1].entryIndex;
+      const url = sourceAnchorUrl(post.anchors[at]);
+      return (
+        url !== null && !url.startsWith("mailto:") && offeredKeys.has(normalizeVacancyUrl(url))
+      );
+    });
+  const needsPostAddress = mapped
+    ? !hasOfferedJobUrl || vacancy.description_kind !== "summary"
+    : newUrls.length === 0;
+  const postAddress = needsPostAddress || byPerson ? embedUrl(handle, post.id) : null;
+  const contactEntries = mapped
+    ? decided.filter((entry, at) => {
+        const explicit = vacancy.links.some(
+          (link) => descriptor.links[link.anchor - 1].entryIndex === at && link.role === "contact",
+        );
+        const line = numberedLines(post).find((item) => item.lineIndex === entry.lineIndex)?.n;
+        return (
+          explicit || (line !== undefined && line >= vacancy.start_line && line <= vacancy.end_line)
+        );
+      })
+    : decided;
+  const card = {
     handle,
     postId: post.id,
     instant: post.instant,
@@ -213,7 +273,7 @@ export function readerCardOf(
     applyVia,
     // The fates are accounted once per post: the first card of a post carries them.
     entries: first ? decided : [],
-    ...contactsOf(decided, post),
+    ...contactsOf(contactEntries, post),
     newUrls,
     postAddress,
     knownUrls: uniqueBy(of("known"), (entry) => entry.key).map((entry) => ({
@@ -231,6 +291,44 @@ export function readerCardOf(
           .map((entry) => ({ host: entry.host, reason: entry.reason }))
       : [],
   };
+  if (mapped) {
+    card.sourceSnapshot = snapshotOf(post, { handle });
+    if (first && excludedRegions.length > 0)
+      card.sourceExclusions = excludedRegions.map((region) => ({
+        snapshot_ref: card.sourceSnapshot.snapshot_ref,
+        start_line: region.start_line,
+        end_line: region.end_line,
+        reason: region.reason,
+        anchors: region.anchors.map((j) => descriptor.links[j - 1].entryIndex + 1),
+      }));
+    card.titleLine = vacancy.title_line;
+    card.startLine = vacancy.start_line;
+    card.endLine = vacancy.end_line;
+    card.descriptionKind = vacancy.description_kind;
+    card.mappingStatus = vacancy.mapping_status ?? "resolved";
+    card.sourceLinks = [...vacancy.links]
+      .sort((a, b) => a.anchor - b.anchor)
+      .map((mapping) => {
+        const anchor = descriptor.links[mapping.anchor - 1].entryIndex + 1;
+        return {
+          anchor,
+          role: mapping.role,
+          url: sourceAnchorUrl(card.sourceSnapshot.anchors[anchor - 1]),
+        };
+      });
+    card.sourceLinks.push({
+      anchor: null,
+      role: "original_post",
+      url: card.sourceSnapshot.original_url,
+    });
+    card.cardRef = cardRef({
+      snapshot_ref: card.sourceSnapshot.snapshot_ref,
+      title_line: card.titleLine,
+      start_line: card.startLine,
+      end_line: card.endLine,
+    });
+  }
+  return card;
 }
 
 /** The addresses a card offers to scoring, as `{ url, key }`; the post address is its own key. */
@@ -242,7 +340,7 @@ export function scoreUrlsOf(card) {
 /** The `vacancies.jsonl` record of one card. `held` names the newer posts that carry its addresses. */
 export function cardRecord(card, { held }) {
   return {
-    schema_version: cardSchemaVersion,
+    schema_version: card.sourceSnapshot ? 4 : 3,
     handle: card.handle,
     post_id: card.postId,
     instant: card.instant,
@@ -259,6 +357,18 @@ export function cardRecord(card, { held }) {
     marked_urls: card.marked,
     unusable_links: card.unusable,
     held_by: held.map((entry) => ({ url: entry.url, handle: entry.handle, post_id: entry.postId })),
+    ...(card.sourceSnapshot
+      ? {
+          source_snapshot_ref: card.sourceSnapshot.snapshot_ref,
+          card_ref: card.cardRef,
+          title_line: card.titleLine,
+          start_line: card.startLine,
+          end_line: card.endLine,
+          description_kind: card.descriptionKind,
+          mapping_status: card.mappingStatus,
+          source_links: card.sourceLinks,
+        }
+      : {}),
   };
 }
 
@@ -290,8 +400,56 @@ export function cardProblem(record) {
     "unusable_links",
     "vacancy_no",
   ];
-  if (Object.keys(record).sort().join() !== keys.join()) return "unexpected key set";
-  if (record.schema_version !== cardSchemaVersion) return "schema_version";
+  if (record.schema_version === 4)
+    keys.push(
+      "source_snapshot_ref",
+      "card_ref",
+      "title_line",
+      "start_line",
+      "end_line",
+      "description_kind",
+      "mapping_status",
+      "source_links",
+    );
+  if (Object.keys(record).sort().join() !== keys.sort().join()) return "unexpected key set";
+  if (!acceptedCardSchemaVersions.includes(record.schema_version)) return "schema_version";
+  if (record.schema_version === 4) {
+    if (
+      !snapshotRefPattern.test(record.source_snapshot_ref) ||
+      !cardRefPattern.test(record.card_ref) ||
+      ![record.title_line, record.start_line, record.end_line].every(
+        (line) => Number.isSafeInteger(line) && line > 0,
+      ) ||
+      record.start_line > record.title_line ||
+      record.title_line > record.end_line ||
+      !descriptionKinds.includes(record.description_kind) ||
+      !mappingStatuses.includes(record.mapping_status)
+    )
+      return "source identity";
+    if (
+      !Array.isArray(record.source_links) ||
+      !record.source_links.every(
+        (link) =>
+          typeof link === "object" &&
+          link !== null &&
+          Object.keys(link).sort().join() === "anchor,role,url" &&
+          (link.anchor === null || (Number.isSafeInteger(link.anchor) && link.anchor > 0)) &&
+          sourceRoles.includes(link.role) &&
+          isString(link.url),
+      )
+    )
+      return "source_links";
+    if (
+      record.card_ref !==
+      cardRef({
+        snapshot_ref: record.source_snapshot_ref,
+        title_line: record.title_line,
+        start_line: record.start_line,
+        end_line: record.end_line,
+      })
+    )
+      return "source identity";
+  }
   if (!isRef(record)) return "handle or post_id";
   if (!isString(record.instant) || Number.isNaN(Date.parse(record.instant))) return "instant";
   if (!isString(record.title) || record.title.length > MAX_TITLE + 1) return "title";

@@ -37,11 +37,37 @@ function isRecord(value) {
 }
 
 function batchWindow(context) {
-  const instants = context.records
-    .flatMap((record) => record.captures)
+  const source = context.sourceVerification;
+  const captures = source?.active
+    ? context.captures
+    : context.records.flatMap((record) => record.captures);
+  const instants = captures
     .filter((capture) => capture.verified?.ok === true)
     .map((capture) => usableInstant(capture.verified.header["fetched-at"]))
     .filter((value) => value !== null);
+  if (source?.valid) {
+    const selected = new Set(source.resolution.selection.card_refs);
+    const cards = new Map(source.sourceSet.cards.map((card) => [card.card_ref, card]));
+    const snapshots = new Map(
+      source.sourceSet.snapshots.map((snapshot) => [snapshot.snapshot_ref, snapshot]),
+    );
+    // A summary has no extraction record. Only a selected observation bound to this checked
+    // original HTML contributes its clock; saved but unselected/replaced snapshots do not.
+    for (const observation of source.resolution.observations) {
+      if (!selected.has(observation.card_ref)) continue;
+      const snapshot = snapshots.get(cards.get(observation.card_ref)?.snapshot_ref);
+      if (
+        snapshot === undefined ||
+        context.normalizeUrl(observation.source_ref) !==
+          context.normalizeUrl(snapshot.original_url) ||
+        observation.capture?.file !== snapshot.capture.file ||
+        observation.capture?.sha256 !== snapshot.capture.sha256
+      )
+        continue;
+      const instant = usableInstant(snapshot.capture.captured_at);
+      if (instant !== null) instants.push(instant);
+    }
+  }
   if (instants.length === 0) return null;
   return { earliest: Math.min(...instants), latest: Math.max(...instants) };
 }
@@ -66,6 +92,8 @@ export function run(context) {
   }
 
   const window = batchWindow(context);
+  if (context.sourceVerification?.active && window === null)
+    findings.push({ code: "source_probe_window_unverifiable" });
   const seen = new Map();
   value.probes.forEach((probe, position) => {
     if (!isRecord(probe)) {

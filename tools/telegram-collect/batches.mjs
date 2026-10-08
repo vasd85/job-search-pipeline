@@ -17,6 +17,7 @@
 
 import { flatLine } from "./cards.mjs";
 import { matchingToken, numberedLines } from "./candidates.mjs";
+import { sourceAnchorUrl } from "../triage-sources/source-set.mjs";
 
 export const batchDirBasename = "reader-in";
 export const answerDirBasename = "reader-out";
@@ -30,6 +31,7 @@ export const SHOW_HEAD_LINES = 12;
 export const SHOW_TAIL_LINES = 8;
 export const CUT_ABOVE_LINES = 20;
 export const offeredLinkTypes = Object.freeze(["url", "tg", "email"]);
+export const mappedLinkTypes = Object.freeze(["url", "tg", "email", "tg_other"]);
 
 /** The lines shown to the reader: all of them, or the head, the tail and the hidden matches. */
 export function shownLines(post, tokens, { fullText = false } = {}) {
@@ -45,42 +47,71 @@ export function shownLines(post, tokens, { fullText = false } = {}) {
 }
 
 /** The anchors the reader may cite, numbered from 1, with the index of each in the post's entries. */
-export function offeredLinks(entries) {
+export function offeredLinks(entries, { sourceMapping = false, post } = {}) {
   const links = [];
   entries.forEach((entry, entryIndex) => {
-    if (entry.skipped !== undefined || !offeredLinkTypes.includes(entry.type)) return;
-    links.push({ j: links.length + 1, entryIndex, type: entry.type });
+    if (
+      entry.skipped !== undefined ||
+      !(sourceMapping ? mappedLinkTypes : offeredLinkTypes).includes(entry.type)
+    )
+      return;
+    if (sourceMapping && sourceAnchorUrl(post.anchors[entryIndex]) === null) return;
+    const line = sourceMapping
+      ? (numberedLines(post).find((item) => item.lineIndex === entry.lineIndex)?.n ?? null)
+      : null;
+    links.push({
+      j: links.length + 1,
+      entryIndex,
+      type: entry.type,
+      ...(sourceMapping ? { line } : {}),
+    });
   });
   return links;
 }
 
-function renderLink(link, entries) {
+function renderLink(link, entries, sourceMapping = false, post) {
   const entry = entries[link.entryIndex];
   const address =
     entry.type === "url" ? ` ${flatLine(`${entry.host}${entry.path}`, MAX_BATCH_LINE)}` : "";
   const marks =
     entry.type === "url" && entry.marks.length > 0 ? ` [${entry.marks.join(", ")}]` : "";
-  const anchor = flatLine(entry.anchorText ?? "", MAX_ANCHOR_TEXT).replaceAll('"', "'");
-  return `-> [${link.j}] ${entry.type}${address} "${anchor}"${marks}`;
+  const anchor = sourceMapping
+    ? JSON.stringify(entry.anchorText ?? "")
+    : `"${flatLine(entry.anchorText ?? "", MAX_ANCHOR_TEXT).replaceAll('"', "'")}"`;
+  const sourceAddress =
+    sourceMapping && ["url", "tg_other"].includes(entry.type)
+      ? ` ${JSON.stringify(sourceAnchorUrl(post.anchors[link.entryIndex]))}`
+      : address;
+  return `-> [${link.j}] ${entry.type}${sourceAddress} ${anchor}${marks}${sourceMapping ? ` line=${link.line ?? "none"}` : ""}`;
 }
 
 /** One post rendered for the reader, and the descriptor the answer is checked against. */
-export function renderPost({ post, entries }, k, tokens, { fullText = false } = {}) {
-  const shown = shownLines(post, tokens, { fullText });
+export function renderPost(
+  { post, entries },
+  k,
+  tokens,
+  { fullText = false, sourceMapping = false } = {},
+) {
+  const shown = shownLines(post, tokens, { fullText: fullText || sourceMapping });
   const total = numberedLines(post).length;
   const out = [`### post ${k}`];
   let expected = 1;
   for (const line of shown) {
     if (line.n > expected) out.push(`|..| ${line.n - expected} lines hidden`);
-    out.push(`|${line.n}| ${flatLine(line.text, MAX_BATCH_LINE)}`);
+    out.push(`|${line.n}| ${sourceMapping ? line.text : flatLine(line.text, MAX_BATCH_LINE)}`);
     expected = line.n + 1;
   }
   if (expected <= total) out.push(`|..| ${total - expected + 1} lines hidden`);
-  const links = offeredLinks(entries);
-  for (const link of links) out.push(renderLink(link, entries));
+  const links = offeredLinks(entries, { sourceMapping, post });
+  for (const link of links) out.push(renderLink(link, entries, sourceMapping, post));
   return {
     text: `${out.join("\n")}\n`,
-    descriptor: { post: k, shown: shown.map((line) => line.n), links },
+    descriptor: {
+      post: k,
+      shown: shown.map((line) => line.n),
+      links,
+      ...(sourceMapping ? { complete: true } : {}),
+    },
   };
 }
 
@@ -94,6 +125,7 @@ export function planBatches(
   tokens,
   {
     fullText = false,
+    sourceMapping = false,
     maxPosts = MAX_BATCH_POSTS,
     maxBytes = MAX_BATCH_BYTES,
     sourceOrder = [],
@@ -124,7 +156,7 @@ export function planBatches(
     };
     for (const item of items) {
       const k = current === null ? 1 : current.posts.length + 1;
-      const rendered = renderPost(item, k, tokens, { fullText });
+      const rendered = renderPost(item, k, tokens, { fullText, sourceMapping });
       const bytes = Buffer.byteLength(rendered.text, "utf8");
       if (
         current === null ||
@@ -132,7 +164,19 @@ export function planBatches(
         Buffer.byteLength(current.text, "utf8") + bytes > maxBytes
       ) {
         open();
-        const first = renderPost(item, 1, tokens, { fullText });
+        const first = renderPost(item, 1, tokens, { fullText, sourceMapping });
+        if (sourceMapping && Buffer.byteLength(first.text, "utf8") > maxBytes) {
+          // Keep the complete post in the stage/capture. No truncated text is ever accepted as a
+          // source mapping. The empty descriptor becomes a visible unresolved card on finalize.
+          current.text += `### post 1\n|unresolved| mapping_oversize\n`;
+          current.posts.push({
+            ...first.descriptor,
+            complete: false,
+            handle: item.handle,
+            postId: item.postId,
+          });
+          continue;
+        }
         current.text += first.text;
         current.posts.push({ ...first.descriptor, handle: item.handle, postId: item.postId });
         continue;

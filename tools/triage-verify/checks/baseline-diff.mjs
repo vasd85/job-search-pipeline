@@ -29,12 +29,16 @@
 // the record index.
 
 import { usableInstant } from "../instants.mjs";
-import { vacancyIdentity } from "../../lib/triage-ledger-core.mjs";
+import {
+  vacancyIdentity,
+  inspectTerminalSourceObservations,
+} from "../../lib/triage-ledger-core.mjs";
 import {
   SKIP_PLAN_ACTIONS,
   TERMINAL_PLAN_ACTIONS,
   batchInstant,
   readPlan,
+  readSourcePlan,
   rowsByKey,
   skipSupported,
 } from "../plan.mjs";
@@ -70,7 +74,105 @@ function traceFlags(trace) {
   ]);
 }
 
+function runSource(context) {
+  const findings = [];
+  const diffs = [];
+  const plan = readSourcePlan(context);
+  if (!plan.present) findings.push({ code: "plan_absent" });
+  if (context.ledger?.schema_version === 2 && context.sourceVerification.valid) {
+    const value = context.batch.plan.value?.source_plan ?? context.batch.plan.value;
+    const terminal = inspectTerminalSourceObservations(
+      context.ledger,
+      context.sourceVerification.sourceSet,
+      context.sourceVerification.resolution,
+      {
+        asOf: value?.as_of,
+        collectionText: context.batch.collection.text,
+        artifactsDir: context.batch.dir,
+        validation: { languages: context.languages },
+      },
+    );
+    for (const source of terminal.violations)
+      findings.push({
+        code: "refetched_closed_vacancy",
+        ...(source.index === undefined ? {} : { index: source.index }),
+      });
+  }
+  // Plan shape, snapshot and card coverage failures are already per-batch completeness findings.
+  const rows = plan.rows ?? [];
+  let known = 0;
+  let fresh = 0;
+  let ledgerChecked = 0;
+  let skipsCorroborated = 0;
+  for (const group of context.sourceVerification.resolution?.groups ?? []) {
+    const item = rows.find(
+      (row) =>
+        row.key === group.logical_key &&
+        equalFlags([...row.cardRefs].sort(), [...group.card_refs].sort()),
+    );
+    if (item === undefined) {
+      fresh += 1;
+      continue;
+    }
+    const primary = context.sourceVerification.resolution.observations.find(
+      (observation) => observation.observation_ref === group.primary,
+    );
+    const index = primary?.input?.inputIndex;
+    if (item.action === "skip_known" || item.action === "skip_closed") skipsCorroborated += 1;
+    const prior = item.baseline;
+    if (prior === null || prior === undefined) {
+      fresh += 1;
+      continue;
+    }
+    known += 1;
+    ledgerChecked += 1;
+    const policyStamp = {
+      fromPolicyId: prior.policy_id,
+      toPolicyId: context.sourceVerification.resolution.policy_id,
+    };
+    if (group.result?.decision !== undefined && prior.decision !== group.result.decision) {
+      diffs.push({
+        code: "decision_changed",
+        ...(index === undefined ? {} : { index }),
+        planPosition: item.planPosition,
+        from: prior.decision,
+        to: group.result.decision,
+        ...policyStamp,
+      });
+    }
+    const previous = sortedFlags(prior.flags);
+    const current = traceFlags(group.result);
+    const added = current.filter((flag) => !previous.includes(flag));
+    const removed = previous.filter((flag) => !current.includes(flag));
+    if (added.length || removed.length)
+      diffs.push({
+        code: "flags_changed",
+        ...(index === undefined ? {} : { index }),
+        planPosition: item.planPosition,
+        added,
+        removed,
+        ...policyStamp,
+      });
+  }
+  return {
+    findings,
+    diffs,
+    counts: {
+      records: context.records.length,
+      known,
+      fresh,
+      ledgerChecked,
+      plannedSkips: rows.filter((row) => SKIP_PLAN_ACTIONS.has(row.action)).length,
+      skipsCorroborated,
+      skipsUndecidable: 0,
+      ledgerSupplied: context.ledger !== null,
+      logicalVacancies: context.sourceVerification.resolution?.groups.length ?? 0,
+    },
+  };
+}
+
 export function run(context) {
+  if (context.sourceVerification?.active) return runSource(context);
   const findings = [];
   const diffs = [];
   const plan = readPlan(context.batch);

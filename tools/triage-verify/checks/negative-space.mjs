@@ -32,6 +32,7 @@
 // land on one sentence routinely, and a mechanism that asks for the same explanation once per
 // spelling is one an operator learns to batch-approve.
 
+import { evidenceBodies } from "./quote-integrity.mjs";
 import { dispositionKey, validateDispositions } from "../disposition.mjs";
 import { findLiteralOccurrences, findPhraseOccurrences, lineDigest } from "../text-scan.mjs";
 import { vocabularyPhrases } from "../vocabulary.mjs";
@@ -132,9 +133,11 @@ export function run(context) {
   const groups = new Map();
 
   for (const record of context.records) {
-    const bodies = record.captures
-      .filter((capture) => capture.verified?.ok === true)
-      .map((capture) => ({ file: capture.file, body: capture.verified.body }));
+    const bodies = context.sourceVerification?.active
+      ? evidenceBodies(record, context)
+      : record.captures
+          .filter((capture) => capture.verified?.ok === true)
+          .map((capture) => ({ file: capture.file, body: capture.verified.body }));
     if (bodies.length === 0) continue;
     if (record.input === null) {
       findings.push({ code: "record_not_sweepable", index: record.index });

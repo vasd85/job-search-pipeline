@@ -1,3 +1,5 @@
+import { resolveSourceSet } from "../tools/triage-sources/reconcile.mjs";
+import { sourceCompositionObservations } from "../tools/triage-sources/report.mjs";
 // Pre-triage stage: collection freshness, the liveness sweep, the composition report and the
 // spend accounting that ties them together.
 //
@@ -10,6 +12,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readdirSync,
   realpathSync,
   rmSync,
@@ -46,10 +49,23 @@ import { candidateExampleRootFor, candidateScoringValues } from "../tools/candid
 import { candidatePrioritiesFrom } from "../tools/candidate/priorities.mjs";
 import {
   initLedger,
+  emptyLedger,
   planBatch,
   readLedger,
   recordBatch,
+  planSourceBatch,
+  upgradeLedger,
 } from "../tools/lib/triage-ledger-core.mjs";
+import {
+  cardBody,
+  createSourceSet,
+  serializeSourceSet,
+  sourceSetMemberships,
+  sourceSetDigest,
+} from "../tools/triage-sources/source-set.mjs";
+import { executeFinalize, executeSweep } from "../tools/telegram-collect/persist.mjs";
+import { initState } from "../tools/telegram-collect/state.mjs";
+import { fictionalSourceFixture } from "./fixtures/triage-source-context/cases.mjs";
 import {
   claimGroup,
   collectionGroup,
@@ -64,6 +80,357 @@ const EXPECTED_STALE_AFTER_DAYS = 7;
 const LINK_ONE = "https://www.linkedin.com/jobs/view/4418544694/";
 const LINK_TWO = "https://www.linkedin.com/jobs/view/4449892212/";
 const LINK_THREE = "https://www.linkedin.com/jobs/view/4455248338/";
+
+test("source pretriage excludes proven company context and keeps full original and apply sources", (t) => {
+  const fixture = fictionalSourceFixture();
+  const root = disposableRoot(t, "source-pretriage-");
+  const text = `# collected: 2026-10-08T08:00:00.000Z\n# order: newest-first\n${fixture.collectionText}`;
+  const set = createSourceSet({
+    collectionText: text,
+    snapshots: fixture.sourceSet.snapshots,
+    cards: fixture.sourceSet.cards,
+  });
+  writeFileSync(join(root, "001.page.html"), fixture.html);
+  writeFileSync(join(root, "source-set.json"), serializeSourceSet(set));
+  writeFileSync(join(root, "collection.links.txt"), text);
+  const source = readCollection(join(root, "collection.links.txt"), {
+    sourceSetPath: join(root, "source-set.json"),
+  });
+  assert.equal(source.links[0].memberships[0].role, "company_context");
+  assert.equal(source.links.collectionText, text);
+  const path = join(root, "triage-ledger.json");
+  initLedger(path);
+  upgradeLedger(path);
+  const ledgerPlan = planBatch(
+    readLedger(path),
+    source.links.map((link) => link.url),
+    { asOf: "2026-10-08T09:00:00Z" },
+  );
+  // Legacy URL cache claims cannot suppress a different immutable source card.
+  ledgerPlan.items[1].action = "skip_closed";
+  const sourcePlan = planSourceBatch(path, set, {
+    asOf: "2026-10-08T09:00:00Z",
+    collectionText: text,
+    captureRoot: root,
+  });
+  const plan = planPreTriage({
+    collection: source,
+    ledgerPlan,
+    sourcePlan,
+    asOf: "2026-10-08T09:00:00Z",
+  });
+  assert.equal(plan.schema_version, 2);
+  assert.deepEqual(
+    plan.links.map((row) => row.disposition),
+    ["company_context", "pending_sweep", "source_snapshot"],
+  );
+  assert.deepEqual(plan.sweep.links, ["https://jobs.example.test/qa/101"]);
+  assert.equal(plan.spend.never_fetched, 2);
+  assert.equal(plan.logical.supplied, 1);
+  assert.match(renderPreTriagePlan(plan), /Logical vacancies: 1/u);
+  assert.throws(
+    () => planPreTriage({ collection: source, ledgerPlan, asOf: "2026-10-08T09:00:00Z" }),
+    (error) => error.code === "pretriage_invalid_source_plan",
+  );
+  const bare = readCollection(join(root, "collection.links.txt"));
+  assert.equal(
+    bare.source_set,
+    undefined,
+    "via comments or adjacent files do not imply source identity",
+  );
+});
+
+test("source units stay whole and shared company context does not join different jobs", () => {
+  const first = fictionalSourceFixture();
+  const second = fictionalSourceFixture({
+    postId: 102,
+    jobUrl: "https://jobs.example.test/qa/102",
+  });
+  const text =
+    [...new Set(`${first.collectionText}${second.collectionText}`.trim().split("\n"))].join("\n") +
+    "\n";
+  const set = createSourceSet({
+    collectionText: text,
+    snapshots: [first.snapshot, second.snapshot],
+    cards: [first.card, second.card],
+  });
+  const collection = collectionOf(text.trim().split("\n"), {
+    source_set: set,
+    collection_text: text,
+  });
+  const split = splitCollection(collection, { groupSize: 3 });
+  assert.equal(split.schema_version, 2);
+  assert.deepEqual(
+    split.groups.map((group) => [group.from, group.to, group.size]),
+    [
+      [1, 3, 3],
+      [4, 5, 2],
+    ],
+  );
+  assert.equal(split.groups[0].card_refs.length, 1);
+  assert.equal(split.groups[1].card_refs.length, 1);
+  assert.notEqual(split.groups[0].card_refs[0], split.groups[1].card_refs[0]);
+  const secondGroup = collectionGroup(collection, split.groups[1]);
+  assert.deepEqual(secondGroup.source_selection.card_refs, split.groups[1].card_refs);
+  assert.deepEqual(
+    secondGroup.links.map((link) => link.position),
+    [4, 5],
+  );
+  const small = splitCollection(collection, { groupSize: 1 });
+  assert.ok(
+    small.groups.every((group) => group.oversize),
+    "source units are explicit oversize rather than silently split",
+  );
+});
+
+test("source session groups keep a collector-emitted shared company footer near its job holder", async (t) => {
+  const root = disposableRoot(t, "source-session-footer-");
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "footer");
+  const company = "https://meadow.example.test/";
+  const jobUrl = (id) => `https://recruit.example.test/roles/${id}`;
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      schema_version: 4,
+      channels: [
+        { handle: "meadowjobs", thematic: true },
+        { handle: "cedarjobs", thematic: true },
+      ],
+      exclusions: [],
+      role_words: ["QA", "test*"],
+      strong_role_words: ["QA", "tester*"],
+      resume_hints: ["#resume"],
+      backfill_days: 7,
+      page_cap: 1,
+      delay_ms: 500,
+      repost_memory_days: 30,
+    }),
+  );
+  initState(statePath);
+  const page = (handle, posts) =>
+    `<html><body><div class="tgme_channel_info"><div class="tgme_channel_info_counter"><span class="counter_value">17K</span><span class="counter_type">subscribers</span></div></div><section class="tgme_channel_history">${posts
+      .map(
+        ({ id, name, instant }) =>
+          `<div class="tgme_widget_message" data-post="${handle}/${id}"><div class="tgme_widget_message_text">QA Automation Engineer ${name}<br/>Apply <a href="${jobUrl(id)}">open role</a><br/>Company <a href="${company}">Meadow Metrics</a></div><div class="tgme_widget_message_footer"><a class="tgme_widget_message_date"><time datetime="${instant}">date</time></a></div></div>`,
+      )
+      .join("\n")}</section></body></html>`;
+  const pages = new Map([
+    [
+      "https://t.me/s/meadowjobs",
+      page("meadowjobs", [
+        { id: 501, name: "Alpha", instant: "2026-10-07T08:00:00+00:00" },
+        { id: 502, name: "Beta", instant: "2026-10-07T09:00:00+00:00" },
+        { id: 503, name: "Gamma", instant: "2026-10-07T10:00:00+00:00" },
+      ]),
+    ],
+    [
+      "https://t.me/s/cedarjobs",
+      page("cedarjobs", [{ id: 601, name: "Delta", instant: "2026-10-06T08:00:00+00:00" }]),
+    ],
+  ]);
+  const requests = [];
+  const run = await executeSweep({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    now: () => Date.parse("2026-10-08T05:00:00Z"),
+    sleep: async () => {},
+    fetchImpl: async (url) => {
+      requests.push(String(url));
+      assert.ok(pages.has(String(url)), "every request uses the injected fictional pages");
+      return new Response(pages.get(String(url)), {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    },
+  });
+  assert.equal(run.awaiting, true);
+  assert.equal(run.posts_to_read, 4);
+  assert.deepEqual(requests, ["https://t.me/s/meadowjobs", "https://t.me/s/cedarjobs"]);
+  mkdirSync(join(outDir, "reader-out"));
+  for (const batch of run.batches)
+    writeFileSync(
+      join(outDir, "reader-out", batch.file.replace(/\.txt$/u, ".json")),
+      JSON.stringify({
+        schema_version: 2,
+        batch: batch.file.replace(/\.txt$/u, ""),
+        posts: batch.posts.map((descriptor) => ({
+          post: descriptor.post,
+          vacancies: [
+            {
+              title_line: 1,
+              start_line: 1,
+              end_line: 3,
+              description_kind: "summary",
+              links: [
+                { anchor: 1, role: "apply" },
+                { anchor: 2, role: "company_context" },
+              ],
+              apply: [{ via: "url", link: 1 }],
+            },
+          ],
+        })),
+      }),
+    );
+  const finished = executeFinalize({ outDir, statePath, repoRoot: root });
+  const collection = readCollection(finished.collectionPath, {
+    sourceSetPath: join(outDir, "source-set.json"),
+  });
+  assert.deepEqual(
+    collection.links.map((link) => link.url),
+    [jobUrl(503), jobUrl(502), jobUrl(501), jobUrl(601), company],
+  );
+  assert.equal(collection.source_set.cards.length, 4);
+  assert.equal(sourceSetMemberships(collection.source_set, company).length, 4);
+  const records = readFileSync(join(outDir, "vacancies.jsonl"), "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  assert.equal(
+    records.filter((record) =>
+      record.marked_urls.some((link) => link.url === company && link.marks.includes("boilerplate")),
+    ).length,
+    3,
+    "the actual collector emits the shared footer only from the older channel",
+  );
+  const split = splitCollection(collection, { groupSize: 1 });
+  assert.deepEqual(
+    split.groups.map((group) => [
+      group.from,
+      group.to,
+      group.size,
+      group.card_refs.length,
+      group.oversize,
+    ]),
+    [
+      [1, 1, 1, 1, false],
+      [2, 2, 1, 1, false],
+      [3, 3, 1, 1, false],
+      [4, 5, 2, 1, true],
+    ],
+  );
+  assert.equal(split.logical_vacancies, 4);
+  const cardAt = (url) =>
+    collection.source_set.cards.find((card) => card.links.some((link) => link.url === url));
+  for (const [at, group] of split.groups.entries()) {
+    const card = cardAt(collection.links[at].url);
+    assert.deepEqual(group.card_refs, [card.card_ref]);
+    const selected = collectionGroup(collection, group);
+    const snapshot = collection.source_set.snapshots.find(
+      (item) => item.snapshot_ref === card.snapshot_ref,
+    );
+    const resolution = resolveSourceSet({
+      sourceSet: collection.source_set,
+      collectionText: collection.collection_text,
+      captureRoot: outDir,
+      selection: selected.source_selection,
+      observations: [
+        {
+          card_ref: card.card_ref,
+          source_ref: snapshot.original_url,
+          description_kind: "summary",
+          identity_status: "confirmed",
+          capture: { file: snapshot.capture.file, sha256: snapshot.capture.sha256 },
+          body: cardBody(collection.source_set, card),
+          facts: {
+            company: null,
+            title: null,
+            role: null,
+            seniority: null,
+            salary: null,
+            published_at: null,
+          },
+          input: null,
+        },
+      ],
+    });
+    assert.equal(resolution.groups.length, 1);
+    assert.equal(
+      resolution.url_accounting.filter((row) => row.disposition !== "not_selected").length,
+      group.size,
+    );
+  }
+  const store = join(root, "triage-batches");
+  mkdirSync(store);
+  const claimed = Array.from({ length: 4 }, () =>
+    claimGroup({
+      storeDir: store,
+      split,
+      labelPrefix: "footer-proof",
+    }),
+  );
+  assert.deepEqual(
+    claimed.map((group) => [group.from, group.to]),
+    [
+      [1, 1],
+      [2, 2],
+      [3, 3],
+      [4, 5],
+    ],
+  );
+  assert.throws(
+    () => claimGroup({ storeDir: store, split, labelPrefix: "footer-proof" }),
+    (error) => error.code === "pretriage_no_free_group",
+  );
+
+  const controlUrls = [
+    jobUrl(503),
+    jobUrl(502),
+    cardAt(jobUrl(503)).links.find((link) => link.role === "original_post").url,
+    jobUrl(501),
+    jobUrl(601),
+    company,
+  ];
+  const controlText = `${controlUrls.join("\n")}\n`;
+  const controlSet = createSourceSet({
+    collectionText: controlText,
+    snapshots: collection.source_set.snapshots,
+    cards: collection.source_set.cards,
+  });
+  const indivisible = splitCollection(
+    collectionOf(controlUrls, {
+      source_set: controlSet,
+      collection_text: controlText,
+    }),
+    { groupSize: 1 },
+  );
+  assert.deepEqual(
+    indivisible.groups.map((group) => [group.from, group.to, group.size, group.card_refs.length]),
+    [
+      [1, 3, 3, 2],
+      [4, 4, 1, 1],
+      [5, 6, 2, 1],
+    ],
+    "an original and apply source of the same card still form one indivisible source unit",
+  );
+});
+
+test("source collection rejects mismatched bytes and missing or changed HTML provenance", (t) => {
+  const fixture = fictionalSourceFixture();
+  const root = disposableRoot(t, "source-links-");
+  writeFileSync(join(root, "001.page.html"), fixture.html);
+  writeFileSync(join(root, "source-set.json"), serializeSourceSet(fixture.sourceSet));
+  const path = join(root, "collection.links.txt");
+  writeFileSync(path, fixture.collectionText);
+  assert.equal(
+    readCollection(path, { sourceSetPath: join(root, "source-set.json") }).links.length,
+    3,
+  );
+  writeFileSync(path, `${fixture.collectionText}# changed\n`);
+  assert.throws(
+    () => readCollection(path, { sourceSetPath: join(root, "source-set.json") }),
+    (error) => error.code === "links_source_set_invalid",
+  );
+  writeFileSync(path, fixture.collectionText);
+  writeFileSync(join(root, "001.page.html"), fixture.html.replace("Senior", "Junior"));
+  assert.throws(
+    () => readCollection(path, { sourceSetPath: join(root, "source-set.json") }),
+    (error) => error.code === "links_source_set_invalid",
+  );
+});
 
 function disposableRoot(t, prefix = "pretriage-") {
   const root = mkdtempSync(join(realpathSync(tmpdir()), prefix));
@@ -1823,3 +2190,133 @@ test("every group planned and recorded leaves one row per vacancy and one batch 
   );
   assert.equal(closing.counts.fetch_new, 0);
 });
+
+test("source composition counts logical vacancies once and keeps unresolved sources unknown", () => {
+  const fixture = fictionalSourceFixture();
+  const resolved = resolveSourceSet(fixture);
+  const priorities = {
+    remoteCompanyRegions: ["WEST"],
+    relocationWest: false,
+    relocationCountries: [],
+  };
+  const composition = composeBatch(sourceCompositionObservations(resolved), { priorities });
+  assert.equal(resolved.observations.length, 2);
+  assert.equal(composition.total, 1);
+  fixture.target.identity_status = "linked_unconfirmed";
+  const unresolved = resolveSourceSet(fixture);
+  const review = composeBatch(sourceCompositionObservations(unresolved), { priorities });
+  assert.equal(review.total, 1);
+  assert.equal(review.by_priority_class.unknown, 1);
+  assert.equal(review.by_work_format.Unknown, 1);
+});
+
+test("pretriage retries a failed job source despite a confirmed known logical vacancy", () => {
+  const fixture = fictionalSourceFixture();
+  const collection = collectionOf(fixture.collectionText.trim().split("\n"), {
+    source_set: fixture.sourceSet,
+    collection_text: fixture.collectionText,
+  });
+  const ledgerPlan = planBatch(
+    emptyLedger(),
+    collection.links.map((link) => link.url),
+    { asOf: "2026-10-08T09:00:00Z" },
+  );
+  const sourcePlan = planSourceBatch(emptyLedger({ schemaVersion: 2 }), fixture.sourceSet, {
+    asOf: "2026-10-08T09:00:00Z",
+    collectionText: fixture.collectionText,
+  });
+  for (const item of sourcePlan.items) {
+    item.action = "skip_known";
+    for (const source of item.sources)
+      if (!["company_context", "contact"].includes(source.role)) source.action = "skip_known";
+    item.sources.find((source) => source.role === "apply").action = "retry_blocked";
+  }
+  const plan = planPreTriage({ collection, ledgerPlan, sourcePlan, asOf: "2026-10-08T09:00:00Z" });
+  assert.equal(
+    plan.links.find((link) => link.url === fixture.target.source_ref).disposition,
+    "pending_sweep",
+  );
+  assert.equal(
+    plan.links.find((link) => link.url === fixture.original.source_ref).disposition,
+    "skipped_by_ledger",
+  );
+  assert.equal(
+    plan.links.find((link) => link.url === "https://fictional-labs.example.test/").disposition,
+    "company_context",
+  );
+});
+
+for (const variant of ["canonical aliases", "identical URLs", "distinct IDs"]) {
+  test(`source session cuts preserve posting identity and conflicts: ${variant}`, () => {
+    const firstUrl = "https://www.linkedin.com/jobs/view/1234512345";
+    const secondUrl =
+      variant === "identical URLs"
+        ? firstUrl
+        : `https://www.linkedin.com/jobs/view/qa-engineer-at-fictional-${variant === "distinct IDs" ? "2234512345" : "1234512345"}`;
+    const fixtures = [
+      fictionalSourceFixture({ kind: "summary", jobUrl: firstUrl, postId: 811 }),
+      fictionalSourceFixture({ kind: "summary", jobUrl: secondUrl, postId: 812 }),
+    ];
+    const second = fixtures[1].target;
+    second.body = second.body.replace("Senior QA Engineer", "Junior+");
+    second.facts.seniority = { value: "Junior+", evidence_quote: "Junior+" };
+    second.input.role.seniority = "junior";
+    second.input.role.evidence.seniority = "Junior+";
+    second.capture.sha256 = sourceSetDigest(second.body);
+    second.input.sourceContext.primaryCaptureSha256 = second.capture.sha256;
+    const urls = [
+      ...new Set(
+        fixtures.flatMap((fixture) => [fixture.snapshot.original_url, fixture.target.source_ref]),
+      ),
+    ];
+    const collectionText = `${urls.join("\n")}\n`;
+    const sourceSet = createSourceSet({
+      collectionText,
+      snapshots: fixtures.map((fixture) => fixture.snapshot),
+      cards: fixtures.map((fixture) => fixture.card),
+    });
+    const observations = fixtures.flatMap((fixture, at) => {
+      fixture.target.input.inputIndex = at + 1;
+      fixture.target.input.sourceContext.sourceSetSha256 = sourceSetDigest(sourceSet);
+      return fixture.observations;
+    });
+    const whole = resolveSourceSet({ sourceSet, collectionText, observations });
+    const collection = collectionOf(urls, {
+      source_set: sourceSet,
+      collection_text: collectionText,
+    });
+    const split = splitCollection(collection, { groupSize: 2 });
+    if (variant === "distinct IDs") {
+      assert.equal(split.groups.length, 2);
+      assert.deepEqual(
+        split.groups.map((group) => group.card_refs.length),
+        [1, 1],
+      );
+      assert.equal(whole.groups.length, 2);
+      assert.deepEqual(whole.groups.map((group) => group.result.decision).sort(), [
+        "EVALUATED",
+        "SKIP",
+      ]);
+    } else {
+      assert.equal(
+        split.groups.length,
+        1,
+        "canonical posting sources must be reviewed together before ledger write",
+      );
+      assert.equal(split.groups[0].oversize, true);
+      assert.equal(split.groups[0].card_refs.length, 2);
+      assert.equal(whole.groups.length, 1);
+      assert.equal(whole.groups[0].result.review_code, "source_review");
+      assert.ok(whole.groups[0].conflicts.includes("conflicting_seniority"));
+      const range = collectionGroup(collection, split.groups[0]);
+      const sliced = resolveSourceSet({
+        sourceSet,
+        collectionText,
+        observations,
+        selection: range.source_selection,
+      });
+      assert.deepEqual(sliced.groups, whole.groups);
+      assert.deepEqual(split.cross_group_spellings, []);
+    }
+  });
+}

@@ -26,8 +26,16 @@
 //   the ledger row this plan snapshotted, so `baseline-diff` compares it against that row and a
 //   plan that declares a policy the ledger does not carry is `plan_disagrees_with_ledger`.
 
-import { triageRetryDecision, vacancyIdentity } from "../lib/triage-ledger-core.mjs";
+import {
+  triageRetryDecision,
+  vacancyIdentity,
+  planSourceBatch,
+  ledgerSnapshotDigest,
+  readSourcePlanPriorProof,
+  inspectTerminalSourceObservations,
+} from "../lib/triage-ledger-core.mjs";
 import { normalizeVacancyUrl } from "../lib/triage-ledger-core.mjs";
+import { deepEqual } from "./source-verification.mjs";
 import { usableInstant } from "./instants.mjs";
 
 export const SKIP_PLAN_ACTIONS = new Set(["skip_closed", "skip_known"]);
@@ -185,4 +193,171 @@ export function batchInstant(records, manifest = null) {
     if (parsed !== null) candidates.push(parsed);
   }
   return candidates.length === 0 ? null : Math.min(...candidates);
+}
+
+function priorResolutionOptions(context, source, value) {
+  try {
+    const prior = readSourcePlanPriorProof(context.ledger, source.sourceSet, {
+      asOf: value.as_of,
+      collectionText: context.batch.collection.text,
+      artifactsDir: context.batch.dir,
+      reference: value.prior_resolution,
+      validation: { languages: context.languages },
+    });
+    return { resolution: prior.resolution, captureRoot: prior.captureRoot };
+  } catch {
+    return null;
+  }
+}
+
+/** New plans keep the immutable card guard in front of every baseline lookup.
+ * The initial per-card plan and a later plan made with a verified resolution are both legitimate;
+ * a final merge/split cannot inherit another card's baseline merely by sharing an ordinal or URL.
+ */
+export function readSourcePlan(context) {
+  const file = context.batch.plan;
+  if (!file.present) return { present: false, rows: null, problems: [] };
+  const problems = [];
+  const source = context.sourceVerification;
+  const value = file.value?.source_plan ?? file.value;
+  if (
+    file.error !== null ||
+    value?.schema_version !== 2 ||
+    !Array.isArray(value.items) ||
+    value.items.some(
+      (item) =>
+        item === null ||
+        typeof item !== "object" ||
+        Array.isArray(item) ||
+        !Array.isArray(item.card_refs) ||
+        !Array.isArray(item.sources) ||
+        (item.baseline !== null &&
+          (typeof item.baseline !== "object" || Array.isArray(item.baseline))),
+    )
+  ) {
+    return {
+      present: true,
+      rows: null,
+      problems: [
+        {
+          code: "source_plan_unreadable",
+          reason: file.error ?? "shape_unexpected",
+        },
+      ],
+    };
+  }
+  if (!source?.valid || source.resolution === null) {
+    return {
+      present: true,
+      rows: null,
+      problems: [{ code: "source_plan_unverifiable" }],
+    };
+  }
+  if (context.ledger?.schema_version !== 2) {
+    return {
+      present: true,
+      rows: null,
+      problems: [{ code: "source_plan_unverifiable", reason: "source_ledger_absent" }],
+    };
+  }
+  if (
+    value.source_set_sha256 !== source.digest ||
+    (file.value?.source_plan !== undefined && file.value.source_set_sha256 !== source.digest)
+  ) {
+    problems.push({ code: "source_plan_set_mismatch" });
+  }
+  if (value.ledger_snapshot_sha256 !== ledgerSnapshotDigest(context.ledger)) {
+    problems.push({ code: "source_plan_snapshot_mismatch" });
+  }
+  const refs = value.items.flatMap((item) => (Array.isArray(item.card_refs) ? item.card_refs : []));
+  const known = new Set(source.sourceSet.cards.map((card) => card.card_ref));
+  if (
+    refs.some((ref) => !known.has(ref)) ||
+    source.resolution.selection.card_refs.some((ref) => !refs.includes(ref))
+  ) {
+    problems.push({ code: "source_plan_card_coverage_incomplete" });
+  }
+  const candidates = [];
+  const hasPrior = Object.hasOwn(value, "prior_resolution");
+  const hasPrefetch = Object.hasOwn(value, "prefetch_resolution");
+  const prior = hasPrior ? priorResolutionOptions(context, source, value) : null;
+  const options =
+    hasPrior && hasPrefetch
+      ? []
+      : hasPrior
+        ? prior === null
+          ? []
+          : [prior]
+        : hasPrefetch
+          ? [
+              {
+                prefetchProof: value.prefetch_resolution,
+                artifactsDir: context.batch.dir,
+                captureRoot: undefined,
+              },
+            ]
+          : [{ resolution: source.resolution }, { selection: { card_refs: [...new Set(refs)] } }];
+  for (const candidateOptions of options) {
+    try {
+      candidates.push(
+        planSourceBatch(context.ledger, source.sourceSet, {
+          asOf: value.as_of,
+          collectionText: context.batch.collection.text,
+          captureRoot: context.batch.dir,
+          validation: { languages: context.languages },
+          ...candidateOptions,
+        }),
+      );
+    } catch {
+      /* An invalid claimed shape cannot produce an admissible candidate. */
+    }
+  }
+  if (!candidates.some((candidate) => deepEqual(candidate, value)))
+    problems.push({ code: "source_plan_uncorroborated" });
+  const terminal = inspectTerminalSourceObservations(
+    context.ledger,
+    source.sourceSet,
+    source.resolution,
+    {
+      asOf: value.as_of,
+      collectionText: context.batch.collection.text,
+      artifactsDir: context.batch.dir,
+      validation: { languages: context.languages },
+    },
+  );
+  for (const member of terminal.violations)
+    problems.push({
+      code: "refetched_closed_vacancy",
+      ...(member.index === undefined ? {} : { index: member.index }),
+    });
+  const plannedAt = usableInstant(value.as_of);
+  for (const [at, item] of value.items.entries()) {
+    if (item.baseline === null || item.baseline === undefined) continue;
+    const observedAt = usableInstant(item.baseline.last_checked);
+    if (plannedAt === null || observedAt === null || observedAt >= plannedAt) {
+      problems.push({ code: "source_plan_baseline_not_prior", planPosition: at + 1 });
+    }
+  }
+  const rows = value.items.map((item, at) => ({
+    action: item.action,
+    key: item.group_key,
+    logicalKey: item.logical_key,
+    cardRefs: item.card_refs,
+    identityStatus: item.identity_status,
+    sources: item.sources,
+    baseline: item.baseline,
+    planPosition: at + 1,
+  }));
+  for (const group of source.resolution.groups) {
+    const row = rows.find(
+      (item) =>
+        item.key === group.logical_key &&
+        deepEqual([...item.cardRefs].sort(), [...group.card_refs].sort()),
+    );
+    const prior = context.ledger.logical_entries.find((entry) => entry.key === group.logical_key);
+    if (prior !== undefined && (row === undefined || row.baseline === null)) {
+      problems.push({ code: "source_plan_baseline_missing" });
+    }
+  }
+  return { present: true, rows: problems.length === 0 ? rows : null, problems };
 }

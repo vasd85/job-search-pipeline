@@ -3,7 +3,7 @@
 /**
  * Operator surface of the batch-triage ledger.
  *
- * Read-only by design, plus the one creation command. The batch-start plan and the batch-end write
+ * Read-only by design, plus explicit creation and contract upgrade. The batch-start plan and batch-end write
  * are in-process module calls from `score-jobs` (`tools/lib/triage-ledger-core.mjs`), so no vacancy
  * URL, title, company or flag ever appears in a shell command line — ADR 0011's boundary held by
  * construction rather than by escaping. Consequently this CLI accepts machine tokens only:
@@ -18,6 +18,7 @@ import {
   initLedger,
   readLedger,
   reviewLedger,
+  upgradeLedger,
 } from "./lib/triage-ledger-core.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,6 +41,7 @@ class TriageLedgerCliError extends Error {
 function usage() {
   console.log(`Usage:
   node tools/triage-ledger.mjs init
+  node tools/triage-ledger.mjs upgrade
   node tools/triage-ledger.mjs show [--compact]
   node tools/triage-ledger.mjs review [--as-of <YYYY-MM-DD | ISO instant>] [--compact]
   node tools/triage-ledger.mjs validate
@@ -111,6 +113,11 @@ function init(options) {
   print({ command: "init", ...initLedger(ledgerPath) });
 }
 
+function upgrade(options) {
+  assertAllowed(options, []);
+  print({ command: "upgrade", path: ledgerPath, ...upgradeLedger(ledgerPath) });
+}
+
 function show(options) {
   assertAllowed(options, ["compact"]);
   const ledger = readLedger(ledgerPath);
@@ -126,6 +133,13 @@ function show(options) {
     entries: ledger.entries.length,
     by_status: byStatus,
     last_batch: ledger.batches.at(-1) ?? null,
+    ...(ledger.schema_version === 2
+      ? {
+          logical_vacancies: ledger.logical_entries.length,
+          source_memberships: ledger.source_records.length,
+          corrections: ledger.corrections.length,
+        }
+      : {}),
   };
   print(options.compact ? summary : { ...summary, ledger });
 }
@@ -164,7 +178,7 @@ function validate(options) {
   });
 }
 
-const commands = Object.freeze({ init, show, review, validate });
+const commands = Object.freeze({ init, upgrade, show, review, validate });
 
 try {
   const { command, options } = parseArgs(process.argv.slice(2));

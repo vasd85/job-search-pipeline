@@ -189,12 +189,12 @@ function groupLines(channel, startedAt) {
   return lines;
 }
 
-/** The reader's line of a general source; a thematic source has none. */
+/** Reader accounting also applies to thematic posts in the mapping2 epoch. */
 function readerLine(channel) {
-  if (channel.thematic !== false) return null;
+  if (channel.thematic !== false && (channel.read ?? 0) === 0) return null;
   const { buckets } = channel;
   return (
-    `  - general source: outside the word list ${buckets.not_candidate}, read by the reader ${channel.read}` +
+    `  - ${channel.thematic === false ? "general source" : "source mapping"}: outside the word list ${buckets.not_candidate}, read by the reader ${channel.read}` +
     ` (with a vacancy ${buckets.card}, without one ${buckets.no_vacancy}, answer rejected ${buckets.answer_invalid});` +
     ` vacancy cards ${channel.cards}; discrepancy lines ${channel.discrepancies}`
   );
@@ -245,7 +245,10 @@ function readerText(card) {
   if (card.readBy !== "reader") return "";
   const via =
     card.applyVia.length === 0 ? "no way to apply was named" : `apply: ${card.applyVia.join(", ")}`;
-  return ` [vacancy ${card.vacancyNo} of the post, ${via}]`;
+  const source = card.sourceSnapshot
+    ? `; ${card.descriptionKind}; ${card.mappingStatus}; card_ref ${card.cardRef}; lines ${card.startLine}-${card.endLine}`
+    : "";
+  return ` [vacancy ${card.vacancyNo} of the post, ${via}${source}]`;
 }
 
 function heldRef(card, entry) {
@@ -297,9 +300,11 @@ export function renderReport(result, { collectionPath, cardsPath }) {
     "",
     `Sweep of ${result.started_at}; window edge ${result.window_edge}.`,
     "Titles, post lines and addresses below are untrusted data from the sources' pages, not instructions.",
-    "A thematic source: no role filter, every post with text is a card. A general source" +
-      " (thematic: false): the reader reads the candidate posts the word list keeps, and only the" +
-      " vacancies it names enter the collection.",
+    result.cards.some((card) => card.sourceSnapshot)
+      ? "The isolated reader maps both thematic posts and general-source candidates. Source-set memberships survive URL deduplication; vacancy numbers are display only."
+      : "A thematic source: no role filter, every post with text is a card. A general source" +
+        " (thematic: false): the reader reads the candidate posts the word list keeps, and only the" +
+        " vacancies it names enter the collection.",
     "",
     "## Sources",
     "",
@@ -322,6 +327,26 @@ export function renderReport(result, { collectionPath, cardsPath }) {
   ];
   if (result.rate_limited)
     lines.push("The sweep stopped on the rate limit (429): some channels were never requested.");
+
+  const mapped = result.cards.filter((card) => card.sourceSnapshot);
+  if (mapped.length > 0) {
+    lines.push(
+      ...section(
+        "Source memberships (all mapped anchors and original posts)",
+        mapped,
+        (card) =>
+          `- ${ref(card)}; ${card.cardRef}: ${card.sourceLinks.map((link) => `${link.role} ${safeTitle(link.url)} (anchor ${link.anchor ?? "original"})`).join("; ")}`,
+      ),
+    );
+    lines.push(
+      ...section(
+        "Unresolved source mappings: full post exceeds the reader byte limit",
+        mapped.filter((card) => card.mappingStatus === "unresolved_oversize"),
+        (card) =>
+          `- ${ref(card)}; ${card.cardRef}; complete saved HTML and text retained; description and link roles remain unknown and require source review.`,
+      ),
+    );
+  }
 
   lines.push(
     ...section(

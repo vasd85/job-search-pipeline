@@ -9,10 +9,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -22,6 +24,18 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import {
+  cardBody,
+  createSourceSet,
+  snapshotFromHtml,
+  sourceSetDigest,
+} from "../tools/triage-sources/source-set.mjs";
+import { publishSourceResolution } from "../tools/triage-sources/reconcile.mjs";
+import { markUnread } from "./fixtures/job-scorer/decision-table.mjs";
+import {
+  fictionalSourceFixture,
+  fixtureCaptureAt,
+} from "./fixtures/triage-source-context/cases.mjs";
 import { TriageVerifyError } from "../tools/triage-verify/errors.mjs";
 import { presentButUnusable, usableInstant } from "../tools/triage-verify/instants.mjs";
 import {
@@ -37,12 +51,19 @@ import {
   genericPath,
 } from "../tools/triage-verify/evidence.mjs";
 import { ledgerRecordFileName, loadBatchArtifacts } from "../tools/triage-verify/artifacts.mjs";
-import { recordBatch } from "../tools/lib/triage-ledger-core.mjs";
+import {
+  recordBatch,
+  emptyLedger,
+  planSourceBatch,
+  publishSourcePlan,
+} from "../tools/lib/triage-ledger-core.mjs";
 import {
   loadVocabulary,
   validateVocabulary,
   vocabularyPhrases,
 } from "../tools/triage-verify/vocabulary.mjs";
+import * as crossTransport from "../tools/triage-verify/checks/cross-transport.mjs";
+import * as quoteIntegrity from "../tools/triage-verify/checks/quote-integrity.mjs";
 import { familyClaimRules } from "../tools/triage-verify/checks/negative-space.mjs";
 import { readLinksFile, sliceRange } from "../tools/triage-verify/links.mjs";
 import {
@@ -53,7 +74,7 @@ import {
   lineDigest,
 } from "../tools/triage-verify/text-scan.mjs";
 import { buildDecisionTrace } from "../tools/job-scorer/trace.mjs";
-import { manifestSchemaVersion } from "../tools/vacancy-fetch/batch.mjs";
+import { manifestSchemaVersion, runVacancyFetchBatch } from "../tools/vacancy-fetch/batch.mjs";
 import { renderCaptureFile, verifyCaptureFile } from "../tools/vacancy-fetch/persist.mjs";
 import { sha256Utf8 } from "../tools/vacancy-fetch/digest.mjs";
 import { candidateExampleRootFor, candidateScoringValues } from "../tools/candidate/load.mjs";
@@ -3971,4 +3992,2603 @@ test("earlier input schemas and trace taxonomies report policy_drift without rec
     assert.ok(codes(report).includes("policy_drift"));
     assert.equal(checkOf(report, "completeness").counts.tracesRecomputed, 4);
   }
+});
+
+// A source-context input selects exactly one vacancy, even when its immutable post
+// snapshot contains several cards. The earlier quote walk accepted any sibling.
+test("source-context evidence cannot borrow a sibling vacancy line", () => {
+  const body =
+    "Senior QA Engineer\nAutomation responsibilities.\nJunior+ QA Engineer\nManual testing only.\n";
+  const quote = "Junior+ QA Engineer";
+  const digest = sha256Utf8(body);
+  const verified = { ok: true, body, header: { "normalized-sha256": digest } };
+  const result = quoteIntegrity.run({
+    records: [
+      {
+        index: 1,
+        input: {
+          schemaVersion: 10,
+          source: { accessOutcome: "usable" },
+          sourceContext: {
+            primaryCaptureSha256: digest,
+            startLine: 1,
+            endLine: 2,
+          },
+        },
+        evidence: { quotes: [{ path: "role.evidence.seniority", value: quote }] },
+        evidenceDigests: new Map([["role.evidence.seniority", sha256Utf8(quote)]]),
+        captures: [{ file: "001.capture.txt", verified }],
+      },
+    ],
+  });
+  assert.ok(result.findings.some((entry) => entry.code === "quote_absent"));
+  assert.equal(result.counts.quotesMatched, 0);
+});
+
+const SOURCE_CAPTURED_AT = "2026-10-08T09:15:00.000Z";
+const SOURCE_COMPANY_URL = "https://fable.example.test/";
+const SOURCE_DETAILS_URL = "https://boards.example.test/fable/senior-qa";
+
+function sourceInput(
+  snapshot,
+  card,
+  digest,
+  {
+    index = 1,
+    body,
+    sourceRef = snapshot.original_url,
+    captureDigest = snapshot.capture.sha256,
+    original = true,
+    title = "Senior QA Engineer",
+    junior = false,
+  } = {},
+) {
+  const input = structuredClone(buildRecords()[3].input);
+  input.schemaVersion = 10;
+  input.policyId = "triage-policy-v9-2026-10-08";
+  input.scoringDate = "2026-10-08";
+  input.inputIndex = index;
+  input.source = {
+    ...input.source,
+    accessOutcome: "usable",
+    accessReason: null,
+    sourceRef,
+    finalUrl: sourceRef,
+    company: "Fable Instruments",
+    jobTitle: title,
+    evidenceQuote: title,
+  };
+  input.role = {
+    ...input.role,
+    family: "qa_testing",
+    automation: "manual_only",
+    seniority: junior ? "junior" : "senior",
+    ai: { product: "none", work: "none" },
+    evidence: {
+      ...input.role.evidence,
+      role: title,
+      automation: "Manual testing only.",
+      seniority: title,
+    },
+  };
+  input.sourceContext = {
+    sourceSetSha256: digest,
+    cardRef: card.card_ref,
+    snapshotRef: card.snapshot_ref,
+    primarySourceRef: sourceRef,
+    primaryCaptureSha256: captureDigest,
+    startLine: original ? card.start_line : 1,
+    endLine: original ? card.end_line : body.split("\n").length,
+  };
+  return input;
+}
+
+function sourceFacts(title = "Senior QA Engineer", junior = false) {
+  return {
+    company: { value: "Fable Instruments", evidence_quote: "Fable Instruments" },
+    title: { value: title, evidence_quote: title },
+    role: { value: "QA", evidence_quote: "QA" },
+    seniority: { value: junior ? "Junior+" : "Senior", evidence_quote: title },
+    salary: null,
+    published_at: null,
+  };
+}
+
+function prepareSourceBatch(
+  t,
+  {
+    details = false,
+    multiple = false,
+    failure = false,
+    partial = false,
+    publishedAt = "2026-10-07T12:00:00.000Z",
+    unselectedCapturedAt = SOURCE_CAPTURED_AT,
+  } = {},
+) {
+  if (failure) details = true;
+  const root = disposableRoot(t);
+  const artifactsDir = join(root, "artifacts");
+  const captureRoot = join(root, "collector");
+  mkdirSync(artifactsDir);
+  mkdirSync(captureRoot);
+  const role = `<b>Senior QA Engineer</b><br/>Fable Instruments <a href="${SOURCE_COMPANY_URL}">Company site</a><br/>Manual testing only.`;
+  const extra = multiple
+    ? "<br/><b>Junior+ QA Engineer</b><br/>Fable Instruments<br/>Manual testing only."
+    : details
+      ? `<br/>Read full details <a href="${SOURCE_DETAILS_URL}">Apply here</a>`
+      : `<br/>Contact <a href="https://t.me/fable_recruiter">@fable_recruiter</a>`;
+  const html = `<html><div class="tgme_widget_message" data-post="fictionaljobs/100">
+    <div class="tgme_widget_message_text">${role}${extra}</div>
+    <a class="tgme_widget_message_date"><time datetime="${publishedAt}"></time></a>
+  </div></html>`;
+  writeFileSync(join(captureRoot, "001.page.html"), html);
+  const snapshot = snapshotFromHtml(html, {
+    handle: "fictionaljobs",
+    postId: 100,
+    capturedAt: SOURCE_CAPTURED_AT,
+  });
+  const snapshots = [snapshot];
+  if (partial) {
+    const nextHtml = html.replace("fictionaljobs/100", "fictionaljobs/101");
+    writeFileSync(join(captureRoot, "002.page.html"), nextHtml);
+    snapshots.push(
+      snapshotFromHtml(nextHtml, {
+        handle: "fictionaljobs",
+        postId: 101,
+        file: "002.page.html",
+        capturedAt: unselectedCapturedAt,
+      }),
+    );
+  }
+  const collectionText = `${SOURCE_COMPANY_URL}\n${details ? SOURCE_DETAILS_URL : snapshot.original_url}\n${partial ? `${snapshots[1].original_url}\n` : ""}`;
+  const firstEnd = multiple ? 3 : snapshot.lines.length;
+  const originalLink = { anchor: null, role: "original_post", url: snapshot.original_url };
+  const cards = [
+    {
+      snapshot_ref: snapshot.snapshot_ref,
+      title_line: 1,
+      start_line: 1,
+      end_line: firstEnd,
+      description_kind: details ? "summary" : "full_description",
+      links: [
+        { anchor: 1, role: "company_context", url: SOURCE_COMPANY_URL },
+        ...(!multiple
+          ? [
+              {
+                anchor: 2,
+                role: details ? "details" : "contact",
+                url: details ? SOURCE_DETAILS_URL : "https://t.me/fable_recruiter",
+              },
+            ]
+          : []),
+        originalLink,
+      ],
+    },
+  ];
+  if (multiple)
+    cards.push({
+      snapshot_ref: snapshot.snapshot_ref,
+      title_line: 4,
+      start_line: 4,
+      end_line: snapshot.lines.length,
+      description_kind: "full_description",
+      links: [{ anchor: 1, role: "company_context", url: SOURCE_COMPANY_URL }, originalLink],
+    });
+  if (partial)
+    cards.push({
+      ...cards[0],
+      snapshot_ref: snapshots[1].snapshot_ref,
+      links: cards[0].links.map((link) =>
+        link.role === "original_post" ? { ...link, url: snapshots[1].original_url } : link,
+      ),
+    });
+  const sourceSet = createSourceSet({ collectionText, snapshots, cards });
+  const digest = sourceSetDigest(sourceSet);
+  const observations = sourceSet.cards
+    .filter((card) => !partial || card.snapshot_ref === snapshot.snapshot_ref)
+    .map((card, at) => {
+      const title = at === 0 ? "Senior QA Engineer" : "Junior+ QA Engineer";
+      const body = snapshot.lines
+        .slice(card.start_line - 1, card.end_line)
+        .map((line) => line.text)
+        .join("\n");
+      return {
+        card_ref: card.card_ref,
+        source_ref: snapshot.original_url,
+        description_kind: card.description_kind,
+        identity_status: "confirmed",
+        capture: { file: snapshot.capture.file, sha256: snapshot.capture.sha256 },
+        body,
+        facts: sourceFacts(title, at !== 0),
+        input: details
+          ? null
+          : sourceInput(snapshot, card, digest, { index: at + 1, body, title, junior: at !== 0 }),
+      };
+    });
+  if (failure) {
+    const manifest = {
+      schemaVersion: 2,
+      tool: "vacancy-fetch",
+      startedAt: SOURCE_CAPTURED_AT,
+      records: [
+        {
+          index: 7,
+          requestedUrl: SOURCE_DETAILS_URL,
+          finalUrl: SOURCE_DETAILS_URL,
+          fetchedAt: SOURCE_CAPTURED_AT,
+          outcome: "access_failure",
+          usable: false,
+          fallback: "browser",
+          skipped: false,
+          persisted: null,
+        },
+      ],
+    };
+    const text = `${JSON.stringify(manifest, null, 2)}\n`;
+    writeFileSync(join(artifactsDir, "fetch-manifest.json"), text);
+    const card = sourceSet.cards[0];
+    const input = structuredClone(buildRecords()[3].input);
+    input.schemaVersion = 10;
+    input.policyId = "triage-policy-v9-2026-10-08";
+    input.scoringDate = "2026-10-08";
+    input.inputIndex = 1;
+    input.source = {
+      ...input.source,
+      accessOutcome: "technical_unavailable",
+      accessReason: "The transport did not obtain the posting.",
+      sourceRef: SOURCE_DETAILS_URL,
+      finalUrl: SOURCE_DETAILS_URL,
+    };
+    input.sourceContext = {
+      sourceSetSha256: digest,
+      cardRef: card.card_ref,
+      snapshotRef: card.snapshot_ref,
+      primarySourceRef: SOURCE_DETAILS_URL,
+      primaryCaptureSha256: null,
+      startLine: null,
+      endLine: null,
+    };
+    observations.push({
+      card_ref: card.card_ref,
+      source_ref: SOURCE_DETAILS_URL,
+      description_kind: "unknown",
+      identity_status: "linked_unconfirmed",
+      capture: null,
+      body: null,
+      facts: {
+        company: null,
+        title: null,
+        role: null,
+        seniority: null,
+        salary: null,
+        published_at: null,
+      },
+      input,
+      transport: { file: "fetch-manifest.json", sha256: sha256Utf8(text), index: 7 },
+    });
+  } else if (details) {
+    const body = "Senior QA Engineer\nFable Instruments\nManual testing only.\n";
+    const sha = sha256Utf8(body);
+    const captured = renderCaptureFile({
+      body,
+      header: {
+        index: 7,
+        adapter: "generic-html@1",
+        "source-id": "generic",
+        "requested-url": SOURCE_DETAILS_URL,
+        "final-url": SOURCE_DETAILS_URL,
+        "fetched-at": SOURCE_CAPTURED_AT,
+        "http-status": 200,
+        outcome: "active",
+        "access-barrier": null,
+        "response-sha256": sha,
+        "response-bytes": Buffer.byteLength(body),
+        "extracted-sha256": sha,
+        "normalized-sha256": sha,
+        "body-bytes": Buffer.byteLength(body),
+        normalization: "none",
+      },
+    });
+    writeFileSync(join(artifactsDir, "007.capture.txt"), captured);
+    writeFileSync(
+      join(artifactsDir, "fetch-manifest.json"),
+      `${JSON.stringify(
+        {
+          schemaVersion: 2,
+          tool: "vacancy-fetch",
+          startedAt: SOURCE_CAPTURED_AT,
+          records: [
+            {
+              index: 7,
+              requestedUrl: SOURCE_DETAILS_URL,
+              finalUrl: SOURCE_DETAILS_URL,
+              fetchedAt: SOURCE_CAPTURED_AT,
+              outcome: "active",
+              usable: true,
+              fallback: null,
+              skipped: false,
+              response: { sha256: sha },
+              persisted: { file: "007.capture.txt", sha256: sha },
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const card = sourceSet.cards[0];
+    observations.push({
+      card_ref: card.card_ref,
+      source_ref: SOURCE_DETAILS_URL,
+      description_kind: "full_description",
+      identity_status: "confirmed",
+      capture: { file: "007.capture.txt", sha256: sha },
+      body,
+      facts: sourceFacts(),
+      input: sourceInput(snapshot, card, digest, {
+        body,
+        sourceRef: SOURCE_DETAILS_URL,
+        captureDigest: sha,
+        original: false,
+      }),
+    });
+  }
+  const selection = partial
+    ? { from: 1, to: 2, card_refs: observations.map((observation) => observation.card_ref) }
+    : undefined;
+  const resolution = publishSourceResolution({
+    artifactsDir,
+    sourceSet,
+    collectionText,
+    sourceCaptureRoot: captureRoot,
+    observations,
+    selection,
+  });
+  const linksFile = join(root, "links.txt");
+  writeFileSync(linksFile, collectionText);
+  return { root, artifactsDir, linksFile, sourceSet, resolution, from: 1, to: 2 };
+}
+
+function verifySource(prepared, cadence = "per-batch") {
+  return runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      linksFile: prepared.linksFile,
+      ledgerPath: prepared.ledgerPath,
+      from: prepared.from,
+      to: prepared.to,
+    }),
+    cadence,
+  );
+}
+
+function editSourceJson(prepared, file, mutate) {
+  const path = join(prepared.artifactsDir, file);
+  const value = JSON.parse(readFileSync(path, "utf8"));
+  mutate(value);
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+test("a full immutable Telegram JD accounts for its company and contact without a fake homepage trace", (t) => {
+  const prepared = prepareSourceBatch(t);
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(report.counts.records, 1);
+  assert.equal(report.counts.linksInRange, 2);
+  assert.equal(report.counts.sourceHtmlCaptures, 1);
+  assert.equal(report.counts.logicalVacancies, 1);
+  assert.equal(prepared.resolution.groups[0].result.skip_code, "manual_role");
+  assert.ok(prepared.resolution.groups[0].sources.some((source) => source.role === "contact"));
+  assert.deepEqual(codes(report), []);
+  assert.equal(JSON.stringify(verifySource(prepared)), JSON.stringify(report));
+});
+
+test("a summary without a Telegram input uses the full details capture at its own transport index", (t) => {
+  const prepared = prepareSourceBatch(t, { details: true });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(report.counts.records, 1);
+  assert.equal(report.counts.logicalVacancies, 1);
+  assert.equal(report.counts.capturesByProvenance.http_fetch, 1);
+  assert.equal(prepared.resolution.groups[0].result.skip_code, "manual_role");
+});
+
+test("two cards in one immutable post keep two traces while sharing a company context URL", (t) => {
+  const prepared = prepareSourceBatch(t, { multiple: true });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(report.counts.records, 2);
+  assert.equal(report.counts.logicalVacancies, 2);
+  assert.ok(!codes(report).includes("duplicate_record_for_link"));
+});
+
+test("a selected range retains shared company memberships without activating another card", (t) => {
+  const prepared = prepareSourceBatch(t, { partial: true });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(report.counts.sourceCards, 1);
+  assert.equal(report.counts.sourceHtmlCaptures, 2);
+  assert.equal(report.counts.logicalVacancies, 1);
+  assert.equal(report.counts.records, 1);
+  assert.equal(prepared.resolution.url_accounting[0].memberships.length, 2);
+  assert.equal(prepared.resolution.groups[0].card_refs.length, 1);
+  assert.ok(codes(verifySource({ ...prepared, from: 2 })).includes("source_range_mismatch"));
+});
+
+test("source verification rejects modified HTML, collection bytes, references, coverage and primary selection", (t) => {
+  const cases = [
+    [
+      "html",
+      "source_set_invalid",
+      (prepared) => writeFileSync(join(prepared.artifactsDir, "001.page.html"), "changed"),
+    ],
+    [
+      "collection",
+      "source_collection_mismatch",
+      (prepared) =>
+        writeFileSync(
+          join(prepared.artifactsDir, "collection.links.txt"),
+          `${SOURCE_COMPANY_URL}\n`,
+        ),
+    ],
+    [
+      "source-set bytes",
+      "source_set_digest_mismatch",
+      (prepared) => {
+        const path = join(prepared.artifactsDir, "source-set.json");
+        writeFileSync(path, `${readFileSync(path, "utf8")}\n`);
+      },
+    ],
+    [
+      "card ref",
+      "source_set_invalid",
+      (prepared) =>
+        editSourceJson(prepared, "source-set.json", (value) => {
+          value.cards[0].title_line = 2;
+        }),
+    ],
+    [
+      "url coverage",
+      "source_resolution_invalid",
+      (prepared) =>
+        editSourceJson(prepared, "source-resolution.json", (value) => {
+          value.url_accounting.pop();
+        }),
+    ],
+    [
+      "logical coverage",
+      "source_resolution_invalid",
+      (prepared) =>
+        editSourceJson(prepared, "source-resolution.json", (value) => {
+          value.groups = [];
+        }),
+    ],
+    [
+      "primary",
+      "source_resolution_invalid",
+      (prepared) =>
+        editSourceJson(prepared, "source-resolution.json", (value) => {
+          value.groups[0].primary = null;
+        }),
+    ],
+    [
+      "foreign quote",
+      "source_resolution_invalid",
+      (prepared) =>
+        editSourceJson(prepared, "source-resolution.json", (value) => {
+          value.observations[0].input.role.evidence.seniority = "Junior+ QA Engineer";
+        }),
+    ],
+    [
+      "missing raw trace",
+      "source_record_unbound",
+      (prepared) => rmSync(join(prepared.artifactsDir, "traces", "001.trace.json")),
+    ],
+    [
+      "fake context trace",
+      "source_record_unbound",
+      (prepared) =>
+        editSourceJson(prepared, "inputs/001.input.json", (value) => {
+          value.source.sourceRef = SOURCE_COMPANY_URL;
+        }),
+    ],
+  ];
+  for (const [name, expected, mutate] of cases) {
+    const prepared = prepareSourceBatch(t);
+    mutate(prepared);
+    const report = verifySource(prepared);
+    assert.equal(report.status, "fail", name);
+    assert.ok(codes(report).includes(expected), `${name}: ${codes(report)}`);
+  }
+});
+
+test("source resolution cannot merge two independent cards by a shared homepage", (t) => {
+  const prepared = prepareSourceBatch(t, { multiple: true });
+  editSourceJson(prepared, "source-resolution.json", (value) => {
+    value.groups[0].card_refs.push(...value.groups[1].card_refs);
+    value.groups.pop();
+    value.counts.logical_vacancies = 1;
+  });
+  assert.ok(codes(verifySource(prepared)).includes("source_resolution_invalid"));
+});
+
+test("recognized malformed source artifacts fail under their own contract instead of disappearing", (t) => {
+  const { report } = verify(t, {
+    mutate: ({ files }) => {
+      files.set("source-set.json", "{ malformed");
+      files.set("source-resolution.json", "{}");
+    },
+  });
+  assert.ok(codes(report).includes("source_set_unreadable"));
+  assert.ok(
+    !checkOf(report, "completeness").findings.some(
+      (entry) => entry.code === "unexpected_artifact" && entry.file === "source-set.json",
+    ),
+  );
+});
+
+function addSourcePlan(prepared, { final = false, baseline = false, wrapper = false } = {}) {
+  const ledger = emptyLedger({ schemaVersion: 2 });
+  if (baseline) {
+    const group = prepared.resolution.groups[0];
+    ledger.logical_entries.push({
+      key: group.logical_key,
+      card_refs: group.card_refs,
+      identity_status: "confirmed",
+      primary_ref: group.primary,
+      first_seen: "2026-10-07T09:15:00.000Z",
+      last_checked: "2026-10-07T09:15:00.000Z",
+      status: "open",
+      batch_id: "fictional-prior",
+      decision: "MANUAL_REVIEW",
+      flags: ["source_review"],
+      policy_id: "triage-policy-v9-2026-10-08",
+    });
+  }
+  const ledgerPath = join(prepared.root, "triage-ledger.json");
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  prepared.ledgerPath = ledgerPath;
+  const plan = planSourceBatch(ledger, prepared.sourceSet, {
+    asOf: SOURCE_CAPTURED_AT,
+    ...(final ? { resolution: prepared.resolution } : {}),
+    collectionText: readFileSync(prepared.linksFile),
+    captureRoot: prepared.artifactsDir,
+  });
+  const value = wrapper
+    ? {
+        schema_version: 2,
+        source_set_sha256: sourceSetDigest(prepared.sourceSet),
+        source_plan: plan,
+      }
+    : plan;
+  writeFileSync(join(prepared.artifactsDir, "plan.json"), `${JSON.stringify(value, null, 2)}\n`);
+  return plan;
+}
+
+test("source verification reads both an initial per-card plan and the final resolution plan", (t) => {
+  for (const final of [false, true]) {
+    const prepared = prepareSourceBatch(t);
+    addSourcePlan(prepared, { final, wrapper: !final });
+    assert.equal(verifySource(prepared).status, "pass");
+  }
+});
+
+test("source plan skips require the ledger snapshot and checked card boundaries", (t) => {
+  const prepared = prepareSourceBatch(t);
+  const plan = addSourcePlan(prepared, { final: true, baseline: true });
+  assert.equal(plan.items[0].action, "skip_known");
+  assert.equal(verifySource(prepared).status, "pass");
+  editSourceJson(prepared, "plan.json", (value) => {
+    value.items[0].card_refs = [];
+  });
+  assert.ok(codes(verifySource(prepared)).includes("source_plan_card_coverage_incomplete"));
+  const other = prepareSourceBatch(t);
+  addSourcePlan(other, { final: true, baseline: true });
+  const ledger = JSON.parse(readFileSync(other.ledgerPath, "utf8"));
+  ledger.logical_entries[0].decision = "BLOCKED";
+  writeFileSync(other.ledgerPath, JSON.stringify(ledger));
+  assert.ok(codes(verifySource(other)).includes("source_plan_snapshot_mismatch"));
+});
+
+test("a malformed source plan row is a bounded finding rather than a suite crash", (t) => {
+  for (const malformed of [
+    null,
+    { card_refs: null },
+    { card_refs: [], sources: null },
+    { card_refs: [], sources: [], baseline: [] },
+  ]) {
+    const prepared = prepareSourceBatch(t);
+    addSourcePlan(prepared, { final: true });
+    editSourceJson(prepared, "plan.json", (value) => {
+      value.items = [malformed];
+    });
+    const report = verifySource(prepared);
+    assert.equal(report.status, "fail");
+    assert.ok(codes(report).includes("source_plan_unreadable"), codes(report).join(","));
+  }
+});
+
+test("a source baseline observed at the plan instant cannot corroborate its own skip", (t) => {
+  const prepared = prepareSourceBatch(t);
+  addSourcePlan(prepared, { final: true, baseline: true });
+  const ledger = JSON.parse(readFileSync(prepared.ledgerPath, "utf8"));
+  ledger.logical_entries[0].last_checked = SOURCE_CAPTURED_AT;
+  writeFileSync(prepared.ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  const plan = planSourceBatch(ledger, prepared.sourceSet, {
+    asOf: SOURCE_CAPTURED_AT,
+    resolution: prepared.resolution,
+    collectionText: readFileSync(prepared.linksFile),
+    captureRoot: prepared.artifactsDir,
+  });
+  writeFileSync(join(prepared.artifactsDir, "plan.json"), `${JSON.stringify(plan, null, 2)}\n`);
+  const report = verifySource(prepared);
+  assert.equal(report.status, "fail");
+  assert.ok(codes(report).includes("source_plan_baseline_not_prior"), codes(report).join(","));
+});
+
+test("full source verification uses capture time and a blind extraction bound to the same primary", (t) => {
+  const prepared = prepareSourceBatch(t);
+  addSourcePlan(prepared, { baseline: true });
+  mkdirSync(join(prepared.artifactsDir, "blind"));
+  const blind = structuredClone(prepared.resolution.observations[0].input);
+  blind.role.evidence.role = "QA Engineer";
+  writeFileSync(join(prepared.artifactsDir, "blind", "001.input.json"), JSON.stringify(blind));
+  const probes = ["phase0_capability_probe", "transport_hypotheses"].map((probe) => ({
+    probe,
+    ranAt: SOURCE_CAPTURED_AT,
+    verdict: "held",
+  }));
+  writeFileSync(
+    join(prepared.artifactsDir, "attestation.json"),
+    JSON.stringify({ schemaVersion: 1, probes }),
+  );
+  const report = verifySource(prepared, "full");
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(checkOf(report, "baseline-diff").counts.known, 1);
+  editSourceJson(prepared, "blind/001.input.json", (value) => {
+    value.sourceContext.cardRef = `tg-card:sha256:${"b".repeat(64)}`;
+  });
+  assert.ok(codes(verifySource(prepared, "full")).includes("blind_source_binding_mismatch"));
+  editSourceJson(prepared, "attestation.json", (value) => {
+    value.probes[0].ranAt = "2026-10-10T09:15:00.000Z";
+  });
+  assert.ok(codes(verifySource(prepared, "full")).includes("probe_out_of_window"));
+});
+
+test("a real no-body source failure keeps its retryable raw trace with manifest proof", (t) => {
+  const prepared = prepareSourceBatch(t, { failure: true });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(
+    prepared.resolution.observations.find((observation) => observation.input !== null).trace
+      .decision,
+    "BLOCKED",
+  );
+  editSourceJson(prepared, "fetch-manifest.json", (value) => {
+    value.records[0].usable = true;
+  });
+  assert.ok(codes(verifySource(prepared)).includes("source_resolution_invalid"));
+});
+
+test("standalone input 10 retains strict legacy quote and cross-transport guards", (t) => {
+  const upgraded = ({ files }) => {
+    for (const record of buildRecords()) {
+      const prefix = String(record.index).padStart(3, "0");
+      editJson(files, `inputs/${prefix}.input.json`, (input) => {
+        input.schemaVersion = 10;
+        input.policyId = "triage-policy-v9-2026-10-08";
+        input.sourceContext = null;
+        files.set(`traces/${prefix}.trace.json`, JSON.stringify(buildDecisionTrace(input)));
+      });
+    }
+  };
+  assert.equal(verify(t, { mutate: upgraded }).report.status, "pass");
+  const foreign = verify(t, {
+    mutate: (payload) => {
+      upgraded(payload);
+      editJson(payload.files, INPUT_ONE, (input) => {
+        input.role.evidence.seniority = "A different page's Senior role.";
+        payload.files.set(TRACE_ONE, JSON.stringify(buildDecisionTrace(input)));
+      });
+    },
+  });
+  assert.ok(codes(foreign.report).includes("quote_absent"));
+  const stamped = verify(t, {
+    mutate: (payload) => {
+      upgraded(payload);
+      payload.files.set(
+        CAPTURE_ONE,
+        payload.files
+          .get(CAPTURE_ONE)
+          .replace(`requested-url: ${links[0]}`, `requested-url: ${links[1]}`),
+      );
+    },
+  });
+  assert.ok(codes(stamped.report).includes("capture_source_ref_mismatch"));
+});
+
+// These cases reconstruct the compiler's actual custody path. The retained HTML, target stamp
+// and manifest exist before publication; a pure fixture resolution cannot stand in for them.
+function publishFileBackedSourceCase(
+  t,
+  fixture,
+  {
+    outcome = "active",
+    captureFinalUrl = fixture.target.source_ref,
+    manifestFinalUrl = captureFinalUrl,
+    includeTransport = true,
+    originalFailureRecord = null,
+    targetFailureRecord = null,
+    browserRescue = false,
+    originalBrowserClosure = false,
+    additionalTargets = [],
+  } = {},
+) {
+  const root = disposableRoot(t);
+  const artifactsDir = join(root, "artifacts");
+  const collectorDir = join(root, "collector");
+  mkdirSync(artifactsDir);
+  mkdirSync(collectorDir);
+  writeFileSync(join(collectorDir, fixture.snapshot.capture.file), fixture.html);
+  const target = fixture.target;
+  let targetRecord = targetFailureRecord;
+  if (targetRecord === null) {
+    const digest = sha256Utf8(target.body);
+    target.capture = {
+      file: browserRescue ? "007.browser.capture.txt" : "007.capture.txt",
+      sha256: digest,
+    };
+    if (target.input !== null) target.input.sourceContext.primaryCaptureSha256 = digest;
+    writeFileSync(
+      join(artifactsDir, target.capture.file),
+      renderCaptureFile({
+        body: target.body,
+        header: {
+          index: 7,
+          adapter: browserRescue ? "in-app-browser@1" : "generic-html@1",
+          "source-id": "generic",
+          "requested-url": target.source_ref,
+          "final-url": captureFinalUrl,
+          "fetched-at": fixtureCaptureAt,
+          "http-status": outcome === "access_failure" ? 403 : 200,
+          outcome,
+          "access-barrier": outcome === "access_failure" ? "challenge" : null,
+          "response-sha256": digest,
+          "response-bytes": Buffer.byteLength(target.body),
+          "extracted-sha256": digest,
+          "normalized-sha256": digest,
+          "body-bytes": Buffer.byteLength(target.body),
+          normalization: "none",
+        },
+      }),
+    );
+    targetRecord = {
+      index: 7,
+      requestedUrl: target.source_ref,
+      finalUrl: manifestFinalUrl,
+      fetchedAt: fixtureCaptureAt,
+      outcome: browserRescue ? "access_failure" : outcome,
+      usable: !browserRescue && outcome === "active",
+      fallback: browserRescue || outcome === "access_failure" ? "browser" : null,
+      skipped: false,
+      response: browserRescue ? null : { sha256: digest },
+      persisted: browserRescue ? null : { file: target.capture.file, sha256: digest },
+    };
+  } else {
+    assert.equal(targetRecord.index, 7);
+    assert.equal(target.capture, null);
+    assert.equal(target.body, null);
+  }
+  if (originalFailureRecord !== null && fixture.original.capture !== null) {
+    const original = fixture.original;
+    const digest = sha256Utf8(original.body);
+    assert.equal(original.capture.sha256, digest);
+    writeFileSync(
+      join(artifactsDir, original.capture.file),
+      renderCaptureFile({
+        body: original.body,
+        header: {
+          index: originalFailureRecord.index,
+          adapter: originalBrowserClosure ? "in-app-browser@1" : "generic-html@1",
+          "source-id": "generic",
+          "requested-url": original.source_ref,
+          "final-url": originalFailureRecord.finalUrl,
+          "fetched-at": originalFailureRecord.fetchedAt,
+          "http-status": originalBrowserClosure ? 200 : 403,
+          outcome: originalBrowserClosure ? "closed" : "access_failure",
+          "access-barrier": originalBrowserClosure ? null : "challenge",
+          "response-sha256": digest,
+          "response-bytes": Buffer.byteLength(original.body),
+          "extracted-sha256": digest,
+          "normalized-sha256": digest,
+          "body-bytes": Buffer.byteLength(original.body),
+          normalization: "none",
+        },
+      }),
+    );
+  }
+  const additionalRecords = additionalTargets.map((observation, at) => {
+    const index = 8 + at;
+    const digest = sha256Utf8(observation.body);
+    observation.capture = { file: `${String(index).padStart(3, "0")}.capture.txt`, sha256: digest };
+    observation.input.sourceContext.primaryCaptureSha256 = digest;
+    const finalUrl = observation.input.source.finalUrl;
+    writeFileSync(
+      join(artifactsDir, observation.capture.file),
+      renderCaptureFile({
+        body: observation.body,
+        header: {
+          index,
+          adapter: "generic-html@1",
+          "source-id": "generic",
+          "requested-url": observation.source_ref,
+          "final-url": finalUrl,
+          "fetched-at": fixtureCaptureAt,
+          "http-status": 200,
+          outcome: "active",
+          "access-barrier": null,
+          "response-sha256": digest,
+          "response-bytes": Buffer.byteLength(observation.body),
+          "extracted-sha256": digest,
+          "normalized-sha256": digest,
+          "body-bytes": Buffer.byteLength(observation.body),
+          normalization: "none",
+        },
+      }),
+    );
+    return {
+      index,
+      requestedUrl: observation.source_ref,
+      finalUrl,
+      fetchedAt: fixtureCaptureAt,
+      outcome: "active",
+      usable: true,
+      fallback: null,
+      skipped: false,
+      response: { sha256: digest },
+      persisted: { ...observation.capture },
+    };
+  });
+  const manifest = `${JSON.stringify(
+    {
+      schemaVersion: 2,
+      tool: "vacancy-fetch",
+      startedAt: fixtureCaptureAt,
+      records: [
+        targetRecord,
+        ...additionalRecords,
+        ...(originalFailureRecord === null ? [] : [originalFailureRecord]),
+      ],
+    },
+    null,
+    2,
+  )}\n`;
+  writeFileSync(join(artifactsDir, "fetch-manifest.json"), manifest);
+  if (includeTransport)
+    target.transport = { file: "fetch-manifest.json", sha256: sha256Utf8(manifest), index: 7 };
+  else delete target.transport;
+  for (const [at, observation] of additionalTargets.entries())
+    observation.transport = {
+      file: "fetch-manifest.json",
+      sha256: sha256Utf8(manifest),
+      index: additionalRecords[at].index,
+    };
+  if (originalFailureRecord !== null)
+    fixture.original.transport = {
+      file: "fetch-manifest.json",
+      sha256: sha256Utf8(manifest),
+      index: originalFailureRecord.index,
+    };
+  const resolution = publishSourceResolution({
+    artifactsDir,
+    sourceCaptureRoot: collectorDir,
+    sourceSet: fixture.sourceSet,
+    collectionText: fixture.collectionText,
+    observations: fixture.observations,
+  });
+  const linksFile = join(root, "links.txt");
+  writeFileSync(linksFile, fixture.collectionText);
+  return {
+    root,
+    artifactsDir,
+    linksFile,
+    sourceSet: fixture.sourceSet,
+    resolution,
+    from: 1,
+    to: new Set(fixture.collectionText.trim().split("\n")).size,
+  };
+}
+
+function summaryWithExplicitJuniorConflict() {
+  const fixture = fictionalSourceFixture({ kind: "summary" });
+  fixture.html = fixture.html.replace(
+    "Read the full description below",
+    "Junior+<br/>Read the full description below",
+  );
+  const snapshot = snapshotFromHtml(fixture.html, {
+    handle: fixture.snapshot.handle,
+    postId: fixture.snapshot.post_id,
+    file: fixture.snapshot.capture.file,
+    capturedAt: fixture.snapshot.capture.captured_at,
+  });
+  fixture.sourceSet = createSourceSet({
+    collectionText: fixture.collectionText,
+    snapshots: [snapshot],
+    cards: [
+      { ...fixture.card, snapshot_ref: snapshot.snapshot_ref, end_line: snapshot.lines.length },
+    ],
+  });
+  fixture.card = fixture.sourceSet.cards[0];
+  fixture.snapshot = snapshot;
+  Object.assign(fixture.original, {
+    card_ref: fixture.card.card_ref,
+    body: cardBody(fixture.sourceSet, fixture.card),
+    capture: { file: snapshot.capture.file, sha256: snapshot.capture.sha256 },
+  });
+  fixture.original.facts.seniority = { value: "Junior+", evidence_quote: "Junior+" };
+  fixture.target.card_ref = fixture.card.card_ref;
+  Object.assign(fixture.target.input.sourceContext, {
+    sourceSetSha256: sourceSetDigest(fixture.sourceSet),
+    cardRef: fixture.card.card_ref,
+    snapshotRef: snapshot.snapshot_ref,
+  });
+  return fixture;
+}
+
+function juniorOriginalWithSeniorTarget() {
+  const fixture = fictionalSourceFixture({ junior: true });
+  fixture.target.body = fixture.target.body.replace("Junior+", "Senior QA Engineer");
+  fixture.target.facts.seniority = {
+    value: "Senior QA Engineer",
+    evidence_quote: "Senior QA Engineer",
+  };
+  fixture.target.input = fixture.inputFor(fixture.target.source_ref, fixture.target.body, {
+    index: 2,
+    primary: false,
+    captureSha256: sha256Utf8(fixture.target.body),
+    seniority: "senior",
+  });
+  return fixture;
+}
+
+test("file-backed source compiler preserves explicit summary Junior+ versus full target Senior as source_review", (t) => {
+  const prepared = publishFileBackedSourceCase(t, summaryWithExplicitJuniorConflict());
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups.length, 1);
+  const group = prepared.resolution.groups[0];
+  assert.equal(group.result.decision, "MANUAL_REVIEW");
+  assert.equal(group.result.review_code, "source_review");
+  assert.ok(group.conflicts.includes("conflicting_seniority"));
+  assert.ok(group.alternatives.some((alternative) => alternative.trace?.decision === "EVALUATED"));
+  const raw = JSON.parse(
+    readFileSync(join(prepared.artifactsDir, "traces", "002.trace.json"), "utf8"),
+  );
+  assert.equal(raw.decision, "EVALUATED");
+  assert.equal(report.counts.records, 1);
+  assert.equal(report.counts.logicalVacancies, 1);
+});
+
+test("file-backed source compiler refuses omission of the selected full original observation", (t) => {
+  const fixture = juniorOriginalWithSeniorTarget();
+  fixture.observations = [fixture.target];
+  assert.throws(() => publishFileBackedSourceCase(t, fixture), {
+    code: "source_resolution_invalid",
+  });
+});
+
+test("file-backed source compiler requires the full original description's raw scorer input", (t) => {
+  const fixture = juniorOriginalWithSeniorTarget();
+  fixture.original.input = null;
+  assert.throws(() => publishFileBackedSourceCase(t, fixture), {
+    code: "source_resolution_invalid",
+  });
+});
+
+for (const outcome of ["closed", "access_failure"]) {
+  test(`file-backed source compiler cannot hide a target capture marked ${outcome} behind input null`, (t) => {
+    const fixture = fictionalSourceFixture();
+    fixture.target.body = `QA Engineer\nCompany Fictional Labs\n${outcome === "closed" ? "This vacancy is closed." : "Posting could not be loaded."}`;
+    fixture.target.description_kind = "unknown";
+    fixture.target.identity_status = "linked_unconfirmed";
+    fixture.target.input = null;
+    fixture.target.facts.seniority = null;
+    fixture.target.facts.salary = null;
+    assert.throws(() => publishFileBackedSourceCase(t, fixture, { outcome }), {
+      code: "source_resolution_invalid",
+    });
+  });
+}
+
+// L/M: unread classification and redirects are proved for the actual source, transport index
+// and retained bytes. Changing a label or omitting an optional reference cannot suppress them.
+test("file-backed source compiler refuses unread relabeling of an unchanged full manual original", (t) => {
+  const fixture = fictionalSourceFixture({ manual: true });
+  fixture.target.body = fixture.target.body.replace(
+    "Manual testing only",
+    "Primary test automation",
+  );
+  fixture.target.input.role.automation = "primary";
+  fixture.target.input.role.evidence.automation = "Primary test automation";
+  markUnread(fixture.original.input, "technical_unavailable", "Source unavailable after retry");
+  assert.throws(
+    () => {
+      const prepared = publishFileBackedSourceCase(t, fixture);
+      assert.equal(verifySource(prepared).status, "pass");
+      assert.equal(prepared.resolution.groups[0].result.decision, "EVALUATED");
+    },
+    { code: "source_resolution_invalid" },
+  );
+});
+
+for (const includeTransport of [true, false]) {
+  test(`file-backed source compiler binds manifest final identity with ${includeTransport ? "explicit" : "omitted"} transport reference`, (t) => {
+    const fixture = fictionalSourceFixture();
+    assert.throws(
+      () => {
+        const prepared = publishFileBackedSourceCase(t, fixture, {
+          manifestFinalUrl: "https://jobs.example.test/qa/999",
+          includeTransport,
+        });
+        assert.equal(verifySource(prepared).status, "pass");
+        assert.equal(prepared.resolution.groups[0].identity_status, "confirmed");
+      },
+      { code: "source_resolution_invalid" },
+    );
+  });
+}
+
+test("file-backed source compiler keeps an honest redirected target in source review", (t) => {
+  const fixture = fictionalSourceFixture();
+  fixture.target.input.source.finalUrl = "https://jobs.example.test/qa/999";
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    captureFinalUrl: "https://jobs.example.test/qa/999",
+    manifestFinalUrl: "https://jobs.example.test/qa/999",
+  });
+  assert.equal(verifySource(prepared).status, "pass");
+  assert.equal(prepared.resolution.groups[0].result.review_code, "source_review");
+  assert.equal(prepared.resolution.groups[0].identity_status, "linked_unconfirmed");
+  assert.ok(
+    prepared.resolution.groups[0].alternatives.some(
+      (alternative) => alternative.trace?.decision === "EVALUATED",
+    ),
+  );
+});
+
+test("file-backed source compiler accepts a real body-less original access failure with its own manifest record", (t) => {
+  const fixture = fictionalSourceFixture();
+  const original = fixture.original;
+  markUnread(original.input, "technical_unavailable", "Source unavailable after retry");
+  Object.assign(original, {
+    description_kind: "unknown",
+    identity_status: "linked_unconfirmed",
+    capture: null,
+    body: null,
+    facts: Object.fromEntries(Object.keys(original.facts).map((field) => [field, null])),
+  });
+  Object.assign(original.input.source, {
+    company: null,
+    jobTitle: null,
+    evidenceQuote: null,
+    locationRaw: null,
+    workFormatRaw: null,
+    salaryRaw: null,
+  });
+  Object.assign(original.input.role, {
+    family: "unknown",
+    automation: "unknown",
+    seniority: "unknown",
+    language: "unknown",
+    domain: "unclear",
+    evidence: Object.fromEntries(
+      Object.keys(original.input.role.evidence).map((field) => [field, null]),
+    ),
+  });
+  original.input.offers = [];
+  original.input.compensation = null;
+  Object.assign(original.input.sourceContext, {
+    primaryCaptureSha256: null,
+    startLine: null,
+    endLine: null,
+  });
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    originalFailureRecord: {
+      index: 8,
+      requestedUrl: original.source_ref,
+      finalUrl: original.input.source.finalUrl,
+      fetchedAt: fixtureCaptureAt,
+      outcome: "access_failure",
+      usable: false,
+      fallback: "browser",
+      skipped: false,
+      response: null,
+      persisted: null,
+    },
+  });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  const retained = prepared.resolution.observations.find(
+    (observation) => observation.source_ref === original.source_ref,
+  );
+  assert.equal(retained.trace.decision, "BLOCKED");
+  assert.equal(retained.transport.index, 8);
+  assert.equal(report.counts.records, 2);
+});
+
+function fileBackedUnreadObservation(raw, { closed = false, index }) {
+  markUnread(
+    raw.input,
+    closed ? "closed" : "technical_unavailable",
+    closed ? "HTTP 404 after retry" : "Source encountered a challenge after collection",
+  );
+  Object.assign(raw, {
+    description_kind: "unknown",
+    identity_status: "linked_unconfirmed",
+    capture: null,
+    body: null,
+    facts: Object.fromEntries(Object.keys(raw.facts).map((field) => [field, null])),
+  });
+  Object.assign(raw.input.source, {
+    company: null,
+    jobTitle: null,
+    evidenceQuote: null,
+    locationRaw: null,
+    workFormatRaw: null,
+    salaryRaw: null,
+    finalUrl: null,
+  });
+  Object.assign(raw.input.role, {
+    family: "unknown",
+    automation: "unknown",
+    seniority: "unknown",
+    language: "unknown",
+    domain: "unclear",
+    evidence: Object.fromEntries(
+      Object.keys(raw.input.role.evidence).map((field) => [field, null]),
+    ),
+  });
+  raw.input.offers = [];
+  raw.input.compensation = null;
+  Object.assign(raw.input.sourceContext, {
+    primaryCaptureSha256: null,
+    startLine: null,
+    endLine: null,
+  });
+  return {
+    index,
+    requestedUrl: raw.source_ref,
+    finalUrl: raw.source_ref.replace(/\?embed=1$/u, ""),
+    fetchedAt: fixtureCaptureAt,
+    outcome: closed ? "absent" : "access_failure",
+    usable: false,
+    fallback: closed ? null : "browser",
+    skipped: false,
+    response: null,
+    persisted: null,
+    ...(closed ? { httpStatus: 404 } : {}),
+  };
+}
+
+function publishUnavailableSourcePair(t, { originalClosed = false, targetClosed = false } = {}) {
+  const fixture = fictionalSourceFixture();
+  const originalFailureRecord = fileBackedUnreadObservation(fixture.original, {
+    closed: originalClosed,
+    index: 8,
+  });
+  const targetFailureRecord = fileBackedUnreadObservation(fixture.target, {
+    closed: targetClosed,
+    index: 7,
+  });
+  return publishFileBackedSourceCase(t, fixture, { originalFailureRecord, targetFailureRecord });
+}
+
+test("file-backed source compiler keeps blocked original plus closed details in source review", (t) => {
+  const prepared = publishUnavailableSourcePair(t, { targetClosed: true });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  const group = prepared.resolution.groups[0];
+  assert.equal(group.result.decision, "MANUAL_REVIEW");
+  assert.equal(group.result.review_code, "source_review");
+  assert.ok(group.conflicts.includes("conflicting_liveness"));
+  assert.ok(group.alternatives.some((alternative) => alternative.trace?.decision === "BLOCKED"));
+  assert.ok(
+    group.alternatives.some(
+      (alternative) => alternative.trace?.skip_code === "vacancy_unavailable",
+    ),
+  );
+  assert.equal(
+    JSON.parse(readFileSync(join(prepared.artifactsDir, "traces", "001.trace.json"))).decision,
+    "BLOCKED",
+  );
+  assert.equal(
+    JSON.parse(readFileSync(join(prepared.artifactsDir, "traces", "002.trace.json"))).skip_code,
+    "vacancy_unavailable",
+  );
+});
+
+test("file-backed source compiler retains retryable outcome when every source is blocked", (t) => {
+  const prepared = publishUnavailableSourcePair(t);
+  assert.equal(verifySource(prepared).status, "pass");
+  assert.equal(prepared.resolution.groups[0].result.decision, "BLOCKED");
+  assert.deepEqual(prepared.resolution.groups[0].conflicts, []);
+});
+
+test("file-backed source compiler retains terminal outcome when every source confirms closure", (t) => {
+  const prepared = publishUnavailableSourcePair(t, { originalClosed: true, targetClosed: true });
+  assert.equal(verifySource(prepared).status, "pass");
+  assert.equal(prepared.resolution.groups[0].result.skip_code, "vacancy_unavailable");
+  assert.deepEqual(prepared.resolution.groups[0].conflicts, []);
+});
+
+test("file-backed source compiler allows a browser rescue whose live final URL differs from the failed fetch", (t) => {
+  const fixture = fictionalSourceFixture({ kind: "summary" });
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    browserRescue: true,
+    manifestFinalUrl: "https://jobs.example.test/qa/999",
+  });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups[0].result.decision, "EVALUATED");
+  assert.equal(report.counts.capturesByProvenance.http_fetch, 0);
+  assert.equal(report.counts.capturesByProvenance.transcript, 1);
+});
+
+test("file-backed source verification accepts a newly captured original failure without reusing saved JD HTML", (t) => {
+  const fixture = fictionalSourceFixture();
+  const originalFailureRecord = fileBackedUnreadObservation(fixture.original, { index: 8 });
+  const body = "Please complete the browser challenge.";
+  const digest = sha256Utf8(body);
+  fixture.original.body = body;
+  fixture.original.capture = { file: "008.capture.txt", sha256: digest };
+  Object.assign(fixture.original.input.sourceContext, {
+    primaryCaptureSha256: digest,
+    startLine: 1,
+    endLine: 1,
+  });
+  originalFailureRecord.response = { sha256: digest };
+  originalFailureRecord.persisted = { file: "008.capture.txt", sha256: digest };
+  const prepared = publishFileBackedSourceCase(t, fixture, { originalFailureRecord });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  const retained = prepared.resolution.observations.find(
+    (observation) => observation.source_ref === fixture.original.source_ref,
+  );
+  assert.equal(retained.trace.decision, "BLOCKED");
+  assert.equal(retained.capture.file, "008.capture.txt");
+  assert.equal(retained.transport.index, 8);
+  assert.equal(report.counts.sourceHtmlCaptures, 1);
+});
+
+// Q: a new failed response is retry evidence even when a caller labels its raw input closed.
+// A separate browser transcript can establish closure with its own body and closed stamp.
+function fileBackedChallengeObservation(
+  raw,
+  { index, declaredClosed = false, browserClosure = false },
+) {
+  const record = fileBackedUnreadObservation(raw, { index });
+  if (declaredClosed || browserClosure) markUnread(raw.input, "closed", "HTTP 404 after retry");
+  raw.body = browserClosure ? "This vacancy is closed." : "Please complete the browser challenge.";
+  const digest = sha256Utf8(raw.body);
+  raw.capture = {
+    file: `${String(index).padStart(3, "0")}${browserClosure ? ".browser" : ""}.capture.txt`,
+    sha256: digest,
+  };
+  Object.assign(raw.input.sourceContext, {
+    primaryCaptureSha256: digest,
+    startLine: 1,
+    endLine: 1,
+  });
+  if (!browserClosure) {
+    record.response = { sha256: digest };
+    record.persisted = { ...raw.capture };
+  }
+  return record;
+}
+
+test("file-backed source compiler refuses closed relabeling of a new original challenge capture", (t) => {
+  const fixture = fictionalSourceFixture({ manual: true });
+  const originalFailureRecord = fileBackedChallengeObservation(fixture.original, {
+    index: 8,
+    declaredClosed: true,
+  });
+  const targetFailureRecord = fileBackedUnreadObservation(fixture.target, {
+    index: 7,
+    closed: true,
+  });
+  assert.throws(
+    () => {
+      const prepared = publishFileBackedSourceCase(t, fixture, {
+        originalFailureRecord,
+        targetFailureRecord,
+      });
+      const report = verifySource(prepared);
+      assert.equal(report.status, "pass", codes(report).join(","));
+      assert.equal(prepared.resolution.groups[0].result.skip_code, "vacancy_unavailable");
+      const capture = verifyCaptureFile(
+        readFileSync(join(prepared.artifactsDir, "008.capture.txt"), "utf8"),
+      );
+      assert.equal(capture.ok, true);
+      assert.equal(capture.header.outcome, "access_failure");
+      assert.equal(capture.header["http-status"], "403");
+    },
+    { code: "source_resolution_invalid" },
+  );
+});
+
+test("file-backed source compiler refuses closed relabeling of a new target challenge capture", (t) => {
+  const fixture = fictionalSourceFixture();
+  const originalFailureRecord = fileBackedUnreadObservation(fixture.original, {
+    index: 8,
+    closed: true,
+  });
+  fileBackedChallengeObservation(fixture.target, { index: 7, declaredClosed: true });
+  assert.throws(
+    () => {
+      const prepared = publishFileBackedSourceCase(t, fixture, {
+        outcome: "access_failure",
+        originalFailureRecord,
+      });
+      const report = verifySource(prepared);
+      assert.equal(report.status, "pass", codes(report).join(","));
+      assert.equal(prepared.resolution.groups[0].result.skip_code, "vacancy_unavailable");
+      const capture = verifyCaptureFile(
+        readFileSync(join(prepared.artifactsDir, "007.capture.txt"), "utf8"),
+      );
+      assert.equal(capture.ok, true);
+      assert.equal(capture.header.outcome, "access_failure");
+      assert.equal(capture.header["http-status"], "403");
+    },
+    { code: "source_resolution_invalid" },
+  );
+});
+
+test("file-backed source compiler keeps a real target challenge retryable beside confirmed original closure", (t) => {
+  const fixture = fictionalSourceFixture();
+  const originalFailureRecord = fileBackedUnreadObservation(fixture.original, {
+    index: 8,
+    closed: true,
+  });
+  fileBackedChallengeObservation(fixture.target, { index: 7 });
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    outcome: "access_failure",
+    originalFailureRecord,
+  });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups[0].result.review_code, "source_review");
+  assert.ok(prepared.resolution.groups[0].conflicts.includes("conflicting_liveness"));
+  assert.equal(
+    prepared.resolution.observations.find((entry) => entry.source_ref === fixture.target.source_ref)
+      .trace.decision,
+    "BLOCKED",
+  );
+});
+
+for (const role of ["original", "target"]) {
+  test(`file-backed source compiler accepts a separate ${role} browser closure with its own closed stamp and body`, (t) => {
+    const fixture = fictionalSourceFixture();
+    let originalFailureRecord;
+    let targetFailureRecord;
+    if (role === "original") {
+      originalFailureRecord = fileBackedChallengeObservation(fixture.original, {
+        index: 8,
+        browserClosure: true,
+      });
+      targetFailureRecord = fileBackedUnreadObservation(fixture.target, { index: 7, closed: true });
+    } else {
+      originalFailureRecord = fileBackedUnreadObservation(fixture.original, {
+        index: 8,
+        closed: true,
+      });
+      fileBackedChallengeObservation(fixture.target, { index: 7, browserClosure: true });
+    }
+    const prepared = publishFileBackedSourceCase(t, fixture, {
+      outcome: role === "target" ? "closed" : "active",
+      originalFailureRecord,
+      targetFailureRecord,
+      browserRescue: role === "target",
+      originalBrowserClosure: role === "original",
+    });
+    const report = verifySource(prepared);
+    assert.equal(report.status, "pass", codes(report).join(","));
+    assert.equal(prepared.resolution.groups[0].result.skip_code, "vacancy_unavailable");
+    assert.deepEqual(prepared.resolution.groups[0].conflicts, []);
+    const raw = fixture[role];
+    const capture = verifyCaptureFile(
+      readFileSync(join(prepared.artifactsDir, raw.capture.file), "utf8"),
+    );
+    assert.equal(capture.ok, true);
+    assert.equal(capture.header.outcome, "closed");
+    assert.equal(capture.body, "This vacancy is closed.");
+    assert.equal(report.counts.capturesByProvenance.transcript, 1);
+  });
+}
+
+test("source cross-transport independently refuses closure declared over its own challenge stamp", (t) => {
+  const fixture = fictionalSourceFixture();
+  const originalFailureRecord = fileBackedChallengeObservation(fixture.original, { index: 8 });
+  const targetFailureRecord = fileBackedUnreadObservation(fixture.target, {
+    index: 7,
+    closed: true,
+  });
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    originalFailureRecord,
+    targetFailureRecord,
+  });
+  const context = buildContext({
+    artifactsDir: prepared.artifactsDir,
+    linksFile: prepared.linksFile,
+    from: prepared.from,
+    to: prepared.to,
+  });
+  const report = runSuite(context, "per-batch");
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(context.sourceVerification.valid, true);
+  const record = context.records.find((entry) => entry.sourceRef === fixture.original.source_ref);
+  assert.ok(record);
+  assert.equal(record.input.source.accessOutcome, "technical_unavailable");
+  assert.equal(record.sourceScope.original, false);
+  assert.equal(record.sourceScope.file, "008.capture.txt");
+  assert.equal(record.transportIndex, 8);
+  const ownCapture = record.captures.find((capture) => capture.file === record.sourceScope.file);
+  assert.equal(ownCapture.verified.ok, true);
+  assert.equal(ownCapture.verified.header.outcome, "access_failure");
+  assert.equal(ownCapture.verified.header["access-barrier"], "challenge");
+  assert.equal(ownCapture.verified.header["http-status"], "403");
+  assert.deepEqual(crossTransport.run(context).findings, []);
+
+  // Exercise this consumer independently: every immutable artifact, binding and trace stays real.
+  record.input.source.accessOutcome = "closed";
+  const checked = crossTransport.run(context);
+  assert.ok(
+    checked.findings.some(
+      (finding) => finding.code === "closure_not_corroborated" && finding.index === record.index,
+    ),
+    JSON.stringify(checked),
+  );
+});
+
+// R: separation requires observed job identity, rather than the caller's different label alone.
+function assertUnprovenSourceSeparationRefused(t, fixture, options) {
+  fixture.target.identity_status = "different";
+  assert.throws(
+    () => {
+      const prepared = publishFileBackedSourceCase(t, fixture, options);
+      const report = verifySource(prepared);
+      assert.equal(report.status, "pass", codes(report).join(","));
+      assert.equal(prepared.resolution.groups.length, 2);
+      assert.equal(report.counts.logicalVacancies, 2);
+    },
+    { code: "source_resolution_invalid" },
+  );
+}
+
+test("file-backed source compiler refuses different asserted for the same employer role and exact body", (t) => {
+  const fixture = fictionalSourceFixture();
+  fixture.target.body = fixture.original.body;
+  fixture.target.input.sourceContext.endLine = fixture.target.body.split("\n").length;
+  assertUnprovenSourceSeparationRefused(t, fixture);
+});
+
+test("file-backed source compiler refuses different used to hide original Junior versus target Senior", (t) => {
+  assertUnprovenSourceSeparationRefused(t, juniorOriginalWithSeniorTarget());
+});
+
+test("file-backed source compiler refuses different used to bypass a full manual original", (t) => {
+  const fixture = fictionalSourceFixture({ manual: true });
+  fixture.target.body = fixture.target.body.replace(
+    "Manual testing only",
+    "Primary test automation",
+  );
+  fixture.target.input.role.automation = "primary";
+  fixture.target.input.role.evidence.automation = "Primary test automation";
+  assertUnprovenSourceSeparationRefused(t, fixture);
+});
+
+test("file-backed source compiler refuses different asserted across meaningful posting query loss", (t) => {
+  const fixture = fictionalSourceFixture({
+    jobUrl: "https://jobs.example.test/qa/101?posting=101",
+  });
+  fixture.target.input.source.finalUrl = "https://jobs.example.test/qa/101";
+  assertUnprovenSourceSeparationRefused(t, fixture, {
+    captureFinalUrl: "https://jobs.example.test/qa/101",
+    manifestFinalUrl: "https://jobs.example.test/qa/101",
+  });
+});
+
+test("file-backed source compiler separates a genuinely different explicit target employer", (t) => {
+  const fixture = fictionalSourceFixture();
+  fixture.target.identity_status = "different";
+  fixture.target.body = fixture.target.body.replaceAll("Fictional Labs", "Beta Labs");
+  fixture.target.facts.company = { value: "Beta Labs", evidence_quote: "Company Beta Labs" };
+  fixture.target.input.source.company = "Beta Labs";
+  const prepared = publishFileBackedSourceCase(t, fixture);
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups.length, 2);
+  assert.equal(report.counts.logicalVacancies, 2);
+  const separate = prepared.resolution.groups.find(
+    (group) => group.identity_status === "different",
+  );
+  assert.ok(separate);
+  assert.equal(separate.result.decision, "EVALUATED");
+  assert.deepEqual(separate.conflicts, []);
+  const raw = prepared.resolution.observations.find(
+    (entry) => entry.source_ref === fixture.target.source_ref,
+  );
+  assert.equal(raw.input.source.company, "Beta Labs");
+  assert.ok(raw.body.includes(raw.facts.company.evidence_quote));
+});
+
+test("file-backed source compiler separates a genuinely different known role family with both own role facts", (t) => {
+  const fixture = fictionalSourceFixture();
+  fixture.target.identity_status = "different";
+  fixture.target.body = fixture.target.body.replaceAll("QA Engineer", "Software Developer");
+  fixture.target.facts.title = {
+    value: "Software Developer",
+    evidence_quote: "Software Developer",
+  };
+  fixture.target.facts.role = { value: "Software Developer", evidence_quote: "Software Developer" };
+  fixture.target.facts.seniority = {
+    value: "Senior Software Developer",
+    evidence_quote: "Senior Software Developer",
+  };
+  Object.assign(fixture.target.input.source, {
+    jobTitle: "Software Developer",
+    evidenceQuote: "Software Developer",
+  });
+  fixture.target.input.role.family = "other";
+  fixture.target.input.role.evidence.role = "Software Developer";
+  fixture.target.input.role.evidence.seniority = "Senior Software Developer";
+  const prepared = publishFileBackedSourceCase(t, fixture);
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups.length, 2);
+  assert.equal(report.counts.logicalVacancies, 2);
+  const separate = prepared.resolution.groups.find(
+    (group) => group.identity_status === "different",
+  );
+  assert.ok(separate);
+  assert.equal(separate.result.skip_code, "not_qa_or_testing_role");
+  assert.deepEqual(separate.conflicts, []);
+  for (const raw of prepared.resolution.observations)
+    assert.ok(raw.body.includes(raw.facts.role.evidence_quote));
+});
+
+test("file-backed source compiler retains unresolved posting query identity in one source review", (t) => {
+  const fixture = fictionalSourceFixture({
+    jobUrl: "https://jobs.example.test/qa/101?posting=101",
+  });
+  fixture.target.identity_status = "linked_unconfirmed";
+  fixture.target.input.source.finalUrl = "https://jobs.example.test/qa/101";
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    captureFinalUrl: "https://jobs.example.test/qa/101",
+    manifestFinalUrl: "https://jobs.example.test/qa/101",
+  });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups.length, 1);
+  assert.equal(report.counts.logicalVacancies, 1);
+  assert.equal(prepared.resolution.groups[0].result.review_code, "source_review");
+  assert.ok(prepared.resolution.groups[0].conflicts.includes("identity_unconfirmed"));
+  assert.equal(prepared.resolution.groups[0].alternatives.length, 2);
+  assert.ok(
+    prepared.resolution.groups[0].alternatives.every(
+      (entry) => entry.trace.decision === "EVALUATED",
+    ),
+  );
+});
+
+// W/X/Y: publication and both verifier cadences retain identity evidence from every source.
+function verifyFileBackedSourceCadences(prepared) {
+  addSourcePlan(prepared, { final: true });
+  const observation = prepared.resolution.observations.find((entry) => entry.input !== null);
+  assert.ok(observation);
+  mkdirSync(join(prepared.artifactsDir, "blind"));
+  const blind = structuredClone(observation.input);
+  blind.role.evidence.role = "QA";
+  const prefix = String(blind.inputIndex).padStart(3, "0");
+  writeFileSync(
+    join(prepared.artifactsDir, "blind", `${prefix}.input.json`),
+    JSON.stringify(blind),
+  );
+  writeFileSync(
+    join(prepared.artifactsDir, "attestation.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      probes: ["phase0_capability_probe", "transport_hypotheses"].map((probe) => ({
+        probe,
+        ranAt: fixtureCaptureAt,
+        verdict: "held",
+      })),
+    }),
+  );
+  const reports = ["per-batch", "full"].map((cadence) => verifySource(prepared, cadence));
+  for (const report of reports) assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(checkOf(reports[1], "blind-extraction").counts.compared, 1);
+  return reports;
+}
+
+function rebindFileBackedSourceHtml(fixture, html, collectionText = fixture.collectionText) {
+  const snapshot = snapshotFromHtml(html, {
+    handle: fixture.snapshot.handle,
+    postId: fixture.snapshot.post_id,
+    file: fixture.snapshot.capture.file,
+    capturedAt: fixture.snapshot.capture.captured_at,
+  });
+  const links = snapshot.anchors.map((anchor) => ({
+    anchor: anchor.index,
+    url: anchor.href,
+    role: fixture.card.links.find((link) => link.url === anchor.href)?.role ?? "apply",
+  }));
+  links.push({ anchor: null, role: "original_post", url: snapshot.original_url });
+  const sourceSet = createSourceSet({
+    collectionText,
+    snapshots: [snapshot],
+    cards: [
+      {
+        ...fixture.card,
+        snapshot_ref: snapshot.snapshot_ref,
+        end_line: snapshot.lines.length,
+        links,
+      },
+    ],
+  });
+  fixture.html = html;
+  fixture.collectionText = collectionText;
+  fixture.snapshot = snapshot;
+  fixture.sourceSet = sourceSet;
+  fixture.card = sourceSet.cards[0];
+  fixture.original.body = cardBody(sourceSet, fixture.card);
+  fixture.original.capture = { file: snapshot.capture.file, sha256: snapshot.capture.sha256 };
+  for (const observation of fixture.observations) {
+    observation.card_ref = fixture.card.card_ref;
+    if (observation.input === null) continue;
+    Object.assign(observation.input.sourceContext, {
+      sourceSetSha256: sourceSetDigest(sourceSet),
+      cardRef: fixture.card.card_ref,
+      snapshotRef: snapshot.snapshot_ref,
+      ...(observation === fixture.original
+        ? {
+            primaryCaptureSha256: snapshot.capture.sha256,
+            startLine: fixture.card.start_line,
+            endLine: fixture.card.end_line,
+          }
+        : {}),
+    });
+  }
+  return fixture;
+}
+
+function linkedTargetSummary(fixture, company = "Fictional Labs") {
+  Object.assign(fixture.target, {
+    description_kind: "summary",
+    body: `QA Engineer\nCompany ${company}\nRead the role overview`,
+    input: null,
+    facts: {
+      company: { value: company, evidence_quote: `Company ${company}` },
+      title: { value: "QA Engineer", evidence_quote: "QA Engineer" },
+      role: { value: "QA Engineer", evidence_quote: "QA Engineer" },
+      seniority: null,
+      salary: null,
+      published_at: null,
+    },
+  });
+  return fixture;
+}
+
+for (const kind of [
+  "explicit unconfirmed identity",
+  "different employer",
+  "redirected posting",
+  "unscored matching summary",
+]) {
+  test(`file-backed source compiler keeps a full original with a linked summary in source review for ${kind}`, (t) => {
+    const fixture = linkedTargetSummary(
+      fictionalSourceFixture(),
+      kind === "different employer" ? "Beta Labs" : "Fictional Labs",
+    );
+    if (kind === "explicit unconfirmed identity")
+      fixture.target.identity_status = "linked_unconfirmed";
+    const options =
+      kind === "redirected posting"
+        ? {
+            captureFinalUrl: "https://jobs.example.test/qa/999",
+            manifestFinalUrl: "https://jobs.example.test/qa/999",
+          }
+        : {};
+    const prepared = publishFileBackedSourceCase(t, fixture, options);
+    const reports = verifyFileBackedSourceCadences(prepared);
+    const group = prepared.resolution.groups[0];
+    assert.equal(group.identity_status, "linked_unconfirmed");
+    assert.equal(group.result.decision, "MANUAL_REVIEW");
+    assert.equal(group.result.review_code, "source_review");
+    assert.ok(group.conflicts.includes("identity_unconfirmed"));
+    assert.equal(
+      group.primary,
+      prepared.resolution.observations.find(
+        (entry) => entry.source_ref === fixture.original.source_ref,
+      ).observation_ref,
+    );
+    assert.equal(group.alternatives.length, 1);
+    assert.equal(group.alternatives[0].trace.decision, "EVALUATED");
+    const summary = prepared.resolution.observations.find(
+      (entry) => entry.source_ref === fixture.target.source_ref,
+    );
+    assert.equal(summary.input, null);
+    assert.equal(summary.trace, null);
+    assert.equal(summary.transport.index, 7);
+    assert.ok(
+      group.sources.some(
+        (source) =>
+          source.observation_ref === summary.observation_ref && source.disposition === "summary",
+      ),
+    );
+    for (const report of reports) {
+      assert.equal(report.counts.records, 1);
+      assert.equal(report.counts.logicalVacancies, 1);
+      assert.equal(report.counts.sourceHtmlCaptures, 1);
+    }
+  });
+}
+
+for (const [options, decision, skipCode] of [
+  [{}, "EVALUATED", null],
+  [{ manual: true }, "SKIP", "manual_role"],
+  [{ junior: true }, "SKIP", "junior_role"],
+]) {
+  test(`file-backed source compiler preserves full original ${skipCode ?? "evaluation"} with a checked matching full target`, (t) => {
+    const fixture = fictionalSourceFixture(options);
+    const prepared = publishFileBackedSourceCase(t, fixture);
+    verifyFileBackedSourceCadences(prepared);
+    const group = prepared.resolution.groups[0];
+    assert.equal(group.identity_status, "confirmed");
+    assert.deepEqual(group.conflicts, []);
+    assert.equal(group.result.decision, decision);
+    assert.equal(group.result.skip_code ?? null, skipCode);
+    assert.equal(group.alternatives.length, 2);
+    const original = prepared.resolution.observations.find(
+      (entry) => entry.source_ref === fixture.original.source_ref,
+    );
+    assert.equal(group.primary, original.observation_ref);
+    assert.deepEqual(group.result, original.trace);
+    for (const alternative of group.alternatives) {
+      assert.equal(alternative.trace.decision, decision);
+      assert.equal(alternative.trace.skip_code ?? null, skipCode);
+    }
+  });
+}
+
+for (const missingFact of ["company", "role"]) {
+  test(`file-backed source compiler does not infer summary ${missingFact} from an incidental matching product mention`, (t) => {
+    const fixture = fictionalSourceFixture({ kind: "summary" });
+    fixture.original.facts[missingFact] = null;
+    let html;
+    if (missingFact === "company") {
+      html = fixture.html
+        .replace(">Fictional Labs</a>", ">Employer undisclosed</a>")
+        .replace(
+          "Read the full description below",
+          "Integration with Fictional Labs products<br/>Read the full description below",
+        );
+    } else {
+      fixture.original.facts.title = null;
+      html = fixture.html
+        .replace(
+          'tgme_widget_message_text">QA Engineer',
+          'tgme_widget_message_text">Role undisclosed',
+        )
+        .replace(
+          "Read the full description below",
+          "Integration with the QA Engineer dashboard<br/>Read the full description below",
+        );
+    }
+    rebindFileBackedSourceHtml(fixture, html);
+    const prepared = publishFileBackedSourceCase(t, fixture);
+    const reports = verifyFileBackedSourceCadences(prepared);
+    const group = prepared.resolution.groups[0];
+    assert.equal(group.identity_status, "linked_unconfirmed");
+    assert.equal(group.result.review_code, "source_review");
+    assert.ok(group.conflicts.includes("identity_unconfirmed"));
+    assert.equal(group.primary, null);
+    assert.equal(group.alternatives.length, 1);
+    assert.equal(group.alternatives[0].trace.decision, "EVALUATED");
+    const original = prepared.resolution.observations.find(
+      (entry) => entry.source_ref === fixture.original.source_ref,
+    );
+    assert.equal(original.facts[missingFact], null);
+    assert.equal(original.input, null);
+    assert.ok(
+      original.body.includes(
+        missingFact === "company" ? "Fictional Labs products" : "QA Engineer dashboard",
+      ),
+    );
+    for (const report of reports) {
+      assert.equal(report.counts.records, 1);
+      assert.equal(report.counts.logicalVacancies, 1);
+    }
+  });
+}
+
+test("file-backed source compiler confirms a linked full target from explicit matching summary employer and role facts", (t) => {
+  const fixture = fictionalSourceFixture({ kind: "summary" });
+  const prepared = publishFileBackedSourceCase(t, fixture);
+  verifyFileBackedSourceCadences(prepared);
+  const group = prepared.resolution.groups[0];
+  assert.equal(group.identity_status, "confirmed");
+  assert.deepEqual(group.conflicts, []);
+  assert.equal(group.result.decision, "EVALUATED");
+  assert.equal(
+    group.primary,
+    prepared.resolution.observations.find((entry) => entry.source_ref === fixture.target.source_ref)
+      .observation_ref,
+  );
+});
+
+function twoDifferentEmployerTargets({ distinctId = false, juniorAlias = false } = {}) {
+  const firstUrl = "https://www.linkedin.com/jobs/view/7712345601";
+  const secondUrl = distinctId
+    ? "https://www.linkedin.com/jobs/view/senior-qa-engineer-at-beta-labs-7712345602"
+    : "https://www.linkedin.com/jobs/view/senior-qa-engineer-at-beta-labs-7712345601";
+  const fixture = fictionalSourceFixture({ jobUrl: firstUrl });
+  fixture.target.identity_status = "different";
+  fixture.target.body = fixture.target.body.replaceAll("Fictional Labs", "Beta Labs");
+  fixture.target.facts.company = { value: "Beta Labs", evidence_quote: "Company Beta Labs" };
+  fixture.target.input.source.company = "Beta Labs";
+  const alias = structuredClone(fixture.target);
+  alias.source_ref = secondUrl;
+  alias.input.inputIndex = 3;
+  Object.assign(alias.input.source, { sourceRef: secondUrl, finalUrl: secondUrl });
+  alias.input.sourceContext.primarySourceRef = secondUrl;
+  if (juniorAlias) {
+    alias.body = alias.body.replace("Senior QA Engineer", "Junior+");
+    alias.facts.seniority = { value: "Junior+", evidence_quote: "Junior+" };
+    alias.input.role.seniority = "junior";
+    alias.input.role.evidence.seniority = "Junior+";
+  }
+  alias.input.sourceContext.endLine = alias.body.split("\n").length;
+  fixture.observations.push(alias);
+  const html = fixture.html.replace(
+    '</div><div class="tgme_widget_message_footer">',
+    `<br/>Apply through <a href="${secondUrl}">another route</a></div><div class="tgme_widget_message_footer">`,
+  );
+  rebindFileBackedSourceHtml(fixture, html, `${fixture.collectionText}${secondUrl}\n`);
+  return { fixture, alias };
+}
+
+for (const juniorAlias of [false, true]) {
+  test(`file-backed source compiler groups checked LinkedIn aliases of a different employer with ${juniorAlias ? "Senior and Junior conflict" : "matching facts"}`, (t) => {
+    const { fixture, alias } = twoDifferentEmployerTargets({ juniorAlias });
+    const prepared = publishFileBackedSourceCase(t, fixture, { additionalTargets: [alias] });
+    const reports = verifyFileBackedSourceCadences(prepared);
+    assert.equal(prepared.resolution.groups.length, 2);
+    assert.equal(prepared.resolution.observations.length, 3);
+    const group = prepared.resolution.groups.find((entry) =>
+      entry.sources.some((source) => source.source_ref === fixture.target.source_ref),
+    );
+    assert.ok(group);
+    assert.deepEqual(
+      group.sources.map((source) => source.source_ref).sort(),
+      [fixture.target.source_ref, alias.source_ref].sort(),
+    );
+    assert.equal(group.alternatives.length, 2);
+    if (juniorAlias) {
+      assert.equal(group.result.decision, "MANUAL_REVIEW");
+      assert.equal(group.result.review_code, "source_review");
+      assert.deepEqual(group.conflicts, ["conflicting_seniority"]);
+    } else {
+      assert.equal(group.identity_status, "different");
+      assert.equal(group.result.decision, "EVALUATED");
+      assert.deepEqual(group.conflicts, []);
+    }
+    for (const [source, index, decision, skipCode] of [
+      [fixture.target.source_ref, 2, "EVALUATED", null],
+      [alias.source_ref, 3, juniorAlias ? "SKIP" : "EVALUATED", juniorAlias ? "junior_role" : null],
+    ]) {
+      const observation = prepared.resolution.observations.find(
+        (entry) => entry.source_ref === source,
+      );
+      assert.ok(
+        group.alternatives.some((entry) => entry.observation_ref === observation.observation_ref),
+      );
+      assert.ok(
+        group.sources.some(
+          (entry) =>
+            entry.observation_ref === observation.observation_ref &&
+            entry.disposition === "description",
+        ),
+      );
+      const trace = JSON.parse(
+        readFileSync(
+          join(prepared.artifactsDir, "traces", `${String(index).padStart(3, "0")}.trace.json`),
+        ),
+      );
+      assert.equal(trace.decision, decision);
+      assert.equal(trace.skip_code ?? null, skipCode);
+      const capture = verifyCaptureFile(
+        readFileSync(join(prepared.artifactsDir, observation.capture.file), "utf8"),
+      );
+      assert.equal(capture.ok, true);
+      assert.equal(capture.header["requested-url"], source);
+      assert.equal(capture.header["final-url"], source);
+    }
+    for (const report of reports) {
+      assert.equal(report.counts.records, 3);
+      assert.equal(report.counts.logicalVacancies, 2);
+      assert.equal(report.counts.sourceHtmlCaptures, 1);
+    }
+  });
+}
+
+test("file-backed source compiler keeps genuinely distinct LinkedIn posting IDs separate despite equal employer and body", (t) => {
+  const { fixture, alias } = twoDifferentEmployerTargets({ distinctId: true });
+  const prepared = publishFileBackedSourceCase(t, fixture, { additionalTargets: [alias] });
+  const reports = verifyFileBackedSourceCadences(prepared);
+  assert.equal(prepared.resolution.groups.length, 3);
+  assert.equal(
+    prepared.resolution.groups.filter((entry) => entry.identity_status === "different").length,
+    2,
+  );
+  for (const group of prepared.resolution.groups) {
+    assert.equal(group.result.decision, "EVALUATED");
+    assert.deepEqual(group.conflicts, []);
+    assert.equal(group.alternatives.length, 1);
+  }
+  for (const report of reports) assert.equal(report.counts.logicalVacancies, 3);
+});
+
+function sourceInventoryCapture(
+  index,
+  sourceRef,
+  {
+    normalization = "none",
+    body = "Senior QA Engineer\nFable Instruments\nManual testing only.\n",
+  } = {},
+) {
+  const digest = sha256Utf8(body);
+  return renderCaptureFile({
+    body,
+    header: {
+      index,
+      adapter: "in-app-browser@1",
+      "source-id": "generic",
+      "requested-url": sourceRef,
+      "final-url": sourceRef,
+      "fetched-at": SOURCE_CAPTURED_AT,
+      "http-status": 200,
+      outcome: "active",
+      "access-barrier": null,
+      "response-sha256": digest,
+      "response-bytes": Buffer.byteLength(body),
+      "extracted-sha256": digest,
+      "normalized-sha256": digest,
+      "body-bytes": Buffer.byteLength(body),
+      normalization,
+    },
+  });
+}
+
+test("source capture inventory rejects every orphan stamped artifact at both cadences", (t) => {
+  const results = [];
+  for (const [file, options] of [
+    ["999.capture.txt", { details: true }],
+    ["999.browser.capture.txt", { details: true }],
+    ["001.browser.capture.txt", { partial: true }],
+  ]) {
+    const prepared = prepareSourceBatch(t, options);
+    verifyFileBackedSourceCadences(prepared);
+    const index = Number(file.slice(0, 3));
+    const raw = `${sourceInventoryCapture(index, SOURCE_DETAILS_URL)}After-stamp mutation.\n`;
+    assert.deepEqual(verifyCaptureFile(raw).problems, [
+      "capture_digest_mismatch",
+      "capture_size_mismatch",
+    ]);
+    writeFileSync(join(prepared.artifactsDir, file), raw);
+    for (const cadence of ["per-batch", "full"]) {
+      const report = verifySource(prepared, cadence);
+      results.push({
+        file,
+        cadence,
+        status: report.status,
+        corrupt: codes(report).includes("capture_digest_mismatch"),
+        stray: checkOf(report, "completeness").findings.some(
+          (finding) => finding.code === "unexpected_artifact" && finding.file === file,
+        ),
+      });
+    }
+  }
+  assert.deepEqual(
+    results,
+    results.map((entry) => ({
+      ...entry,
+      status: "fail",
+      corrupt: true,
+      stray: true,
+    })),
+  );
+});
+
+test("source capture inventory rejects a valid stamp without a checked transport scope", (t) => {
+  for (const mode of ["selected_url", "unselected_url", "foreign_url", "wrong_index"]) {
+    const prepared = prepareSourceBatch(
+      t,
+      mode === "foreign_url" || mode === "wrong_index" ? { details: true } : { partial: true },
+    );
+    verifyFileBackedSourceCadences(prepared);
+    const index =
+      mode === "unselected_url" ? 2 : mode === "wrong_index" ? 8 : mode === "foreign_url" ? 7 : 1;
+    const file = `${String(index).padStart(3, "0")}.browser.capture.txt`;
+    const sourceRef =
+      mode === "foreign_url"
+        ? "https://other.example.test/qa/12"
+        : mode === "wrong_index"
+          ? SOURCE_DETAILS_URL
+          : prepared.sourceSet.snapshots[mode === "unselected_url" ? 1 : 0].original_url;
+    const raw = sourceInventoryCapture(index, sourceRef);
+    assert.equal(verifyCaptureFile(raw).ok, true);
+    writeFileSync(join(prepared.artifactsDir, file), raw);
+    for (const cadence of ["per-batch", "full"]) {
+      const report = verifySource(prepared, cadence);
+      assert.equal(report.status, "fail");
+      assert.ok(
+        checkOf(report, "completeness").findings.some(
+          (finding) => finding.code === "unexpected_artifact" && finding.file === file,
+        ),
+      );
+      assert.equal(
+        checkOf(report, "chain-of-custody").counts.capturesVerified,
+        report.counts.captures,
+      );
+      assert.equal(
+        Object.values(report.counts.capturesByProvenance).reduce((a, b) => a + b, 0),
+        report.counts.captures,
+      );
+      assert.ok(!codes(report).includes("input_absent"));
+      assert.ok(!codes(report).includes("trace_absent"));
+    }
+  }
+});
+
+test("source capture inventory checks an HTTP summary whose input is null", (t) => {
+  const fixture = fictionalSourceFixture({ manual: true });
+  fixture.target.description_kind = "summary";
+  fixture.target.input = null;
+  const prepared = publishFileBackedSourceCase(t, fixture);
+  const reports = verifyFileBackedSourceCadences(prepared);
+  for (const report of reports) {
+    assert.equal(report.counts.records, 1);
+    assert.deepEqual(report.counts.capturesByProvenance, {
+      http_fetch: 1,
+      transcript: 0,
+      unverified: 0,
+    });
+    assert.equal(checkOf(report, "chain-of-custody").counts.capturesVerified, 1);
+  }
+  const path = join(prepared.artifactsDir, "007.capture.txt");
+  const raw = readFileSync(path, "utf8").replace("# normalization: none", "# normalization: -");
+  assert.equal(verifyCaptureFile(raw).ok, true);
+  writeFileSync(path, raw);
+  for (const cadence of ["per-batch", "full"]) {
+    const report = verifySource(prepared, cadence);
+    assert.equal(report.status, "fail");
+    assert.ok(
+      checkOf(report, "chain-of-custody").findings.some(
+        (finding) =>
+          finding.code === "capture_normalization_unrecorded" &&
+          finding.file === "007.capture.txt" &&
+          finding.transportIndex === 7,
+      ),
+    );
+    assert.ok(!codes(report).includes("input_absent"));
+    assert.ok(!codes(report).includes("trace_absent"));
+  }
+});
+
+test("source capture inventory accepts further rescues at the observed transport index", (t) => {
+  const prepared = prepareSourceBatch(t, { details: true });
+  writeFileSync(
+    join(prepared.artifactsDir, "007.second-pass.capture.txt"),
+    sourceInventoryCapture(7, SOURCE_DETAILS_URL),
+  );
+  for (const report of verifyFileBackedSourceCadences(prepared)) {
+    assert.equal(report.counts.records, 1);
+    assert.deepEqual(report.counts.capturesByProvenance, {
+      http_fetch: 1,
+      transcript: 1,
+      unverified: 0,
+    });
+    assert.equal(checkOf(report, "chain-of-custody").counts.capturesVerified, 2);
+    assert.equal(checkOf(report, "chain-of-custody").counts.recordsWithCapture, 1);
+  }
+});
+
+test("source capture inventory counts a shared physical transport once for two extractions", (t) => {
+  const first = fictionalSourceFixture({ kind: "summary" });
+  const second = fictionalSourceFixture({ kind: "summary", postId: 102 });
+  const secondSnapshot = snapshotFromHtml(second.html, {
+    handle: "fictionjobs",
+    postId: 102,
+    file: "002.page.html",
+    capturedAt: fixtureCaptureAt,
+  });
+  const sourceSet = createSourceSet({
+    collectionText: first.collectionText,
+    snapshots: [first.snapshot, secondSnapshot],
+    cards: [first.card, second.card],
+  });
+  const root = disposableRoot(t);
+  const artifactsDir = join(root, "artifacts");
+  const collectorDir = join(root, "collector");
+  mkdirSync(artifactsDir);
+  mkdirSync(collectorDir);
+  writeFileSync(join(collectorDir, "001.page.html"), first.html);
+  writeFileSync(join(collectorDir, "002.page.html"), second.html);
+  const digest = sha256Utf8(first.target.body);
+  const observations = [first, second].flatMap((fixture, at) => {
+    fixture.original.capture.file = at === 0 ? "001.page.html" : "002.page.html";
+    fixture.target.capture = { file: "007.capture.txt", sha256: digest };
+    fixture.target.input.inputIndex = at === 0 ? 7 : 9;
+    fixture.target.input.sourceContext.sourceSetSha256 = sourceSetDigest(sourceSet);
+    fixture.target.input.sourceContext.primaryCaptureSha256 = digest;
+    return fixture.observations;
+  });
+  writeFileSync(
+    join(artifactsDir, "007.capture.txt"),
+    sourceInventoryCapture(7, first.target.source_ref, {
+      body: first.target.body,
+    }),
+  );
+  writeFileSync(
+    join(artifactsDir, "fetch-manifest.json"),
+    JSON.stringify({
+      schemaVersion: 2,
+      tool: "vacancy-fetch",
+      startedAt: SOURCE_CAPTURED_AT,
+      records: [
+        {
+          index: 7,
+          requestedUrl: first.target.source_ref,
+          finalUrl: first.target.source_ref,
+          fetchedAt: SOURCE_CAPTURED_AT,
+          outcome: "active",
+          usable: true,
+          fallback: null,
+          skipped: false,
+          response: { sha256: digest },
+          persisted: { file: "007.capture.txt", sha256: digest },
+        },
+      ],
+    }),
+  );
+  const resolution = publishSourceResolution({
+    artifactsDir,
+    sourceSet,
+    sourceCaptureRoot: collectorDir,
+    collectionText: first.collectionText,
+    observations,
+  });
+  const linksFile = join(root, "links.txt");
+  writeFileSync(linksFile, first.collectionText);
+  const prepared = { root, artifactsDir, linksFile, sourceSet, resolution, from: 1, to: 2 };
+  for (const report of verifyFileBackedSourceCadences(prepared)) {
+    assert.equal(report.counts.records, 2);
+    assert.equal(report.counts.captures, 1);
+    assert.deepEqual(report.counts.capturesByProvenance, {
+      http_fetch: 1,
+      transcript: 0,
+      unverified: 0,
+    });
+    assert.equal(checkOf(report, "chain-of-custody").counts.capturesVerified, 1);
+    assert.equal(checkOf(report, "chain-of-custody").counts.recordsWithCapture, 2);
+  }
+  const capturePath = join(artifactsDir, "007.capture.txt");
+  const primary = verifyCaptureFile(readFileSync(capturePath, "utf8"));
+  writeFileSync(
+    capturePath,
+    renderCaptureFile({
+      header: { ...primary.header, "response-sha256": "0".repeat(64) },
+      body: primary.body,
+    }),
+  );
+  for (const cadence of ["per-batch", "full"]) {
+    const report = verifySource(prepared, cadence);
+    assert.equal(report.status, "fail");
+    assert.deepEqual(checkOf(report, "cross-transport").findings, [
+      {
+        code: "manifest_response_digest_mismatch",
+        transportIndex: 7,
+        file: "007.capture.txt",
+      },
+    ]);
+    assert.equal(report.counts.captures, 1);
+    assert.equal(report.counts.capturesByProvenance.http_fetch, 1);
+  }
+});
+
+test("source capture inventory retains a fetch-produced degraded first pass and browser rescue", async (t) => {
+  const fixture = fictionalSourceFixture({
+    kind: "summary",
+    jobUrl: "https://www.linkedin.com/jobs/view/7070707007/",
+  });
+  const root = disposableRoot(t);
+  const artifactsDir = join(root, "artifacts");
+  const collectorDir = join(root, "collector");
+  mkdirSync(artifactsDir);
+  mkdirSync(collectorDir);
+  const prose =
+    "The engineer records test scenarios, reviews product changes, investigates defects, compares expected behavior with actual results, and shares repeatable examples with the team. ";
+  let requests = 0;
+  const fetched = await runVacancyFetchBatch({
+    urls: [fixture.target.source_ref],
+    outDir: artifactsDir,
+    batch: "fictional-inventory-rescue",
+    delayMs: 0,
+    now: () => new Date(fixtureCaptureAt),
+    sleep: async () => {},
+    fetchImpl: async () => {
+      requests += 1;
+      return new Response(`<main data-job-id="7070707007"><p>${prose.repeat(5)}</p></main>`, {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    },
+  });
+  assert.equal(requests, 1);
+  const manifest = JSON.parse(readFileSync(join(artifactsDir, "fetch-manifest.json"), "utf8"));
+  assert.equal(manifest.records[0].usable, false);
+  assert.equal(manifest.records[0].fallback, "browser");
+  assert.equal(manifest.records[0].persisted.file, "001.capture.txt");
+  assert.equal(fetched.summary.persisted, 1);
+  writeFileSync(join(collectorDir, fixture.snapshot.capture.file), fixture.html);
+  fixture.target.capture = {
+    file: "001.browser.capture.txt",
+    sha256: sha256Utf8(fixture.target.body),
+  };
+  fixture.target.input.inputIndex = 9;
+  fixture.target.input.sourceContext.primaryCaptureSha256 = fixture.target.capture.sha256;
+  writeFileSync(
+    join(artifactsDir, fixture.target.capture.file),
+    sourceInventoryCapture(1, fixture.target.source_ref, {
+      body: fixture.target.body,
+    }),
+  );
+  const resolution = publishSourceResolution({
+    artifactsDir,
+    sourceCaptureRoot: collectorDir,
+    sourceSet: fixture.sourceSet,
+    collectionText: fixture.collectionText,
+    observations: fixture.observations,
+  });
+  const linksFile = join(root, "links.txt");
+  writeFileSync(linksFile, fixture.collectionText);
+  const prepared = {
+    root,
+    artifactsDir,
+    linksFile,
+    sourceSet: fixture.sourceSet,
+    resolution,
+    from: 1,
+    to: 2,
+  };
+  for (const report of verifyFileBackedSourceCadences(prepared)) {
+    assert.equal(report.counts.records, 1);
+    assert.deepEqual(report.counts.capturesByProvenance, {
+      http_fetch: 0,
+      transcript: 2,
+      unverified: 0,
+    });
+    assert.equal(checkOf(report, "chain-of-custody").counts.capturesVerified, 2);
+    assert.ok(!codes(report).includes("input_absent"));
+    assert.ok(!codes(report).includes("trace_absent"));
+  }
+  const primaryPath = join(artifactsDir, "001.capture.txt");
+  const primary = verifyCaptureFile(readFileSync(primaryPath, "utf8"));
+  for (const [field, changed, expected] of [
+    ["fetched-at", "2026-10-08T08:05:00.000Z", "manifest_capture_fetched_at_mismatch"],
+    ["response-sha256", "0".repeat(64), "manifest_response_digest_mismatch"],
+  ]) {
+    writeFileSync(
+      primaryPath,
+      renderCaptureFile({
+        header: { ...primary.header, [field]: changed },
+        body: primary.body,
+      }),
+    );
+    for (const cadence of ["per-batch", "full"]) {
+      const report = verifySource(prepared, cadence);
+      assert.equal(report.status, "fail");
+      assert.deepEqual(checkOf(report, "cross-transport").findings, [
+        {
+          code: expected,
+          transportIndex: 1,
+          file: "001.capture.txt",
+        },
+      ]);
+      assert.equal(report.counts.captures, 2);
+      assert.equal(report.counts.capturesByProvenance.transcript, 2);
+    }
+  }
+});
+
+async function prepareProducedSourceSummary(
+  t,
+  {
+    targetInput = false,
+    originalKind = "full_description",
+    originalCapturedAt = fixtureCaptureAt,
+    originalPublishedAt = "2026-10-07T07:00:00+00:00",
+    fetchedAt = fixtureCaptureAt,
+  } = {},
+) {
+  const fixture = fictionalSourceFixture({ manual: true, kind: originalKind });
+  fixture.snapshot.capture.captured_at = originalCapturedAt;
+  rebindFileBackedSourceHtml(
+    fixture,
+    fixture.html.replace("2026-10-07T07:00:00+00:00", originalPublishedAt),
+  );
+  const root = disposableRoot(t);
+  const artifactsDir = join(root, "artifacts");
+  const collectorDir = join(root, "collector");
+  mkdirSync(artifactsDir);
+  mkdirSync(collectorDir);
+  const prose =
+    "The quality team records test scenarios, reviews product behavior, investigates defects, compares observed results with requirements, and shares repeatable examples throughout each release. ";
+  let requests = 0;
+  await runVacancyFetchBatch({
+    urls: [fixture.target.source_ref],
+    outDir: artifactsDir,
+    batch: "fictional-summary-corroboration",
+    delayMs: 0,
+    now: () => new Date(fetchedAt),
+    sleep: async () => {},
+    fetchImpl: async () => {
+      requests += 1;
+      return new Response(
+        `<main><p>${fixture.target.body.replaceAll("\n", "<br/>")}</p><p>${prose.repeat(5)}</p></main>`,
+        {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        },
+      );
+    },
+  });
+  assert.equal(requests, 1);
+  const manifest = JSON.parse(readFileSync(join(artifactsDir, "fetch-manifest.json"), "utf8"));
+  const row = manifest.records[0];
+  assert.equal(row.usable, true);
+  const capturePath = join(artifactsDir, row.persisted.file);
+  const captureText = readFileSync(capturePath, "utf8");
+  const capture = verifyCaptureFile(captureText);
+  assert.equal(capture.ok, true);
+  if (fixture.original.input !== null) fixture.original.input.inputIndex = 11;
+  fixture.target.description_kind = targetInput ? "full_description" : "summary";
+  fixture.target.capture = { file: row.persisted.file, sha256: row.persisted.sha256 };
+  fixture.target.body = capture.body;
+  if (targetInput) {
+    fixture.target.input.inputIndex = 41;
+    fixture.target.input.sourceContext.primaryCaptureSha256 = row.persisted.sha256;
+    fixture.target.input.sourceContext.endLine = capture.body.split("\n").length;
+  } else fixture.target.input = null;
+  writeFileSync(join(collectorDir, fixture.snapshot.capture.file), fixture.html);
+  const resolution = publishSourceResolution({
+    artifactsDir,
+    sourceCaptureRoot: collectorDir,
+    sourceSet: fixture.sourceSet,
+    collectionText: fixture.collectionText,
+    observations: fixture.observations,
+  });
+  const linksFile = join(root, "links.txt");
+  writeFileSync(linksFile, fixture.collectionText);
+  return {
+    root,
+    artifactsDir,
+    linksFile,
+    sourceSet: fixture.sourceSet,
+    resolution,
+    from: 1,
+    to: fixture.collectionText.trim().split("\n").length,
+    capturePath,
+    captureText,
+  };
+}
+
+test("source HTTP summary metadata is corroborated without an extraction input at both cadences", async (t) => {
+  const results = [];
+  const originalBytes = [];
+  for (const targetInput of [false, true]) {
+    const prepared = await prepareProducedSourceSummary(t, { targetInput });
+    originalBytes.push(prepared.captureText);
+    const controls = verifyFileBackedSourceCadences(prepared);
+    for (const report of controls) {
+      assert.equal(report.counts.captures, 1);
+      assert.equal(report.counts.capturesByProvenance.http_fetch, 1);
+      assert.equal(report.counts.records, targetInput ? 2 : 1);
+    }
+    const parsed = verifyCaptureFile(prepared.captureText);
+    for (const [field, changed, expected] of [
+      ["fetched-at", "2026-10-08T08:05:00.000Z", "manifest_capture_fetched_at_mismatch"],
+      ["response-sha256", "0".repeat(64), "manifest_response_digest_mismatch"],
+    ]) {
+      const mutated = renderCaptureFile({
+        header: { ...parsed.header, [field]: changed },
+        body: parsed.body,
+      });
+      assert.equal(verifyCaptureFile(mutated).ok, true);
+      writeFileSync(prepared.capturePath, mutated);
+      for (const cadence of ["per-batch", "full"]) {
+        const report = verifySource(prepared, cadence);
+        results.push({
+          targetInput,
+          field,
+          cadence,
+          status: report.status,
+          corroborated: codes(report).includes(expected),
+          findingCount: checkOf(report, "cross-transport").findings.filter(
+            (finding) => finding.code === expected,
+          ).length,
+        });
+      }
+    }
+  }
+  assert.equal(originalBytes[0], originalBytes[1]);
+  assert.deepEqual(
+    results,
+    results.map((entry) => ({
+      ...entry,
+      status: "fail",
+      corroborated: true,
+      findingCount: 1,
+    })),
+  );
+});
+
+function sourceProbeVerdicts(prepared, probes) {
+  return probes.flatMap(({ ranAt, expected }) => {
+    editSourceJson(prepared, "attestation.json", (value) => {
+      for (const probe of value.probes) probe.ranAt = ranAt;
+    });
+    return ["per-batch", "full"].map((cadence) => {
+      const report = verifySource(prepared, cadence);
+      const findings = cadence === "full" ? checkOf(report, "periodic-attestation").findings : [];
+      return {
+        ranAt,
+        cadence,
+        status: report.status,
+        codes: codes(report),
+        expected: cadence === "full" ? expected : null,
+        probes: findings.map((finding) => finding.code),
+      };
+    });
+  });
+}
+
+function assertSourceProbeVerdicts(results) {
+  assert.deepEqual(
+    results,
+    results.map((entry) => ({
+      ...entry,
+      status: entry.expected === null ? "pass" : "fail",
+      codes: entry.expected === null ? [] : [entry.expected],
+      probes: entry.expected === null ? [] : [entry.expected, entry.expected],
+    })),
+  );
+}
+
+test("source attestation includes the selected original summary clock without a scored input", async (t) => {
+  const results = [];
+  for (const originalKind of ["summary", "full_description"]) {
+    const prepared = await prepareProducedSourceSummary(t, {
+      targetInput: true,
+      originalKind,
+      originalCapturedAt: "2026-10-05T08:00:00.000Z",
+      originalPublishedAt: "2026-10-04T07:00:00+00:00",
+    });
+    const [snapshot] = prepared.sourceSet.snapshots;
+    assert.ok(Date.parse(snapshot.instant) <= Date.parse(snapshot.capture.captured_at));
+    const controls = verifyFileBackedSourceCadences(prepared);
+    assert.equal(controls[0].counts.records, originalKind === "summary" ? 1 : 2);
+    assert.equal(controls[0].counts.captures, 1);
+    results.push(
+      ...sourceProbeVerdicts(prepared, [
+        { ranAt: "2026-10-05T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-04T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-04T07:59:00.000Z", expected: "probe_stale" },
+        { ranAt: "2026-10-09T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-09T08:01:00.000Z", expected: "probe_out_of_window" },
+      ]),
+    );
+  }
+  assertSourceProbeVerdicts(results);
+});
+
+test("source attestation includes every final physical HTTP summary clock without a scored input", async (t) => {
+  const results = [];
+  const capturedBytes = [];
+  for (const targetInput of [false, true]) {
+    const prepared = await prepareProducedSourceSummary(t, {
+      targetInput,
+      fetchedAt: "2026-10-11T08:00:00.000Z",
+    });
+    capturedBytes.push(prepared.captureText);
+    const controls = verifyFileBackedSourceCadences(prepared);
+    assert.equal(controls[0].counts.records, targetInput ? 2 : 1);
+    assert.equal(controls[0].counts.captures, 1);
+    results.push(
+      ...sourceProbeVerdicts(prepared, [
+        { ranAt: "2026-10-11T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-12T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-12T08:01:00.000Z", expected: "probe_out_of_window" },
+        { ranAt: "2026-10-07T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-07T07:59:00.000Z", expected: "probe_stale" },
+      ]),
+    );
+  }
+  assert.equal(capturedBytes[0], capturedBytes[1]);
+  assertSourceProbeVerdicts(results);
+});
+
+test("source attestation excludes unselected snapshot and publication clocks", (t) => {
+  const prepared = prepareSourceBatch(t, {
+    partial: true,
+    publishedAt: "2026-09-30T12:00:00.000Z",
+    unselectedCapturedAt: "2026-10-01T09:15:00.000Z",
+  });
+  verifyFileBackedSourceCadences(prepared);
+  assert.equal(prepared.resolution.selection.card_refs.length, 1);
+  assert.equal(prepared.sourceSet.snapshots.length, 2);
+  assertSourceProbeVerdicts(
+    sourceProbeVerdicts(prepared, [
+      { ranAt: "2026-10-08T09:15:00.000Z", expected: null },
+      { ranAt: "2026-10-05T09:15:00.000Z", expected: "probe_stale" },
+      { ranAt: "2026-09-30T12:00:00.000Z", expected: "probe_stale" },
+      { ranAt: "2026-10-10T09:15:00.000Z", expected: "probe_out_of_window" },
+    ]),
+  );
+});
+
+test("source attestation excludes checked retained prefetch capture clocks", async (t) => {
+  const prefetched = await prepareProducedSourceSummary(t, {
+    fetchedAt: "2026-10-11T08:00:00.000Z",
+  });
+  const prepared = await prepareProducedSourceSummary(t);
+  verifyFileBackedSourceCadences(prepared);
+  assert.equal(sourceSetDigest(prefetched.sourceSet), sourceSetDigest(prepared.sourceSet));
+  const finalDir = join(prepared.root, "retained-prefetch");
+  mkdirSync(finalDir);
+  const plan = publishSourcePlan(prepared.ledgerPath, prepared.sourceSet, {
+    asOf: "2026-10-12T08:00:00.000Z",
+    resolution: prefetched.resolution,
+    collectionText: readFileSync(prepared.linksFile, "utf8"),
+    captureRoot: prefetched.artifactsDir,
+    artifactsDir: finalDir,
+  });
+  assert.ok(plan.prefetch_resolution);
+  for (const file of readdirSync(prepared.artifactsDir)) {
+    if (file !== "plan.json")
+      cpSync(join(prepared.artifactsDir, file), join(finalDir, file), { recursive: true });
+  }
+  prepared.artifactsDir = finalDir;
+  const context = buildContext({
+    artifactsDir: prepared.artifactsDir,
+    linksFile: prepared.linksFile,
+    ledgerPath: prepared.ledgerPath,
+    from: prepared.from,
+    to: prepared.to,
+  });
+  assert.equal(context.sourceVerification.valid, true);
+  assert.deepEqual(context.batch.unexpected, []);
+  assert.equal(context.captures.length, 1);
+  assert.equal(context.captures[0].verified.header["fetched-at"], fixtureCaptureAt);
+  const proofCapture = verifyCaptureFile(
+    readFileSync(join(finalDir, "source-plan", "001.capture.txt"), "utf8"),
+  );
+  assert.equal(proofCapture.ok, true);
+  assert.equal(proofCapture.header["fetched-at"], "2026-10-11T08:00:00.000Z");
+  assertSourceProbeVerdicts(
+    sourceProbeVerdicts(prepared, [
+      { ranAt: fixtureCaptureAt, expected: null },
+      { ranAt: "2026-10-11T08:00:00.000Z", expected: "probe_out_of_window" },
+      { ranAt: "2026-10-05T08:00:00.000Z", expected: "probe_stale" },
+    ]),
+  );
 });

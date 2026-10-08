@@ -80,6 +80,39 @@ No vacancy value reaches the command line — the links arrive as a file
 ([ADR 0011](../adr/0011-untrusted-input-safe-cli-transport.md)). Stdout is limited to counters and
 codes: the model reads it. The full report is `verification-report.json` next to the batch.
 
+### Source-set batches
+
+A Telegram source-set batch also publishes its exact `collection.links.txt`, version 1
+`source-set.json`, saved HTML captures and version 1 `source-resolution.json`. Input 10 and source
+policy v9 keep these meanings separate from historical URL batches. The suite checks the supplied
+collection against its archive, verifies source-set/capture digests and reparses the HTML, then
+reproduces the resolution from its retained observations. Both supplied URL coverage and selected
+logical-card coverage must hold before the ledger write. `selection.from`/`to` is this batch's
+verified range; a shared company link preserves memberships without merging cards.
+
+The resolution owns identity, primary JD, conflicts, dispositions and logical results. Every raw
+extraction with an input has its own input and trace on disk, including an alternative publication
+whose result differs from the primary. Input 10 binds all its evidence to its one selected source,
+capture digest and vacancy boundaries. A line from another card in the same post, or from another
+publication, does not satisfy a quote. Summary text cannot stand in for a full JD. Company/context
+links get proved source dispositions; they do not become unavailable vacancies or plan-only
+coverage waivers. True transport failures keep their unavailable traces with exact manifest proof.
+
+Source plans use ledger 2, validated card identities and a ledger snapshot digest. The suite accepts
+the initial per-card plan and a plan taken with the final resolution; a later merge or split cannot
+borrow a previous card's baseline. In `full`, the baseline diff compares the logical result and
+its flags with that guarded prior observation. Historical inputs/traces stay in their own accepted
+policy epoch; unsupported epochs produce `policy_drift`, without recomputation or migration.
+
+A nonnull logical baseline must predate `source_plan.as_of`; an old saved HTML capture does not
+make the current plan a historical run.
+
+Source integrity, coverage and baseline failures are bounded `source_*` findings. Rebuild the
+responsible artifact from its checked source or repeat the capture. An unsupported merge, missing
+card or foreign quote is not repaired by updating a digest, changing a plan action or dropping
+its URL. The exact file contract and codes remain owned by
+[tools/triage-verify](../../tools/triage-verify/README.md#source-set-batches).
+
 ## 2. Cadence
 
 | Set                   | When                                                       | What it includes                                                                           |
@@ -170,7 +203,9 @@ Of the three checks of the 2026-08-18 run, one became computed and two stayed ma
 `NNN.capture.txt` and nothing else builds the normalized object anew and puts it into
 `blind/NNN.input.json` (1–2 records per batch). The root keys that are not extracted from the
 capture — `policyId`, `schemaVersion`, `scoringDate`, `inputIndex`, `fx`, `explicitOverride` and
-`candidateScoring` — it takes as a copy from this record's main input. From there the tool counts:
+`candidateScoring` — it takes as a copy from this record's main input. Source input 10 also copies
+its exact `sourceContext`; the blind agent receives only that primary source's own vacancy body,
+not sibling cards or alternative JDs. From there the tool counts:
 the blind object's quotes are checked against the same capture, the object is scored by the same
 scorer, and a frozen list of outcome fields — decision, terminal code, bucket, mobility
 observations — is compared with the main trace. `blind_extraction_disagrees` names the fields that
@@ -190,7 +225,10 @@ for a backlog task.
 
 Freshness is a window with two sides, and both are counted from the timestamps of the batch's own
 captures, not from the clock: a probe more than a day before the first fetch is `probe_stale`,
-more than a day after the last one is `probe_out_of_window`.
+more than a day after the last one is `probe_out_of_window`. Source-set original-post observations
+use the collector capture's digest-bound `captured_at`, never the post's publication time. A source
+batch with no admissible capture clock reports `source_probe_window_unverifiable`; it cannot pass
+`full` by omitting the window.
 
 What is checked here is the fact of the record, not the probe itself, and this row is marked
 `attest`, not `assert`: a dated machine-readable record in the batch's directory is weaker than a
@@ -222,7 +260,7 @@ codes:
   [ADR 0011](../adr/0011-untrusted-input-safe-cli-transport.md) that
   `tools/vacancy-fetch/persist.mjs` names.
 - **A capture the manifest does not name is a transcript.** The copy-fidelity probe is retired only
-  "once hash-anchored persistence becomes the default"; it is not the default yet
+  "once hash-anchored persistence becomes the default"; the fetch transport is now the default
   (`tools/vacancy-fetch/README.md`), and on the browser path the bytes are put on disk by the model
   that read the rendered page. The hash of such a file begins **after** the transcription, so a
   green per-batch report on a batch made only of transcripts asserts internal consistency and

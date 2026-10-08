@@ -85,7 +85,7 @@ export function parseCollectionHeader(text) {
  * operator's own working file of at most a megabyte, not a boundary anything is defended at, so the
  * gap between the two reads costs nothing but the read.
  */
-export function readCollection(path) {
+export function readCollection(path, { sourceSetPath, captureRoot } = {}) {
   // The header is read first so its own failure mode is reachable: `readLinksFile` reads the same
   // file, so running it first would leave this guard as a line only a race between the two reads
   // could ever enter — decoration rather than a safeguard.
@@ -102,5 +102,19 @@ export function readCollection(path) {
     fail("pretriage_links_unreadable", "The links file could not be read for its header.");
   }
   const header = parseCollectionHeader(text);
-  return { ...header, links: readLinksFile(path) };
+  const links = readLinksFile(path, { sourceSetPath, captureRoot });
+  if (links.collectionText !== text)
+    fail("pretriage_collection_changed", "Collection bytes changed while they were being read.");
+  const stored = links.sourceSetInfo;
+  return {
+    ...header,
+    links,
+    ...(stored === undefined
+      ? {}
+      : {
+          source_set: stored.sourceSet,
+          source_set_sha256: stored.digest,
+          collection_text: text,
+        }),
+  };
 }

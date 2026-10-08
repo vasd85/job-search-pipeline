@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { normalizeVacancyUrl } from "../lib/triage-ledger-core.mjs";
 import { fail } from "./errors.mjs";
+import { readSourceSet, sourceSetMemberships } from "../triage-sources/source-set.mjs";
 
 const MAX_LINKS_FILE_BYTES = 1024 * 1024;
 const MAX_LINKS = 4096;
@@ -19,7 +20,7 @@ const MAX_LINKS = 4096;
  * Read a links file into ordered, deduplicated entries.
  * Each entry keeps the line it came from so a finding can point at it without quoting it.
  */
-export function readLinksFile(path) {
+export function readLinksFile(path, { sourceSetPath, captureRoot } = {}) {
   if (typeof path !== "string" || !isAbsolute(path)) {
     fail("links_path_invalid", "The links file must be given as an absolute path.");
   }
@@ -53,6 +54,28 @@ export function readLinksFile(path) {
     }
   }
   if (links.length === 0) fail("links_empty", "The links file holds no links.");
+  // Exact bytes from this read bind provenance; a second read cannot silently change the list.
+  Object.defineProperty(links, "collectionText", { value: bytes.toString("utf8") });
+  if (sourceSetPath !== undefined) {
+    let stored;
+    try {
+      stored = readSourceSet(sourceSetPath, {
+        collectionText: bytes,
+        ...(captureRoot === undefined ? {} : { captureRoot }),
+      });
+    } catch {
+      fail(
+        "links_source_set_invalid",
+        "The source set does not verify against this collection and its saved captures.",
+      );
+    }
+    for (const link of links) {
+      link.memberships = sourceSetMemberships(stored.sourceSet, link.url);
+      if (!link.memberships.length)
+        fail("links_source_set_invalid", "A collection URL has no explicit card membership.");
+    }
+    Object.defineProperty(links, "sourceSetInfo", { value: stored });
+  }
   return links;
 }
 

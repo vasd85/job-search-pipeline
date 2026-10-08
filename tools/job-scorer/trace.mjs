@@ -61,6 +61,9 @@ function commonFields(outcome) {
     data_gaps: outcome.dataGaps ?? [],
     assumptions: outcome.assumptions ?? [],
     policy_id: input.policyId,
+    ...(input.schemaVersion === 10 && input.sourceContext !== null
+      ? { source_context: input.sourceContext }
+      : {}),
   };
 }
 

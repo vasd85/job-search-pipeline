@@ -54,6 +54,10 @@ two things the batch itself produced, or an arithmetic re-check of a file agains
   NNN.capture.txt            raw file per record, `vacancy-fetch capture v1` stamped format
   NNN.<part>.capture.txt     further raw files for the same record (a browser phase, a second pass)
   fetch-manifest.json        optional: present when tools/vacancy-fetch served the batch
+  collection.links.txt       exact supplied collection bytes, mandatory for source-set batches
+  source-set.json            immutable source-set v1, mandatory in source-set mode
+  NNN.page.html              saved Telegram HTML named by source-set (safe nested paths also work)
+  source-resolution.json     reproduced source resolution v1 with observations and logical results
   inputs/NNN.input.json      the normalized scorer input the run built
   traces/NNN.trace.json      the Decision Trace the run emitted
   blind/NNN.input.json       1-2 blind re-extractions, required by `--cadence full`
@@ -97,6 +101,74 @@ were mixed.
 
 A record may have no capture at all in exactly one case: it claims nothing about a page body — no
 usable access outcome and no evidence quote anywhere. A `404` after retry is that case.
+
+### Source-set batches
+
+A source-set batch uses a separate versioned contract. `source-set.json` binds the exact supplied
+collection bytes and each saved HTML capture, complete code-extracted post lines and anchors,
+immutable snapshot/card references, vacancy boundaries, description kind and the role of each link.
+The HTML is reparsed and its exact bytes checked; the source-set file's exact digest must agree
+with the resolution and every source-context input. `collection.links.txt` preserves the supplied
+bytes independently of the caller's links-file path. Missing, malformed or tampered source artifacts
+are findings; their presence cannot disable coverage.
+
+`source-resolution.json` is rebuilt by `tools/triage-sources/reconcile.mjs` from its retained
+observations after checking their saved capture or transport references. Verification compares
+both URL accounting and selected card coverage. The resolution's `selection.from`/`to` must match
+the verified range, and `selection.card_refs` names the cards this batch resolves. A shared context
+URL keeps all its memberships without activating other cards or proving a merge. The compiler
+checks identity, primary selection, conflicts, source dispositions, counts and deterministic
+results; a plan's own `company_context` claim never accounts for a URL.
+
+Input 10 binds every evidence quote to one `sourceContext`: source-set digest, card and snapshot
+references, primary source/capture digest, and its own boundaries. An original-post observation is
+quoted from the code-extracted **card body** of the checked HTML; its line bounds remain coordinates
+in the complete snapshot. A fetched details/apply observation is quoted from its selected stamped
+capture. A quote from a sibling card or another capture is inadmissible. Alternative full JDs retain
+their own inputs and traces, and negative-space and blind checks use each extraction's own body.
+
+Every observation with an input is archived in `inputs/NNN.input.json` and `traces/NNN.trace.json`.
+For this epoch `NNN` and `inputIndex` are the extraction ordinal, which may differ from the fetch
+manifest index or URL position. Two cards in one post can therefore retain separate raw traces
+without an erroneous `duplicate_record_for_link`. The logical result is the resolution group's
+result; alternatives do not become independent application chances. The source report counters
+include `sourceCards`, `logicalVacancies`, `sourceUrlsAccounted` and `sourceHtmlCaptures`. Saved HTML
+is counted separately from stamped HTTP captures and browser transcripts.
+
+Stamped captures have a complete physical inventory independent of extraction ordinals. Custody
+checks each distinct file once, including an HTTP summary with `input: null`, a degraded first pass,
+and further browser rescues. Every file must share a checked observation's transport index and
+requested URL; an index or selected URL alone is insufficient (`unexpected_artifact`). A same-transport
+rescue may retain its own body and digest. `capturesByProvenance` and custody capture counts include
+all these files exactly once, even when several extractions share one transport. Custody findings
+for stamped files name `transportIndex` and `file`; extraction findings keep their own `index`.
+A narrower card selection keeps custody over every saved HTML snapshot in the source set and rejects
+stamped files with no checked transport observation.
+
+Cross-transport corroboration also follows this physical inventory. Every manifest-named primary
+HTTP capture compares its filename, normalized digest, response digest and fetch clock with its
+own manifest record once, including summaries with `input: null` and degraded first passes.
+Those findings name `transportIndex` and `file` in source mode; multiple extractions sharing the
+capture do not duplicate them. A browser rescue retains its own stamped clock and response facts.
+
+A genuine body-less failure needs an exact digest-bound fetch-manifest record for its own requested
+URL and transport index, non-usable access, null facts and no evidence. It keeps its raw unavailable
+trace and retry meaning. A proven company/context link receives a source disposition and needs no
+fake vacancy input or unavailable trace. Standalone inputs retain all prior URL, quote and
+cross-transport guards.
+
+Source plans are version 2: either the core plan itself or the pretriage wrapper's `source_plan`.
+The source-set/card identity is checked before lookup. Verification reproduces the initial
+per-card plan or the plan made with the final resolution against ledger 2 and compares the ledger
+snapshot digest. Final merge/split groups may be new, but a pre-existing derived key requires its
+own declared, guarded baseline; another card's ordinal or baseline is insufficient. A missing ledger
+cannot corroborate a source plan. These checks run at the per-batch cadence; `full` also compares
+logical outcomes and flags with their checked prior policy.
+
+Source findings use bounded `source_*` codes: set/collection/digest or capture failures; resolution,
+URL/card/membership coverage failures; unbound or missing raw extractions; and source-plan snapshot,
+identity or baseline failures. Repair the owning artifact and rebuild it from the saved source or
+repeat the capture. Editing a digest or discarding a source is not a repair.
 
 ## Invocation
 
@@ -249,7 +321,8 @@ producing an empty diff. That is also why the batch's closing order is fixed: ve
 `blind/NNN.input.json` is a second normalized input for one or two records, built by an agent that
 saw only that record's capture. The root keys a capture cannot supply — `policyId`,
 `schemaVersion`, `scoringDate`, `inputIndex`, `fx`, `explicitOverride` and the scoring values
-`candidateScoring` — are copied from the primary input; without `candidateScoring` the blind input
+`candidateScoring` — are copied from the primary input; input 10 also copies the exact
+`sourceContext`, whose alteration is `blind_source_binding_mismatch`. Without `candidateScoring` the blind input
 is `blind_input_not_scoreable`. A blind input whose evidence quotes are the primary's, path for
 path and value for value, is refused (`blind_extraction_not_independent`): two honest extractions of
 one page do not quote every field identically, and the comparison is over the evidence rather than
@@ -343,7 +416,12 @@ Two probes, closed set, both required under `--cadence full`. `verdict` is `held
 `failed`; `failed` is a finding. Freshness is a window with two sides, both decided against the
 batch's own capture timestamps rather than a clock: a probe more than a day before the first fetch
 is `probe_stale`, one more than a day after the last is `probe_out_of_window`, and re-running the
-suite a month later therefore reaches the same verdict.
+suite a month later therefore reaches the same verdict. In source mode the window includes every
+verified physical capture in the final batch and each selected original observation's checked HTML
+capture clock, including summaries with `input: null`. An original observed through a new failed
+transport does not inherit the saved HTML clock. Unselected snapshots, retained `source-plan/`
+prefetch proof and publication dates do not extend the window. Legacy batches keep their record
+capture clocks.
 
 **This check verifies that the probe was run and recorded. It does not verify the probe.** A
 self-reported record in the batch's own directory is weaker than a measurement and stronger than a
@@ -352,18 +430,19 @@ of the 2026-08-18 protocol, the blind double extraction, is not here: it became 
 
 ## Modules
 
-| Module                             | Owns                                                                                |
-| ---------------------------------- | ----------------------------------------------------------------------------------- |
-| [cli.mjs](cli.mjs)                 | argument parsing, exit codes, the bounded stdout summary, writing the report        |
-| [suite.mjs](suite.mjs)             | the context every check reads, the cadence sets, the report shape                   |
-| [artifacts.mjs](artifacts.mjs)     | reading the directory; a defective batch loads, an unreadable one is a caller error |
-| [manifest.mjs](manifest.mjs)       | the fetch manifest, read once, and the derived capture provenance                   |
-| [links.mjs](links.mjs)             | the links file and the batch range                                                  |
-| [evidence.mjs](evidence.mjs)       | the schema-driven evidence walk                                                     |
-| [text-scan.mjs](text-scan.mjs)     | index-preserving case folding, literal and phrase scanning, line digests            |
-| [vocabulary.mjs](vocabulary.mjs)   | loading and validating the versioned vocabulary                                     |
-| [disposition.mjs](disposition.mjs) | the disposition ledger's schema                                                     |
-| [checks/](checks)                  | one module per check                                                                |
+| Module                                             | Owns                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [cli.mjs](cli.mjs)                                 | argument parsing, exit codes, the bounded stdout summary, writing the report                |
+| [suite.mjs](suite.mjs)                             | the context every check reads, the cadence sets, the report shape                           |
+| [artifacts.mjs](artifacts.mjs)                     | reading the directory; a defective batch loads, an unreadable one is a caller error         |
+| [source-verification.mjs](source-verification.mjs) | immutable source-set/captures, reproduced resolution, extraction bindings and dual coverage |
+| [manifest.mjs](manifest.mjs)                       | the fetch manifest, read once, and the derived capture provenance                           |
+| [links.mjs](links.mjs)                             | the links file and the batch range                                                          |
+| [evidence.mjs](evidence.mjs)                       | the schema-driven evidence walk                                                             |
+| [text-scan.mjs](text-scan.mjs)                     | index-preserving case folding, literal and phrase scanning, line digests                    |
+| [vocabulary.mjs](vocabulary.mjs)                   | loading and validating the versioned vocabulary                                             |
+| [disposition.mjs](disposition.mjs)                 | the disposition ledger's schema                                                             |
+| [checks/](checks)                                  | one module per check                                                                        |
 
 ## Residual
 
@@ -392,7 +471,9 @@ distance between what a batch recorded and what its own files say.
 
 ### Independent ToolMatch epoch
 
-Policy v8 (`triage-policy-v8-2026-10-01`) requires input schema 9 and taxonomy v6. Completeness
-reports `policy_drift` before recomputation when the input schema/policy or trace policy/taxonomy
-belongs to another epoch. Existing batches are not migrated; verify them with their original
-engine. Re-score only as an explicit new batch with scope and exact evidence for each observation.
+Policy v8 (`triage-policy-v8-2026-10-01`) keeps input 9 and taxonomy v6. Source policy v9
+(`triage-policy-v9-2026-10-08`) uses input 10 and the same taxonomy. The scorer and verifier accept
+both declared epochs without changing the meaning of input 9. Completeness reports `policy_drift`
+before recomputation for any unsupported schema/policy pair or mismatched trace policy/taxonomy.
+Existing artifacts are not migrated. Other historical epochs require their original engine;
+re-score only in an explicit new batch with scope and exact evidence for each observation.
