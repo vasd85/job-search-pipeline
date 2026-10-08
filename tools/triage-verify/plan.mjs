@@ -26,15 +26,13 @@
 //   the ledger row this plan snapshotted, so `baseline-diff` compares it against that row and a
 //   plan that declares a policy the ledger does not carry is `plan_disagrees_with_ledger`.
 
-import { dirname, join } from "node:path";
 import {
   triageRetryDecision,
   vacancyIdentity,
   planSourceBatch,
   ledgerSnapshotDigest,
-  readSourcePlanPriorResolution,
+  readSourcePlanPriorProof,
   inspectTerminalSourceObservations,
-  triageBatchIdPattern,
 } from "../lib/triage-ledger-core.mjs";
 import { normalizeVacancyUrl } from "../lib/triage-ledger-core.mjs";
 import { deepEqual } from "./source-verification.mjs";
@@ -198,37 +196,15 @@ export function batchInstant(records, manifest = null) {
 }
 
 function priorResolutionOptions(context, source, value) {
-  const reference = value.prior_resolution;
-  if (
-    reference === null ||
-    typeof reference !== "object" ||
-    Array.isArray(reference) ||
-    !deepEqual(Object.keys(reference).sort(), [
-      "batch_id",
-      "entries_digest",
-      "record_sha256",
-      "source_resolution_sha256",
-      "source_set_sha256",
-    ]) ||
-    typeof reference.batch_id !== "string" ||
-    !triageBatchIdPattern.test(reference.batch_id) ||
-    ["entries_digest", "record_sha256", "source_set_sha256", "source_resolution_sha256"].some(
-      (key) => typeof reference[key] !== "string" || !/^[a-f0-9]{64}$/u.test(reference[key]),
-    )
-  )
-    return null;
-  // A plan cannot choose an arbitrary filesystem root. Its bounded batch id names exactly one
-  // sibling archive, whose index, immutable record and retained source captures prove the past.
-  const captureRoot = join(dirname(context.batch.dir), reference.batch_id);
   try {
-    const prior = readSourcePlanPriorResolution(context.ledger, source.sourceSet, {
+    const prior = readSourcePlanPriorProof(context.ledger, source.sourceSet, {
       asOf: value.as_of,
       collectionText: context.batch.collection.text,
-      captureRoot,
+      artifactsDir: context.batch.dir,
+      reference: value.prior_resolution,
       validation: { languages: context.languages },
     });
-    if (prior === null || !deepEqual(prior.reference, reference)) return null;
-    return { resolution: prior.resolution, captureRoot };
+    return { resolution: prior.resolution, captureRoot: prior.captureRoot };
   } catch {
     return null;
   }

@@ -621,8 +621,10 @@ function groupFor(card, set, observations, { separate = false, excludedSources =
   const primary = originalFull ?? confirmed[0] ?? null;
   const sources = sourceRows(card, observations).filter(
     (source) =>
-      ["company_context", "contact"].includes(source.role) ||
-      !excludedSources.some((ref) => sourceUrl(ref) === sourceUrl(source.source_ref)),
+      (!separate || observations.some((item) => item.observation_ref === source.observation_ref)) &&
+      (["company_context", "contact"].includes(source.role) ||
+        source.source_ref.startsWith("mailto:") ||
+        !excludedSources.some((ref) => sourceUrl(ref) === sourceUrl(source.source_ref))),
   );
   const reasons = [];
   if (card.mapping_status !== "resolved") reasons.push("mapping_unresolved");
@@ -869,6 +871,7 @@ export function resolveSourceSet({
           .filter(
             (link) =>
               !["company_context", "contact"].includes(link.role) &&
+              !link.url.startsWith("mailto:") &&
               sourceUrl(link.url) !== sourceUrl(observation.source_ref),
           )
           .map((link) => link.url),

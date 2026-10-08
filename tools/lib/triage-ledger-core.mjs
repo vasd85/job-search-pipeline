@@ -50,6 +50,7 @@ import {
 import { createHash, randomBytes } from "node:crypto";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { detectJobSource } from "../job-sources/registry.mjs";
 import { OpsTreeError, verifyFolder } from "../ops-tree/manifest.mjs";
 import {
@@ -1716,6 +1717,39 @@ export function readSourcePlanPriorResolution(
   };
 }
 
+/** A declared prior proof can name only its indexed sibling, never a caller-selected path. */
+export function readSourcePlanPriorProof(
+  ledger,
+  sourceSet,
+  { asOf, collectionText, artifactsDir, reference, validation = {} } = {},
+) {
+  const code = "triage_ledger_source_plan_prior_invalid";
+  const fields = [
+    "batch_id",
+    "entries_digest",
+    "record_sha256",
+    "source_set_sha256",
+    "source_resolution_sha256",
+  ];
+  assertExactKeys(reference, fields, [], code, "The prior planning reference");
+  if (!identifierPattern.test(reference.batch_id ?? ""))
+    fail(code, "The prior planning reference needs a bounded batch id.");
+  for (const key of fields.filter((key) => key !== "batch_id"))
+    assertDigest(reference[key], code, key);
+  if (typeof artifactsDir !== "string" || !isAbsolute(artifactsDir))
+    fail(code, "The prior planning proof needs the declared batch directory.");
+  const captureRoot = join(dirname(artifactsDir), reference.batch_id);
+  const prior = readSourcePlanPriorResolution(ledger, sourceSet, {
+    asOf,
+    collectionText,
+    captureRoot,
+    validation,
+  });
+  if (prior === null || fields.some((key) => prior.reference[key] !== reference[key]))
+    fail(code, "The declared prior planning proof differs from its indexed immutable archive.");
+  return { ...prior, captureRoot };
+}
+
 function sourcePlanProofPath(file) {
   if (
     typeof file !== "string" ||
@@ -3169,6 +3203,136 @@ function assertSourcePlanUnmoved(ledger, plan, groups) {
         );
 }
 
+// The first write uses actual locked logical/job-source baselines. A matching immutable own
+// record permits historical replay: only its already-bound selected baselines are projected,
+// while its declared planning proof must still be independently readable and indexed.
+function sourcePlanLedgerView(ledger, plan, historical) {
+  const logical = new Map();
+  const sources = new Map(
+    historical ? [] : ledger.source_records.map((source) => [source.membership_key, source]),
+  );
+  const plannedKeys = new Set();
+  const plannedCards = new Set();
+  for (const item of plan.items) {
+    if (!isRecord(item) || !Array.isArray(item.card_refs) || !Array.isArray(item.sources))
+      fail("triage_ledger_plan_invalid", "The source plan has an invalid selected row.");
+    plannedKeys.add(item.logical_key);
+    for (const ref of item.card_refs) plannedCards.add(ref);
+    if (item.baseline !== null) {
+      validateLogicalEntry(item.baseline, 0, "triage_ledger_plan_invalid");
+      const previous = logical.get(item.baseline.key);
+      if (previous && !isDeepStrictEqual(previous, item.baseline))
+        fail(
+          "triage_ledger_plan_invalid",
+          "The source plan repeats inconsistent logical baselines.",
+        );
+      logical.set(item.baseline.key, item.baseline);
+    }
+    for (const member of item.sources) {
+      if (!isRecord(member))
+        fail("triage_ledger_plan_invalid", "The source plan has an invalid source member.");
+      if (!historical && !["company_context", "contact"].includes(member.role)) continue;
+      // Context-only movement is not a selected vacancy observation, as in the existing guard.
+      for (const [key, source] of sources) if (sameSourceScope(source, member)) sources.delete(key);
+      if (member.baseline !== null && member.baseline !== undefined) {
+        validateSourceRecord(member.baseline, 0, "triage_ledger_plan_invalid");
+        sources.set(member.baseline.membership_key, member.baseline);
+      }
+    }
+  }
+  return {
+    ...ledger,
+    logical_entries: historical
+      ? [...logical.values()].sort((left, right) => left.key.localeCompare(right.key))
+      : ledger.logical_entries,
+    source_records: [...sources.values()].sort((left, right) =>
+      left.membership_key.localeCompare(right.membership_key),
+    ),
+    aliases: historical
+      ? ledger.aliases.filter(
+          (alias) => plannedKeys.has(alias.logical_key) && plannedCards.has(alias.card_ref),
+        )
+      : ledger.aliases,
+  };
+}
+
+function assertSourcePlanProvenance(
+  ledger,
+  sourceSet,
+  resolution,
+  plan,
+  { artifactsDir, collectionText, validation, historical },
+) {
+  const code = "triage_ledger_plan_invalid";
+  assertExactKeys(
+    plan,
+    ["schema_version", "as_of", "source_set_sha256", "ledger_snapshot_sha256", "counts", "items"],
+    ["prior_resolution", "prefetch_resolution"],
+    code,
+    "The frozen source plan",
+  );
+  if (!Array.isArray(plan.items) || plan.items.length > maxEntries)
+    fail(code, "The frozen source plan exceeds its selected-row contract.");
+  const hasPrior = Object.hasOwn(plan, "prior_resolution");
+  const hasPrefetch = Object.hasOwn(plan, "prefetch_resolution");
+  if (hasPrior && hasPrefetch)
+    fail(code, "A source plan cannot combine prior and current-set planning proofs.");
+  const options = { asOf: plan.as_of, collectionText, validation };
+  let candidates;
+  if (hasPrior) {
+    const prior = readSourcePlanPriorProof(ledger, sourceSet, {
+      ...options,
+      artifactsDir,
+      reference: plan.prior_resolution,
+    });
+    candidates = [{ resolution: prior.resolution, captureRoot: prior.captureRoot }];
+  } else if (hasPrefetch) {
+    // Reopen all proof dependencies under the lock, including orphan adoption and indexed replay.
+    readSourcePlanPrefetchResolution(sourceSet, {
+      ...options,
+      artifactsDir,
+      reference: plan.prefetch_resolution,
+    });
+    candidates = [{ artifactsDir, prefetchProof: plan.prefetch_resolution }];
+  } else {
+    candidates = [
+      { resolution },
+      {
+        selection: { card_refs: [...new Set(plan.items.flatMap((item) => item.card_refs ?? []))] },
+      },
+    ];
+  }
+  const view = sourcePlanLedgerView(ledger, plan, historical);
+  if (hasPrior || hasPrefetch) {
+    const plannedAt = parseInstant(plan.as_of, code);
+    for (const item of plan.items) {
+      if (item.baseline !== null && parseInstant(item.baseline.last_checked, code) >= plannedAt)
+        fail(code, "The frozen logical baseline must predate its planning proof.");
+      for (const source of item.sources)
+        if (source.baseline != null && parseInstant(source.baseline.observed_at, code) >= plannedAt)
+          fail(code, "The frozen source baseline must predate its planning proof.");
+    }
+  }
+  const { ledger_snapshot_sha256: frozenSnapshot, ...expected } = plan;
+  for (const candidate of candidates) {
+    try {
+      const { ledger_snapshot_sha256: currentSnapshot, ...reproduced } = planSourceBatch(
+        view,
+        sourceSet,
+        { ...options, ...candidate },
+      );
+      if (isDeepStrictEqual(reproduced, expected)) return;
+    } catch (error) {
+      if (!(error instanceof TriageLedgerError)) throw error;
+      // A plain plan gets only the two historical admissible shapes, never a fabricated proof.
+    }
+  }
+  fail(
+    code,
+    "The frozen source plan cannot be corroborated from its admissible planning evidence and selected baselines.",
+  );
+}
+
 function mergeObservedRows(previous, observed, key) {
   const byKey = new Map(previous.map((item) => [item[key], item]));
   for (const item of observed) {
@@ -3455,8 +3619,15 @@ export function recordSourceBatch(path, batch, options) {
     assertSourceArchiveDirectory(archiveDir, batch.batch_id);
     assertIndexedSourceParents(ledger, archiveDir, record.parents);
     const existing = persistedRecordState(archiveDir, batch.batch_id, record.entries_digest);
-    if (!previous && existing === "absent") {
+    if (!previous && existing === "absent")
       assertSourcePlanUnmoved(ledger, plan, resolution.groups);
+    assertSourcePlanProvenance(ledger, sourceSet, resolution, plan, {
+      artifactsDir: archiveDir,
+      collectionText,
+      validation,
+      historical: existing !== "absent",
+    });
+    if (!previous && existing === "absent") {
       const terminal = inspectTerminalSourceObservations(
         ledger,
         sourceSet,

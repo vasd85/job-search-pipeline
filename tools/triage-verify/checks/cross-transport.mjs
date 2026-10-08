@@ -88,6 +88,56 @@ function walledOnRetry(record, manifestRecord) {
   );
 }
 
+/** The primary HTTP file and its manifest carry one transport's independent metadata. */
+function manifestCaptureProblems(primary, manifestRecord) {
+  if (primary === null || primary.verified?.ok !== true) return ["manifest_capture_missing"];
+  const problems = [];
+  const header = primary.verified.header;
+  if (manifestRecord.persisted?.file !== primary.file)
+    problems.push("manifest_capture_file_mismatch");
+  if (header["normalized-sha256"] !== manifestRecord.persisted?.sha256)
+    problems.push("manifest_capture_digest_mismatch");
+  if (header["response-sha256"] !== manifestRecord.response?.sha256)
+    problems.push("manifest_response_digest_mismatch");
+  // These header fields are outside the capture's body digest. Every named HTTP primary owes the
+  // comparison, including an unscored summary or a degraded first pass retained beside a rescue.
+  if (header["fetched-at"] !== manifestRecord.fetchedAt)
+    problems.push("manifest_capture_fetched_at_mismatch");
+  if (usableInstant(manifestRecord.fetchedAt) === null)
+    problems.push("manifest_fetched_at_unusable");
+  return problems;
+}
+
+function corroborateCaptureInventory(context, byIndex, findings) {
+  if (byIndex === null) return;
+  const captures = context.captures ?? context.records.flatMap((record) => record.captures);
+  const primaries = new Map(
+    captures
+      .filter((capture) => capture.primary === true)
+      .map((capture) => [capture.index, capture]),
+  );
+  const indices = new Set(captures.map((capture) => capture.index));
+  // Empty extraction scopes preserve the existing missing-primary guard. They are not synthetic
+  // scorer records, and several extractions sharing one transport still request only one check.
+  for (const record of context.records) {
+    if (record.sourceScope?.original !== true) indices.add(record.transportIndex ?? record.index);
+  }
+  for (const transportIndex of indices) {
+    const manifestRecord = byIndex.get(transportIndex);
+    if (
+      manifestRecord === undefined ||
+      (manifestRecord.usable !== true && manifestRecord.persisted == null)
+    )
+      continue;
+    const primary = primaries.get(transportIndex) ?? null;
+    const location = context.sourceVerification?.active
+      ? { transportIndex, ...(primary === null ? {} : { file: primary.file }) }
+      : { index: transportIndex };
+    for (const code of manifestCaptureProblems(primary, manifestRecord))
+      findings.push({ code, ...location });
+  }
+}
+
 export function run(context) {
   const findings = [];
   const diffs = [];
@@ -104,6 +154,7 @@ export function run(context) {
     findings.push({ code: "manifest_started_at_unusable" });
   }
   const byIndex = manifest.records;
+  corroborateCaptureInventory(context, byIndex, findings);
 
   for (const record of context.records) {
     const verifiedCaptures = record.captures.filter((capture) => capture.verified?.ok === true);
@@ -162,32 +213,7 @@ export function run(context) {
     if (record.sourceRef !== null && manifestUrl !== null && manifestUrl !== record.sourceRef) {
       findings.push({ code: "manifest_source_ref_mismatch", index: record.index });
     }
-    const primary = record.captures.find((capture) => capture.primary === true) ?? null;
-    if (manifestRecord.usable === true) {
-      if (primary === null || primary.verified?.ok !== true) {
-        findings.push({ code: "manifest_capture_missing", index: record.index });
-      } else {
-        const header = primary.verified.header;
-        if (manifestRecord.persisted?.file !== primary.file) {
-          findings.push({ code: "manifest_capture_file_mismatch", index: record.index });
-        }
-        if (header["normalized-sha256"] !== manifestRecord.persisted?.sha256) {
-          findings.push({ code: "manifest_capture_digest_mismatch", index: record.index });
-        }
-        if (header["response-sha256"] !== manifestRecord.response?.sha256) {
-          findings.push({ code: "manifest_response_digest_mismatch", index: record.index });
-        }
-        // The capture header is not covered by the digest `verifyCaptureFile` recomputes, and two
-        // time gates lean on `fetched-at`. Where the manifest names this capture it also states
-        // when it was fetched, so the two are compared exactly as the digests are.
-        if (header["fetched-at"] !== manifestRecord.fetchedAt) {
-          findings.push({ code: "manifest_capture_fetched_at_mismatch", index: record.index });
-        }
-        if (usableInstant(manifestRecord.fetchedAt) === null) {
-          findings.push({ code: "manifest_fetched_at_unusable", index: record.index });
-        }
-      }
-    } else if (record.input?.source?.accessOutcome === "usable") {
+    if (manifestRecord.usable !== true && record.input?.source?.accessOutcome === "usable") {
       const fallbackCapture = record.captures.some(
         (capture) => capture.primary === false && capture.verified?.ok === true,
       );

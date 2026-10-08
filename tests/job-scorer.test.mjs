@@ -3792,3 +3792,25 @@ for (const variant of ["other_employer", "other_family"]) {
     validateSourceResolution(resolution, fixture);
   });
 }
+
+for (const variant of ["other_employer", "other_family"]) {
+  test(`an unknown email remains visible beside a checked different publication: ${variant}`, () => {
+    const fixture = differentClaimFixture(variant, { contact: true });
+    fixture.card.links.find((link) => link.role === "contact").role = "unknown";
+    fixture.target.identity_status = "different";
+    rebindSourceFixture(fixture);
+    const resolution = resolveSourceSet(fixture);
+    assert.equal(resolution.groups.length, 2);
+    const original = resolution.groups.find((group) => group.identity_status !== "different");
+    const target = resolution.groups.find((group) => group.identity_status === "different");
+    assert.equal(original.result.review_code, "source_review");
+    assert.equal(
+      original.sources.find((source) => source.role === "unknown").source_ref,
+      "mailto:recruiting@example.test",
+    );
+    assert.equal(target.sources.length, 1);
+    assert.equal(target.sources[0].source_ref, fixture.target.source_ref);
+    assert.equal(target.result.decision, variant === "other_family" ? "SKIP" : "EVALUATED");
+    validateSourceResolution(resolution, fixture);
+  });
+}

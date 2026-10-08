@@ -5345,7 +5345,7 @@ test("full description with company and contact preserves original JD; oversize 
       post(
         832,
         day(13),
-        `Senior QA<br/>${"Complete long paragraph ".repeat(3000)}<br/>Company <a href="https://company.example.test/">Example Company</a>`,
+        `Senior QA<br/>${"Complete long paragraph ".repeat(3000)}<br/>Email <a href="mailto:oversize@example.test">oversize@example.test</a>`,
       ),
     ],
     older: false,
@@ -5373,8 +5373,73 @@ test("full description with company and contact preserves original JD; oversize 
   assert.equal(hugeSet.cards[0].mapping_status, "unresolved_oversize");
   assert.equal(hugeSet.cards[0].description_kind, "unknown");
   assert.equal(hugeSet.cards[0].links[0].role, "unknown");
+  assert.equal(hugeSet.cards[0].links[0].url, "mailto:oversize@example.test");
   assert.equal(hugeSet.snapshots[0].lines[1].text, "Complete long paragraph ".repeat(3000).trim());
   assert.match(readFileSync(hugeFinished.reportPath, "utf8"), /Unresolved source mappings/u);
+});
+
+test("reader2 preserves an unknown email and its positioned original without treating the email as a job URL", async (t) => {
+  const root = disposableRoot(t, "telegram-unknown-email-");
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "unknown-email");
+  writeFileSync(configPath, JSON.stringify(rawConfig()));
+  initStateCurrent(statePath);
+  const html = pageHtml({
+    posts: [
+      post(
+        839,
+        day(13),
+        'Senior QA Engineer<br/>Responsibilities: test service APIs<br/>Email <a href="mailto:reader@example.test">reader@example.test</a>',
+      ),
+    ],
+    older: false,
+  });
+  const run = await executeSweepCurrent({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: html } }),
+  });
+  const answer = {
+    schema_version: 2,
+    batch: "examplejobs-001",
+    posts: [
+      { post: 1, vacancies: [mappedVac(1, 1, 3, [{ anchor: 1, role: "unknown" }], "summary", [])] },
+    ],
+  };
+  assert.deepEqual(
+    [
+      ...checkAnswer(answer, {
+        ...run.batches[0],
+        name: "examplejobs-001",
+        schema_version: 2,
+      }).results.values(),
+    ].map((entry) => entry.kind),
+    ["vacancy"],
+  );
+  mkdirSync(join(outDir, "reader-out"));
+  writeFileSync(join(outDir, "reader-out", "examplejobs-001.json"), JSON.stringify(answer));
+  const finished = executeFinalize({ outDir, statePath, repoRoot: root });
+  const collectionText = readFileSync(finished.collectionPath, "utf8");
+  const set = readSourceSet(finished.sourceSetPath, { collectionText }).sourceSet;
+  assert.equal(set.cards.length, 1);
+  assert.equal(set.cards[0].mapping_status, "resolved");
+  assert.equal(set.cards[0].description_kind, "summary");
+  assert.deepEqual(
+    set.cards[0].links.filter((link) => link.anchor !== null),
+    [{ anchor: 1, role: "unknown", url: "mailto:reader@example.test" }],
+  );
+  assert.deepEqual(
+    collectionText.split("\n").filter((line) => line.startsWith("http")),
+    [set.snapshots[0].original_url],
+  );
+  assert.ok(
+    readFileSync(join(outDir, set.snapshots[0].capture.file), "utf8").includes(
+      "mailto:reader@example.test",
+    ),
+  );
 });
 
 test("reader2 reposts require exact source body: legacy near match and edited Junior+/salary are remapped, exact reposts remain folded", async () => {

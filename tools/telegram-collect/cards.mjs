@@ -243,7 +243,10 @@ export function readerCardOf(
     vacancy.links.some((mapping) => {
       if (["company_context", "contact"].includes(mapping.role)) return false;
       const at = descriptor.links[mapping.anchor - 1].entryIndex;
-      return offeredKeys.has(normalizeVacancyUrl(sourceAnchorUrl(post.anchors[at])));
+      const url = sourceAnchorUrl(post.anchors[at]);
+      return (
+        url !== null && !url.startsWith("mailto:") && offeredKeys.has(normalizeVacancyUrl(url))
+      );
     });
   const needsPostAddress = mapped
     ? !hasOfferedJobUrl || vacancy.description_kind !== "summary"

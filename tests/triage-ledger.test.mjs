@@ -4842,3 +4842,372 @@ test("prefetch publication refuses an index move instead of replacing its origin
   assert.equal(readLedger(context.path).logical_entries[0].decision, "BLOCKED");
   assert.equal(existsSync(`${context.path}.lock`), false);
 });
+
+function indexedPriorRecorderScenario(t) {
+  const context = sourceLedger(t);
+  const details = "https://jobs.acme.example/vacancy/1101";
+  const fixture = combinedSourceFixture(
+    fictionalSourceSet({ postId: 1101, details }),
+    fictionalSourceSet({ postId: 1102, details }),
+  );
+  const original = sourceBatchDir(context, fixture, "recorder-prior-seed", {
+    ...linkedSourceObservations(fixture),
+    prefetchPlan: true,
+  });
+  sourceFullEvidence(original, sourceInstant);
+  for (const cadence of ["per-batch", "full"])
+    assert.equal(verifySourceBatch(context, original, fixture, cadence).status, "pass");
+  recordSource(context.path, original);
+  const asOf = "2026-10-09T09:00:00Z";
+  const frozen = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+    asOf,
+    resolution: original.resolution,
+    collectionText: fixture.collectionText,
+    captureRoot: original.dir,
+  });
+  assert.equal(frozen.items[0].action, "skip_known");
+  assert.ok(frozen.prior_resolution);
+  const changed = linkedSourceObservations(fixture);
+  changed.observations = changed.observations.map((raw) => {
+    const title = raw.source_ref === details ? "Junior QA Engineer" : fixture.title;
+    if (raw.source_ref === details) {
+      const card = fixture.sourceSet.cards.find((item) => item.card_ref === raw.card_ref);
+      const body = `${title}\nCompany: Acme\nManual testing and Java.`;
+      const capture = { file: raw.capture.file, sha256: digest(body) };
+      const at = changed.captures.findIndex(([file]) => file === capture.file);
+      changed.captures[at] = [
+        capture.file,
+        renderCaptureFile({
+          body,
+          header: {
+            index: Number(capture.file.slice(0, 3)),
+            adapter: "fictional",
+            "source-id": "url",
+            "requested-url": details,
+            "final-url": details,
+            "fetched-at": "2026-10-09T09:10:00Z",
+            "http-status": 200,
+            outcome: "active",
+            "normalized-sha256": digest(body),
+            "body-bytes": Buffer.byteLength(body),
+            normalization: "none",
+          },
+        }),
+      ];
+      raw = sourceObservation(fixture, card, {
+        inputIndex: raw.input.inputIndex,
+        sourceRef: details,
+        body,
+        capture,
+        jobTitle: title,
+      });
+    }
+    raw.facts.seniority = {
+      value: title.startsWith("Junior") ? "Junior" : "Senior",
+      evidence_quote: title,
+    };
+    return raw;
+  });
+  const refresh = sourceBatchDir(context, fixture, "recorder-prior-conflict", {
+    ...changed,
+    observedAt: "2026-10-09T09:20:00Z",
+    prefetchPlan: true,
+  });
+  overwriteSourcePlan(refresh, frozen);
+  sourceFullEvidence(refresh, refresh.payload.observed_at);
+  assert.equal(refresh.resolution.groups[0].result.review_code, "source_review");
+  for (const cadence of ["per-batch", "full"])
+    assert.equal(verifySourceBatch(context, refresh, fixture, cadence).status, "pass");
+  return { context, fixture, original, refresh, frozen, asOf };
+}
+
+test("the source recorder rechecks indexed-prior plan custody after PASS and on indexed replay", (t) => {
+  const { context, fixture, original, refresh } = indexedPriorRecorderScenario(t);
+  const parentPath = join(original.dir, "ledger-record.json");
+  const retained = join(context.root, "prior-record-retained.json");
+  const ledgerBytes = readFileSync(context.path);
+  const batchBytes = sourceArtifactBytes(refresh.dir);
+  renameSync(parentPath, retained);
+  for (const cadence of ["per-batch", "full"])
+    assert.ok(
+      verifySourceBatch(context, refresh, fixture, cadence).findingCodes.includes(
+        "source_plan_uncorroborated",
+      ),
+    );
+  assert.equal(
+    errorCode(() => recordSource(context.path, refresh)),
+    "triage_ledger_source_plan_prior_invalid",
+  );
+  assert.deepEqual(readFileSync(context.path), ledgerBytes);
+  assert.deepEqual(sourceArtifactBytes(refresh.dir), batchBytes);
+  assert.equal(existsSync(join(refresh.dir, "ledger-record.json")), false);
+  renameSync(retained, parentPath);
+  const parentBytes = readFileSync(parentPath);
+  writeFileSync(parentPath, `${parentBytes.toString("utf8")} `);
+  assert.equal(
+    errorCode(() => recordSource(context.path, refresh)),
+    "triage_ledger_source_plan_prior_invalid",
+  );
+  assert.deepEqual(readFileSync(context.path), ledgerBytes);
+  assert.equal(existsSync(join(refresh.dir, "ledger-record.json")), false);
+  writeFileSync(parentPath, parentBytes);
+  renameSync(parentPath, retained);
+  symlinkSync(retained, parentPath);
+  assert.equal(
+    errorCode(() => recordSource(context.path, refresh)),
+    "triage_ledger_source_plan_prior_invalid",
+  );
+  assert.deepEqual(readFileSync(context.path), ledgerBytes);
+  rmSync(parentPath);
+  renameSync(retained, parentPath);
+  const indexed = structuredClone(readLedger(context.path).batches);
+  for (const mutate of [
+    (batches) => batches.filter((batch) => batch.batch_id !== original.payload.batch_id),
+    (batches) => {
+      batches[0].entries_digest = "0".repeat(64);
+      return batches;
+    },
+    (batches) => {
+      batches[0].entry_count++;
+      return batches;
+    },
+    (batches) => {
+      batches[0].recorded_at = "2026-10-08T09:00:01Z";
+      return batches;
+    },
+    (batches) => {
+      batches[0].policy_id = "other-policy";
+      return batches;
+    },
+    ...["source_set_sha256", "source_resolution_sha256", "plan_sha256"].map((key) => (batches) => {
+      batches[0][key] = "0".repeat(64);
+      return batches;
+    }),
+  ]) {
+    ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+      ledger: { ...ledger, batches: mutate(structuredClone(indexed)) },
+    }));
+    const movedIndex = readFileSync(context.path);
+    assert.equal(
+      errorCode(() => recordSource(context.path, refresh)),
+      "triage_ledger_source_plan_prior_invalid",
+    );
+    assert.deepEqual(readFileSync(context.path), movedIndex);
+    assert.equal(existsSync(join(refresh.dir, "ledger-record.json")), false);
+    ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+      ledger: { ...ledger, batches: indexed },
+    }));
+  }
+  assert.deepEqual(readFileSync(context.path), ledgerBytes);
+  recordSource(context.path, refresh);
+  const recorded = readFileSync(context.path);
+  const archived = readFileSync(join(refresh.dir, "ledger-record.json"));
+  renameSync(parentPath, retained);
+  assert.equal(
+    errorCode(() => recordSource(context.path, refresh)),
+    "triage_ledger_source_plan_prior_invalid",
+  );
+  assert.deepEqual(readFileSync(context.path), recorded);
+  assert.deepEqual(readFileSync(join(refresh.dir, "ledger-record.json")), archived);
+  renameSync(retained, parentPath);
+  assert.equal(recordSource(context.path, refresh).replayed, true);
+  assert.deepEqual(readFileSync(context.path), recorded);
+});
+
+test("source recording refuses a removed necessary prior ref and closed-reference or action claims before archive", (t) => {
+  const { context, fixture, refresh, frozen } = indexedPriorRecorderScenario(t);
+  const ledgerBytes = readFileSync(context.path);
+  for (const mutate of [
+    (plan) => {
+      delete plan.prior_resolution;
+    },
+    (plan) => {
+      plan.prior_resolution.entries_digest = "0".repeat(64);
+    },
+    (plan) => {
+      plan.prior_resolution.record_sha256 = "0".repeat(64);
+    },
+    (plan) => {
+      plan.prior_resolution.source_set_sha256 = "0".repeat(64);
+    },
+    (plan) => {
+      plan.prior_resolution.source_resolution_sha256 = "0".repeat(64);
+    },
+    (plan) => {
+      plan.prior_resolution.batch_id = "../recorder-prior-seed";
+    },
+    (plan) => {
+      plan.prior_resolution.batch_id = "missing-prior";
+    },
+    (plan) => {
+      plan.prior_resolution.path = refresh.dir;
+    },
+    (plan) => {
+      plan.items[0].action = "skip_closed";
+    },
+    (plan) => {
+      plan.items[0].sources.find((source) => source.role === "details").action = "skip_closed";
+    },
+    (plan) => {
+      plan.items[0].baseline.last_checked = frozen.as_of;
+    },
+  ]) {
+    const fake = structuredClone(frozen);
+    mutate(fake);
+    overwriteSourcePlan(refresh, fake);
+    for (const cadence of ["per-batch", "full"])
+      assert.notEqual(verifySourceBatch(context, refresh, fixture, cadence).status, "pass");
+    assert.notEqual(
+      errorCode(() => recordSource(context.path, refresh)),
+      null,
+    );
+    assert.deepEqual(readFileSync(context.path), ledgerBytes);
+    assert.equal(existsSync(join(refresh.dir, "ledger-record.json")), false);
+  }
+  overwriteSourcePlan(refresh, frozen);
+  assert.equal(recordSource(context.path, refresh).record.written, true);
+});
+
+test("planning proof custody is rechecked under the recorder lock for first writes and replay", (t) => {
+  for (const kind of ["prior", "prefetch"]) {
+    const scenario =
+      kind === "prior" ? indexedPriorRecorderScenario(t) : recollectionPlanningScenario(t);
+    const { context } = scenario;
+    const staged =
+      kind === "prior"
+        ? scenario.refresh
+        : publishedPrefetchBatch(scenario, "locked-prefetch-proof");
+    const proofPath =
+      kind === "prior"
+        ? join(scenario.original.dir, "ledger-record.json")
+        : join(staged.dir, "source-plan", "proof.json");
+    const retained = join(context.root, `locked-${kind}-retained.json`);
+    for (const phase of ["first", "indexed replay"]) {
+      const ledgerBytes = readFileSync(context.path);
+      const batchBytes = sourceArtifactBytes(staged.dir);
+      const originalMkdir = fs.mkdirSync;
+      let moved = false;
+      fs.mkdirSync = function (path, ...args) {
+        const result = originalMkdir.call(this, path, ...args);
+        if (!moved && path === `${context.path}.lock`) {
+          moved = true;
+          renameSync(proofPath, retained);
+        }
+        return result;
+      };
+      syncBuiltinESMExports();
+      try {
+        assert.equal(
+          errorCode(() => recordSource(context.path, staged)),
+          kind === "prior"
+            ? "triage_ledger_source_plan_prior_invalid"
+            : "triage_ledger_source_plan_prefetch_invalid",
+          `${kind}: ${phase}`,
+        );
+      } finally {
+        fs.mkdirSync = originalMkdir;
+        syncBuiltinESMExports();
+        if (moved) renameSync(retained, proofPath);
+      }
+      assert.equal(moved, true);
+      assert.deepEqual(readFileSync(context.path), ledgerBytes);
+      assert.deepEqual(sourceArtifactBytes(staged.dir), batchBytes);
+      const result = recordSource(context.path, staged);
+      assert.equal(result.replayed, phase === "indexed replay");
+    }
+  }
+});
+
+test("equivalent plain plans, unrelated writers and later orphan observations keep their recording contract", (t) => {
+  const { context, fixture, original, refresh, frozen, asOf } = indexedPriorRecorderScenario(t);
+  const stable = sourceBatchDir(context, fixture, "recorder-plain-equivalent", {
+    ...linkedSourceObservations(fixture),
+    observedAt: "2026-10-09T09:30:00Z",
+    prefetchPlan: true,
+  });
+  const plain = structuredClone(frozen);
+  delete plain.prior_resolution;
+  overwriteSourcePlan(stable, plain);
+  sourceFullEvidence(stable, asOf);
+  for (const cadence of ["per-batch", "full"]) {
+    const report = verifySourceBatch(context, stable, fixture, cadence);
+    assert.equal(report.status, "pass", `${cadence}: ${report.findingCodes.join(",")}`);
+  }
+  const otherFixture = fictionalSourceSet({
+    postId: 1201,
+    homepage: "https://beta.example/",
+    company: "Beta",
+  });
+  const unrelated = sourceBatchDir(context, otherFixture, "recorder-unrelated-first", {
+    prefetchPlan: true,
+    observedAt: asOf,
+  });
+  recordSource(context.path, unrelated);
+  const unrelatedRow = structuredClone(
+    readLedger(context.path).logical_entries.find(
+      (entry) => entry.batch_id === unrelated.payload.batch_id,
+    ),
+  );
+  assert.equal(recordSource(context.path, refresh).record.written, true);
+  const conflictRecord = readFileSync(join(refresh.dir, "ledger-record.json"));
+  const later = sourceBatchDir(context, fixture, "recorder-later-plain", {
+    ...linkedSourceObservations(fixture),
+    observedAt: "2026-10-10T09:00:00Z",
+  });
+  recordSource(context.path, later);
+  const laterRow = structuredClone(
+    readLedger(context.path).logical_entries.find(
+      (entry) => entry.batch_id === later.payload.batch_id,
+    ),
+  );
+  assert.equal(recordSource(context.path, refresh).replayed, true);
+  assert.deepEqual(readFileSync(join(refresh.dir, "ledger-record.json")), conflictRecord);
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: {
+      ...ledger,
+      batches: ledger.batches.filter((batch) => batch.batch_id !== refresh.payload.batch_id),
+    },
+  }));
+  const parentPath = join(original.dir, "ledger-record.json");
+  const retained = join(context.root, "orphan-prior-retained.json");
+  renameSync(parentPath, retained);
+  const before = readFileSync(context.path);
+  assert.equal(
+    errorCode(() => recordSource(context.path, refresh)),
+    "triage_ledger_source_plan_prior_invalid",
+  );
+  assert.deepEqual(readFileSync(context.path), before);
+  assert.deepEqual(readFileSync(join(refresh.dir, "ledger-record.json")), conflictRecord);
+  renameSync(retained, parentPath);
+  assert.equal(recordSource(context.path, refresh).replayed, false);
+  assert.deepEqual(
+    readLedger(context.path).logical_entries.find((entry) => entry.key === laterRow.key),
+    laterRow,
+  );
+  assert.deepEqual(
+    readLedger(context.path).logical_entries.find((entry) => entry.key === unrelatedRow.key),
+    unrelatedRow,
+  );
+  assert.deepEqual(readFileSync(join(refresh.dir, "ledger-record.json")), conflictRecord);
+  const plainContext = sourceLedger(t);
+  const seed = sourceBatchDir(plainContext, fixture, "plain-seed", {
+    ...linkedSourceObservations(fixture),
+    prefetchPlan: true,
+  });
+  recordSource(plainContext.path, seed);
+  const ordinary = sourceBatchDir(plainContext, fixture, "plain-refresh", {
+    ...linkedSourceObservations(fixture),
+    observedAt: "2026-10-09T09:30:00Z",
+  });
+  const equivalent = ledgerSourceApi.planSourceBatch(plainContext.path, fixture.sourceSet, {
+    asOf,
+    resolution: seed.resolution,
+    collectionText: fixture.collectionText,
+    captureRoot: seed.dir,
+  });
+  delete equivalent.prior_resolution;
+  overwriteSourcePlan(ordinary, equivalent);
+  assert.equal(Object.hasOwn(equivalent, "prior_resolution"), false);
+  assert.equal(recordSource(plainContext.path, ordinary).record.written, true);
+  assert.equal(recordSource(plainContext.path, ordinary).replayed, true);
+});

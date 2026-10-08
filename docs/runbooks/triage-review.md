@@ -387,6 +387,24 @@ Historical version 1 records retain their original schema and digest calculation
 the actual payload and bound artifacts with the frozen archive; a later confirmed alias cannot
 reinterpret that historical record's logical key or digest.
 
+The recorder also corroborates source-plan provenance under the ledger lock on a first write,
+orphan adoption and indexed replay. A declared `prior_resolution` must match its full closed
+reference through the indexed sibling archive's exact set, collection, prior observation time,
+record bytes, resolution and capture custody. A declared current-set prefetch proof reopens its
+retained dependencies under the same lock. Missing, altered or unindexed prior evidence refuses
+with `triage_ledger_source_plan_prior_invalid` before any archive or index write.
+
+A plain plan still needs no capsule when its shape can be reproduced from the final validated
+resolution or selected initial cards. Removing a necessary reference from a plan frozen before
+new conflicts refuses with `triage_ledger_plan_invalid`; final facts cannot replace past proof.
+The first write compares the selected logical and job-source baselines with actual locked state.
+A matching immutable own record binds the frozen selected baselines for orphan recovery and
+replay; later aliases do not reinterpret its original keys. Provenance checking does not require
+the entire current ledger snapshot to stay unchanged, so unrelated writers and later observations
+retain their existing concurrency and recovery behavior. No historical record or `parents` list
+is rewritten: the plan's existing byte digest binds its planning reference, which is rechecked
+independently of alias, correction and carried-closure parents.
+
 Every parent reference is corroborated under the ledger lock against one matching immutable
 `ledger.batches` row: record version, observation time, count, policy, entries digest and, for
 version 2, all three bound artifact digests. The parent JSON and its byte digest come from the

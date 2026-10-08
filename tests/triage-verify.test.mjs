@@ -6167,6 +6167,28 @@ test("source capture inventory counts a shared physical transport once for two e
     assert.equal(checkOf(report, "chain-of-custody").counts.capturesVerified, 1);
     assert.equal(checkOf(report, "chain-of-custody").counts.recordsWithCapture, 2);
   }
+  const capturePath = join(artifactsDir, "007.capture.txt");
+  const primary = verifyCaptureFile(readFileSync(capturePath, "utf8"));
+  writeFileSync(
+    capturePath,
+    renderCaptureFile({
+      header: { ...primary.header, "response-sha256": "0".repeat(64) },
+      body: primary.body,
+    }),
+  );
+  for (const cadence of ["per-batch", "full"]) {
+    const report = verifySource(prepared, cadence);
+    assert.equal(report.status, "fail");
+    assert.deepEqual(checkOf(report, "cross-transport").findings, [
+      {
+        code: "manifest_response_digest_mismatch",
+        transportIndex: 7,
+        file: "007.capture.txt",
+      },
+    ]);
+    assert.equal(report.counts.captures, 1);
+    assert.equal(report.counts.capturesByProvenance.http_fetch, 1);
+  }
 });
 
 test("source capture inventory retains a fetch-produced degraded first pass and browser rescue", async (t) => {
@@ -6245,4 +6267,149 @@ test("source capture inventory retains a fetch-produced degraded first pass and 
     assert.ok(!codes(report).includes("input_absent"));
     assert.ok(!codes(report).includes("trace_absent"));
   }
+  const primaryPath = join(artifactsDir, "001.capture.txt");
+  const primary = verifyCaptureFile(readFileSync(primaryPath, "utf8"));
+  for (const [field, changed, expected] of [
+    ["fetched-at", "2026-10-08T08:05:00.000Z", "manifest_capture_fetched_at_mismatch"],
+    ["response-sha256", "0".repeat(64), "manifest_response_digest_mismatch"],
+  ]) {
+    writeFileSync(
+      primaryPath,
+      renderCaptureFile({
+        header: { ...primary.header, [field]: changed },
+        body: primary.body,
+      }),
+    );
+    for (const cadence of ["per-batch", "full"]) {
+      const report = verifySource(prepared, cadence);
+      assert.equal(report.status, "fail");
+      assert.deepEqual(checkOf(report, "cross-transport").findings, [
+        {
+          code: expected,
+          transportIndex: 1,
+          file: "001.capture.txt",
+        },
+      ]);
+      assert.equal(report.counts.captures, 2);
+      assert.equal(report.counts.capturesByProvenance.transcript, 2);
+    }
+  }
+});
+
+async function prepareProducedSourceSummary(t, { targetInput = false } = {}) {
+  const fixture = fictionalSourceFixture({ manual: true });
+  const root = disposableRoot(t);
+  const artifactsDir = join(root, "artifacts");
+  const collectorDir = join(root, "collector");
+  mkdirSync(artifactsDir);
+  mkdirSync(collectorDir);
+  const prose =
+    "The quality team records test scenarios, reviews product behavior, investigates defects, compares observed results with requirements, and shares repeatable examples throughout each release. ";
+  let requests = 0;
+  await runVacancyFetchBatch({
+    urls: [fixture.target.source_ref],
+    outDir: artifactsDir,
+    batch: "fictional-summary-corroboration",
+    delayMs: 0,
+    now: () => new Date(fixtureCaptureAt),
+    sleep: async () => {},
+    fetchImpl: async () => {
+      requests += 1;
+      return new Response(
+        `<main><p>${fixture.target.body.replaceAll("\n", "<br/>")}</p><p>${prose.repeat(5)}</p></main>`,
+        {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        },
+      );
+    },
+  });
+  assert.equal(requests, 1);
+  const manifest = JSON.parse(readFileSync(join(artifactsDir, "fetch-manifest.json"), "utf8"));
+  const row = manifest.records[0];
+  assert.equal(row.usable, true);
+  const capturePath = join(artifactsDir, row.persisted.file);
+  const captureText = readFileSync(capturePath, "utf8");
+  const capture = verifyCaptureFile(captureText);
+  assert.equal(capture.ok, true);
+  fixture.original.input.inputIndex = 11;
+  fixture.target.description_kind = targetInput ? "full_description" : "summary";
+  fixture.target.capture = { file: row.persisted.file, sha256: row.persisted.sha256 };
+  fixture.target.body = capture.body;
+  if (targetInput) {
+    fixture.target.input.inputIndex = 41;
+    fixture.target.input.sourceContext.primaryCaptureSha256 = row.persisted.sha256;
+    fixture.target.input.sourceContext.endLine = capture.body.split("\n").length;
+  } else fixture.target.input = null;
+  writeFileSync(join(collectorDir, fixture.snapshot.capture.file), fixture.html);
+  const resolution = publishSourceResolution({
+    artifactsDir,
+    sourceCaptureRoot: collectorDir,
+    sourceSet: fixture.sourceSet,
+    collectionText: fixture.collectionText,
+    observations: fixture.observations,
+  });
+  const linksFile = join(root, "links.txt");
+  writeFileSync(linksFile, fixture.collectionText);
+  return {
+    root,
+    artifactsDir,
+    linksFile,
+    sourceSet: fixture.sourceSet,
+    resolution,
+    from: 1,
+    to: 3,
+    capturePath,
+    captureText,
+  };
+}
+
+test("source HTTP summary metadata is corroborated without an extraction input at both cadences", async (t) => {
+  const results = [];
+  const originalBytes = [];
+  for (const targetInput of [false, true]) {
+    const prepared = await prepareProducedSourceSummary(t, { targetInput });
+    originalBytes.push(prepared.captureText);
+    const controls = verifyFileBackedSourceCadences(prepared);
+    for (const report of controls) {
+      assert.equal(report.counts.captures, 1);
+      assert.equal(report.counts.capturesByProvenance.http_fetch, 1);
+      assert.equal(report.counts.records, targetInput ? 2 : 1);
+    }
+    const parsed = verifyCaptureFile(prepared.captureText);
+    for (const [field, changed, expected] of [
+      ["fetched-at", "2026-10-08T08:05:00.000Z", "manifest_capture_fetched_at_mismatch"],
+      ["response-sha256", "0".repeat(64), "manifest_response_digest_mismatch"],
+    ]) {
+      const mutated = renderCaptureFile({
+        header: { ...parsed.header, [field]: changed },
+        body: parsed.body,
+      });
+      assert.equal(verifyCaptureFile(mutated).ok, true);
+      writeFileSync(prepared.capturePath, mutated);
+      for (const cadence of ["per-batch", "full"]) {
+        const report = verifySource(prepared, cadence);
+        results.push({
+          targetInput,
+          field,
+          cadence,
+          status: report.status,
+          corroborated: codes(report).includes(expected),
+          findingCount: checkOf(report, "cross-transport").findings.filter(
+            (finding) => finding.code === expected,
+          ).length,
+        });
+      }
+    }
+  }
+  assert.equal(originalBytes[0], originalBytes[1]);
+  assert.deepEqual(
+    results,
+    results.map((entry) => ({
+      ...entry,
+      status: "fail",
+      corroborated: true,
+      findingCount: 1,
+    })),
+  );
 });

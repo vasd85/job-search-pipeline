@@ -145,6 +145,12 @@ for stamped files name `transportIndex` and `file`; extraction findings keep the
 A narrower card selection keeps custody over every saved HTML snapshot in the source set and rejects
 stamped files with no checked transport observation.
 
+Cross-transport corroboration also follows this physical inventory. Every manifest-named primary
+HTTP capture compares its filename, normalized digest, response digest and fetch clock with its
+own manifest record once, including summaries with `input: null` and degraded first passes.
+Those findings name `transportIndex` and `file` in source mode; multiple extractions sharing the
+capture do not duplicate them. A browser rescue retains its own stamped clock and response facts.
+
 A genuine body-less failure needs an exact digest-bound fetch-manifest record for its own requested
 URL and transport index, non-usable access, null facts and no evidence. It keeps its raw unavailable
 trace and retry meaning. A proven company/context link receives a source disposition and needs no
