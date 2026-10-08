@@ -25,6 +25,7 @@ import { isAbsolute, join } from "node:path";
 import { triageBatchIdPattern, vacancyIdentity } from "../lib/triage-ledger-core.mjs";
 import { sliceRange } from "../triage-verify/links.mjs";
 import { fail } from "./errors.mjs";
+import { sourceSetMemberships, validateSourceSet } from "../triage-sources/source-set.mjs";
 
 function assertCollection(collection) {
   if (collection === null || typeof collection !== "object" || !Array.isArray(collection.links)) {
@@ -56,6 +57,7 @@ export function splitCollection(collection, { groupSize = null } = {}) {
   if (!Number.isSafeInteger(size) || size < 1) {
     fail("pretriage_invalid_group_size", "The group size must be a positive integer.");
   }
+  if (collection.source_set !== undefined) return splitSourceCollection(collection, size);
   const groups = [];
   for (let from = 1; from <= total; from += size) {
     const to = Math.min(from + size - 1, total);
@@ -119,7 +121,101 @@ export function collectionGroup(collection, group) {
     throw error;
   }
   const { links: _ignored, ...header } = collection;
-  return { ...header, links };
+  return {
+    ...header,
+    links,
+    ...(collection.source_set === undefined
+      ? {}
+      : {
+          source_selection: { from: group.from, to: group.to, card_refs: group.card_refs },
+        }),
+  };
+}
+
+// Cut only between source units. Shared context is assigned once, and never joins two jobs.
+function splitSourceCollection(collection, size) {
+  const set = validateSourceSet(collection.source_set, {
+    collectionText: collection.collection_text,
+  });
+  const memberships = collection.links.map((link) => sourceSetMemberships(set, link.url));
+  const cards = set.cards;
+  const jobPositions = new Map(cards.map((card) => [card.card_ref, []]));
+  memberships.forEach((members, at) =>
+    members
+      .filter((member) => !["company_context", "contact"].includes(member.role))
+      .forEach((member) => jobPositions.get(member.card_ref).push(at + 1)),
+  );
+  for (const card of cards)
+    if (!jobPositions.get(card.card_ref).length)
+      fail(
+        "pretriage_source_unit_unpositioned",
+        "A source card needs a supplied job or original-post URL before grouping.",
+      );
+  const owners = memberships.map((members) => {
+    const job = members.filter((member) => !["company_context", "contact"].includes(member.role));
+    const candidates = job.length ? job : members;
+    return [...new Set(candidates.map((member) => member.card_ref))].sort(
+      (a, b) =>
+        Math.min(...jobPositions.get(a)) - Math.min(...jobPositions.get(b)) || a.localeCompare(b),
+    );
+  });
+  const positions = new Map([...jobPositions].map(([ref, values]) => [ref, [...values]]));
+  owners.forEach((refs, at) => {
+    if (refs.length) positions.get(refs[0]).push(at + 1);
+  });
+  const spans = cards
+    .map((card) => ({
+      from: Math.min(...positions.get(card.card_ref)),
+      to: Math.max(...positions.get(card.card_ref)),
+      card_refs: [card.card_ref],
+    }))
+    .sort((a, b) => a.from - b.from || a.to - b.to);
+  const units = [];
+  for (const span of spans) {
+    const previous = units.at(-1);
+    if (previous !== undefined && span.from <= previous.to) {
+      previous.to = Math.max(previous.to, span.to);
+      previous.card_refs.push(...span.card_refs);
+    } else units.push({ ...span });
+  }
+  const groups = [];
+  for (const unit of units) {
+    const previous = groups.at(-1);
+    if (
+      previous !== undefined &&
+      previous.to + 1 === unit.from &&
+      unit.to - previous.from + 1 <= size
+    ) {
+      previous.to = unit.to;
+      previous.card_refs.push(...unit.card_refs);
+      previous.size = previous.to - previous.from + 1;
+    } else
+      groups.push({
+        group: groups.length + 1,
+        from: unit.from,
+        to: unit.to,
+        size: unit.to - unit.from + 1,
+        card_refs: [...unit.card_refs],
+        oversize: unit.to - unit.from + 1 > size,
+      });
+  }
+  if (
+    groups[0]?.from !== 1 ||
+    groups.at(-1)?.to !== collection.links.length ||
+    groups.some((group, at) => at > 0 && group.from !== groups[at - 1].to + 1)
+  )
+    fail(
+      "pretriage_source_unit_unpositioned",
+      "Source units do not cover the collection's URL positions.",
+    );
+  return {
+    schema_version: 2,
+    group_size: size,
+    total: collection.links.length,
+    logical_vacancies: cards.length,
+    groups,
+    cross_group_spellings: [],
+  };
 }
 
 /**

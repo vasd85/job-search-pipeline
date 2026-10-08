@@ -22,6 +22,7 @@ export const errorCodes = Object.freeze([
   "handle_invalid",
   "out_dir_invalid",
   "out_dir_not_empty",
+  "source_set_invalid",
   "stage_invalid",
   "stage_missing",
   "state_changed",

@@ -12,6 +12,18 @@ The two halves below differ in kind. The first binds code that exists. The secon
 work that has not started — `source-capture.json` is in no module, the ledger validator accepts
 `vacancy.json` at schema version 2 only, and the private extraction-v2 epic is paused. A task that builds any of it inherits that contract and may not weaken it locally.
 
+## Batch source context
+
+Telegram batch triage additionally uses the implemented `source-set.json` and
+`source-resolution.json` contracts in [tools/triage-sources/README.md](../tools/triage-sources/README.md).
+Saved HTML/code-extracted bodies, own vacancy boundaries, capture clock and exact collection bytes
+bind every source membership. A `company_context` or contact link is not a JD or fetch failure.
+A full original may supply the primary JD; a summary keeps the details/apply route to a full JD.
+Quotes remain within that primary source's own body. Unknown identity and explicit source conflicts
+are visible review outcomes; typed job-source failures retain the existing retry/closure contract.
+These batch artifacts do not implement or rename the paused per-role `source-capture.json` contract
+below and do not alter process/source keys.
+
 ## What binds today
 
 Every bounded set below has one machine owner. Read the module, never a prose copy of it.

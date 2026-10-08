@@ -15,7 +15,11 @@
 // and re-adding one is safe because an ancient cursor is bounded by the backfill window.
 //
 // Schema version 2 adds group entries under the same `channels` key: `{ kind: "group", ... }`. A
-// version 1 file holds no group entry and is read as it is; a write always carries version 2. An
+// version 1 file holds no group entry and is read as it is; its historical write carries version 2.
+// Version 3 adds an exact source_body_sha256 on new reader2 fingerprints. Old fingerprints remain
+// readable without that field and cannot suppress source mapping under the new epoch. A reader2
+// completion explicitly moves state to version 3; no legacy fingerprint is relabeled as verified.
+// An
 // entry whose kind differs from the config's is a refusal before any request (`state_kind_mismatch`):
 // a channel's cursor and a group's position are different numbers, and one is never read as the other.
 
@@ -23,8 +27,8 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { isValidHandle } from "./config.mjs";
 import { fail } from "./errors.mjs";
 
-export const stateSchemaVersion = 2;
-export const readableStateSchemaVersions = Object.freeze([1, 2]);
+export const stateSchemaVersion = 3;
+export const readableStateSchemaVersions = Object.freeze([1, 2, 3]);
 export const groupStopReasons = Object.freeze(["tip", "request_cap"]);
 export const stateBasename = "telegram-sweep-state.json";
 
@@ -48,6 +52,7 @@ function isFingerprint(entry) {
     isPostId(entry.post_id) &&
     isInstant(entry.instant) &&
     isInstant(entry.last_seen) &&
+    (entry.source_body_sha256 === undefined || /^[a-f0-9]{64}$/u.test(entry.source_body_sha256)) &&
     DIGEST.test(entry.head ?? "") &&
     DIGEST.test(entry.urls ?? "") &&
     (shortText
@@ -131,7 +136,13 @@ function validateState(state) {
   ) {
     fail("state_invalid", "The sweep state does not match its schema.");
   }
-  if (!state.fingerprints.every(isFingerprint)) {
+  if (
+    !state.fingerprints.every(
+      (entry) =>
+        isFingerprint(entry) &&
+        (state.schema_version === 3 || entry.source_body_sha256 === undefined),
+    )
+  ) {
     fail("state_invalid", "A post fingerprint of the sweep state does not match its schema.");
   }
   for (const [key, entry] of Object.entries(state.emitted_urls)) {
@@ -173,10 +184,10 @@ export function assertSourceKinds(state, config) {
   }
 }
 
-export function initState(path) {
+export function initState(path, { schemaVersion = stateSchemaVersion } = {}) {
   if (existsSync(path)) fail("state_exists", "The sweep state already exists.");
   const state = {
-    schema_version: stateSchemaVersion,
+    schema_version: schemaVersion,
     channels: {},
     fingerprints: [],
     emitted_urls: {},
@@ -205,7 +216,7 @@ export function readState(path) {
 }
 
 export function writeState(path, state) {
-  const current = { ...validateState(state), schema_version: stateSchemaVersion };
+  const current = { ...validateState(state), schema_version: state.schema_version === 3 ? 3 : 2 };
   writeFileAtomic(path, `${JSON.stringify(current, null, 2)}\n`);
 }
 

@@ -31,11 +31,18 @@ import { fail } from "./errors.mjs";
 import { renderReport, reportBasename } from "./report.mjs";
 import { assertSourceKinds, readState, writeFileAtomic, writeState } from "./state.mjs";
 import { resolveSweep, sweepTotals, walkSources } from "./sweep.mjs";
+import {
+  buildSourceSet,
+  serializeSourceSet,
+  SourceSetError,
+  sourceSetBasename,
+  sourceSetDigest,
+} from "../triage-sources/source-set.mjs";
 
 export const manifestBasename = "sweep-manifest.json";
 export const manifestSchemaVersion = 1;
 export const stageBasename = "sweep-stage.json";
-export const stageSchemaVersion = 1;
+export const stageSchemaVersion = 2;
 export const sweepDirPrefixes = Object.freeze(["telegram-sweeps", ".rehearsal"]);
 export const rejectedAnswerSuffix = ".rejected.json";
 
@@ -127,7 +134,7 @@ function readStage(outDir) {
   if (
     typeof stage !== "object" ||
     stage === null ||
-    stage.schema_version !== stageSchemaVersion ||
+    ![1, 2].includes(stage.schema_version) ||
     typeof stage.config?.path !== "string" ||
     !isAbsolute(stage.config.path) ||
     typeof stage.config?.sha256 !== "string" ||
@@ -143,7 +150,16 @@ function readStage(outDir) {
 }
 
 /** Write the finished half: cards, collection, report, manifest, the state last. */
-function finishSweep({ outDir, statePath, result, captures, stage, batches, answersInfo }) {
+function finishSweep({
+  outDir,
+  statePath,
+  result,
+  captures,
+  stage,
+  batches,
+  answersInfo,
+  readerVersion = 2,
+}) {
   const cardsText = result.cards
     .map((card) => `${JSON.stringify(cardRecord(card, { held: card.held }))}\n`)
     .join("");
@@ -155,6 +171,22 @@ function finishSweep({ outDir, statePath, result, captures, stage, batches, answ
   });
   const collectionPath = collectionText === null ? null : join(outDir, collectionBasename);
   if (collectionText !== null) writeFileAtomic(collectionPath, collectionText);
+  let sourceSet = null;
+  if (readerVersion === 2 && result.cards.length > 0) {
+    try {
+      sourceSet = buildSourceSet({
+        cards: result.cards,
+        collectionText,
+        captures,
+        captureRoot: outDir,
+      });
+    } catch (error) {
+      if (error instanceof SourceSetError) fail("source_set_invalid", error.message);
+      throw error;
+    }
+  }
+  const sourceSetPath = sourceSet === null ? null : join(outDir, sourceSetBasename);
+  if (sourceSet !== null) writeFileAtomic(sourceSetPath, serializeSourceSet(sourceSet));
   const reportText = renderReport(result, { collectionPath, cardsPath });
   writeFileAtomic(join(outDir, reportBasename), reportText);
 
@@ -179,6 +211,19 @@ function finishSweep({ outDir, statePath, result, captures, stage, batches, answ
             sha256: sha256Utf8(collectionText),
           },
     report: { file: reportBasename, sha256: sha256Utf8(reportText) },
+    ...(readerVersion === 2
+      ? {
+          source_set:
+            sourceSet === null
+              ? null
+              : {
+                  file: sourceSetBasename,
+                  sha256: sourceSetDigest(sourceSet),
+                  snapshots: sourceSet.snapshots.length,
+                  cards: sourceSet.cards.length,
+                },
+        }
+      : {}),
     stage,
     batches,
     answers: answersInfo.answers,
@@ -197,6 +242,7 @@ function finishSweep({ outDir, statePath, result, captures, stage, batches, answ
     manifest,
     collectionPath,
     cardsPath,
+    sourceSetPath,
     reportPath: join(outDir, reportBasename),
   };
 }
@@ -209,6 +255,7 @@ export async function executeSweep({
   now,
   sleep,
   fetchImpl,
+  readerVersion = 2,
 }) {
   // Config and state are read before the directory is touched and before any request: a caller
   // error must cost neither a request nor a half-made sweep directory.
@@ -231,6 +278,7 @@ export async function executeSweep({
       file: null,
       byte_length: record.byteLength,
       sha256: null,
+      ...(readerVersion === 2 ? { captured_at: new Date(now()).toISOString() } : {}),
     };
     if (record.bytes !== null && record.bytes !== undefined) {
       entry.file = captureName(entry.index);
@@ -241,7 +289,7 @@ export async function executeSweep({
   };
 
   const walk = await walkSources({ config, state, now, sleep, fetchImpl, capture });
-  const result = resolveSweep({ config, state, walk, answers: null });
+  const result = resolveSweep({ config, state, walk, answers: null, readerVersion });
   if (!result.awaiting) {
     return finishSweep({
       outDir,
@@ -251,6 +299,7 @@ export async function executeSweep({
       stage: null,
       batches: [],
       answersInfo: { answers: [], rejected: [], stray: 0 },
+      readerVersion,
     });
   }
 
@@ -258,17 +307,21 @@ export async function executeSweep({
   const batchDir = join(outDir, batchDirBasename);
   mkdirSync(batchDir);
   const sourceOrder = config.channels.map((source) => source.handle);
-  const batches = planBatches(result.pending, config.roleWords, { sourceOrder }).map((batch) => {
+  const batches = planBatches(result.pending, config.roleWords, {
+    sourceOrder,
+    sourceMapping: readerVersion === 2,
+  }).map((batch) => {
     writeFileAtomic(join(batchDir, batch.file), batch.text);
     return {
       file: batch.file,
       handle: batch.handle,
       sha256: sha256Utf8(batch.text),
       posts: batch.posts,
+      ...(readerVersion === 2 ? { schema_version: 2 } : {}),
     };
   });
   const stage = {
-    schema_version: stageSchemaVersion,
+    schema_version: readerVersion === 2 ? 2 : 1,
     started_at: walk.started_at,
     config: { path: configPath, sha256: fileDigest(configPath) },
     state_sha256: fileDigest(statePath),
@@ -301,6 +354,29 @@ function readAnswers(outDir, batches) {
   const files = [];
   let stray = 0;
   for (const batch of batches) {
+    if (batch.schema_version === 2) {
+      if (
+        typeof batch.file !== "string" ||
+        !/^[A-Za-z][A-Za-z0-9_]{3,31}-[0-9]{3,}\.txt$/u.test(batch.file) ||
+        !/^[a-f0-9]{64}$/u.test(batch.sha256 ?? "")
+      )
+        fail("stage_invalid", "Reader batch metadata is invalid.");
+      let digest;
+      try {
+        digest = fileDigest(join(outDir, batchDirBasename, batch.file));
+      } catch {
+        fail("stage_invalid", "The complete reader batch cannot be read.");
+      }
+      if (digest !== batch.sha256)
+        fail("stage_invalid", "The complete reader input changed after the sweep was staged.");
+    }
+    const complete = batch.posts.filter((post) => post.complete !== false);
+    for (const post of batch.posts.filter((post) => post.complete === false))
+      answers.set(`${post.handle}/${post.postId}`, {
+        kind: "unresolved_oversize",
+        descriptor: post,
+      });
+    if (complete.length === 0) continue;
     const file = answerFileOf(batch.file);
     const path = join(answerDir, file);
     if (!existsSync(path)) {
@@ -312,6 +388,7 @@ function readAnswers(outDir, batches) {
     const checked = checkAnswer(parseAnswerText(text), {
       name: batch.file.replace(/\.txt$/u, ""),
       posts: batch.posts,
+      ...(batch.schema_version === 2 ? { schema_version: 2 } : {}),
     });
     stray += checked.stray;
     for (const post of batch.posts) {
@@ -351,7 +428,8 @@ export function executeFinalize({ outDir, statePath, repoRoot, acceptInvalid = f
   }
   assertSourceKinds(state, config);
   const { answers, files, rejected, stray } = readAnswers(outDir, stage.batches);
-  const result = resolveSweep({ config, state, walk: stage.walk, answers });
+  const readerVersion = stage.schema_version === 1 ? 1 : 2;
+  const result = resolveSweep({ config, state, walk: stage.walk, answers, readerVersion });
   if (result.answer_invalid.length > 0 && !acceptInvalid) {
     // The batch's answer file is named first: it is what the skill renames and re-reads.
     const named = result.answer_invalid.map(
@@ -374,6 +452,7 @@ export function executeFinalize({ outDir, statePath, repoRoot, acceptInvalid = f
       posts: posts.length,
     })),
     answersInfo: { answers: files, rejected, stray },
+    readerVersion,
   });
 }
 
@@ -398,7 +477,14 @@ export function renderLabelBatches({ outDir, repoRoot }) {
   }
   mkdirSync(labelDir, { recursive: true });
   const state = { schema_version: 2, channels: {}, fingerprints: [], emitted_urls: {} };
-  const pending = resolveSweep({ config, state, walk: stage.walk, answers: null }).pending ?? [];
+  const pending =
+    resolveSweep({
+      config,
+      state,
+      walk: stage.walk,
+      answers: null,
+      readerVersion: stage.schema_version === 1 ? 1 : 2,
+    }).pending ?? [];
   const wanted = new Set(
     stage.batches.flatMap((batch) => batch.posts.map((post) => `${post.handle}/${post.postId}`)),
   );
@@ -406,7 +492,7 @@ export function renderLabelBatches({ outDir, repoRoot }) {
   const batches = planBatches(
     pending.filter((item) => wanted.has(`${item.handle}/${item.postId}`)),
     config.roleWords,
-    { fullText: true, sourceOrder },
+    { fullText: true, sourceOrder, sourceMapping: stage.schema_version === 2 },
   ).map((batch) => {
     writeFileAtomic(join(labelDir, batch.file), batch.text);
     return {
@@ -414,6 +500,7 @@ export function renderLabelBatches({ outDir, repoRoot }) {
       handle: batch.handle,
       sha256: sha256Utf8(batch.text),
       posts: batch.posts,
+      ...(stage.schema_version === 2 ? { schema_version: 2 } : {}),
     };
   });
   writeFileAtomic(
@@ -463,12 +550,27 @@ export function summarize(run, command = "sweep") {
         file: batch.file,
         handle: batch.handle,
         posts: batch.posts.length,
+        ...(run.stage.schema_version === 2
+          ? {
+              complete_posts: batch.posts.filter((post) => post.complete !== false).length,
+              unresolved_posts: batch.posts.filter((post) => post.complete === false).length,
+            }
+          : {}),
       })),
-      posts_to_read: run.posts_to_read,
+      posts_to_read: run.batches
+        .flatMap((batch) => batch.posts)
+        .filter((post) => post.complete !== false).length,
+      ...(run.stage.schema_version === 2
+        ? {
+            unresolved_mappings: run.batches
+              .flatMap((batch) => batch.posts)
+              .filter((post) => post.complete === false).length,
+          }
+        : {}),
       batch_dir: run.batchDir,
     };
   }
-  const { manifest, collectionPath, cardsPath, reportPath } = run;
+  const { manifest, collectionPath, cardsPath, reportPath, sourceSetPath } = run;
   return {
     command,
     completed: manifest.completed,
@@ -484,5 +586,6 @@ export function summarize(run, command = "sweep") {
     collection_path: collectionPath,
     cards_path: cardsPath,
     report_path: reportPath,
+    ...(Object.hasOwn(manifest, "source_set") ? { source_set_path: sourceSetPath } : {}),
   };
 }

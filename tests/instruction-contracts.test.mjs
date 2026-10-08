@@ -3047,19 +3047,16 @@ test("a link the batch did not process owes nothing, and the three owners say so
   const pipelineRun = flat("instructions/pipeline-run.md");
 
   // No trace.
+  assert.match(rubric, /A standalone batch has one trace object per processed input link\./);
   assert.match(
     rubric,
-    /Every input link the batch processed has one trace object or equivalently labelled text block\./,
-  );
-  assert.match(
-    rubric,
-    /Two kinds of input link are not processed and have none: a link the triage ledger's batch-start plan withheld, whose last decision stays in its ledger row and in the traces of the batch that row's `batch_id` names, and a second spelling of a link the same batch already carries\./,
+    /Two kinds of standalone input link are not processed and have none: a link the triage ledger's batch-start plan withheld, whose last decision stays in its ledger row and in the traces of the batch that row's `batch_id` names, and a second spelling of a link the same batch already carries\./,
   );
   assert.doesNotMatch(rubric, /Every input link has one trace/);
   assert.match(skill, /The traces are published as files: one per planned link,/);
   assert.match(
     pipelineRun,
-    /Output: one Decision Trace per\s+link the batch processed; the rubric's\s+\[Decision Trace contract\]\(\.\.\/knowledge\/job-match-rules\.md#7-decision-trace-contract\) names the\s+links that have none\./,
+    /Output: one Decision Trace per\s+processed standalone link, or raw source-observation traces and one logical result per vacancy\s+when an explicitly paired source set is supplied; the rubric's\s+\[Decision Trace contract\]\(\.\.\/knowledge\/job-match-rules\.md#7-decision-trace-contract\) names the\s+links that have none\./,
   );
 
   // No ledger row, and the write refuses one.
@@ -3211,10 +3208,17 @@ test("score-jobs delegates normalized facts and every policy result to the pure 
     /it would\n  have the pipeline choose among the paths the source offered by how well it managed to read them/,
   );
 
-  // The runtime is on the accepted record, and no earlier record's object is read at all (the user's
-  // decision at the start gate of task 194).
-  assert.match(normalizedInput, /export const TRIAGE_POLICY_ID = "triage-policy-v8-2026-10-01"/);
-  assert.doesNotMatch(normalizedInput, /PRIOR_TRIAGE_POLICY_ID|SUPERSEDED_TRIAGE_POLICY_ID/);
+  // The current source epoch and the explicitly supported standalone epoch have separate IDs;
+  // earlier shapes still require their original engine.
+  assert.match(normalizedInput, /export const TRIAGE_POLICY_ID = "triage-policy-v9-2026-10-08"/);
+  assert.match(
+    normalizedInput,
+    /export const LEGACY_TRIAGE_POLICY_ID = "triage-policy-v8-2026-10-01"/,
+  );
+  assert.match(
+    normalizedInput,
+    /return version === 9 \? LEGACY_TRIAGE_POLICY_ID : version === 10 \? TRIAGE_POLICY_ID : null;/,
+  );
   assert.match(decider, /normalizeScorerInput\(rawInput, \{ languages, scoring \}\)/);
   assert.match(trace, /decideNormalizedJob\(rawInput, \{ languages, scoring \}\)/);
   // The skill passes the layer's scoring values and copies the same ones into the object.
@@ -3389,7 +3393,7 @@ test("the accepted triage record removes every information-driven terminal state
 
   // The record carries its own id, and the superseded one survives only as the id a trace produced
   // under it carries.
-  assert.match(rubric, /Policy id: `triage-policy-v8-2026-10-01`/);
+  assert.match(rubric, /Policy id: `triage-policy-v9-2026-10-08`/);
   assert.match(rubric, /Earlier records remain\s+historical/);
   // The decision records that accepted the policy name the same id: the rubric carries the record,
   // the ADR carries the decision, and a new id without its decision reds this line.
@@ -3576,7 +3580,7 @@ test("the accepted triage record removes every information-driven terminal state
     rubric,
     /every proposed hard `SKIP` still requires\s*\n?\s*manual confirmation/,
   );
-  assert.match(rubric, /The current\s+scorer refuses earlier input versions/);
+  assert.match(rubric, /The current\s+scorer refuses earlier unsupported input versions/);
 
   // MANUAL_REVIEW survives for contradiction only, and the three reasons are the whole set.
   assert.match(rubric, /`MANUAL_REVIEW` survives for contradiction only/);
@@ -3701,11 +3705,11 @@ test("the scorer executes the accepted triage record instead of describing it", 
   // the one reader left refuses every other record and every earlier shape before reading a field.
   assert.match(
     normalizedInput,
-    /if \(input\.policyId !== TRIAGE_POLICY_ID\) fail\("policyId", `must be \$\{TRIAGE_POLICY_ID\}`\);/,
+    /if \(input\.policyId !== policyId\) fail\("policyId", `must be \$\{policyId\}`\);/,
   );
   assert.match(
     normalizedInput,
-    /export const SUPPORTED_INPUT_SCHEMA_VERSIONS = Object\.freeze\(\[9\]\);/,
+    /export const SUPPORTED_INPUT_SCHEMA_VERSIONS = Object\.freeze\(\[9, 10\]\);/,
   );
   assert.doesNotMatch(decider, /"triage-policy-v[0-9]/);
 
@@ -3773,7 +3777,7 @@ test("the scorer executes the accepted triage record instead of describing it", 
   assert.doesNotMatch(runbook, /\btasks? 26\b/i);
   assert.match(
     rubric,
-    /- `policy_id` - the id of the record the trace was produced under, `triage-policy-v8-2026-10-01`\./,
+    /Current schema 10 uses\s+`triage-policy-v9-2026-10-08`; supported schema 9 retains `triage-policy-v8-2026-10-01`/,
   );
   assert.match(
     flatRubric,
@@ -3823,15 +3827,30 @@ test("the scorer executes the accepted triage record instead of describing it", 
   assert.deepEqual(remoteBasis, ["residence_incompatible"]);
   for (const basis of [...signs, ...remoteBasis]) assert.ok(rubric.includes(`\`${basis}\``), basis);
 
-  // The version-7 shape is the one the record scores and the only one read: the user decided that
-  // the readers of the superseded shapes go (task 194), and versions 5 and 6 cannot be recomputed
-  // without the prices and the domain scores the engine no longer carries (tasks 215 and 226).
-  assert.match(normalizedInput, /export const NORMALIZED_INPUT_SCHEMA_VERSION = 9;/);
-  assert.match(normalizedInput, /SUPPORTED_INPUT_SCHEMA_VERSIONS = Object\.freeze\(\[9\]\)/);
+  // Schema 10 binds the source context; schema 9 retains standalone policy v8. Older shapes
+  // cannot be reconstructed without the former prices/domain policy and their original engine.
+  assert.match(normalizedInput, /export const NORMALIZED_INPUT_SCHEMA_VERSION = 10;/);
+  assert.match(normalizedInput, /SUPPORTED_INPUT_SCHEMA_VERSIONS = Object\.freeze\(\[9, 10\]\)/);
+  assert.match(normalizedInput, /"must be 9 or 10; earlier versions are no longer read"/);
+});
+
+test("source-aware scoring has explicit artifact and logical-result boundaries", () => {
+  const skill = read("instructions/skills/score-jobs.md");
+  const rubric = read("knowledge/job-match-rules.md");
+  const decision = read("docs/adr/0030-telegram-vacancy-source-context.md");
+  assert.match(decision, /`triage-policy-v9-2026-10-08`/);
+  assert.match(skill, /readCollection\(path, \{sourceSetPath, captureRoot\}\)/);
+  assert.match(skill, /resolveSourceSet.*publishSourceResolution/);
+  assert.match(skill, /Record only through `recordSourceBatch`/);
   assert.match(
-    normalizedInput,
-    /`must be \$\{NORMALIZED_INPUT_SCHEMA_VERSION\}; earlier versions are no longer read`/,
+    skill,
+    /Do not transfer salary, Junior\+, work format or any field between descriptions/,
   );
+  assert.match(skill, /sourceCompositionObservations/);
+  assert.match(rubric, /`source_context` - present only on schema 10/);
+  assert.match(rubric, /`sourceContext`/);
+  assert.match(rubric, /`MANUAL_REVIEW: source_review`/);
+  assert.match(rubric, /Capture|capture time/);
 });
 
 test("every annotation token declares one class, and the review reads the class", () => {
@@ -5744,10 +5763,10 @@ test("private integer scoring policy requires explicit points, caps and a new in
     "Both arrays are nonincreasing and have exactly five entries.",
     "Below-floor points cannot exceed C.start, and C.start <= C.target <= C.max.",
     "Domain placements and unknown value must belong to the configured domain steps.",
-    "Config schema 3 and normalized input schema 9 are required.",
+    "Config schema 3 and normalized input schema 10 are required for new batches.",
     "Copy the complete validated scoring settings into each input.",
     "Existing batches retain their original inputs and traces.",
-    "The current scorer refuses earlier input versions rather than reconstructing missing settings; use their original engine for historical re-verification, or start an explicit new batch to re-score.",
+    "The current scorer refuses earlier unsupported input versions rather than reconstructing missing settings; use their original engine for historical re-verification, or start an explicit new batch to re-score.",
   ])
     assert.ok(rubric.includes(rule), rule);
 });

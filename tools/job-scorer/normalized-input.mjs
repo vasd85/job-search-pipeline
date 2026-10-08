@@ -1,5 +1,5 @@
 /**
- * Strict input version 9 for triage-policy-v8-2026-10-01.
+ * Strict input epochs: 9 for triage-policy-v8-2026-10-01 and 10 for source context.
  * Stack observations carry their scope and exact evidence. Independent prices are snapshotted.
  * Earlier inputs are refused, not migrated. Historical batches use their historical checkout;
  * triage verification reports policy_drift before reading them under a different mechanism.
@@ -16,9 +16,21 @@ import {
   normalizeToolName,
 } from "./tool-taxonomy.mjs";
 
-export const NORMALIZED_INPUT_SCHEMA_VERSION = 9;
-export const SUPPORTED_INPUT_SCHEMA_VERSIONS = Object.freeze([9]);
-export const TRIAGE_POLICY_ID = "triage-policy-v8-2026-10-01";
+export const NORMALIZED_INPUT_SCHEMA_VERSION = 10;
+export const SUPPORTED_INPUT_SCHEMA_VERSIONS = Object.freeze([9, 10]);
+export const LEGACY_TRIAGE_POLICY_ID = "triage-policy-v8-2026-10-01";
+export const TRIAGE_POLICY_ID = "triage-policy-v9-2026-10-08";
+
+export function inputPolicyId(version) {
+  return version === 9 ? LEGACY_TRIAGE_POLICY_ID : version === 10 ? TRIAGE_POLICY_ID : null;
+}
+
+export function isSupportedInputEpoch(input) {
+  return (
+    inputPolicyId(input?.schemaVersion) !== null &&
+    input.policyId === inputPolicyId(input.schemaVersion)
+  );
+}
 
 const ACCESS_OUTCOMES = new Set(["usable", "technical_unavailable", "closed"]);
 // `role.language` names the language of the description, as the candidate layer names its
@@ -606,6 +618,50 @@ function deepFreeze(value) {
   return value;
 }
 
+function normalizeSourceContext(value, source) {
+  if (value === null) return null;
+  exactKeys(
+    value,
+    [
+      "sourceSetSha256",
+      "cardRef",
+      "snapshotRef",
+      "primarySourceRef",
+      "primaryCaptureSha256",
+      "startLine",
+      "endLine",
+    ],
+    "sourceContext",
+  );
+  for (const key of ["sourceSetSha256", "primaryCaptureSha256"]) {
+    if (key === "primaryCaptureSha256" && value[key] === null && source.accessOutcome !== "usable")
+      continue;
+    if (typeof value[key] !== "string" || !/^[a-f0-9]{64}$/u.test(value[key]))
+      fail(`sourceContext.${key}`, "must be a SHA-256 digest");
+  }
+  for (const key of ["cardRef", "snapshotRef"]) {
+    const pattern =
+      key === "cardRef" ? /^tg-card:sha256:[a-f0-9]{64}$/u : /^tg-snapshot:sha256:[a-f0-9]{64}$/u;
+    if (typeof value[key] !== "string" || !pattern.test(value[key]))
+      fail(`sourceContext.${key}`, "must be a bounded source reference");
+  }
+  if (value.primarySourceRef !== source.sourceRef)
+    fail("sourceContext.primarySourceRef", "must identify the input's own primary source");
+  if (value.primaryCaptureSha256 === null) {
+    if (value.startLine !== null || value.endLine !== null || source.evidenceQuote !== null)
+      fail("sourceContext", "a body-less failure must have no line range or source quote");
+    return { ...value };
+  }
+  if (
+    !Number.isSafeInteger(value.startLine) ||
+    !Number.isSafeInteger(value.endLine) ||
+    value.startLine < 1 ||
+    value.endLine < value.startLine
+  )
+    fail("sourceContext", "must identify a non-empty inclusive line range");
+  return { ...value };
+}
+
 function normalizeCommonRoot(input, { homeRateProvider, policyId, schemaVersion }) {
   if (!Number.isInteger(input.inputIndex) || input.inputIndex < 1) {
     fail("inputIndex", "must be a positive integer");
@@ -678,18 +734,20 @@ function canonicalJson(value) {
 export function normalizeScorerInput(input, { languages, scoring } = {}) {
   if (!isRecord(input)) fail("input", "must be an object");
   if (!SUPPORTED_INPUT_SCHEMA_VERSIONS.includes(input.schemaVersion)) {
-    fail(
-      "schemaVersion",
-      `must be ${NORMALIZED_INPUT_SCHEMA_VERSION}; earlier versions are no longer read`,
-    );
+    fail("schemaVersion", "must be 9 or 10; earlier versions are no longer read");
   }
-  exactKeys(input, ROOT_KEYS, "input");
-  if (input.policyId !== TRIAGE_POLICY_ID) fail("policyId", `must be ${TRIAGE_POLICY_ID}`);
+  exactKeys(
+    input,
+    input.schemaVersion === 10 ? [...ROOT_KEYS, "sourceContext"] : ROOT_KEYS,
+    "input",
+  );
+  const policyId = inputPolicyId(input.schemaVersion);
+  if (input.policyId !== policyId) fail("policyId", `must be ${policyId}`);
   const candidateScoring = normalizeCandidateScoring(input.candidateScoring, scoring);
   const common = normalizeCommonRoot(input, {
     homeRateProvider: candidateScoring.compensation.home_rate_provider,
-    policyId: TRIAGE_POLICY_ID,
-    schemaVersion: NORMALIZED_INPUT_SCHEMA_VERSION,
+    policyId,
+    schemaVersion: input.schemaVersion,
   });
   const role = normalizeRole(input.role, { languages });
   if (
@@ -700,6 +758,9 @@ export function normalizeScorerInput(input, { languages, scoring } = {}) {
   }
   const normalized = {
     ...common,
+    ...(input.schemaVersion === 10
+      ? { sourceContext: normalizeSourceContext(input.sourceContext, common.source) }
+      : {}),
     candidateScoring,
     offers: input.offers.map(normalizeOffer),
     role: { ...role, ai: normalizeAi(input.role, role.evidence, common.source) },

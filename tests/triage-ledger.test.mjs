@@ -3,7 +3,8 @@
 // case runs inside a disposable root; nothing here can see an operational ledger.
 
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -20,6 +21,21 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import * as ledgerSourceApi from "../tools/lib/triage-ledger-core.mjs";
+import {
+  createSourceSet,
+  snapshotFromHtml,
+  cardBody,
+  serializeSourceSet,
+  sourceSetDigest,
+} from "../tools/triage-sources/source-set.mjs";
+import {
+  publishSourceResolution,
+  resolveSourceSet,
+  sourceResolutionDigest,
+} from "../tools/triage-sources/reconcile.mjs";
+import { baseInput } from "./fixtures/job-scorer/decision-table.mjs";
+import { renderCaptureFile } from "../tools/vacancy-fetch/persist.mjs";
 import {
   TriageLedgerError,
   emptyLedger,
@@ -46,6 +62,272 @@ const LINKEDIN_ONE = "https://www.linkedin.com/jobs/view/4418544694/";
 const LINKEDIN_TWO = "https://www.linkedin.com/jobs/view/4449892212/";
 const LINKEDIN_CLOSED = "https://www.linkedin.com/jobs/view/4455248338/";
 const LINKEDIN_BLOCKED = "https://www.linkedin.com/jobs/view/4460017733/";
+
+function fictionalSourceSet({
+  homepage = "https://acme.example/",
+  company = "Acme",
+  title = "Senior QA Engineer",
+  postId = 7,
+  details = null,
+  extra = "",
+} = {}) {
+  const html =
+    `<div class="tgme_widget_message" data-post="fiction_jobs/${postId}">` +
+    `<div class="tgme_widget_message_text">${title}<br>` +
+    `Company: <a href="${homepage}">${company}</a><br>` +
+    `Manual testing and Java.${extra}${details === null ? "" : `<br>Read details: <a href="${details}">QA Engineer</a>`}</div>` +
+    '<a class="tgme_widget_message_date"><time datetime="2026-10-08T08:00:00Z"></time></a></div>';
+  const snapshot = snapshotFromHtml(html, {
+    handle: "fiction_jobs",
+    postId,
+    capturedAt: "2026-10-08T08:30:00.000Z",
+  });
+  const collectionText = `${homepage}\n${snapshot.original_url}\n${details === null ? "" : `${details}\n`}`;
+  const sourceSet = createSourceSet({
+    collectionText,
+    snapshots: [snapshot],
+    cards: [
+      {
+        snapshot_ref: snapshot.snapshot_ref,
+        title_line: 1,
+        start_line: 1,
+        end_line: snapshot.lines.length,
+        description_kind: "full_description",
+        links: [
+          { anchor: 1, role: "company_context", url: homepage },
+          { anchor: null, role: "original_post", url: snapshot.original_url },
+          ...(details === null ? [] : [{ anchor: 2, role: "details", url: details }]),
+        ],
+      },
+    ],
+  });
+  return { homepage, company, title, sourceSet, collectionText, html };
+}
+
+const sourceInstant = "2026-10-08T09:00:00Z";
+const sourcePolicy = "triage-policy-v9-2026-10-08";
+const digest = (value) => createHash("sha256").update(value).digest("hex");
+
+function sourceObservation(
+  fixture,
+  card = fixture.sourceSet.cards[0],
+  { inputIndex = 1, sourceRef, body, capture } = {},
+) {
+  const set = fixture.sourceSet;
+  const snapshot = set.snapshots.find((item) => item.snapshot_ref === card.snapshot_ref);
+  const original = sourceRef === undefined;
+  const ref = sourceRef ?? snapshot.original_url;
+  const text = body ?? cardBody(set, card);
+  const title = snapshot.lines[card.title_line - 1].text;
+  const input = baseInput();
+  input.schemaVersion = 10;
+  input.policyId = sourcePolicy;
+  input.inputIndex = inputIndex;
+  input.source = {
+    accessOutcome: "usable",
+    accessReason: null,
+    company: fixture.company ?? "Acme",
+    evidenceQuote: title,
+    finalUrl: ref,
+    jobTitle: title,
+    locationRaw: null,
+    salaryRaw: null,
+    sourceRef: ref,
+    workFormatRaw: null,
+  };
+  input.role.automation = "manual_only";
+  input.role.seniority = title.startsWith("Junior") ? "junior" : "senior";
+  input.role.observedTools = [];
+  input.role.observedLanguages = [];
+  input.role.evidence = {
+    aiProduct: null,
+    aiWork: null,
+    automation: title,
+    domain: title,
+    language: title,
+    role: title,
+    seniority: title,
+    tools: null,
+  };
+  input.compensation = null;
+  input.offers = input.offers.map((offer) => ({ ...offer, evidenceQuote: title }));
+  const binding = capture ?? { file: snapshot.capture.file, sha256: snapshot.capture.sha256 };
+  input.sourceContext = {
+    sourceSetSha256: sourceSetDigest(set),
+    cardRef: card.card_ref,
+    snapshotRef: snapshot.snapshot_ref,
+    primarySourceRef: ref,
+    primaryCaptureSha256: binding.sha256,
+    startLine: original ? card.start_line : 1,
+    endLine: original ? card.end_line : text.split("\n").length,
+  };
+  const companyLine = text.split("\n").find((line) => line.includes(fixture.company ?? "Acme"));
+  return {
+    card_ref: card.card_ref,
+    source_ref: ref,
+    description_kind: "full_description",
+    identity_status: "confirmed",
+    capture: binding,
+    body: text,
+    facts: {
+      company: { value: fixture.company ?? "Acme", evidence_quote: companyLine },
+      title: { value: title, evidence_quote: title },
+      role: { value: "QA Engineer", evidence_quote: title },
+      seniority: null,
+      salary: null,
+      published_at: null,
+    },
+    input,
+  };
+}
+
+function sourceLedger(t) {
+  const root = disposableRoot(t, "triage-source-ledger-");
+  const path = join(root, "triage-ledger.json");
+  initLedger(path);
+  ledgerSourceApi.upgradeLedger(path);
+  const store = join(root, "triage-batches");
+  mkdirSync(store);
+  return { root, path, store };
+}
+
+function sourceBatchDir(
+  context,
+  fixture,
+  batchId,
+  {
+    observations,
+    observedAt = sourceInstant,
+    aliases,
+    corrections,
+    sourceSelection,
+    captures = [],
+    prefetchPlan = false,
+  } = {},
+) {
+  const dir = join(context.store, batchId);
+  mkdirSync(dir);
+  writeFileSync(join(dir, fixture.sourceSet.snapshots[0].capture.file), fixture.html);
+  for (const [file, bytes] of captures) writeFileSync(join(dir, file), bytes);
+  const resolution = publishSourceResolution({
+    artifactsDir: dir,
+    sourceSet: fixture.sourceSet,
+    collectionText: fixture.collectionText,
+    observations: observations ?? [sourceObservation(fixture)],
+    selection: sourceSelection,
+  });
+  const plan = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+    asOf: observedAt,
+    collectionText: fixture.collectionText,
+    ...(prefetchPlan ? {} : { resolution }),
+  });
+  const planText = `${JSON.stringify(plan, null, 2)}\n`;
+  writeFileSync(join(dir, "plan.json"), planText);
+  const payload = {
+    batch_id: batchId,
+    observed_at: observedAt,
+    policy_id: sourcePolicy,
+    source_set_sha256: sourceSetDigest(fixture.sourceSet),
+    source_resolution_sha256: sourceResolutionDigest(resolution),
+    plan_sha256: digest(planText),
+    ...(aliases ? { aliases } : {}),
+    ...(corrections ? { corrections } : {}),
+  };
+  return { dir, resolution, plan, payload };
+}
+
+function recordSource(path, staged) {
+  return ledgerSourceApi.recordSourceBatch(path, staged.payload, { artifactsDir: staged.dir });
+}
+
+function multiRoleFixture() {
+  const html =
+    '<div class="tgme_widget_message" data-post="fiction_jobs/7"><div class="tgme_widget_message_text">' +
+    'Company: <a href="https://acme.example/">Acme</a><br>' +
+    "Senior QA Engineer at Acme<br>Manual testing and Java.<br>" +
+    "Junior QA Engineer at Acme<br>Manual testing and Java.</div>" +
+    '<a class="tgme_widget_message_date"><time datetime="2026-10-08T08:00:00Z"></time></a></div>';
+  const snapshot = snapshotFromHtml(html, {
+    handle: "fiction_jobs",
+    postId: 7,
+    capturedAt: "2026-10-08T08:30:00.000Z",
+  });
+  const collectionText = `https://acme.example/\n${snapshot.original_url}\n`;
+  const cards = [2, 4].map((line) => ({
+    snapshot_ref: snapshot.snapshot_ref,
+    title_line: line,
+    start_line: line,
+    end_line: line + 1,
+    description_kind: "full_description",
+    links: [
+      { anchor: 1, role: "company_context", url: "https://acme.example/" },
+      { anchor: null, role: "original_post", url: snapshot.original_url },
+    ],
+  }));
+  const sourceSet = createSourceSet({ collectionText, snapshots: [snapshot], cards });
+  return { html, collectionText, sourceSet, company: "Acme", cards, snapshot };
+}
+
+function detailsObservation(fixture) {
+  const sourceRef = fixture.sourceSet.cards[0].links.find((link) => link.role === "details").url;
+  const body = `${fixture.title}\nCompany: ${fixture.company}\nManual testing and Java.`;
+  const capture = { file: "001.capture.txt", sha256: digest(body) };
+  const raw = sourceObservation(fixture, undefined, { sourceRef, body, capture });
+  const bytes = renderCaptureFile({
+    body,
+    header: {
+      index: 1,
+      adapter: "fictional",
+      "source-id": "url",
+      "requested-url": sourceRef,
+      "final-url": sourceRef,
+      "fetched-at": sourceInstant,
+      "http-status": 200,
+      outcome: "active",
+      "normalized-sha256": digest(body),
+      "body-bytes": Buffer.byteLength(body),
+    },
+  });
+  return { raw, captures: [[capture.file, bytes]] };
+}
+
+function unreadSourceObservation(fixture, { sourceRef, inputIndex = 1, closed = false } = {}) {
+  const raw = sourceObservation(fixture, undefined, { sourceRef, inputIndex });
+  raw.capture = null;
+  raw.body = null;
+  raw.description_kind = "unknown";
+  raw.identity_status = "linked_unconfirmed";
+  raw.facts = Object.fromEntries(Object.keys(raw.facts).map((key) => [key, null]));
+  raw.input.source = {
+    ...raw.input.source,
+    accessOutcome: closed ? "closed" : "technical_unavailable",
+    accessReason: closed ? "HTTP 404 after retry" : "challenge",
+    company: null,
+    jobTitle: null,
+    evidenceQuote: null,
+    finalUrl: null,
+  };
+  raw.input.role = {
+    ...raw.input.role,
+    family: "unknown",
+    automation: "unknown",
+    seniority: "unknown",
+    language: "unknown",
+    domain: "unclear",
+    ai: { product: "unknown", work: "unknown" },
+    evidence: Object.fromEntries(Object.keys(raw.input.role.evidence).map((key) => [key, null])),
+  };
+  raw.input.offers = [];
+  raw.input.sourceContext = {
+    ...raw.input.sourceContext,
+    primaryCaptureSha256: null,
+    startLine: null,
+    endLine: null,
+  };
+  const manifest = `${JSON.stringify({ schemaVersion: 1, tool: "vacancy-fetch", records: [{ index: inputIndex, requestedUrl: raw.source_ref, outcome: closed ? "absent" : "access_failure", usable: false, ...(closed ? { httpStatus: 404 } : {}) }] })}\n`;
+  raw.transport = { file: "fetch-manifest.json", sha256: digest(manifest), index: inputIndex };
+  return { raw, captures: [["fetch-manifest.json", manifest]] };
+}
 
 function disposableRoot(t, prefix = "triage-ledger-") {
   const root = mkdtempSync(join(realpathSync(tmpdir()), prefix));
@@ -161,6 +443,37 @@ test("one vacancy has one identity across the spellings a links file actually ca
 
   // A different posting must not collapse into it, whatever the query string says.
   assert.notEqual(vacancyIdentity(LINKEDIN_TWO).key, canonical.key);
+});
+
+test("a proven company link has a card-scoped disposition instead of retrying its old BLOCKED row", (t) => {
+  const path = freshLedger(t);
+  const { homepage, sourceSet, collectionText } = fictionalSourceSet();
+  recordWithoutStore(
+    path,
+    batch({
+      entries: [entry({ url: homepage, decision: "BLOCKED", flags: ["vacancy_unavailable"] })],
+    }),
+  );
+  if (ledgerSourceApi.upgradeLedger) ledgerSourceApi.upgradeLedger(path);
+  const plan = ledgerSourceApi.planSourceBatch
+    ? ledgerSourceApi.planSourceBatch(path, sourceSet, {
+        asOf: "2026-10-08T09:00:00Z",
+        collectionText,
+      })
+    : {
+        items: [
+          {
+            sources: planBatch(readLedger(path), [homepage], { asOf: "2026-10-08T09:00:00Z" })
+              .items,
+          },
+        ],
+      };
+  assert.equal(plan.items[0].sources[0].action, "company_context");
+  assert.equal(
+    planBatch(readLedger(path), [homepage], { asOf: "2026-10-08T09:00:00Z" }).items[0].action,
+    "retry_blocked",
+    "a bare URL retains its own URL observation",
+  );
 });
 
 test("LinkedIn's own share spellings collapse to the job id, not to a second row", () => {
@@ -541,7 +854,7 @@ test("a corrupted ledger fails loudly instead of being silently replaced", (t) =
     "triage_ledger_unreadable",
   );
 
-  writeFileSync(path, `${JSON.stringify({ ...emptyLedger(), schema_version: 2 })}\n`);
+  writeFileSync(path, `${JSON.stringify({ ...emptyLedger(), schema_version: 3 })}\n`);
   assert.equal(
     errorCode(() => readLedger(path)),
     "triage_ledger_schema_version",
@@ -1276,7 +1589,7 @@ test("a batch record read back off disk is validated, never believed", (t) => {
   for (const [mutate, expected] of [
     [
       (value) => {
-        value.schema_version = 2;
+        value.schema_version = 3;
       },
       "triage_ledger_record_schema_version",
     ],
@@ -1766,4 +2079,828 @@ test("the archive path needs the plan the batch ran on, and reads it rather than
   assert.equal(readLedger(path).entries[0].key, "linkedin:4418544694");
   assert.equal(existsSync(join(dir, triageBatchRecordFileName)), true);
   assert.equal(triageBatchPlanFileName, "plan.json");
+});
+
+// ------------------------------------------------ immutable cards and the version 2 lifecycle
+
+test("version 1 is readable without migration and its explicit upgrade preserves observations and historical digests", (t) => {
+  const path = freshLedger(t);
+  recordWithoutStore(path, batch());
+  const original = structuredClone(readLedger(path));
+  const fixture = fictionalSourceSet();
+  assert.equal(original.schema_version, 1);
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.planSourceBatch(path, fixture.sourceSet, { asOf: sourceInstant }),
+    ),
+    "triage_ledger_upgrade_required",
+  );
+  assert.equal(readLedger(path).schema_version, 1);
+  assert.equal(ledgerSourceApi.upgradeLedger(path).upgraded, true);
+  const upgraded = readLedger(path);
+  assert.equal(upgraded.schema_version, 2);
+  assert.deepEqual(upgraded.entries, original.entries);
+  assert.deepEqual(upgraded.batches, original.batches);
+  const bytes = readFileSync(path, "utf8");
+  assert.equal(ledgerSourceApi.upgradeLedger(path).upgraded, false);
+  assert.equal(readFileSync(path, "utf8"), bytes);
+  assert.equal(runCli(["upgrade"], { ledgerPath: path }).status, 0);
+});
+
+test("version 2 archives the bound logical decision and every scoped source before indexing it", (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet();
+  const staged = sourceBatchDir(context, fixture, "source-first");
+  const result = recordSource(context.path, staged);
+  const record = readBatchRecord(staged.dir);
+  const ledger = readLedger(context.path);
+  assert.equal(record.schema_version, 2);
+  assert.equal(record.entries_digest, ledger.batches[0].entries_digest);
+  assert.equal(
+    record.source_set_sha256,
+    sourceSetDigest(readFileSync(join(staged.dir, "source-set.json"))),
+  );
+  assert.equal(
+    readFileSync(join(staged.dir, "source-set.json"), "utf8"),
+    serializeSourceSet(fixture.sourceSet),
+  );
+  assert.equal(record.logical_entries[0].decision, "SKIP");
+  assert.equal(record.logical_entries[0].primary_ref, staged.resolution.groups[0].primary);
+  assert.equal(ledger.entries.length, 0, "context dispositions never fabricate URL liveness");
+  assert.equal(ledger.logical_entries.length, 1);
+  assert.equal(ledger.source_records.length, 2);
+  assert.equal(result.record.written, true);
+  const plan = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+    asOf: sourceInstant,
+    collectionText: fixture.collectionText,
+    resolution: staged.resolution,
+  });
+  assert.equal(plan.items[0].action, "skip_known");
+  assert.equal(plan.items[0].sources[0].action, "company_context");
+  const unconfirmed = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+    asOf: sourceInstant,
+  });
+  assert.equal(unconfirmed.items[0].action, "source_review");
+  const bytes = readFileSync(context.path, "utf8");
+  assert.equal(recordSource(context.path, staged).replayed, true);
+  assert.equal(
+    readFileSync(context.path, "utf8"),
+    bytes,
+    "an indexed replay never moves last_checked",
+  );
+  assert.equal(
+    errorCode(() =>
+      recordSource(context.path, {
+        ...staged,
+        payload: { ...staged.payload, observed_at: "2026-10-09T09:00:00Z" },
+      }),
+    ),
+    "triage_ledger_batch_id_reused",
+  );
+  const changed = structuredClone(record);
+  changed.source_records[0].role = "unknown";
+  assert.equal(
+    errorCode(() => validateBatchRecord(changed)),
+    "triage_ledger_record_unreadable",
+  );
+  const falseClosure = sourceBatchDir(context, fixture, "forged-source-closure");
+  falseClosure.payload.entries = [
+    {
+      url: fixture.sourceSet.snapshots[0].original_url,
+      status: "closed",
+      decision: "SKIP",
+      flags: [],
+    },
+  ];
+  assert.equal(
+    errorCode(() => recordSource(context.path, falseClosure)),
+    "triage_ledger_entry_without_trace",
+  );
+  assert.equal(
+    existsSync(join(falseClosure.dir, "ledger-record.json")),
+    false,
+    "a trace of an active manual role cannot falsely close its URL",
+  );
+});
+
+test("reader permutations and adding a missed role preserve unchanged card identity without merging shared context", (t) => {
+  const context = sourceLedger(t);
+  const fixture = multiRoleFixture();
+  const reversed = createSourceSet({
+    collectionText: fixture.collectionText,
+    snapshots: [fixture.snapshot],
+    cards: [...fixture.cards].reverse(),
+  });
+  assert.deepEqual(reversed, fixture.sourceSet);
+  const initial = {
+    ...fixture,
+    sourceSet: createSourceSet({
+      collectionText: fixture.collectionText,
+      snapshots: [fixture.snapshot],
+      cards: [fixture.cards[0]],
+    }),
+  };
+  recordSource(context.path, sourceBatchDir(context, initial, "initial-senior"));
+  const observations = fixture.sourceSet.cards.map((card, at) =>
+    sourceObservation(fixture, card, { inputIndex: at + 1 }),
+  );
+  const resolution = resolveSourceSet({
+    sourceSet: reversed,
+    collectionText: fixture.collectionText,
+    observations,
+  });
+  const plan = ledgerSourceApi.planSourceBatch(context.path, reversed, {
+    asOf: sourceInstant,
+    collectionText: fixture.collectionText,
+    resolution,
+  });
+  assert.equal(plan.items.length, 2);
+  assert.deepEqual(
+    plan.items.map((item) => item.action),
+    ["skip_known", "fetch_new"],
+  );
+  assert.notEqual(plan.items[0].logical_key, plan.items[1].logical_key);
+  assert.equal(
+    plan.items.every(
+      (item) =>
+        item.sources.find((source) => source.role === "company_context").action ===
+        "company_context",
+    ),
+    true,
+  );
+  assert.equal(fixture.sourceSet.cards[0].card_ref, initial.sourceSet.cards[0].card_ref);
+  assert.equal(plan.items[0].baseline.card_refs[0], initial.sourceSet.cards[0].card_ref);
+});
+
+test("edited posts, remapped own boundaries and spoofed references cannot inherit another role's closed baseline", (t) => {
+  const context = sourceLedger(t);
+  const fixture = multiRoleFixture();
+  const observations = fixture.sourceSet.cards.map((card, at) =>
+    sourceObservation(fixture, card, { inputIndex: at + 1 }),
+  );
+  const staged = sourceBatchDir(context, fixture, "two-roles", { observations });
+  recordSource(context.path, staged);
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: {
+      ...ledger,
+      logical_entries: ledger.logical_entries.map((item) => ({ ...item, status: "closed" })),
+    },
+  }));
+  const unchanged = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+    asOf: sourceInstant,
+    collectionText: fixture.collectionText,
+    resolution: staged.resolution,
+  });
+  assert.equal(
+    unchanged.items.every((item) => item.action === "skip_closed"),
+    true,
+  );
+  const remapped = createSourceSet({
+    collectionText: fixture.collectionText,
+    snapshots: [fixture.snapshot],
+    cards: [{ ...fixture.cards[0], end_line: 2 }, fixture.cards[1]],
+  });
+  const remappedPlan = ledgerSourceApi.planSourceBatch(context.path, remapped, {
+    asOf: sourceInstant,
+  });
+  assert.equal(remappedPlan.items[0].action, "fetch_new");
+  assert.equal(remappedPlan.items[0].baseline, null);
+  const edited = fictionalSourceSet({ title: "Junior QA Engineer" });
+  assert.equal(
+    ledgerSourceApi.planSourceBatch(context.path, edited.sourceSet, { asOf: sourceInstant })
+      .items[0].action,
+    "fetch_new",
+  );
+  const forged = structuredClone(remapped);
+  forged.cards[0].card_ref = fixture.sourceSet.cards[0].card_ref;
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.planSourceBatch(join(context.root, "missing.json"), forged, {
+        asOf: sourceInstant,
+      }),
+    ),
+    "triage_ledger_source_identity",
+    "identity is checked before any ledger lookup",
+  );
+});
+
+test("same-row concurrent source batches refuse the loser before archive while unrelated logical batches both land", (t) => {
+  const context = sourceLedger(t);
+  const first = sourceBatchDir(context, fictionalSourceSet(), "first-writer");
+  const loser = sourceBatchDir(context, fictionalSourceSet(), "second-writer");
+  const unrelated = sourceBatchDir(
+    context,
+    fictionalSourceSet({ postId: 8, company: "Bravo", homepage: "https://bravo.example/" }),
+    "unrelated-writer",
+  );
+  recordSource(context.path, first);
+  assert.equal(
+    errorCode(() => recordSource(context.path, loser)),
+    "triage_ledger_concurrent_observation",
+  );
+  assert.equal(existsSync(join(loser.dir, "ledger-record.json")), false);
+  recordSource(context.path, unrelated);
+  assert.equal(readLedger(context.path).logical_entries.length, 2);
+  assert.equal(readLedger(context.path).batches.length, 2);
+});
+
+test("three historical homepage BLOCKED observations get a separate evidence-bound correction with no false closure or new fetch", (t) => {
+  const context = sourceLedger(t);
+  for (const [at, company] of ["Acme", "Bravo", "Coda"].entries()) {
+    const fixture = fictionalSourceSet({
+      company,
+      homepage: `https://${company.toLowerCase()}.example/`,
+      postId: at + 1,
+    });
+    const parentId = `legacy-homepage-${at}`;
+    const dir = join(context.store, parentId);
+    mkdirSync(dir);
+    seedTraces(dir, [fixture.homepage]);
+    seedPlan(dir, context.path, [fixture.homepage]);
+    recordBatch(
+      context.path,
+      batch({
+        batch_id: parentId,
+        policy_id: "legacy-policy",
+        entries: [
+          entry({ url: fixture.homepage, decision: "BLOCKED", flags: ["vacancy_unavailable"] }),
+        ],
+      }),
+      { artifactsDir: dir },
+    );
+    const parent = readBatchRecord(dir);
+    const parentBytes = readFileSync(join(dir, "ledger-record.json"), "utf8");
+    const old = structuredClone(
+      readLedger(context.path).entries.find(
+        (item) => item.key === vacancyIdentity(fixture.homepage).key,
+      ),
+    );
+    const corrections = [
+      {
+        parent_batch_id: parentId,
+        parent_entries_digest: parent.entries_digest,
+        card_ref: fixture.sourceSet.cards[0].card_ref,
+        url: fixture.homepage,
+      },
+    ];
+    const staged = sourceBatchDir(context, fixture, `correction-${at}`, { corrections });
+    const result = ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+      artifactsDir: staged.dir,
+    });
+    assert.equal(result.corrections, 1);
+    assert.deepEqual(
+      readLedger(context.path).entries.find((item) => item.key === old.key),
+      old,
+    );
+    assert.equal(
+      readLedger(context.path).logical_entries.length,
+      0,
+      "bookkeeping cannot pretend to observe a JD again",
+    );
+    assert.equal(readFileSync(join(dir, "ledger-record.json"), "utf8"), parentBytes);
+    assert.equal(readBatchRecord(staged.dir).parents[0].record_sha256, digest(parentBytes));
+    assert.equal(readBatchRecord(staged.dir).corrections[0].parent_last_checked, old.last_checked);
+    const plan = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+      asOf: sourceInstant,
+    });
+    assert.equal(plan.items[0].sources[0].action, "company_context");
+    assert.equal(
+      planBatch(readLedger(context.path), [fixture.homepage], { asOf: sourceInstant }).items[0]
+        .action,
+      "retry_blocked",
+    );
+    const bytes = readFileSync(context.path, "utf8");
+    assert.equal(
+      ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+        artifactsDir: staged.dir,
+      }).replayed,
+      true,
+    );
+    assert.equal(readFileSync(context.path, "utf8"), bytes);
+    const forged = sourceBatchDir(context, fixture, `wrong-parent-${at}`, {
+      corrections: [{ ...corrections[0], parent_entries_digest: "0".repeat(64) }],
+    });
+    assert.equal(
+      errorCode(() =>
+        ledgerSourceApi.correctSourceObservations(context.path, forged.payload, {
+          artifactsDir: forged.dir,
+        }),
+      ),
+      "triage_ledger_source_parent_invalid",
+    );
+  }
+  const report = reviewLedger(readLedger(context.path), { asOf: sourceInstant });
+  assert.equal(report.totals.entries, 0);
+  assert.equal(report.totals.closed, 0);
+  assert.equal(report.totals.url_observations, 3);
+  assert.equal(report.totals.excluded_url_observations, 3);
+  assert.equal(report.totals.corrections, 3);
+  const url = "https://acme.example/";
+  recordWithoutStore(
+    context.path,
+    batch({
+      batch_id: "later-standalone",
+      observed_at: "2026-10-09T09:00:00Z",
+      entries: [entry({ url, decision: "BLOCKED", flags: ["vacancy_unavailable"] })],
+    }),
+  );
+  assert.equal(
+    reviewLedger(readLedger(context.path), { asOf: sourceInstant }).totals.entries,
+    1,
+    "a correction never excludes a later standalone observation globally",
+  );
+});
+
+test("a version 2 orphan survives index failure and replays without replacing a newer observation", (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet();
+  const template = {
+    key: "",
+    card_refs: [fixture.sourceSet.cards[0].card_ref],
+    identity_status: "confirmed",
+    primary_ref: null,
+    first_seen: sourceInstant,
+    last_checked: sourceInstant,
+    status: "open",
+    batch_id: "synthetic",
+    decision: "SKIP",
+    flags: [],
+    policy_id: sourcePolicy,
+  };
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: {
+      ...ledger,
+      logical_entries: Array.from({ length: 4096 }, (_, at) => ({
+        ...template,
+        key: ledgerSourceApi.logicalVacancyKey(`synthetic-${at}`),
+      })),
+    },
+  }));
+  const orphan = sourceBatchDir(context, fixture, "orphan-before-newer");
+  assert.equal(
+    errorCode(() => recordSource(context.path, orphan)),
+    "triage_ledger_invalid",
+  );
+  assert.equal(
+    existsSync(join(orphan.dir, "ledger-record.json")),
+    true,
+    "archive precedes the failing index write",
+  );
+  assert.equal(readLedger(context.path).batches.length, 0);
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: { ...ledger, logical_entries: ledger.logical_entries.slice(2) },
+  }));
+  const newer = sourceBatchDir(context, fixture, "newer-observation", {
+    observedAt: "2026-10-09T09:00:00Z",
+  });
+  recordSource(context.path, newer);
+  recordSource(context.path, orphan);
+  const logical = readLedger(context.path).logical_entries.find(
+    (item) => item.key === ledgerSourceApi.logicalVacancyKey(fixture.sourceSet.cards[0].card_ref),
+  );
+  assert.equal(logical.last_checked, "2026-10-09T09:00:00Z");
+  assert.equal(logical.batch_id, "newer-observation");
+  assert.equal(readLedger(context.path).batches.length, 2);
+});
+
+test("an explicit confirmed revision alias adds immutable membership without re-keying the parent observation", (t) => {
+  const context = sourceLedger(t);
+  const details = "https://jobs.acme.example/vacancy/71";
+  const original = fictionalSourceSet({ details });
+  const firstObservation = detailsObservation(original);
+  const first = sourceBatchDir(context, original, "before-edit", {
+    observations: [firstObservation.raw],
+    captures: firstObservation.captures,
+  });
+  recordSource(context.path, first);
+  const oldRecord = readBatchRecord(first.dir);
+  const oldBytes = readFileSync(join(first.dir, "ledger-record.json"), "utf8");
+  const edited = fictionalSourceSet({ details, extra: " Updated publication." });
+  const secondObservation = detailsObservation(edited);
+  const second = sourceBatchDir(context, edited, "confirmed-edit", {
+    observations: [secondObservation.raw],
+    captures: secondObservation.captures,
+    observedAt: "2026-10-09T09:00:00Z",
+    prefetchPlan: true,
+  });
+  second.payload.aliases = [
+    {
+      card_ref: edited.sourceSet.cards[0].card_ref,
+      logical_key: oldRecord.logical_entries[0].key,
+      parent_batch_id: "before-edit",
+      parent_entries_digest: oldRecord.entries_digest,
+      observation_ref: second.resolution.observations[0].observation_ref,
+      parent_observation_ref: first.resolution.observations[0].observation_ref,
+    },
+  ];
+  recordSource(context.path, second);
+  const ledger = readLedger(context.path);
+  assert.equal(ledger.logical_entries.length, 1);
+  assert.equal(ledger.logical_entries[0].key, oldRecord.logical_entries[0].key);
+  assert.deepEqual(
+    ledger.logical_entries[0].card_refs,
+    [original.sourceSet.cards[0].card_ref, edited.sourceSet.cards[0].card_ref].sort(),
+  );
+  assert.equal(ledger.logical_entries[0].first_seen, sourceInstant);
+  assert.equal(ledger.aliases.length, 1);
+  assert.equal(readFileSync(join(first.dir, "ledger-record.json"), "utf8"), oldBytes);
+  const plan = ledgerSourceApi.planSourceBatch(context.path, edited.sourceSet, {
+    asOf: sourceInstant,
+    collectionText: edited.collectionText,
+    resolution: second.resolution,
+  });
+  assert.equal(plan.items[0].logical_key, oldRecord.logical_entries[0].key);
+  assert.equal(plan.items[0].action, "skip_known");
+  const unsupported = sourceBatchDir(
+    context,
+    fictionalSourceSet({ extra: " Contact only revision." }),
+    "unsupported-alias",
+    { observedAt: "2026-10-10T09:00:00Z" },
+  );
+  unsupported.payload.aliases = [
+    {
+      ...second.payload.aliases[0],
+      card_ref: unsupported.resolution.groups[0].card_refs[0],
+      observation_ref: unsupported.resolution.observations[0].observation_ref,
+    },
+  ];
+  assert.equal(
+    errorCode(() => recordSource(context.path, unsupported)),
+    "triage_ledger_source_alias_invalid",
+    "an original post or homepage alone cannot prove a prior posting alias",
+  );
+  assert.equal(existsSync(join(unsupported.dir, "ledger-record.json")), false);
+});
+
+test("a different target identity can record a new derived group from a complete initial card plan", (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet({ details: "https://jobs.acme.example/vacancy/91" });
+  const observation = detailsObservation(fixture);
+  observation.raw.identity_status = "different";
+  const staged = sourceBatchDir(context, fixture, "different-target", {
+    observations: [observation.raw],
+    captures: observation.captures,
+    prefetchPlan: true,
+  });
+  assert.equal(staged.plan.items.length, 1);
+  assert.equal(staged.resolution.groups.length, 2);
+  recordSource(context.path, staged);
+  const entries = readLedger(context.path).logical_entries;
+  assert.equal(entries.length, 2);
+  assert.equal(new Set(entries.map((entry) => entry.key)).size, 2);
+  assert.equal(entries.find((entry) => entry.identity_status === "different").decision, "SKIP");
+  assert.equal(
+    entries.find((entry) => entry.identity_status === "linked_unconfirmed").decision,
+    "MANUAL_REVIEW",
+  );
+});
+
+test("two source writers sharing a logical row serialize and retain only the winning observation", async (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet();
+  const batches = ["writer-a", "writer-b"].map((id) => sourceBatchDir(context, fixture, id));
+  const child = `import {readFileSync} from 'node:fs';
+    const {recordSourceBatch}=await import(${JSON.stringify(new URL("../tools/lib/triage-ledger-core.mjs", import.meta.url).href)});
+    const payload=JSON.parse(readFileSync(process.argv[1], 'utf8'));
+    try { recordSourceBatch(payload.path, payload.batch, {artifactsDir:payload.artifactsDir}); }
+    catch(error) { process.stderr.write(error.code); process.exitCode=1; }`;
+  const runs = batches.map((staged, at) => {
+    const file = join(context.root, `writer-${at}.json`);
+    writeFileSync(
+      file,
+      JSON.stringify({ path: context.path, batch: staged.payload, artifactsDir: staged.dir }),
+    );
+    return new Promise((resolveRun, rejectRun) => {
+      const process = spawn(globalThis.process.execPath, [
+        "--input-type=module",
+        "--eval",
+        child,
+        file,
+      ]);
+      let stderr = "";
+      process.stderr.setEncoding("utf8");
+      process.stderr.on("data", (text) => {
+        stderr += text;
+      });
+      process.on("error", rejectRun);
+      process.on("close", (status) => resolveRun({ status, stderr }));
+    });
+  });
+  const outcomes = await Promise.all(runs);
+  assert.equal(outcomes.filter((outcome) => outcome.status === 0).length, 1);
+  assert.equal(
+    outcomes.find((outcome) => outcome.status !== 0).stderr,
+    "triage_ledger_concurrent_observation",
+  );
+  assert.equal(readLedger(context.path).logical_entries.length, 1);
+  assert.equal(
+    batches.filter((staged) => existsSync(join(staged.dir, "ledger-record.json"))).length,
+    1,
+  );
+});
+
+test("an unchanged card with a body-less access failure remains retry_blocked without confirming or closing it", (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet();
+  const raw = sourceObservation(fixture);
+  raw.capture = null;
+  raw.body = null;
+  raw.description_kind = "unknown";
+  raw.identity_status = "linked_unconfirmed";
+  raw.facts = Object.fromEntries(Object.keys(raw.facts).map((key) => [key, null]));
+  raw.input.source = {
+    ...raw.input.source,
+    accessOutcome: "technical_unavailable",
+    accessReason: "challenge",
+    company: null,
+    jobTitle: null,
+    evidenceQuote: null,
+    finalUrl: null,
+  };
+  raw.input.role = {
+    ...raw.input.role,
+    family: "unknown",
+    automation: "unknown",
+    seniority: "unknown",
+    language: "unknown",
+    domain: "unclear",
+    ai: { product: "unknown", work: "unknown" },
+    evidence: Object.fromEntries(Object.keys(raw.input.role.evidence).map((key) => [key, null])),
+  };
+  raw.input.offers = [];
+  raw.input.sourceContext = {
+    ...raw.input.sourceContext,
+    primaryCaptureSha256: null,
+    startLine: null,
+    endLine: null,
+  };
+  const manifest = `${JSON.stringify({ schemaVersion: 1, tool: "vacancy-fetch", records: [{ index: 1, requestedUrl: raw.source_ref, outcome: "access_failure", usable: false }] })}\n`;
+  raw.transport = { file: "fetch-manifest.json", sha256: digest(manifest), index: 1 };
+  const staged = sourceBatchDir(context, fixture, "bodyless-failure", {
+    observations: [raw],
+    captures: [["fetch-manifest.json", manifest]],
+    prefetchPlan: true,
+  });
+  recordSource(context.path, staged);
+  const entry = readLedger(context.path).logical_entries[0];
+  assert.equal(entry.decision, "BLOCKED");
+  assert.equal(entry.status, "open");
+  assert.equal(entry.identity_status, "linked_unconfirmed");
+  assert.equal(
+    ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, { asOf: sourceInstant })
+      .items[0].action,
+    "retry_blocked",
+  );
+  assert.equal(
+    ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+      asOf: sourceInstant,
+      collectionText: fixture.collectionText,
+      resolution: staged.resolution,
+    }).items[0].action,
+    "retry_blocked",
+  );
+  const edited = fictionalSourceSet({ title: "Junior QA Engineer" });
+  assert.equal(
+    ledgerSourceApi.planSourceBatch(context.path, edited.sourceSet, { asOf: sourceInstant })
+      .items[0].action,
+    "fetch_new",
+  );
+});
+
+test("a confirmed full original keeps a failed details source retryable within its exact card membership", (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet({ details: "https://acme.example/jobs/qa-7" });
+  const failure = unreadSourceObservation(fixture, {
+    sourceRef: fixture.sourceSet.cards[0].links[2].url,
+    inputIndex: 2,
+  });
+  const staged = sourceBatchDir(context, fixture, "full-plus-failed-details", {
+    observations: [sourceObservation(fixture), failure.raw],
+    captures: failure.captures,
+    prefetchPlan: true,
+  });
+  recordSource(context.path, staged);
+  const ledger = readLedger(context.path);
+  assert.equal(ledger.logical_entries[0].decision, "SKIP");
+  const plan = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+    asOf: "2026-10-09T09:00:00Z",
+    collectionText: fixture.collectionText,
+    resolution: staged.resolution,
+  });
+  assert.equal(plan.items[0].action, "skip_known");
+  assert.equal(
+    plan.items[0].sources.find((source) => source.role === "details").action,
+    "retry_blocked",
+  );
+  assert.equal(
+    plan.items[0].sources.find((source) => source.role === "company_context").action,
+    "company_context",
+  );
+  const unconfirmedPlan = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+    asOf: "2026-10-09T09:00:00Z",
+  });
+  assert.equal(
+    unconfirmedPlan.items[0].sources.find((source) => source.role === "details").action,
+    "retry_blocked",
+  );
+  const retainedFailure = ledger.source_records.find((source) => source.role === "details");
+  assert.equal(retainedFailure.observation_decision, "BLOCKED");
+  assert.equal(retainedFailure.observation_status, "open");
+  const originalOnly = sourceBatchDir(context, fixture, "full-plus-unfetched-details", {
+    observations: [sourceObservation(fixture)],
+    observedAt: "2026-10-09T09:00:00Z",
+    prefetchPlan: true,
+  });
+  recordSource(context.path, originalOnly);
+  assert.deepEqual(
+    readLedger(context.path).source_records.find((source) => source.role === "details"),
+    retainedFailure,
+    "unfetched accounting cannot erase the last actual source failure",
+  );
+  assert.equal(
+    ledgerSourceApi
+      .planSourceBatch(context.path, fixture.sourceSet, { asOf: "2026-10-10T09:00:00Z" })
+      .items[0].sources.find((source) => source.role === "details").action,
+    "retry_blocked",
+  );
+  assert.equal(
+    planBatch(readLedger(context.path), [failure.raw.source_ref], { asOf: "2026-10-10T09:00:00Z" })
+      .items[0].action,
+    "fetch_new",
+    "a standalone URL does not inherit card source outcomes globally",
+  );
+  const edited = fictionalSourceSet({
+    title: "Junior QA Engineer",
+    details: "https://acme.example/jobs/qa-7",
+  });
+  const editedPlan = ledgerSourceApi.planSourceBatch(context.path, edited.sourceSet, {
+    asOf: "2026-10-09T09:00:00Z",
+  });
+  assert.equal(
+    editedPlan.items[0].sources.find((source) => source.role === "details").action,
+    "fetch_new",
+  );
+});
+
+test("a pure corroborated closed source result has closed liveness while mixed active sources remain open", (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet();
+  const closed = unreadSourceObservation(fixture, { closed: true });
+  const staged = sourceBatchDir(context, fixture, "bodyless-confirmed-closure", {
+    observations: [closed.raw],
+    captures: closed.captures,
+    prefetchPlan: true,
+  });
+  assert.equal(staged.resolution.groups[0].primary, null);
+  assert.equal(staged.resolution.groups[0].result.decision, "SKIP");
+  assert.equal(staged.resolution.groups[0].result.skip_code, "vacancy_unavailable");
+  recordSource(context.path, staged);
+  assert.equal(readLedger(context.path).logical_entries[0].status, "closed");
+
+  const active = fictionalSourceSet({ details: "https://acme.example/jobs/qa-8", postId: 8 });
+  const closedDetails = unreadSourceObservation(active, {
+    sourceRef: active.sourceSet.cards[0].links[2].url,
+    inputIndex: 2,
+    closed: true,
+  });
+  const mixed = sourceBatchDir(context, active, "mixed-active-closed-details", {
+    observations: [sourceObservation(active), closedDetails.raw],
+    captures: closedDetails.captures,
+    prefetchPlan: true,
+  });
+  assert.equal(mixed.resolution.groups[0].result.review_code, "source_review");
+  assert.ok(mixed.resolution.groups[0].conflicts.includes("conflicting_liveness"));
+  recordSource(context.path, mixed);
+  assert.equal(
+    readLedger(context.path).logical_entries.find((entry) =>
+      entry.card_refs.includes(active.sourceSet.cards[0].card_ref),
+    ).status,
+    "open",
+  );
+});
+
+function stagedHomepageCorrection(context, fixture, label) {
+  const parentId = `${label}-parent`;
+  const dir = join(context.store, parentId);
+  mkdirSync(dir);
+  seedTraces(dir, [fixture.homepage]);
+  seedPlan(dir, context.path, [fixture.homepage]);
+  recordBatch(
+    context.path,
+    batch({
+      batch_id: parentId,
+      policy_id: "legacy-policy",
+      entries: [
+        entry({ url: fixture.homepage, decision: "BLOCKED", flags: ["vacancy_unavailable"] }),
+      ],
+    }),
+    { artifactsDir: dir },
+  );
+  const record = readBatchRecord(dir);
+  const corrections = [
+    {
+      parent_batch_id: parentId,
+      parent_entries_digest: record.entries_digest,
+      card_ref: fixture.sourceSet.cards[0].card_ref,
+      url: fixture.homepage,
+    },
+  ];
+  return sourceBatchDir(context, fixture, `${label}-correction`, { corrections });
+}
+
+test("a correction refuses a concurrently replaced parent URL before creating its immutable record", (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet();
+  const staged = stagedHomepageCorrection(context, fixture, "concurrent");
+  recordWithoutStore(
+    context.path,
+    batch({
+      batch_id: "changed-parent-url",
+      observed_at: "2026-10-09T09:00:00Z",
+      entries: [
+        entry({ url: fixture.homepage, decision: "BLOCKED", flags: ["vacancy_unavailable"] }),
+      ],
+    }),
+  );
+  const bytes = readFileSync(context.path, "utf8");
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+        artifactsDir: staged.dir,
+      }),
+    ),
+    "triage_ledger_concurrent_observation",
+  );
+  assert.equal(existsSync(join(staged.dir, "ledger-record.json")), false);
+  assert.equal(readFileSync(context.path, "utf8"), bytes);
+});
+
+test("an orphaned correction replays while retaining a later standalone URL observation", (t) => {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet();
+  const card = fixture.sourceSet.cards[0];
+  const snapshot = fixture.sourceSet.snapshots[0];
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: {
+      ...ledger,
+      source_records: Array.from({ length: 16384 }, (_, at) => {
+        const source = {
+          logical_key: ledgerSourceApi.logicalVacancyKey(card.card_ref),
+          card_ref: card.card_ref,
+          snapshot_ref: snapshot.snapshot_ref,
+          anchor: 1,
+          role: "company_context",
+          url: `https://padding.example/${at}`,
+          disposition: "company_context",
+          observation_ref: null,
+          batch_id: "synthetic",
+          observed_at: sourceInstant,
+        };
+        return {
+          membership_key: digest(
+            JSON.stringify([
+              source.logical_key,
+              source.card_ref,
+              source.anchor,
+              source.role,
+              source.url,
+            ]),
+          ),
+          ...source,
+        };
+      }),
+    },
+  }));
+  const staged = stagedHomepageCorrection(context, fixture, "orphan");
+  assert.equal(
+    errorCode(() =>
+      ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+        artifactsDir: staged.dir,
+      }),
+    ),
+    "triage_ledger_invalid",
+  );
+  assert.equal(existsSync(join(staged.dir, "ledger-record.json")), true);
+  assert.equal(readLedger(context.path).corrections.length, 0);
+  ledgerSourceApi.withLedgerLock(context.path, (ledger) => ({
+    ledger: { ...ledger, source_records: ledger.source_records.slice(2) },
+  }));
+  recordWithoutStore(
+    context.path,
+    batch({
+      batch_id: "standalone-after-orphan",
+      observed_at: "2026-10-09T09:00:00Z",
+      entries: [
+        entry({ url: fixture.homepage, decision: "BLOCKED", flags: ["vacancy_unavailable"] }),
+      ],
+    }),
+  );
+  const later = structuredClone(readLedger(context.path).entries[0]);
+  ledgerSourceApi.correctSourceObservations(context.path, staged.payload, {
+    artifactsDir: staged.dir,
+  });
+  assert.deepEqual(readLedger(context.path).entries[0], later);
+  assert.equal(readLedger(context.path).corrections.length, 1);
+  assert.equal(reviewLedger(readLedger(context.path), { asOf: sourceInstant }).totals.entries, 1);
+  assert.equal(readLedger(context.path).logical_entries.length, 0);
 });

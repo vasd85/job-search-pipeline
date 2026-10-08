@@ -22,13 +22,15 @@ it, the manifest gates those skills from implicit model invocation.
 
 - `/score-jobs` — score a list of vacancy links against
   [knowledge/job-match-rules.md](../knowledge/job-match-rules.md). Output: one Decision Trace per
-  link the batch processed; the rubric's
+  processed standalone link, or raw source-observation traces and one logical result per vacancy
+  when an explicitly paired source set is supplied; the rubric's
   [Decision Trace contract](../knowledge/job-match-rules.md#7-decision-trace-contract) names the
   links that have none. Explicit-run only.
 - `/collect-telegram` — sweep the configured Telegram channels and groups into a links
-  collection file for `/score-jobs`, plus vacancy cards and a report of everything the sweep did not
-  emit. A thematic source has no role filter; a general one is read by the `telegram-reader` agent,
-  which answers with numbers only. It scores nothing.
+  collection file for `/score-jobs`, plus vacancy cards, an immutable `source-set.json` bound to saved
+  HTML and a report of everything the sweep did not emit. Both source kinds use the numbers-only
+  reader for vacancy boundaries/link roles; thematic sources retain their existing absence of a
+  role filter. Oversized/unresolved mappings stay visible. It scores nothing.
   Explicit-run only.
 
 **Per chosen role — run in dependency order. Every boundary is a validated file publication:**
@@ -102,8 +104,8 @@ pipeline.
   reserved path and never choose, reserve, create, clear, or adopt another one.
 - Batch `/score-jobs` triage and general CVs without a concrete company/role are not per-role
   processes and are not logged. Batch triage keeps its own operational state in
-  `triage-ledger.json`: one row per triaged vacancy, keyed by source and
-  job id, holding liveness, the terminal decision, and the flags the
+  `triage-ledger.json`: legacy URL rows keyed by source/job id and, after an explicit v2 upgrade,
+  logical vacancy rows plus source-scoped observations in the same mutable file. It holds liveness, the terminal decision, and the flags the
   [ledger](../docs/runbooks/triage-review.md#1-ledger) of the review runbook named below admits —
   never the trace's `assumptions`. It is
   untracked state of the checkout that runs the batch, like the process log, created explicitly with
@@ -126,8 +128,10 @@ pipeline.
   the codes.
 - That directory is also where the batch stays. A batch is built in the **batch store** —
   `triage-batches/<batch_id>/` in the root of the checkout running it, untracked like the ledger —
-  and once verification passes `recordBatch` adds the batch's own immutable record beside its
-  inputs and traces. A re-score of the same vacancy adds a record under a new batch id instead of
+  and once verification passes `recordBatch` (standalone) or `recordSourceBatch` (source-aware) adds
+  the batch's own immutable record beside its inputs and traces. Source-aware batches also retain
+  exact collection bytes, source-set, source resolution and saved HTML. Company context never
+  becomes a failed vacancy; unconfirmed identity or material conflicts remain `source_review`. A re-score of the same vacancy adds a record under a new batch id instead of
   replacing the first, so the ledger keeps saying what is true now while the store keeps what each
   batch decided. The triage runbook's
   [batch store](../docs/runbooks/triage-review.md#11-batch-store-the-history-beside-the-index)

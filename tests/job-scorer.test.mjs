@@ -36,6 +36,8 @@ import {
   isSupportingName,
   resolveToolName,
 } from "../tools/job-scorer/tool-taxonomy.mjs";
+import { resolveSourceSet, validateSourceResolution } from "../tools/triage-sources/reconcile.mjs";
+import { fictionalSourceFixture } from "./fixtures/triage-source-context/cases.mjs";
 import {
   annotationCases,
   baseInput,
@@ -67,6 +69,180 @@ const buildDecisionTrace = (input, options = {}) =>
   buildDecisionTraceWith(input, { languages: exampleLanguageNames, ...options });
 const EXPECTED_DECISION_CASE_COUNT = 517;
 const executedDecisionCases = new Set();
+
+test("full post/company/contact yields one manual SKIP with explicit source accounting", () => {
+  const fixture = fictionalSourceFixture({ manual: true, contact: true, details: false });
+  const resolution = resolveSourceSet(fixture);
+  assert.equal(resolution.groups.length, 1);
+  assert.equal(resolution.groups[0].result.skip_code, "manual_role");
+  assert.equal(resolution.counts.context_urls, 1);
+  assert.equal(
+    resolution.groups[0].sources.find((source) => source.role === "contact").disposition,
+    "contact",
+  );
+  assert.ok(
+    !resolution.observations.some(
+      (observation) => observation.source_ref === "https://fictional-labs.example.test/",
+    ),
+  );
+  assert.equal(validateSourceResolution(resolution, fixture), resolution);
+});
+
+test("summary plus direct apply keeps full details JD without standalone original input", () => {
+  const fixture = fictionalSourceFixture({ kind: "summary", manual: true });
+  const resolution = resolveSourceSet(fixture);
+  assert.equal(resolution.counts.logical_vacancies, 1);
+  assert.equal(resolution.groups[0].result.skip_code, "manual_role");
+  assert.equal(
+    resolution.groups[0].primary,
+    resolution.observations.find(
+      (observation) => observation.source_ref === fixture.target.source_ref,
+    ).observation_ref,
+  );
+  assert.equal(resolution.url_accounting.length, 2);
+  assert.ok(!resolution.url_accounting.some((row) => row.url === fixture.snapshot.original_url));
+  assert.equal(
+    resolution.observations.find(
+      (observation) => observation.source_ref === fixture.snapshot.original_url,
+    ).trace,
+    null,
+  );
+});
+
+test("full original preserves Junior and salary when linked publication is silent", () => {
+  const fixture = fictionalSourceFixture({ junior: true, salary: "ARS 2,000,000 net per month" });
+  fixture.target.body = fixture.target.body
+    .replace("Junior+", "Six months of experience")
+    .replace("ARS 2,000,000 net per month", "Salary discussed later");
+  fixture.target.capture.sha256 = "b".repeat(64);
+  fixture.target.facts.seniority = null;
+  fixture.target.facts.salary = null;
+  fixture.target.input = fixture.inputFor(fixture.target.source_ref, fixture.target.body, {
+    index: 2,
+    primary: false,
+    captureSha256: fixture.target.capture.sha256,
+    seniority: "lower",
+    observedSalary: null,
+  });
+  fixture.target.input.role.evidence.seniority = "Six months of experience";
+  const confirmed = resolveSourceSet(fixture);
+  assert.equal(confirmed.groups[0].identity_status, "confirmed");
+  assert.equal(confirmed.groups[0].result.skip_code, "junior_role");
+  assert.equal(confirmed.groups[0].result.salary_raw, "ARS 2,000,000 net per month");
+  assert.equal(
+    confirmed.observations.find(
+      (observation) => observation.source_ref === fixture.target.source_ref,
+    ).input.compensation,
+    null,
+  );
+  fixture.target.identity_status = "linked_unconfirmed";
+  const unresolved = resolveSourceSet(fixture);
+  assert.equal(unresolved.groups[0].result.review_code, "source_review");
+  assert.equal(unresolved.groups[0].alternatives.length, 2);
+  assert.ok(
+    unresolved.groups[0].alternatives.some(
+      (alternative) => alternative.trace.skip_code === "junior_role",
+    ),
+  );
+  assert.ok(
+    unresolved.groups[0].alternatives.some(
+      (alternative) => alternative.trace.decision === "EVALUATED",
+    ),
+  );
+});
+
+test("explicit source contradictions require review and foreign evidence is refused", () => {
+  const fixture = fictionalSourceFixture();
+  fixture.target.body = fixture.target.body.replace("Senior QA Engineer", "Junior+");
+  fixture.target.facts.seniority = { value: "Junior+", evidence_quote: "Junior+" };
+  fixture.target.input.role.seniority = "junior";
+  fixture.target.input.role.evidence.seniority = "Junior+";
+  const resolution = resolveSourceSet(fixture);
+  assert.equal(resolution.groups[0].result.review_code, "source_review");
+  assert.ok(resolution.groups[0].conflicts.includes("conflicting_seniority"));
+  fixture.original.input.role.evidence.seniority = "Junior+";
+  assert.throws(
+    () => resolveSourceSet(fixture),
+    (error) => error.code === "source_resolution_invalid",
+  );
+});
+
+test("summary cannot pass to scoring and source resolution cannot forge the primary result", () => {
+  const fixture = fictionalSourceFixture({ kind: "summary" });
+  const resolution = resolveSourceSet(fixture);
+  const forged = structuredClone(resolution);
+  forged.groups[0].result.decision = "BLOCKED";
+  assert.throws(
+    () => validateSourceResolution(forged, fixture),
+    (error) => error.code === "source_resolution_invalid",
+  );
+  fixture.original.input = fixture.inputFor(fixture.snapshot.original_url, fixture.original.body);
+  assert.throws(
+    () => resolveSourceSet(fixture),
+    (error) => error.code === "source_resolution_invalid",
+  );
+});
+
+test("source context epoch preserves manual and junior filters and the legacy epoch", () => {
+  for (const [field, value, code] of [
+    ["automation", "manual_only", "manual_role"],
+    ["seniority", "junior", "junior_role"],
+  ]) {
+    const legacy = baseInput();
+    legacy.role[field] = value;
+    const current = {
+      ...structuredClone(legacy),
+      schemaVersion: 10,
+      policyId: "triage-policy-v9-2026-10-08",
+      sourceContext: null,
+    };
+    assert.equal(buildDecisionTrace(current).skip_code, code);
+    assert.equal(buildDecisionTrace(legacy).skip_code, code);
+    assert.equal(buildDecisionTrace(legacy).policy_id, "triage-policy-v8-2026-10-01");
+    assert.equal(normalizeScorerInput(current).schemaVersion, 10);
+  }
+});
+
+test("active full original and closed linked job source require source review", () => {
+  const fixture = fictionalSourceFixture();
+  const failure = fixture.target;
+  failure.description_kind = "unknown";
+  failure.identity_status = "linked_unconfirmed";
+  failure.capture = null;
+  failure.body = null;
+  failure.facts = Object.fromEntries(Object.keys(failure.facts).map((key) => [key, null]));
+  markUnread(failure.input, "closed", "HTTP 404 after retry");
+  failure.input.source.evidenceQuote = null;
+  failure.input.role.evidence = Object.fromEntries(
+    Object.keys(failure.input.role.evidence).map((key) => [key, null]),
+  );
+  failure.input.offers = [];
+  failure.input.compensation = null;
+  Object.assign(failure.input.sourceContext, {
+    primaryCaptureSha256: null,
+    startLine: null,
+    endLine: null,
+  });
+  failure.transport = { file: "fetch-manifest.json", sha256: "a".repeat(64), index: 1 };
+  const resolution = resolveSourceSet(fixture);
+  assert.equal(resolution.groups[0].result.review_code, "source_review");
+  assert.ok(resolution.groups[0].conflicts.includes("conflicting_liveness"));
+  assert.ok(
+    resolution.groups[0].alternatives.some(
+      (item) => item.trace.skip_code === "vacancy_unavailable",
+    ),
+  );
+  assert.ok(resolution.groups[0].alternatives.some((item) => item.trace.decision === "EVALUATED"));
+});
+
+test("source observation extraction ordinal is bounded to the artifact filename contract", () => {
+  const fixture = fictionalSourceFixture({ details: false });
+  fixture.original.input.inputIndex = 1000;
+  assert.throws(
+    () => resolveSourceSet(fixture),
+    (error) => error.code === "source_resolution_invalid",
+  );
+});
 
 // Which family a `gap:` token belongs to, so a case can pin its own dimension exactly instead of
 // asserting a subset and letting a stray annotation through.
@@ -665,9 +841,9 @@ test("every declared decision case executes exactly once", () => {
 });
 
 test("strict normalized input contract rejects drift with stable identity", () => {
-  assert.equal(NORMALIZED_INPUT_SCHEMA_VERSION, 9);
-  assert.deepEqual([...SUPPORTED_INPUT_SCHEMA_VERSIONS], [9]);
-  assert.equal(TRIAGE_POLICY_ID, "triage-policy-v8-2026-10-01");
+  assert.equal(NORMALIZED_INPUT_SCHEMA_VERSION, 10);
+  assert.deepEqual([...SUPPORTED_INPUT_SCHEMA_VERSIONS], [9, 10]);
+  assert.equal(TRIAGE_POLICY_ID, "triage-policy-v9-2026-10-08");
   const cases = [
     [
       "unknown root key",
@@ -686,9 +862,9 @@ test("strict normalized input contract rejects drift with stable identity", () =
     [
       "schema version",
       (input) => {
-        input.schemaVersion = 10;
+        input.schemaVersion = 11;
       },
-      "schemaVersion: must be 9; earlier versions are no longer read",
+      "schemaVersion: must be 9 or 10; earlier versions are no longer read",
     ],
     [
       "positive input index",
@@ -1348,7 +1524,7 @@ test("every earlier input version is refused, and so is its record", () => {
           () => call(input),
           (error) =>
             error instanceof ScorerInputError &&
-            error.message === "schemaVersion: must be 9; earlier versions are no longer read",
+            error.message === "schemaVersion: must be 9 or 10; earlier versions are no longer read",
           `version ${version} under ${policyId}`,
         );
       }

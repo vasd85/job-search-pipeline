@@ -53,7 +53,7 @@ import { boilerplateOf, linksOf } from "../tools/telegram-collect/links.mjs";
 import { parsePage } from "../tools/telegram-collect/parse.mjs";
 import {
   executeFinalize,
-  executeSweep,
+  executeSweep as executeSweepCurrent,
   exitCodeOf,
   prepareOutDir,
   renderLabelBatches,
@@ -61,21 +61,38 @@ import {
 } from "../tools/telegram-collect/persist.mjs";
 import { probeChannel, probeMessage } from "../tools/telegram-collect/probe.mjs";
 import { renderReport, reportTexts, safeTitle } from "../tools/telegram-collect/report.mjs";
-import { initState, readState, resetCursor, writeState } from "../tools/telegram-collect/state.mjs";
+import {
+  initState as initStateCurrent,
+  readState,
+  resetCursor,
+  writeState,
+} from "../tools/telegram-collect/state.mjs";
 import {
   buckets,
   channelOutcomes,
   discrepancyKinds,
   linkFates,
   readOutcomes,
-  resolveSweep,
-  runSweep,
+  resolveSweep as resolveSweepCurrent,
+  runSweep as runSweepCurrent,
   stopReasons,
   sweepTotals,
   verdictKinds,
 } from "../tools/telegram-collect/sweep.mjs";
 import { readCollection } from "../tools/pretriage/collection.mjs";
 import { readLinksFile } from "../tools/triage-verify/links.mjs";
+import {
+  cardBody,
+  cardRef,
+  createSourceSet,
+  readSourceSet,
+  serializeSourceSet,
+  snapshotFromHtml,
+  snapshotRef,
+  sourceSetDigest,
+  sourceSetMemberships,
+  validateSourceSet,
+} from "../tools/triage-sources/source-set.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureDir = join(repoRoot, "tools", "telegram-collect", "fixtures");
@@ -147,6 +164,12 @@ function rawConfig(overrides = {}) {
 
 const config = (overrides) => parseConfig(rawConfig(overrides));
 const emptyState = () => ({ schema_version: 2, channels: {}, fingerprints: [], emitted_urls: {} });
+// Historical reader1/card3 scenarios run explicitly in their epoch. New production sweeps use
+// reader2/card4; the historical fixtures and expectations below are preserved unchanged.
+const runSweep = (options) => runSweepCurrent({ ...options, readerVersion: 1 });
+const resolveSweep = (options) => resolveSweepCurrent({ ...options, readerVersion: 1 });
+const executeSweep = (options) => executeSweepCurrent({ ...options, readerVersion: 1 });
+const initState = (path) => initStateCurrent(path, { schemaVersion: 2 });
 /** The six buckets, the named ones set: a thematic source fills only empty, repost and card. */
 const B = (partial) => ({
   empty: 0,
@@ -3921,6 +3944,541 @@ const writeAnswer = (outDir, batch, vacanciesByPost, edit = (answer) => answer) 
   );
 };
 const refusal = (fn, code) => assert.throws(fn, (error) => error.code === code, code);
+
+test("source context regression: a thematic summary keeps company and apply roles and the original snapshot", async (t) => {
+  const root = disposableRoot(t, "telegram-source-context-");
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "context");
+  writeFileSync(configPath, JSON.stringify(rawConfig()));
+  initState(statePath);
+  const html = pageHtml({
+    posts: [
+      {
+        id: 701,
+        datetime: day(13),
+        html: 'Senior QA Tester<br/>About <a href="https://studio.example.test/">Example Studio</a><br/>Remote, mobile games. Read the full role and <a href="https://jobs.example.test/mobile/apply">apply here</a>',
+      },
+    ],
+    older: false,
+  });
+  const run = await executeSweepCurrent({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: html } }),
+  });
+  assert.equal(run.awaiting, true, "thematic posts require isolated source mapping too");
+  const batch = run.batches[0];
+  const inputPath = join(outDir, "reader-in", batch.file);
+  const inputText = readFileSync(inputPath, "utf8");
+  mkdirSync(join(outDir, "reader-out"));
+  writeFileSync(
+    join(outDir, "reader-out", batch.file.replace(/\.txt$/u, ".json")),
+    JSON.stringify({
+      schema_version: 2,
+      batch: batch.file.replace(/\.txt$/u, ""),
+      posts: [
+        {
+          post: 1,
+          vacancies: [
+            {
+              title_line: 1,
+              start_line: 1,
+              end_line: 3,
+              description_kind: "summary",
+              links: [
+                { anchor: 1, role: "company_context" },
+                { anchor: 2, role: "apply" },
+              ],
+              apply: [{ via: "url", link: 2 }],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  writeFileSync(inputPath, inputText.slice(0, 35));
+  assert.throws(
+    () => executeFinalize({ outDir, statePath, repoRoot: root }),
+    (error) => error.code === "stage_invalid",
+  );
+  writeFileSync(inputPath, inputText);
+  const finished = executeFinalize({ outDir, statePath, repoRoot: root });
+  const set = JSON.parse(readFileSync(join(outDir, "source-set.json"), "utf8"));
+  const record = JSON.parse(readFileSync(join(outDir, "vacancies.jsonl"), "utf8").trim());
+  assert.equal(record.schema_version, 4);
+  assert.equal(set.schema_version, 1);
+  assert.equal(set.snapshots.length, 1);
+  assert.equal(set.cards[0].description_kind, "summary");
+  assert.deepEqual(
+    set.cards[0].links.map((link) => link.role),
+    ["company_context", "apply", "original_post"],
+  );
+  assert.equal(
+    set.snapshots[0].lines[2].text,
+    "Remote, mobile games. Read the full role and apply here",
+  );
+  assert.equal(set.snapshots[0].capture.file, "001.page.html");
+  assert.equal(set.snapshots[0].original_url, "https://t.me/examplejobs/701?embed=1");
+  assert.equal(finished.manifest.source_set.file, "source-set.json");
+  assert.ok(
+    !record.score_urls.includes(set.snapshots[0].original_url),
+    "original is retained without becoming a flat summary JD",
+  );
+  const collection = readFileSync(finished.collectionPath, "utf8");
+  assert.equal(
+    readSourceSet(join(outDir, "source-set.json"), { collectionText: collection }).digest,
+    finished.manifest.source_set.sha256,
+  );
+  assert.equal(cardProblem(record), null);
+});
+
+function mappedAnswer(item, vacancies) {
+  const rendered = renderPost(item, 1, ROLE, { sourceMapping: true });
+  const batch = { name: "fiction-001", schema_version: 2, posts: [rendered.descriptor] };
+  const answer = { schema_version: 2, batch: batch.name, posts: [{ post: 1, vacancies }] };
+  return { rendered, batch, answer, checked: checkAnswer(answer, batch) };
+}
+const mappedVac = (
+  title,
+  start,
+  end,
+  links = [],
+  description = "full_description",
+  apply = [],
+) => ({
+  title_line: title,
+  start_line: start,
+  end_line: end,
+  description_kind: description,
+  links,
+  apply,
+});
+function resolveMapped(walk, cfg, state, vacanciesByRef) {
+  const answers = new Map();
+  for (const item of walk.fresh) {
+    const { checked, rendered } = mappedAnswer(
+      item,
+      vacanciesByRef[`${item.handle}/${item.postId}`] ?? [],
+    );
+    answers.set(`${item.handle}/${item.postId}`, {
+      ...checked.results.get(1),
+      descriptor: rendered.descriptor,
+    });
+  }
+  return resolveSweepCurrent({ config: cfg, state, walk, answers });
+}
+
+test("source mapping2 reads complete thematic/general posts and rejects omitted links, sibling details and duplicate boundaries", () => {
+  const item = parsedPost(
+    'Company <a href="https://company.example.test/about">Example Company</a><br/>Senior QA<br/>Apply <a href="https://ats.example.test/senior">Senior role</a><br/>Junior QA<br/>Apply <a href="https://ats.example.test/junior">Junior role</a>',
+  );
+  const senior = mappedVac(
+    2,
+    2,
+    3,
+    [
+      { anchor: 1, role: "company_context" },
+      { anchor: 2, role: "apply" },
+    ],
+    "full_description",
+    [{ via: "url", link: 2 }],
+  );
+  const junior = mappedVac(
+    4,
+    4,
+    5,
+    [
+      { anchor: 1, role: "company_context" },
+      { anchor: 3, role: "apply" },
+    ],
+    "summary",
+    [{ via: "url", link: 3 }],
+  );
+  assert.equal(mappedAnswer(item, [junior, senior]).checked.results.get(1).kind, "vacancy");
+  for (const vacancies of [
+    [mappedVac(2, 2, 3, [{ anchor: 2, role: "apply" }])],
+    [{ ...senior, links: [...senior.links, { anchor: 3, role: "details" }] }],
+    [senior, { ...junior, start_line: 3 }],
+    [senior, senior],
+    [{ ...senior, links: [...senior.links, { anchor: 2, role: "details" }] }],
+    [{ ...senior, description_kind: "complete" }],
+    [{ ...senior, title_line: 80 }],
+  ])
+    assert.equal(mappedAnswer(item, vacancies).checked.results.get(1).kind, "invalid");
+  const good = mappedAnswer(item, [senior, junior]);
+  good.batch.posts[0].complete = false;
+  assert.equal(checkAnswer(good.answer, good.batch).results.get(1).kind, "invalid");
+  assert.equal(
+    checkAnswer({ ...good.answer, schema_version: 1 }, good.batch).results.get(1).code,
+    "file_invalid",
+  );
+  const long = parsedPost(
+    `Senior QA<br/>${"a".repeat(700)}<br/>${Array.from({ length: 30 }, (_, i) => `body ${i}`).join("<br/>")}`,
+  );
+  const full = renderPost(long, 1, ROLE, { sourceMapping: true });
+  assert.ok(full.text.includes("a".repeat(700)));
+  assert.ok(full.text.includes("|32| body 29"));
+  assert.ok(!full.text.includes("lines hidden"));
+});
+
+test("immutable card refs survive answer permutations and adding a missed sibling, but own remapping and edited body change refs", async () => {
+  const cfg = genConfig();
+  const state = emptyState();
+  const table = genPage([
+    post(
+      801,
+      day(13),
+      "Digest<br/>Senior QA<br/>Requirements: Playwright<br/>Junior QA<br/>Requirements: Cypress",
+    ),
+  ]);
+  const first = await runSweepCurrent({ config: cfg, state, ...sweepDeps(table) });
+  const senior = mappedVac(2, 2, 3);
+  const junior = mappedVac(4, 4, 5);
+  const one = resolveMapped(first.walk, cfg, state, { [`${GEN}/801`]: [junior] });
+  const two = resolveMapped(first.walk, cfg, state, { [`${GEN}/801`]: [junior, senior] });
+  const reverse = resolveMapped(first.walk, cfg, state, { [`${GEN}/801`]: [senior, junior] });
+  assert.equal(two.cards.find((card) => card.title === "Junior QA").cardRef, one.cards[0].cardRef);
+  assert.deepEqual(
+    two.cards.map((card) => card.cardRef),
+    reverse.cards.map((card) => card.cardRef),
+  );
+  assert.deepEqual(
+    two.cards.map((card) => [card.title, card.vacancyNo]),
+    [
+      ["Senior QA", 1],
+      ["Junior QA", 2],
+    ],
+  );
+  const remapped = resolveMapped(first.walk, cfg, state, {
+    [`${GEN}/801`]: [mappedVac(2, 1, 3), junior],
+  });
+  assert.notEqual(remapped.cards[0].cardRef, two.cards[0].cardRef);
+  const editedWalk = structuredClone(first.walk);
+  editedWalk.fresh[0].post.lines = editedWalk.fresh[0].post.lines.map((line) =>
+    line === "Junior QA" ? "Senior SDET" : line,
+  );
+  const edited = resolveMapped(editedWalk, cfg, state, { [`${GEN}/801`]: [senior, junior] });
+  assert.notEqual(edited.cards[1].cardRef, two.cards[1].cardRef);
+  assert.notEqual(
+    edited.cards[1].sourceSnapshot.snapshot_ref,
+    two.cards[1].sourceSnapshot.snapshot_ref,
+  );
+});
+
+test("source mapping2 preserves distinct card memberships for shared company URL, known links and URL holders", async () => {
+  const cfg = genConfig();
+  const state = emptyState();
+  const html = (title, job) =>
+    `${title}<br/>Company <a href="https://same-company.example.test/">Example Company</a><br/>Apply <a href="https://ats.example.test/${job}">application</a>`;
+  const first = await runSweepCurrent({
+    config: cfg,
+    state,
+    ...sweepDeps(
+      genPage([
+        post(811, day(12), html("Senior QA", "senior")),
+        post(812, day(13), html("Junior QA", "junior")),
+      ]),
+    ),
+  });
+  const mapped = mappedVac(1, 1, 3, [
+    { anchor: 1, role: "company_context" },
+    { anchor: 2, role: "apply" },
+  ]);
+  const result = resolveMapped(first.walk, cfg, state, {
+    [`${GEN}/811`]: [mapped],
+    [`${GEN}/812`]: [mapped],
+  });
+  assert.equal(result.cards.length, 2);
+  assert.notEqual(result.cards[0].cardRef, result.cards[1].cardRef);
+  assert.equal(
+    result.collection.filter((entry) => entry.url === "https://same-company.example.test/").length,
+    1,
+  );
+  const snapshotList = result.cards.map((card) => ({
+    ...card.sourceSnapshot,
+    capture: {
+      file: `${card.postId}.page.html`,
+      sha256: "a".repeat(64),
+      captured_at: "2026-09-14T12:00:00.000Z",
+    },
+  }));
+  const set = createSourceSet({
+    collectionText: "https://same-company.example.test/\n",
+    snapshots: snapshotList,
+    cards: result.cards.map((card) => ({
+      snapshot_ref: card.sourceSnapshot.snapshot_ref,
+      title_line: card.titleLine,
+      start_line: card.startLine,
+      end_line: card.endLine,
+      description_kind: card.descriptionKind,
+      links: card.sourceLinks,
+    })),
+  });
+  assert.equal(sourceSetMemberships(set, "https://same-company.example.test/").length, 2);
+  const known = {
+    ...state,
+    emitted_urls: {
+      "https://same-company.example.test/": {
+        handle: GEN,
+        post_id: 100,
+        first_at: day(10).replace("+00:00", ".000Z"),
+        last_seen: day(10).replace("+00:00", ".000Z"),
+      },
+    },
+  };
+  const knownResult = resolveMapped(first.walk, cfg, known, {
+    [`${GEN}/811`]: [mapped],
+    [`${GEN}/812`]: [mapped],
+  });
+  assert.equal(knownResult.cards.length, 2);
+  for (const card of knownResult.cards) {
+    assert.equal(card.knownUrls.length, 1);
+    assert.equal(
+      card.sourceLinks.find((link) => link.url === "https://same-company.example.test/").role,
+      "company_context",
+    );
+  }
+});
+
+test("source-set validation binds exact collection and HTML bytes and rejects spoofed body/anchors/bounds/memberships", (t) => {
+  const root = disposableRoot(t, "source-set-validation-");
+  const html = pageHtml({
+    posts: [
+      post(
+        821,
+        day(13),
+        'Senior QA<br/>Build tests using Playwright<br/>Company <a href="https://company.example.test/">Example Company</a><br/>Apply <a href="https://ats.example.test/senior">application</a>',
+      ),
+    ],
+    older: false,
+  });
+  writeFileSync(join(root, "001.page.html"), html);
+  const snapshot = snapshotFromHtml(html, {
+    handle: "examplejobs",
+    postId: 821,
+    capturedAt: "2026-09-14T12:00:00.000Z",
+  });
+  const collection = "https://company.example.test/\nhttps://ats.example.test/senior\n";
+  const set = createSourceSet({
+    collectionText: collection,
+    snapshots: [snapshot],
+    cards: [
+      {
+        snapshot_ref: snapshot.snapshot_ref,
+        title_line: 1,
+        start_line: 1,
+        end_line: 4,
+        description_kind: "full_description",
+        links: [
+          { anchor: 1, role: "company_context", url: "https://company.example.test/" },
+          { anchor: 2, role: "apply", url: "https://ats.example.test/senior" },
+          { anchor: null, role: "original_post", url: snapshot.original_url },
+        ],
+      },
+    ],
+  });
+  assert.equal(validateSourceSet(set, { collectionText: collection, captureRoot: root }), set);
+  assert.throws(
+    () => cardBody(set, { ...set.cards[0], card_ref: "tg-card:sha256:" + "a".repeat(64) }),
+    (error) => error.code === "source_set_invalid",
+  );
+  assert.equal(
+    cardBody(set, set.cards[0]),
+    "Senior QA\nBuild tests using Playwright\nCompany Example Company\nApply application",
+  );
+  writeFileSync(join(root, "source-set.json"), serializeSourceSet(set));
+  assert.equal(
+    readSourceSet(join(root, "source-set.json"), { collectionText: collection }).digest,
+    sourceSetDigest(set),
+  );
+  const invalid = (value, options = { collectionText: collection, captureRoot: root }) =>
+    assert.throws(
+      () => validateSourceSet(value, options),
+      (error) => error.code === "source_set_invalid",
+    );
+  invalid(set, { collectionText: `${collection}\n`, captureRoot: root });
+  for (const mutate of [
+    (value) => {
+      value.cards = [];
+    },
+    (value) => {
+      value.cards[0].links.pop();
+    },
+    (value) => {
+      value.cards[0].links[1].url = "https://other.example.test/role";
+    },
+    (value) => {
+      value.cards[0].end_line = 5;
+    },
+    (value) => {
+      value.cards[0].links[0].role = "company";
+    },
+    (value) => {
+      value.snapshots[0].capture.file = "../001.page.html";
+    },
+    (value) => {
+      value.snapshots[0].anchors[0].href = "https://other.example.test/";
+    },
+    (value) => {
+      value.snapshots[0].lines[1].text = "Invented salary 5000 USD";
+      value.snapshots[0].snapshot_ref = snapshotRef(value.snapshots[0]);
+      value.cards[0].snapshot_ref = value.snapshots[0].snapshot_ref;
+      value.cards[0].card_ref = cardRef(value.cards[0]);
+    },
+  ]) {
+    const changed = structuredClone(set);
+    mutate(changed);
+    invalid(changed);
+  }
+  symlinkSync(join(root, "001.page.html"), join(root, "linked.page.html"));
+  const linked = structuredClone(set);
+  linked.snapshots[0].capture.file = "linked.page.html";
+  invalid(linked);
+  writeFileSync(join(root, "001.page.html"), `${html}<!-- changed bytes -->`);
+  invalid(set);
+});
+
+test("full description with company and contact preserves original JD; oversize mapping is explicit and never truncated", async (t) => {
+  const root = disposableRoot(t, "telegram-full-source-");
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "full");
+  writeFileSync(configPath, JSON.stringify(rawConfig()));
+  initStateCurrent(statePath);
+  const html = pageHtml({
+    posts: [
+      post(
+        831,
+        day(13),
+        'Middle QA<br/>Responsibilities: test APIs<br/>Requirements: Playwright<br/>Company <a href="https://company.example.test/about">Example Company</a><br/>Write <a href="mailto:recruiter@example.test">recruiter@example.test</a>',
+      ),
+    ],
+    older: false,
+  });
+  const run = await executeSweepCurrent({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: html } }),
+  });
+  mkdirSync(join(outDir, "reader-out"));
+  writeFileSync(
+    join(outDir, "reader-out", "examplejobs-001.json"),
+    JSON.stringify({
+      schema_version: 2,
+      batch: "examplejobs-001",
+      posts: [
+        {
+          post: 1,
+          vacancies: [
+            mappedVac(
+              1,
+              1,
+              5,
+              [
+                { anchor: 1, role: "company_context" },
+                { anchor: 2, role: "contact" },
+              ],
+              "full_description",
+              [{ via: "email", link: 2 }],
+            ),
+          ],
+        },
+      ],
+    }),
+  );
+  const finished = executeFinalize({ outDir, statePath, repoRoot: root });
+  const set = readSourceSet(finished.sourceSetPath, {
+    collectionText: readFileSync(finished.collectionPath, "utf8"),
+  }).sourceSet;
+  assert.ok(readFileSync(finished.collectionPath, "utf8").includes(set.snapshots[0].original_url));
+  assert.equal(set.cards[0].description_kind, "full_description");
+  assert.equal(set.cards[0].links[1].role, "contact");
+  assert.equal(set.snapshots[0].capture.captured_at, "2026-09-14T12:00:00.000Z");
+  assert.notEqual(set.snapshots[0].capture.captured_at, set.snapshots[0].instant);
+  const hugeHtml = pageHtml({
+    posts: [
+      post(
+        832,
+        day(13),
+        `Senior QA<br/>${"Complete long paragraph ".repeat(3000)}<br/>Company <a href="https://company.example.test/">Example Company</a>`,
+      ),
+    ],
+    older: false,
+  });
+  const hugeOut = join(root, "telegram-sweeps", "huge");
+  const huge = await executeSweepCurrent({
+    configPath,
+    statePath,
+    outDir: hugeOut,
+    repoRoot: root,
+    ...sweepDeps({ [P1]: { body: hugeHtml } }),
+  });
+  assert.equal(huge.batches[0].posts[0].complete, false);
+  assert.equal(summarize(huge).unresolved_mappings, 1);
+  assert.equal(summarize(huge).posts_to_read, 0);
+  assert.ok(
+    !readFileSync(join(hugeOut, "reader-in", "examplejobs-001.txt"), "utf8").includes(
+      "Complete long paragraph",
+    ),
+  );
+  const hugeFinished = executeFinalize({ outDir: hugeOut, statePath, repoRoot: root });
+  const hugeSet = readSourceSet(hugeFinished.sourceSetPath, {
+    collectionText: readFileSync(hugeFinished.collectionPath, "utf8"),
+  }).sourceSet;
+  assert.equal(hugeSet.cards[0].mapping_status, "unresolved_oversize");
+  assert.equal(hugeSet.cards[0].description_kind, "unknown");
+  assert.equal(hugeSet.cards[0].links[0].role, "unknown");
+  assert.equal(hugeSet.snapshots[0].lines[1].text, "Complete long paragraph ".repeat(3000).trim());
+  assert.match(readFileSync(hugeFinished.reportPath, "utf8"), /Unresolved source mappings/u);
+});
+
+test("reader2 reposts require exact source body: legacy near match and edited Junior+/salary are remapped, exact reposts remain folded", async () => {
+  const cfg = genConfig();
+  const state = emptyState();
+  const description = (level, salary) =>
+    `Performance QA<br/>Example Company<br/>Level: ${level}<br/>Salary: ${salary}<br/>Responsibilities ${"build reliable load tests with JMeter and analyze metrics ".repeat(10)}<br/>Requirements: SQL, Kafka, Linux`;
+  const first = await runSweepCurrent({
+    config: cfg,
+    state,
+    ...sweepDeps(genPage([post(841, day(12), description("Junior+", "80000 RUB"))])),
+  });
+  const result = resolveMapped(first.walk, cfg, state, { [`${GEN}/841`]: [mappedVac(1, 1, 6)] });
+  assert.equal(result.nextState.schema_version, 3);
+  assert.match(result.nextState.fingerprints[0].source_body_sha256, /^[a-f0-9]{64}$/u);
+  const legacy = structuredClone(result.nextState);
+  legacy.schema_version = 2;
+  delete legacy.fingerprints[0].source_body_sha256;
+  legacy.channels = {};
+  const legacyRead = await runSweepCurrent({
+    config: cfg,
+    state: legacy,
+    ...sweepDeps(genPage([post(842, day(13), description("Junior+", "80000 RUB"))])),
+  });
+  assert.equal(legacyRead.awaiting, true);
+  const exactState = { ...result.nextState, channels: {} };
+  const exact = await runSweepCurrent({
+    config: cfg,
+    state: exactState,
+    ...sweepDeps(genPage([post(842, day(13), description("Junior+", "80000 RUB"))])),
+  });
+  assert.equal(exact.awaiting, false);
+  assert.equal(exact.reposts.length, 1);
+  const edited = await runSweepCurrent({
+    config: cfg,
+    state: exactState,
+    ...sweepDeps(genPage([post(841, day(13), description("Senior", "180000 RUB"))])),
+  });
+  assert.equal(edited.awaiting, true);
+  const remapped = resolveMapped(edited.walk, cfg, exactState, {
+    [`${GEN}/841`]: [mappedVac(1, 1, 6)],
+  });
+  assert.notEqual(remapped.cards[0].cardRef, result.cards[0].cardRef);
+});
 
 test("two steps: sweep writes the batches and the stage, touches no state, prints a bounded summary; finalize needs every answer, then finishes in the write order with the state last", async (t) => {
   const run = await twoStep(t, genPage());

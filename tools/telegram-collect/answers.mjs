@@ -1,4 +1,5 @@
-// The reader's answer, checked against what it was shown.
+// The reader's answer, checked against what it was shown. Version 2 adds complete-input source
+// roles and disjoint vacancy boundaries; version 1 remains explicitly readable in its own epoch.
 //
 // An answer is one JSON object: for every post of the batch, by its number, a list of vacancies,
 // each naming the line of its title, up to five ways to apply as a closed `via` code with the number
@@ -14,7 +15,10 @@
 // post that showed a single line, a `title_line` the post does not have is read as that line. The
 // corrected numbers of a post come back as `repairs`, so the sweep can print them.
 
-export const answerSchemaVersion = 1;
+import { descriptionKinds, sourceRoles } from "../triage-sources/source-set.mjs";
+
+export const answerSchemaVersion = 2;
+export const acceptedAnswerSchemaVersions = Object.freeze([1, 2]);
 export const applyVias = Object.freeze(["url", "tg", "email", "phone", "dm_author", "unspecified"]);
 export const answerCodes = Object.freeze([
   "file_invalid",
@@ -90,6 +94,95 @@ function checkVacancy(vacancy, descriptor) {
     : { vacancy: { ...vacancy, title_line: onlyLine }, repaired: vacancy.title_line };
 }
 
+// Version 2 accepts only complete input. No single-line repair can alter a title anchor in this
+// epoch, and each card owns its own disjoint description boundaries.
+function checkMappedVacancy(vacancy, descriptor) {
+  if (
+    !isPlainObject(vacancy) ||
+    !keysAre(vacancy, [
+      "title_line",
+      "start_line",
+      "end_line",
+      "description_kind",
+      "links",
+      "apply",
+    ]) ||
+    descriptor.complete !== true
+  )
+    return null;
+  const line = (n) => isIndex(n) && descriptor.shown.includes(n);
+  if (
+    ![vacancy.title_line, vacancy.start_line, vacancy.end_line].every(line) ||
+    vacancy.start_line > vacancy.title_line ||
+    vacancy.title_line > vacancy.end_line ||
+    !descriptionKinds.includes(vacancy.description_kind) ||
+    !Array.isArray(vacancy.links) ||
+    !Array.isArray(vacancy.apply) ||
+    vacancy.apply.length > MAX_APPLY_PER_VACANCY
+  )
+    return null;
+  const seen = new Set();
+  for (const mapping of vacancy.links) {
+    if (
+      !isPlainObject(mapping) ||
+      !keysAre(mapping, ["anchor", "role"]) ||
+      !isIndex(mapping.anchor) ||
+      mapping.anchor > descriptor.links.length ||
+      seen.has(mapping.anchor) ||
+      !sourceRoles.includes(mapping.role) ||
+      mapping.role === "original_post"
+    )
+      return null;
+    seen.add(mapping.anchor);
+    const anchor = descriptor.links[mapping.anchor - 1];
+    if (
+      (mapping.role === "contact" && !["tg", "email"].includes(anchor.type)) ||
+      (["company_context", "details", "apply"].includes(mapping.role) &&
+        !["url", "tg_other"].includes(anchor.type))
+    )
+      return null;
+    if (
+      !["company_context", "unknown"].includes(mapping.role) &&
+      anchor.line !== null &&
+      (anchor.line < vacancy.start_line || anchor.line > vacancy.end_line)
+    )
+      return null;
+  }
+  for (const apply of vacancy.apply) {
+    if (!isPlainObject(apply) || !keysAre(apply, ["via", "link"]) || !applyVias.includes(apply.via))
+      return null;
+    const type = LINK_TYPE_OF_VIA[apply.via];
+    if (type === undefined) {
+      if (apply.link !== null) return null;
+      continue;
+    }
+    if (
+      !isIndex(apply.link) ||
+      apply.link > descriptor.links.length ||
+      descriptor.links[apply.link - 1].type !== type
+    )
+      return null;
+    const mapping = vacancy.links.find((item) => item.anchor === apply.link);
+    if (mapping === undefined || mapping.role !== (type === "url" ? "apply" : "contact"))
+      return null;
+  }
+  return { vacancy, repaired: null };
+}
+
+function mappingIsComplete(checked, descriptor) {
+  const vacancies = checked.map((item) => item.vacancy).sort((a, b) => a.start_line - b.start_line);
+  if (vacancies.some((vacancy, at) => at > 0 && vacancy.start_line <= vacancies[at - 1].end_line))
+    return false;
+  for (const link of descriptor.links) {
+    const roles = vacancies.flatMap((vacancy) =>
+      vacancy.links.filter((mapping) => mapping.anchor === link.j).map((mapping) => mapping.role),
+    );
+    if (roles.length === 0 && vacancies.length > 0) return false;
+    if (roles.length > 1 && roles.some((role) => role !== "company_context")) return false;
+  }
+  return true;
+}
+
 /**
  * Check one answer object against its batch. Returns a Map of post number to
  * `{ kind: "vacancy", vacancies }`, `{ kind: "none" }` or `{ kind: "invalid", code }`, plus the
@@ -105,7 +198,8 @@ export function checkAnswer(answer, batch) {
   if (
     answer === null ||
     !keysAre(answer, ["schema_version", "batch", "posts"]) ||
-    answer.schema_version !== answerSchemaVersion ||
+    !acceptedAnswerSchemaVersions.includes(answer.schema_version) ||
+    answer.schema_version !== (batch.schema_version ?? 1) ||
     answer.batch !== batch.name ||
     !Array.isArray(answer.posts)
   ) {
@@ -131,8 +225,16 @@ export function checkAnswer(answer, batch) {
       !Array.isArray(entry.vacancies) ||
       entry.vacancies.length > MAX_VACANCIES_PER_POST
         ? null
-        : entry.vacancies.map((vacancy) => checkVacancy(vacancy, descriptor));
-    if (checked === null || checked.includes(null)) {
+        : entry.vacancies.map((vacancy) =>
+            answer.schema_version === 1
+              ? checkVacancy(vacancy, descriptor)
+              : checkMappedVacancy(vacancy, descriptor),
+          );
+    if (
+      checked === null ||
+      checked.includes(null) ||
+      (answer.schema_version === 2 && !mappingIsComplete(checked, descriptor))
+    ) {
       results.set(number, invalid("post_invalid"));
       continue;
     }

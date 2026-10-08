@@ -61,6 +61,30 @@ const composition = composeBatch(observations, {  // header facts of the survivi
 
 `asOf` is the batch's own observation instant, the same value the ledger write uses.
 
+## Explicit source-aware collections
+
+`readCollection(path, {sourceSetPath, captureRoot})` validates the explicitly paired source set,
+exact collection bytes and saved HTML and adds all card/snapshot/role memberships. Neither an
+adjacent file nor historical `# via:` comments enable this mode. Standalone URL behavior is unchanged.
+The artifact contract is [tools/triage-sources/README.md](../triage-sources/README.md).
+
+Pass `sourcePlan: planSourceBatch(...)` alongside the legacy URL `ledgerPlan` to `planPreTriage`.
+A source-aware plan has schema version 2. It retains URL accounting and separate logical-card
+counts; a legacy URL `skip_known`/`skip_closed` cannot suppress a new or edited card. Only a
+validated logical/source baseline may withhold it. Per-source technical failures remain retryable.
+`company_context` and `source_contact` avoid fetch/extraction/scoring. A fresh `source_snapshot`
+uses a full original from saved HTML, saving only HTTP spend; `source_summary` is not scored as a
+JD. Details/apply/unknown routes still enter the normal liveness/fallback lane. The new dispositions
+are bounded separately from version 1, whose fields and meanings remain intact.
+
+`splitCollection` emits schema version 2 with `card_refs`, logical counts and `oversize` on each
+source group. It packs whole vacancy source units into contiguous URL ranges. Shared company/contact
+URLs are accounted once, and a shared homepage never merges jobs. A source unit bigger than the
+requested group size remains whole and is reported, rather than dropping part of its evidence.
+`collectionGroup` retains the full source set and exact original collection bytes plus the selected
+`source_selection`; verification uses the original range. Composition is counted once per logical
+vacancy, using one primary's own facts and unknown when identity or facts are unresolved.
+
 ## The collection
 
 A links file, read by `tools/triage-verify/links.mjs#readLinksFile` — that module owns the list, and

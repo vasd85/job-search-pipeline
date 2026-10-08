@@ -42,6 +42,13 @@ function batchWindow(context) {
     .filter((capture) => capture.verified?.ok === true)
     .map((capture) => usableInstant(capture.verified.header["fetched-at"]))
     .filter((value) => value !== null);
+  if (context.sourceVerification?.valid) {
+    for (const record of context.records) {
+      if (record.sourceScope?.original !== true) continue;
+      const instant = usableInstant(record.sourceScope.snapshot.capture.captured_at);
+      if (instant !== null) instants.push(instant);
+    }
+  }
   if (instants.length === 0) return null;
   return { earliest: Math.min(...instants), latest: Math.max(...instants) };
 }
@@ -66,6 +73,8 @@ export function run(context) {
   }
 
   const window = batchWindow(context);
+  if (context.sourceVerification?.active && window === null)
+    findings.push({ code: "source_probe_window_unverifiable" });
   const seen = new Map();
   value.probes.forEach((probe, position) => {
     if (!isRecord(probe)) {

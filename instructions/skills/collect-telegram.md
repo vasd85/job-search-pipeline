@@ -1,8 +1,9 @@
 # collect-telegram
 
-Sweep the configured public Telegram channels and groups and publish three files: a links
-collection that [`/score-jobs`](score-jobs.md) consumes unchanged, a file of vacancy cards, and a
-sweep report that shows everything the sweep did not emit. Explicit-run only.
+Sweep the configured public Telegram channels and groups and publish a links collection, vacancy
+cards, a digest-bound source-set and a sweep report. Pass the collection and adjacent source-set
+to [`/score-jobs`](score-jobs.md) so each vacancy retains its own boundaries and link roles.
+The report shows everything the sweep did not emit. Explicit-run only.
 This skill scores nothing and writes nothing to the triage ledger; scoring is a separate explicit
 `/score-jobs` run over the collection file.
 
@@ -26,14 +27,13 @@ never in `main` or a task worktree.
 
 A source of the config is either **thematic** or **general**, channel or group alike.
 
-A thematic source has no role filter: everything but advertising fits, and every post with text
-becomes a card. A general source is added only with `thematic: false`, and its posts reach the
+A thematic source has no first-stage role-word filter: every new post with text reaches the
+isolated reader for vacancy boundaries and source mapping. A general source is added only with `thematic: false`, and its posts reach the
 collection only through the reader — the code picks the posts in which a word of the config's
 `role_words` stands, and the `telegram-reader` agent reads those and names the QA vacancies; a post
 outside the word list is counted, not read. The user says which of the two a source is; when that is
-not plain, ask. The collector builds a card from every message with text of a thematic source and
-does not tell a vacancy from a résumé — in a thematic group that is the wanted behaviour, and the
-message's author becomes a contact of the card.
+not plain, ask. Both source types use answer version 2; no parent inference substitutes for that
+mapping. The author remains contact metadata and does not merge roles or replace a stated form.
 
 ## Working files
 
@@ -57,7 +57,9 @@ Never run `init` on your own to get past a refusal.
    sequential; do not start a second sweep in parallel and do not retry a `rate_limited` sweep in
    the same session. Read the one JSON object on stdout. With `completed: true` go to step 4.
 3. With `stage: "awaiting_answers"` the reader's batches are in `reader-in/` and stdout lists them.
-   For every batch, call the `telegram-reader` agent. The reader agent receives one
+   For every batch containing complete posts, call the `telegram-reader` agent. A batch containing
+   only `mapping_oversize` posts needs no answer file: finalize preserves its complete capture with
+   unknown roles and `unresolved_oversize`, for source review. The reader agent receives one
    argument: the absolute path of one batch file, and nothing else. The working session never opens
    a batch file in either runtime. Write the agent's reply verbatim into `reader-out/<batch name>.json`
    with the file-write tool; do not parse, trim or repair it. When the `telegram-reader` agent is
@@ -76,9 +78,13 @@ Never run `init` on your own to get past a refusal.
    once more for those batches, write the new replies and run `finalize` again; on a second
    `answers_invalid` run `finalize --out-dir <that directory> --accept-invalid` and name the
    rejected posts in the chat summary. Then read `sweep-report.md`.
-4. Read `sweep-report.md` in the output directory. Exit code `2` means at least one source did not
+4. Read `sweep-report.md` in the output directory, including source memberships and unresolved
+   mappings. Exit code `2` means at least one source did not
    complete; the report names it. A collection is handed to scoring only when stdout says
-   `completed: true` and `collection_path` is not null.
+   `completed: true` and `collection_path` is not null. Keep `source-set.json` and its referenced
+   saved HTML files beside the collection; the scoring handoff verifies digests and reparses the
+   saved HTML. Never rewrite source text, infer a missing link role in the parent, strip a
+   summary's details/apply route, or drop known/held card memberships after URL deduplication.
 
 ## Chat summary
 
@@ -90,11 +96,11 @@ on the previous stop, restated rather than quoted: the report follows the defaul
 chat summary follows the chat rule. Then what was NOT emitted: every `gap` (the id range
 that entered nothing), every source that was interrupted, `unattempted` or `disabled`, and the
 counts of reposts, of cards whose address stands at a newer post, of addresses already emitted, of
-marked or unusable links and of discrepancy lines — the places where the reader saw no vacancy and
+marked or unusable links, unresolved source mappings, and discrepancy lines — the places where the reader saw no vacancy and
 the text names the role — with a pointer to the report file for their lines. People's contacts —
 a Telegram name, an e-mail address — are never printed in chat: they live in the cards file and the
 report. End with the collection path and its address count, or say that no collection file was
-written. Name `/score-jobs` over that file as the next explicit step; do not start it.
+written. Include the adjacent source-set path in the handoff. Name `/score-jobs` over that file as the next explicit step; do not start it.
 
 ## Editing the sources
 

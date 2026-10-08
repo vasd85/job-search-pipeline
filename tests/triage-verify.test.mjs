@@ -22,6 +22,12 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import {
+  createSourceSet,
+  snapshotFromHtml,
+  sourceSetDigest,
+} from "../tools/triage-sources/source-set.mjs";
+import { publishSourceResolution } from "../tools/triage-sources/reconcile.mjs";
 import { TriageVerifyError } from "../tools/triage-verify/errors.mjs";
 import { presentButUnusable, usableInstant } from "../tools/triage-verify/instants.mjs";
 import {
@@ -37,12 +43,13 @@ import {
   genericPath,
 } from "../tools/triage-verify/evidence.mjs";
 import { ledgerRecordFileName, loadBatchArtifacts } from "../tools/triage-verify/artifacts.mjs";
-import { recordBatch } from "../tools/lib/triage-ledger-core.mjs";
+import { recordBatch, emptyLedger, planSourceBatch } from "../tools/lib/triage-ledger-core.mjs";
 import {
   loadVocabulary,
   validateVocabulary,
   vocabularyPhrases,
 } from "../tools/triage-verify/vocabulary.mjs";
+import * as quoteIntegrity from "../tools/triage-verify/checks/quote-integrity.mjs";
 import { familyClaimRules } from "../tools/triage-verify/checks/negative-space.mjs";
 import { readLinksFile, sliceRange } from "../tools/triage-verify/links.mjs";
 import {
@@ -3971,4 +3978,710 @@ test("earlier input schemas and trace taxonomies report policy_drift without rec
     assert.ok(codes(report).includes("policy_drift"));
     assert.equal(checkOf(report, "completeness").counts.tracesRecomputed, 4);
   }
+});
+
+// A source-context input selects exactly one vacancy, even when its immutable post
+// snapshot contains several cards. The earlier quote walk accepted any sibling.
+test("source-context evidence cannot borrow a sibling vacancy line", () => {
+  const body =
+    "Senior QA Engineer\nAutomation responsibilities.\nJunior+ QA Engineer\nManual testing only.\n";
+  const quote = "Junior+ QA Engineer";
+  const digest = sha256Utf8(body);
+  const verified = { ok: true, body, header: { "normalized-sha256": digest } };
+  const result = quoteIntegrity.run({
+    records: [
+      {
+        index: 1,
+        input: {
+          schemaVersion: 10,
+          source: { accessOutcome: "usable" },
+          sourceContext: {
+            primaryCaptureSha256: digest,
+            startLine: 1,
+            endLine: 2,
+          },
+        },
+        evidence: { quotes: [{ path: "role.evidence.seniority", value: quote }] },
+        evidenceDigests: new Map([["role.evidence.seniority", sha256Utf8(quote)]]),
+        captures: [{ file: "001.capture.txt", verified }],
+      },
+    ],
+  });
+  assert.ok(result.findings.some((entry) => entry.code === "quote_absent"));
+  assert.equal(result.counts.quotesMatched, 0);
+});
+
+const SOURCE_CAPTURED_AT = "2026-10-08T09:15:00.000Z";
+const SOURCE_COMPANY_URL = "https://fable.example.test/";
+const SOURCE_DETAILS_URL = "https://boards.example.test/fable/senior-qa";
+
+function sourceInput(
+  snapshot,
+  card,
+  digest,
+  {
+    index = 1,
+    body,
+    sourceRef = snapshot.original_url,
+    captureDigest = snapshot.capture.sha256,
+    original = true,
+    title = "Senior QA Engineer",
+    junior = false,
+  } = {},
+) {
+  const input = structuredClone(buildRecords()[3].input);
+  input.schemaVersion = 10;
+  input.policyId = "triage-policy-v9-2026-10-08";
+  input.scoringDate = "2026-10-08";
+  input.inputIndex = index;
+  input.source = {
+    ...input.source,
+    accessOutcome: "usable",
+    accessReason: null,
+    sourceRef,
+    finalUrl: sourceRef,
+    company: "Fable Instruments",
+    jobTitle: title,
+    evidenceQuote: title,
+  };
+  input.role = {
+    ...input.role,
+    family: "qa_testing",
+    automation: "manual_only",
+    seniority: junior ? "junior" : "senior",
+    ai: { product: "none", work: "none" },
+    evidence: {
+      ...input.role.evidence,
+      role: title,
+      automation: "Manual testing only.",
+      seniority: title,
+    },
+  };
+  input.sourceContext = {
+    sourceSetSha256: digest,
+    cardRef: card.card_ref,
+    snapshotRef: card.snapshot_ref,
+    primarySourceRef: sourceRef,
+    primaryCaptureSha256: captureDigest,
+    startLine: original ? card.start_line : 1,
+    endLine: original ? card.end_line : body.split("\n").length,
+  };
+  return input;
+}
+
+function sourceFacts(title = "Senior QA Engineer", junior = false) {
+  return {
+    company: { value: "Fable Instruments", evidence_quote: "Fable Instruments" },
+    title: { value: title, evidence_quote: title },
+    role: { value: "QA", evidence_quote: "QA" },
+    seniority: { value: junior ? "Junior+" : "Senior", evidence_quote: title },
+    salary: null,
+    published_at: null,
+  };
+}
+
+function prepareSourceBatch(
+  t,
+  { details = false, multiple = false, failure = false, partial = false } = {},
+) {
+  if (failure) details = true;
+  const root = disposableRoot(t);
+  const artifactsDir = join(root, "artifacts");
+  const captureRoot = join(root, "collector");
+  mkdirSync(artifactsDir);
+  mkdirSync(captureRoot);
+  const role = `<b>Senior QA Engineer</b><br/>Fable Instruments <a href="${SOURCE_COMPANY_URL}">Company site</a><br/>Manual testing only.`;
+  const extra = multiple
+    ? "<br/><b>Junior+ QA Engineer</b><br/>Fable Instruments<br/>Manual testing only."
+    : details
+      ? `<br/>Read full details <a href="${SOURCE_DETAILS_URL}">Apply here</a>`
+      : `<br/>Contact <a href="https://t.me/fable_recruiter">@fable_recruiter</a>`;
+  const html = `<html><div class="tgme_widget_message" data-post="fictionaljobs/100">
+    <div class="tgme_widget_message_text">${role}${extra}</div>
+    <a class="tgme_widget_message_date"><time datetime="2026-10-07T12:00:00.000Z"></time></a>
+  </div></html>`;
+  writeFileSync(join(captureRoot, "001.page.html"), html);
+  const snapshot = snapshotFromHtml(html, {
+    handle: "fictionaljobs",
+    postId: 100,
+    capturedAt: SOURCE_CAPTURED_AT,
+  });
+  const snapshots = [snapshot];
+  if (partial) {
+    const nextHtml = html.replace("fictionaljobs/100", "fictionaljobs/101");
+    writeFileSync(join(captureRoot, "002.page.html"), nextHtml);
+    snapshots.push(
+      snapshotFromHtml(nextHtml, {
+        handle: "fictionaljobs",
+        postId: 101,
+        file: "002.page.html",
+        capturedAt: SOURCE_CAPTURED_AT,
+      }),
+    );
+  }
+  const collectionText = `${SOURCE_COMPANY_URL}\n${details ? SOURCE_DETAILS_URL : snapshot.original_url}\n${partial ? `${snapshots[1].original_url}\n` : ""}`;
+  const firstEnd = multiple ? 3 : snapshot.lines.length;
+  const originalLink = { anchor: null, role: "original_post", url: snapshot.original_url };
+  const cards = [
+    {
+      snapshot_ref: snapshot.snapshot_ref,
+      title_line: 1,
+      start_line: 1,
+      end_line: firstEnd,
+      description_kind: details ? "summary" : "full_description",
+      links: [
+        { anchor: 1, role: "company_context", url: SOURCE_COMPANY_URL },
+        ...(!multiple
+          ? [
+              {
+                anchor: 2,
+                role: details ? "details" : "contact",
+                url: details ? SOURCE_DETAILS_URL : "https://t.me/fable_recruiter",
+              },
+            ]
+          : []),
+        originalLink,
+      ],
+    },
+  ];
+  if (multiple)
+    cards.push({
+      snapshot_ref: snapshot.snapshot_ref,
+      title_line: 4,
+      start_line: 4,
+      end_line: snapshot.lines.length,
+      description_kind: "full_description",
+      links: [{ anchor: 1, role: "company_context", url: SOURCE_COMPANY_URL }, originalLink],
+    });
+  if (partial)
+    cards.push({
+      ...cards[0],
+      snapshot_ref: snapshots[1].snapshot_ref,
+      links: cards[0].links.map((link) =>
+        link.role === "original_post" ? { ...link, url: snapshots[1].original_url } : link,
+      ),
+    });
+  const sourceSet = createSourceSet({ collectionText, snapshots, cards });
+  const digest = sourceSetDigest(sourceSet);
+  const observations = sourceSet.cards
+    .filter((card) => !partial || card.snapshot_ref === snapshot.snapshot_ref)
+    .map((card, at) => {
+      const title = at === 0 ? "Senior QA Engineer" : "Junior+ QA Engineer";
+      const body = snapshot.lines
+        .slice(card.start_line - 1, card.end_line)
+        .map((line) => line.text)
+        .join("\n");
+      return {
+        card_ref: card.card_ref,
+        source_ref: snapshot.original_url,
+        description_kind: card.description_kind,
+        identity_status: "confirmed",
+        capture: { file: snapshot.capture.file, sha256: snapshot.capture.sha256 },
+        body,
+        facts: sourceFacts(title, at !== 0),
+        input: details
+          ? null
+          : sourceInput(snapshot, card, digest, { index: at + 1, body, title, junior: at !== 0 }),
+      };
+    });
+  if (failure) {
+    const manifest = {
+      schemaVersion: 2,
+      tool: "vacancy-fetch",
+      startedAt: SOURCE_CAPTURED_AT,
+      records: [
+        {
+          index: 7,
+          requestedUrl: SOURCE_DETAILS_URL,
+          finalUrl: SOURCE_DETAILS_URL,
+          fetchedAt: SOURCE_CAPTURED_AT,
+          outcome: "access_failure",
+          usable: false,
+          fallback: "browser",
+          skipped: false,
+          persisted: null,
+        },
+      ],
+    };
+    const text = `${JSON.stringify(manifest, null, 2)}\n`;
+    writeFileSync(join(artifactsDir, "fetch-manifest.json"), text);
+    const card = sourceSet.cards[0];
+    const input = structuredClone(buildRecords()[3].input);
+    input.schemaVersion = 10;
+    input.policyId = "triage-policy-v9-2026-10-08";
+    input.scoringDate = "2026-10-08";
+    input.inputIndex = 1;
+    input.source = {
+      ...input.source,
+      accessOutcome: "technical_unavailable",
+      accessReason: "The transport did not obtain the posting.",
+      sourceRef: SOURCE_DETAILS_URL,
+      finalUrl: SOURCE_DETAILS_URL,
+    };
+    input.sourceContext = {
+      sourceSetSha256: digest,
+      cardRef: card.card_ref,
+      snapshotRef: card.snapshot_ref,
+      primarySourceRef: SOURCE_DETAILS_URL,
+      primaryCaptureSha256: null,
+      startLine: null,
+      endLine: null,
+    };
+    observations.push({
+      card_ref: card.card_ref,
+      source_ref: SOURCE_DETAILS_URL,
+      description_kind: "unknown",
+      identity_status: "linked_unconfirmed",
+      capture: null,
+      body: null,
+      facts: {
+        company: null,
+        title: null,
+        role: null,
+        seniority: null,
+        salary: null,
+        published_at: null,
+      },
+      input,
+      transport: { file: "fetch-manifest.json", sha256: sha256Utf8(text), index: 7 },
+    });
+  } else if (details) {
+    const body = "Senior QA Engineer\nFable Instruments\nManual testing only.\n";
+    const sha = sha256Utf8(body);
+    const captured = renderCaptureFile({
+      body,
+      header: {
+        index: 7,
+        adapter: "generic-html@1",
+        "source-id": "generic",
+        "requested-url": SOURCE_DETAILS_URL,
+        "final-url": SOURCE_DETAILS_URL,
+        "fetched-at": SOURCE_CAPTURED_AT,
+        "http-status": 200,
+        outcome: "active",
+        "access-barrier": null,
+        "response-sha256": sha,
+        "response-bytes": Buffer.byteLength(body),
+        "extracted-sha256": sha,
+        "normalized-sha256": sha,
+        "body-bytes": Buffer.byteLength(body),
+        normalization: "none",
+      },
+    });
+    writeFileSync(join(artifactsDir, "007.capture.txt"), captured);
+    writeFileSync(
+      join(artifactsDir, "fetch-manifest.json"),
+      `${JSON.stringify(
+        {
+          schemaVersion: 2,
+          tool: "vacancy-fetch",
+          startedAt: SOURCE_CAPTURED_AT,
+          records: [
+            {
+              index: 7,
+              requestedUrl: SOURCE_DETAILS_URL,
+              finalUrl: SOURCE_DETAILS_URL,
+              fetchedAt: SOURCE_CAPTURED_AT,
+              outcome: "active",
+              usable: true,
+              fallback: null,
+              skipped: false,
+              response: { sha256: sha },
+              persisted: { file: "007.capture.txt", sha256: sha },
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const card = sourceSet.cards[0];
+    observations.push({
+      card_ref: card.card_ref,
+      source_ref: SOURCE_DETAILS_URL,
+      description_kind: "full_description",
+      identity_status: "confirmed",
+      capture: { file: "007.capture.txt", sha256: sha },
+      body,
+      facts: sourceFacts(),
+      input: sourceInput(snapshot, card, digest, {
+        body,
+        sourceRef: SOURCE_DETAILS_URL,
+        captureDigest: sha,
+        original: false,
+      }),
+    });
+  }
+  const selection = partial
+    ? { from: 1, to: 2, card_refs: observations.map((observation) => observation.card_ref) }
+    : undefined;
+  const resolution = publishSourceResolution({
+    artifactsDir,
+    sourceSet,
+    collectionText,
+    sourceCaptureRoot: captureRoot,
+    observations,
+    selection,
+  });
+  const linksFile = join(root, "links.txt");
+  writeFileSync(linksFile, collectionText);
+  return { root, artifactsDir, linksFile, sourceSet, resolution, from: 1, to: 2 };
+}
+
+function verifySource(prepared, cadence = "per-batch") {
+  return runSuite(
+    buildContext({
+      artifactsDir: prepared.artifactsDir,
+      linksFile: prepared.linksFile,
+      ledgerPath: prepared.ledgerPath,
+      from: prepared.from,
+      to: prepared.to,
+    }),
+    cadence,
+  );
+}
+
+function editSourceJson(prepared, file, mutate) {
+  const path = join(prepared.artifactsDir, file);
+  const value = JSON.parse(readFileSync(path, "utf8"));
+  mutate(value);
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+test("a full immutable Telegram JD accounts for its company and contact without a fake homepage trace", (t) => {
+  const prepared = prepareSourceBatch(t);
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(report.counts.records, 1);
+  assert.equal(report.counts.linksInRange, 2);
+  assert.equal(report.counts.sourceHtmlCaptures, 1);
+  assert.equal(report.counts.logicalVacancies, 1);
+  assert.equal(prepared.resolution.groups[0].result.skip_code, "manual_role");
+  assert.ok(prepared.resolution.groups[0].sources.some((source) => source.role === "contact"));
+  assert.deepEqual(codes(report), []);
+  assert.equal(JSON.stringify(verifySource(prepared)), JSON.stringify(report));
+});
+
+test("a summary without a Telegram input uses the full details capture at its own transport index", (t) => {
+  const prepared = prepareSourceBatch(t, { details: true });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(report.counts.records, 1);
+  assert.equal(report.counts.logicalVacancies, 1);
+  assert.equal(report.counts.capturesByProvenance.http_fetch, 1);
+  assert.equal(prepared.resolution.groups[0].result.skip_code, "manual_role");
+});
+
+test("two cards in one immutable post keep two traces while sharing a company context URL", (t) => {
+  const prepared = prepareSourceBatch(t, { multiple: true });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(report.counts.records, 2);
+  assert.equal(report.counts.logicalVacancies, 2);
+  assert.ok(!codes(report).includes("duplicate_record_for_link"));
+});
+
+test("a selected range retains shared company memberships without activating another card", (t) => {
+  const prepared = prepareSourceBatch(t, { partial: true });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(report.counts.sourceCards, 1);
+  assert.equal(report.counts.sourceHtmlCaptures, 2);
+  assert.equal(report.counts.logicalVacancies, 1);
+  assert.equal(report.counts.records, 1);
+  assert.equal(prepared.resolution.url_accounting[0].memberships.length, 2);
+  assert.equal(prepared.resolution.groups[0].card_refs.length, 1);
+  assert.ok(codes(verifySource({ ...prepared, from: 2 })).includes("source_range_mismatch"));
+});
+
+test("source verification rejects modified HTML, collection bytes, references, coverage and primary selection", (t) => {
+  const cases = [
+    [
+      "html",
+      "source_set_invalid",
+      (prepared) => writeFileSync(join(prepared.artifactsDir, "001.page.html"), "changed"),
+    ],
+    [
+      "collection",
+      "source_collection_mismatch",
+      (prepared) =>
+        writeFileSync(
+          join(prepared.artifactsDir, "collection.links.txt"),
+          `${SOURCE_COMPANY_URL}\n`,
+        ),
+    ],
+    [
+      "source-set bytes",
+      "source_set_digest_mismatch",
+      (prepared) => {
+        const path = join(prepared.artifactsDir, "source-set.json");
+        writeFileSync(path, `${readFileSync(path, "utf8")}\n`);
+      },
+    ],
+    [
+      "card ref",
+      "source_set_invalid",
+      (prepared) =>
+        editSourceJson(prepared, "source-set.json", (value) => {
+          value.cards[0].title_line = 2;
+        }),
+    ],
+    [
+      "url coverage",
+      "source_resolution_invalid",
+      (prepared) =>
+        editSourceJson(prepared, "source-resolution.json", (value) => {
+          value.url_accounting.pop();
+        }),
+    ],
+    [
+      "logical coverage",
+      "source_resolution_invalid",
+      (prepared) =>
+        editSourceJson(prepared, "source-resolution.json", (value) => {
+          value.groups = [];
+        }),
+    ],
+    [
+      "primary",
+      "source_resolution_invalid",
+      (prepared) =>
+        editSourceJson(prepared, "source-resolution.json", (value) => {
+          value.groups[0].primary = null;
+        }),
+    ],
+    [
+      "foreign quote",
+      "source_resolution_invalid",
+      (prepared) =>
+        editSourceJson(prepared, "source-resolution.json", (value) => {
+          value.observations[0].input.role.evidence.seniority = "Junior+ QA Engineer";
+        }),
+    ],
+    [
+      "missing raw trace",
+      "source_record_unbound",
+      (prepared) => rmSync(join(prepared.artifactsDir, "traces", "001.trace.json")),
+    ],
+    [
+      "fake context trace",
+      "source_record_unbound",
+      (prepared) =>
+        editSourceJson(prepared, "inputs/001.input.json", (value) => {
+          value.source.sourceRef = SOURCE_COMPANY_URL;
+        }),
+    ],
+  ];
+  for (const [name, expected, mutate] of cases) {
+    const prepared = prepareSourceBatch(t);
+    mutate(prepared);
+    const report = verifySource(prepared);
+    assert.equal(report.status, "fail", name);
+    assert.ok(codes(report).includes(expected), `${name}: ${codes(report)}`);
+  }
+});
+
+test("source resolution cannot merge two independent cards by a shared homepage", (t) => {
+  const prepared = prepareSourceBatch(t, { multiple: true });
+  editSourceJson(prepared, "source-resolution.json", (value) => {
+    value.groups[0].card_refs.push(...value.groups[1].card_refs);
+    value.groups.pop();
+    value.counts.logical_vacancies = 1;
+  });
+  assert.ok(codes(verifySource(prepared)).includes("source_resolution_invalid"));
+});
+
+test("recognized malformed source artifacts fail under their own contract instead of disappearing", (t) => {
+  const { report } = verify(t, {
+    mutate: ({ files }) => {
+      files.set("source-set.json", "{ malformed");
+      files.set("source-resolution.json", "{}");
+    },
+  });
+  assert.ok(codes(report).includes("source_set_unreadable"));
+  assert.ok(
+    !checkOf(report, "completeness").findings.some(
+      (entry) => entry.code === "unexpected_artifact" && entry.file === "source-set.json",
+    ),
+  );
+});
+
+function addSourcePlan(prepared, { final = false, baseline = false, wrapper = false } = {}) {
+  const ledger = emptyLedger({ schemaVersion: 2 });
+  if (baseline) {
+    const group = prepared.resolution.groups[0];
+    ledger.logical_entries.push({
+      key: group.logical_key,
+      card_refs: group.card_refs,
+      identity_status: "confirmed",
+      primary_ref: group.primary,
+      first_seen: "2026-10-07T09:15:00.000Z",
+      last_checked: "2026-10-07T09:15:00.000Z",
+      status: "open",
+      batch_id: "fictional-prior",
+      decision: "MANUAL_REVIEW",
+      flags: ["source_review"],
+      policy_id: "triage-policy-v9-2026-10-08",
+    });
+  }
+  const ledgerPath = join(prepared.root, "triage-ledger.json");
+  writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  prepared.ledgerPath = ledgerPath;
+  const plan = planSourceBatch(ledger, prepared.sourceSet, {
+    asOf: SOURCE_CAPTURED_AT,
+    ...(final ? { resolution: prepared.resolution } : {}),
+    collectionText: readFileSync(prepared.linksFile),
+    captureRoot: prepared.artifactsDir,
+  });
+  const value = wrapper
+    ? {
+        schema_version: 2,
+        source_set_sha256: sourceSetDigest(prepared.sourceSet),
+        source_plan: plan,
+      }
+    : plan;
+  writeFileSync(join(prepared.artifactsDir, "plan.json"), `${JSON.stringify(value, null, 2)}\n`);
+  return plan;
+}
+
+test("source verification reads both an initial per-card plan and the final resolution plan", (t) => {
+  for (const final of [false, true]) {
+    const prepared = prepareSourceBatch(t);
+    addSourcePlan(prepared, { final, wrapper: !final });
+    assert.equal(verifySource(prepared).status, "pass");
+  }
+});
+
+test("source plan skips require the ledger snapshot and checked card boundaries", (t) => {
+  const prepared = prepareSourceBatch(t);
+  const plan = addSourcePlan(prepared, { final: true, baseline: true });
+  assert.equal(plan.items[0].action, "skip_known");
+  assert.equal(verifySource(prepared).status, "pass");
+  editSourceJson(prepared, "plan.json", (value) => {
+    value.items[0].card_refs = [];
+  });
+  assert.ok(codes(verifySource(prepared)).includes("source_plan_card_coverage_incomplete"));
+  const other = prepareSourceBatch(t);
+  addSourcePlan(other, { final: true, baseline: true });
+  const ledger = JSON.parse(readFileSync(other.ledgerPath, "utf8"));
+  ledger.logical_entries[0].decision = "BLOCKED";
+  writeFileSync(other.ledgerPath, JSON.stringify(ledger));
+  assert.ok(codes(verifySource(other)).includes("source_plan_snapshot_mismatch"));
+});
+
+test("a malformed source plan row is a bounded finding rather than a suite crash", (t) => {
+  for (const malformed of [
+    null,
+    { card_refs: null },
+    { card_refs: [], sources: null },
+    { card_refs: [], sources: [], baseline: [] },
+  ]) {
+    const prepared = prepareSourceBatch(t);
+    addSourcePlan(prepared, { final: true });
+    editSourceJson(prepared, "plan.json", (value) => {
+      value.items = [malformed];
+    });
+    const report = verifySource(prepared);
+    assert.equal(report.status, "fail");
+    assert.ok(codes(report).includes("source_plan_unreadable"), codes(report).join(","));
+  }
+});
+
+test("a source baseline observed at the plan instant cannot corroborate its own skip", (t) => {
+  const prepared = prepareSourceBatch(t);
+  addSourcePlan(prepared, { final: true, baseline: true });
+  const ledger = JSON.parse(readFileSync(prepared.ledgerPath, "utf8"));
+  ledger.logical_entries[0].last_checked = SOURCE_CAPTURED_AT;
+  writeFileSync(prepared.ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+  const plan = planSourceBatch(ledger, prepared.sourceSet, {
+    asOf: SOURCE_CAPTURED_AT,
+    resolution: prepared.resolution,
+    collectionText: readFileSync(prepared.linksFile),
+    captureRoot: prepared.artifactsDir,
+  });
+  writeFileSync(join(prepared.artifactsDir, "plan.json"), `${JSON.stringify(plan, null, 2)}\n`);
+  const report = verifySource(prepared);
+  assert.equal(report.status, "fail");
+  assert.ok(codes(report).includes("source_plan_baseline_not_prior"), codes(report).join(","));
+});
+
+test("full source verification uses capture time and a blind extraction bound to the same primary", (t) => {
+  const prepared = prepareSourceBatch(t);
+  addSourcePlan(prepared, { baseline: true });
+  mkdirSync(join(prepared.artifactsDir, "blind"));
+  const blind = structuredClone(prepared.resolution.observations[0].input);
+  blind.role.evidence.role = "QA Engineer";
+  writeFileSync(join(prepared.artifactsDir, "blind", "001.input.json"), JSON.stringify(blind));
+  const probes = ["phase0_capability_probe", "transport_hypotheses"].map((probe) => ({
+    probe,
+    ranAt: SOURCE_CAPTURED_AT,
+    verdict: "held",
+  }));
+  writeFileSync(
+    join(prepared.artifactsDir, "attestation.json"),
+    JSON.stringify({ schemaVersion: 1, probes }),
+  );
+  const report = verifySource(prepared, "full");
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(checkOf(report, "baseline-diff").counts.known, 1);
+  editSourceJson(prepared, "blind/001.input.json", (value) => {
+    value.sourceContext.cardRef = `tg-card:sha256:${"b".repeat(64)}`;
+  });
+  assert.ok(codes(verifySource(prepared, "full")).includes("blind_source_binding_mismatch"));
+  editSourceJson(prepared, "attestation.json", (value) => {
+    value.probes[0].ranAt = "2026-10-10T09:15:00.000Z";
+  });
+  assert.ok(codes(verifySource(prepared, "full")).includes("probe_out_of_window"));
+});
+
+test("a real no-body source failure keeps its retryable raw trace with manifest proof", (t) => {
+  const prepared = prepareSourceBatch(t, { failure: true });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(
+    prepared.resolution.observations.find((observation) => observation.input !== null).trace
+      .decision,
+    "BLOCKED",
+  );
+  editSourceJson(prepared, "fetch-manifest.json", (value) => {
+    value.records[0].usable = true;
+  });
+  assert.ok(codes(verifySource(prepared)).includes("source_resolution_invalid"));
+});
+
+test("standalone input 10 retains strict legacy quote and cross-transport guards", (t) => {
+  const upgraded = ({ files }) => {
+    for (const record of buildRecords()) {
+      const prefix = String(record.index).padStart(3, "0");
+      editJson(files, `inputs/${prefix}.input.json`, (input) => {
+        input.schemaVersion = 10;
+        input.policyId = "triage-policy-v9-2026-10-08";
+        input.sourceContext = null;
+        files.set(`traces/${prefix}.trace.json`, JSON.stringify(buildDecisionTrace(input)));
+      });
+    }
+  };
+  assert.equal(verify(t, { mutate: upgraded }).report.status, "pass");
+  const foreign = verify(t, {
+    mutate: (payload) => {
+      upgraded(payload);
+      editJson(payload.files, INPUT_ONE, (input) => {
+        input.role.evidence.seniority = "A different page's Senior role.";
+        payload.files.set(TRACE_ONE, JSON.stringify(buildDecisionTrace(input)));
+      });
+    },
+  });
+  assert.ok(codes(foreign.report).includes("quote_absent"));
+  const stamped = verify(t, {
+    mutate: (payload) => {
+      upgraded(payload);
+      payload.files.set(
+        CAPTURE_ONE,
+        payload.files
+          .get(CAPTURE_ONE)
+          .replace(`requested-url: ${links[0]}`, `requested-url: ${links[1]}`),
+      );
+    },
+  });
+  assert.ok(codes(stamped.report).includes("capture_source_ref_mismatch"));
 });

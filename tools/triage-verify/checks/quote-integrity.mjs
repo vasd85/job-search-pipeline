@@ -15,6 +15,47 @@ export const id = "quote-integrity";
 export const cadence = "per-batch";
 export const kind = "assert";
 
+/** Version 10 binds every evidence string to the one selected source and vacancy.
+ * Historical inputs retain their original any-own-capture interpretation.
+ */
+export function evidenceBodies(record, context = {}) {
+  if (context.sourceVerification?.active) {
+    return typeof record.sourceScope?.body === "string"
+      ? [{ file: record.sourceScope.file, body: record.sourceScope.body }]
+      : [];
+  }
+  const verified = record.captures.filter((capture) => capture.verified?.ok === true);
+  if (record.input?.schemaVersion !== 10 || record.input?.sourceContext == null) {
+    return verified.map((capture) => ({ file: capture.file, body: capture.verified.body }));
+  }
+  const binding = record.input?.sourceContext;
+  if (
+    binding === null ||
+    typeof binding !== "object" ||
+    !Number.isSafeInteger(binding.startLine) ||
+    !Number.isSafeInteger(binding.endLine) ||
+    binding.startLine < 1 ||
+    binding.endLine < binding.startLine ||
+    typeof binding.primaryCaptureSha256 !== "string"
+  )
+    return [];
+  const normalize = context.normalizeUrl ?? ((value) => value);
+  return verified.flatMap((capture) => {
+    const { body, header } = capture.verified;
+    if (header["normalized-sha256"] !== binding.primaryCaptureSha256) return [];
+    if (
+      typeof binding.primarySourceRef === "string" &&
+      normalize(header["requested-url"]) !== normalize(binding.primarySourceRef)
+    )
+      return [];
+    const lines = body.split("\n");
+    if (binding.endLine > lines.length) return [];
+    return [
+      { file: capture.file, body: lines.slice(binding.startLine - 1, binding.endLine).join("\n") },
+    ];
+  });
+}
+
 export function run(context) {
   const findings = [];
   let quotesChecked = 0;
@@ -36,9 +77,7 @@ export function run(context) {
       }
       continue;
     }
-    const bodies = record.captures
-      .filter((capture) => capture.verified !== null && capture.verified.ok)
-      .map((capture) => ({ file: capture.file, body: capture.verified.body }));
+    const bodies = evidenceBodies(record, context);
     if (bodies.length === 0) {
       findings.push({
         code: "record_not_verifiable",

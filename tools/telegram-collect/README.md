@@ -3,19 +3,16 @@
 An explicit sweep of configured public Telegram sources: channels through the `t.me/s/<handle>`
 web preview, and public groups (chats) one message at a time through `t.me/<handle>/<id>?embed=1`
 — a group has no preview, and the section [Groups](#groups) says how it is read instead. It
-publishes a links collection that `/score-jobs` consumes unchanged, a file of vacancy cards, and a
+publishes a links collection, a file of vacancy cards, an immutable source-set, and a
 sweep report of everything the sweep did **not** emit. No auth, no npm dependency, no model call
 from code, no scoring, no ledger write, no scheduled run. The procedure an agent follows is
 [instructions/skills/collect-telegram.md](../../instructions/skills/collect-telegram.md).
 
-**A source is thematic or general.** A thematic source (the default) has no role filter: everything
-but advertising fits, every post with text becomes a card, and the collector does not tell a
-vacancy from a résumé or a question — in a thematic group that is the wanted behaviour, and the
-author of any such message becomes a contact of its card (see Groups). A general source
-(`thematic: false`) pours every role into the channel, so its posts reach the collection only
-through the [reader stage](#the-reader-stage): the code picks the candidates by the config's word
-list, a reading agent with one tool names the QA vacancies by line and link numbers, and the code
-builds the cards from those numbers.
+**A source is thematic or general.** A thematic source (the default) has no first-stage
+role-word filter: every new post with text reaches the isolated reader. A general source
+(`thematic: false`) reaches it only when the config's word list selects the post. Both use the
+[reader stage](#the-reader-stage) for vacancy boundaries, description completeness and source
+roles. The reading agent returns numbers and closed codes; code builds all source text and URLs.
 
 ## Commands
 
@@ -34,7 +31,7 @@ contact: it is read by a model. Exit `0` — done, or a sweep awaiting the reade
 source did not complete; `1` — refused (`status: "refused"` with a code) or failed. `sweep` and
 `finalize` first run the operational folder's drift check and are refused with its code
 ([tools/ops-tree/README.md](../ops-tree/README.md)). `finalize` and `render-batches` are the
-second step of a sweep over a general source (see the reader stage); `finalize` takes no
+second step of a sweep with posts to map (see the reader stage); `finalize` takes no
 `--config` — the path is in the stage file. The `probe` card carries
 `sources_rule: "thematic_or_reader"` — the one thing a probe cannot check. With a message id the
 probe reads one message page of a group instead: whether it is readable (`message_ok`), has text,
@@ -50,8 +47,11 @@ Both are untracked, live in the checkout root beside `triage-ledger.json`, and a
   it is missing and never touches an existing one. The template is not read by a sweep, and its
   channels are fictional: the real list is the candidate's and lives only in the working file, so a
   checkout that needs it — a rehearsal worktree, say — has the file placed by hand.
-- **`telegram-sweep-state.json`** — schema version 2 (a version 1 file is read as it is and written
-  back as 2). Per channel `{last_message_id, last_sweep_at}`; per group
+- **`telegram-sweep-state.json`** — schema version 3. Versions 1 and 2 remain readable;
+  historical writes retain their version-2 semantics. A reader2 completion writes version 3,
+  retaining legacy fingerprints without claiming their identity was verified. New fingerprints
+  also carry `source_body_sha256`, the digest of full code-extracted lines and anchors; only an
+  exact digest match may suppress a reader2 post as a repost. Per channel `{last_message_id, last_sweep_at}`; per group
   `{kind: "group", last_live_id, last_live_at, last_sweep_at, last_stop, last_stop_after, longest_gap}`
   (see Groups); plus two memories: `fingerprints` of the posts that became cards and `emitted_urls`,
   the addresses already emitted. All hold digests, handles, ids, instants and normalised addresses —
@@ -84,7 +84,8 @@ Both are untracked, live in the checkout root beside `triage-ledger.json`, and a
 ```
 
 Every top-level key is required; the code holds no default — `role_words`, `strong_role_words` and
-`resume_hints` too, in a config of thematic sources only, where they are carried and not used. A source carries
+`resume_hints` too, in a config of thematic sources only. Thematic posts bypass the first-stage
+role-word filter, while strong-word discrepancy and résumé reporting still apply. A source carries
 `thematic` (`true` by default); a general one says `"thematic": false`, channel or group alike. A
 word of either list is a whole word or a prefix ending in `*`, letters and digits only in any
 script, compared without case after NFKC; 1–64 words a list. A résumé hint is a tag or a phrase in
@@ -156,8 +157,9 @@ and emits only what lies within the window.
 **The author is a contact.** A message page names its author; when the author has a public user
 name, it becomes `author_tg` of the card and, unless the text names it already, a `tg` contact —
 in a group "write me" is the usual way to apply, and the page is the only place that name exists.
-The card therefore counts as one with a contact and offers its own `?embed=1` address to scoring
-on top of its new links. An author without a user name (a deleted account, a hidden name) is
+The author remains contact metadata. The reader names `dm_author` only when the post asks for
+that route; an author does not replace a stated form or merge separate roles. Original-post
+source membership always survives, including a summary whose post URL is absent from the collection. An author without a user name (a deleted account, a hidden name) is
 `author_tg: null`, adds no contact, and the source counts the message in `author_without_username`;
 the card is built as usual. A channel post has no author and `author_tg: null`.
 
@@ -219,141 +221,93 @@ A `tg` name is never `boilerplate`: a recruiter runs many vacancies.
 
 ### Cards, reposts, known addresses
 
-Every new post lies in exactly one bucket; a thematic source fills only the first three, the other
-three belong to the reader stage.
+Every new post lies in exactly one bucket:
 
-- **`empty`** — a post without text, with an attachment flag. Listed in the report.
-- **`not_candidate`** — a post of a general source in which no word of `role_words` stands, in
-  the text or in an anchor text. Counted per source, never listed: the accepted boundary of the
-  first stage (the research measured zero QA vacancies lost there on 1 859 posts).
-- **`repost`** — all three hold against an earlier post, of this sweep (in the source or across
-  sources) or of a fingerprint not older than `repost_memory_days`: the first two lines that carry
-  a word are equal after normalisation; the texts are near-equal (a Jaccard estimate of at least
-  0.6 over 64 min-hashes of five-word shingles; a text under 25 words is compared for equality);
-  the sets of all unmarked `url` links are equal, new and known together. A repost emits nothing,
-  prolongs the term of its original, and is always listed with the original's `handle/id` and the
-  first line the original does not carry — so a wrong fold is visible.
-- **`card`** — every other post of a thematic source, and a post of a general source in which the
-  reader named at least one vacancy. A thematic card: title — the first line that still carries a
-  word once its hashtags are taken out, and the first non-empty line when the post carries no such
-  line; contacts — `tg` names and `email` addresses, and for a group message the author's user
-  name (`author_tg`, see Groups). Its unmarked `url` links split into **known** (the address is
-  in `emitted_urls`) and **new**. `score_urls` are the new links in post order, plus the post
-  address `https://t.me/<handle>/<id>?embed=1` — built from the config handle and the numeric id
-  — when there is no new link or the post names a contact. A reader's card differs in what the
-  reader stage says below: one card per named vacancy, the title by line number, the links by link
-  number.
-- **`no_vacancy`** — a post of a general source the reader read and named no vacancy in. Counted;
-  listed only through the discrepancy list (a strong role word in its head or an anchor) and, when
-  it looks like a résumé, in its own list.
-- **`answer_invalid`** — a post of a general source whose answer the schema rejected and
-  `finalize --accept-invalid` accepted. Always listed with its code.
+- **`empty`** — no text, with the attachment flag; listed in the report.
+- **`not_candidate`** — a general-source post without a role-word match; counted per source.
+- **`repost`** — the existing head/text/URL-set comparison matches, and for reader2 the full
+  code-extracted body-and-anchor digest also matches. Legacy approximate fingerprints do not
+  suppress new source mapping. Listed with its original post and any differing line.
+- **`card`** — the reader names vacancies, or the complete post exceeds the reader limit and
+  code retains an explicit unresolved mapping. Each named vacancy has its own card.
+- **`no_vacancy`** — the reader names none; counted, with strong-word discrepancies and résumé
+  hints reported. Thematic posts can now reach this bucket too.
+- **`answer_invalid`** — a rejected answer accepted with `--accept-invalid`; listed by bounded code.
 
-`emitted_urls` is read once at the start of a sweep and written with the state at its end, so an
-address this sweep emits is not known to the other posts of the same sweep. Only `url` addresses
-enter it, never a post address. A known link in a post of any bucket but `empty` prolongs its term.
+`emitted_urls` is read once at the start and written last, so an address emitted within a sweep
+is not already known to another card of that sweep. New/known marks and URL holders remain visible.
+One full URL stands in the collection once, at its newest holder; this removes duplicate URL
+lines, not card memberships. Shared context URLs, contacts, authors and post ids never merge
+vacancies. Every known/held card retains its own immutable source-set membership. A full
+original description always offers the post URL; a summary with an external details/apply route
+may omit that URL from the collection while retaining the original snapshot.
 
-One address stands in the collection once per sweep, at the newest card that offers it (at an equal
-instant — the channel that stands first in the config, then the larger id, then the lower
-`vacancy_no` of one post). A card whose every address stands at a newer post gets no line of its
-own and no post address; the report lists it with the holder of each address — for two cards of
-one post, "card N of the same post".
-
-Accounting: `empty + not_candidate + repost + card + no_vacancy + answer_invalid = new posts`
-(`card` counts posts; the number of cards is reported beside it), and every anchor of a card post
-has exactly one fate, the first that applies — `preview_folded`, `hashtag`, `non_web`,
-`tg_other`, `contact`, `marked`, `unusable`, `known`, `not_cited` (a `url` link of a read post the
-reader named in no vacancy), `repeat_in_sweep`, `emit`.
+Accounting remains `empty + not_candidate + repost + card + no_vacancy + answer_invalid = new
+posts`; `card` counts posts and the separate cards count counts roles. Each original anchor has
+one code-owned link fate (`preview_folded`, `hashtag`, `non_web`, `tg_other`, `contact`, `marked`,
+`unusable`, `known`, `not_cited`, `repeat_in_sweep`, `emit`). Semantic source roles are separate
+from those fates and are preserved for each card even when a URL is held or known.
 
 ## The reader stage
 
-A general source's posts are read by a model between the two halves of a sweep. The code chooses
-what the model sees and checks every number it writes; no word of the model's own reaches a card.
+Both thematic posts and general-source candidates are mapped by an isolated model between the
+two halves of a sweep. Code checks every reference and builds all source content; the reader
+never supplies title/URL/contact text.
 
-1. **Candidates.** A new post with text of a general source is a candidate when a word of
-   `role_words` stands in any line of its text or in the text of any of its anchors; the rest is
-   `not_candidate`. A résumé hint in the first six lines — one of the config's `resume_hints`, with
-   no letter or digit right after it — is printed in the report and removes nothing.
-2. **Groups of one sweep.** Reposts fold as always, but in this order: every post of a thematic
-   source first, oldest first, then the candidates of general sources, oldest first. A group of
-   identical posts that holds a thematic post is never read — that post is the card and the
-   original, even when a general copy is older (the one case an original is newer than its
-   repost). Otherwise the oldest candidate is read and the copies are reposts that inherit its
-   outcome. A candidate that folds into a card's fingerprint of an earlier sweep is a repost and is
-   not read. Fingerprints are kept for cards only: a post the reader said no to has none, and its
-   repost next sweep is read anew — a miss of the reader is never hidden for the memory term.
-3. **Batches**, `reader-in/<handle>-NNN.txt`: one source per file, at most 20 posts and 48 KiB, a
-   post never split. A post is `### post <k>` (its number in the batch, not its id), its non-empty
-   lines as `|<i>| <text>`, and its `url`, `tg` and `email` anchors as
-   `-> [<j>] <type> <host><path> "<anchor text>" [<marks>]` (no address for `tg` and `email`;
-   `tg_other`, `unusable` and skipped anchors are not offered). A post longer than 20 lines shows
-   its first 12, its last 8 and every hidden line in which a role word stands, with `|..| N lines
-hidden` between. Every printed line is flattened and bounded (300 characters; 80 for an anchor
-   text).
-4. **Two steps.** `sweep` walks, writes the captures, the batches and `sweep-stage.json` (the
-   walk, the digests of the config and state files, the batch descriptors) and touches no state;
-   stdout says `stage: "awaiting_answers"`. The reader answers into `reader-out/<handle>-NNN.json`.
-   `finalize --out-dir` re-reads the config (by the path in the stage) and the state and refuses
-   when either changed (`config_changed`, `state_changed` — start a new sweep; the directory stays
-   as it is), refuses a completed directory (`already_completed`) and a missing answer file
-   (`answers_missing`, naming the batches), then resolves the sweep and writes cards, collection,
-   report, manifest and the state last. An abandoned two-step sweep moved nothing: the next `sweep`
-   walks the same posts again. A config of thematic sources only, or a general source with no
-   candidate, finishes in `sweep` alone. `render-batches --full-text` writes the same batches with
-   no hidden middle into `label-in/`, with `label-in/descriptors.json` beside them so a label is
-   checked by the same schema as an answer; it works before and after `finalize`, for the
-   measurement's independent labelling.
-5. **The answer**, one JSON object (one markdown fence around it is tolerated):
-   `{"schema_version":1,"batch":"<handle>-NNN","posts":[{"post":k,"vacancies":[{"title_line":i,"apply":[{"via":"…","link":j}],"details_link":j}]}]}`.
-   `via` is `url`, `tg`, `email` (with the number of a link of that type), `phone`, `dm_author`
-   or `unspecified` (with `link: null`); `details_link` a `url` link or `null`; `title_line` a
-   shown line, with the one correction below; at most 20 vacancies a post and 5 ways to apply a
-   vacancy; keys closed at every level; a file of at most 64 KiB. Every post of the batch exactly once — missing is
-   `post_missing`, twice is `post_duplicate`, a number the batch does not know is counted as a
-   stray and ignored; a record off the schema is `post_invalid`; a file that is not one object by
-   the schema gives every post of its batch `file_invalid`. `finalize` refuses any rejected
-   answer by name — the batch's answer file, the post and the code (`answers_invalid`) — unless
-   `--accept-invalid` is given, and then lists the posts
-   under `answer_invalid`. A rejected answer file kept beside as `<handle>-NNN.rejected.json` is
-   listed in the manifest with its digest and never read as an answer.
+1. **Input.** `reader-in/<handle>-NNN.txt`, one source per file, at most twenty posts and 48 KiB,
+   without splitting a post. Every non-empty source line and full offered anchor is shown,
+   without middle omission or line/anchor truncation. Types `url`, `tg`, `email`, `tg_other` are
+   offered; unusable/skipped anchors remain accounted by code. Oversize posts receive a
+   `mapping_oversize` sentinel; their full HTML/text remains saved and is never passed off as
+   complete reader input.
+2. **Stage.** New sweeps publish `sweep-stage.json` version 2, captures, batch digests and complete
+   descriptors without changing state. All-complete batches need reader answers; an all-oversize
+   batch needs no answer. `finalize` checks config/state digests, resolves answers, validates saved
+   HTML, publishes cards/collection/source-set/report/manifest, then writes state last. A completed
+   directory, missing answer or changed config/state remains a bounded refusal. The stdout
+   `unresolved_mappings` count and report expose oversize posts; their description and anchor roles
+   stay `unknown` with `mapping_status: unresolved_oversize`, requiring source review.
+3. **Answer version 2.** One object, closed keys at every level, at most 64 KiB:
 
-   **The one correction.** A post that showed a SINGLE line has a single place a title can stand
-   in, so a `title_line` that post does not have is read as that line instead of rejecting the
-   record. A descriptor of one shown line comes only from a post of one non-empty line: below the
-   cut every line is shown, above it at least the first twelve. With two shown lines or more
-   nothing is corrected — a card titled by the wrong line would name another vacancy — and the
-   record stays `post_invalid`. Nothing but the title line is ever corrected. Each corrected post
-   is listed in the report with the number the reader named, and counted in the manifest and on
-   stdout as `title_line_repaired`; the post is a card like any other and stays in the `card`
-   bucket.
+   ```json
+   {"schema_version":2,"batch":"<handle>-NNN","posts":[{"post":1,"vacancies":[
+     {"title_line":1,"start_line":1,"end_line":5,"description_kind":"summary",
+      "links":[{"anchor":1,"role":"company_context"},{"anchor":2,"role":"apply"}],
+      "apply":[{"via":"url","link":2}]}]}]}
+   ```
 
-6. **The reader's cards.** One card per vacancy named: `title` is the named line; `score_urls` are
-   the named `details_link` and `url` apply links that are new and unmarked, in post order, plus
-   the post address when there is none or a way to apply is a person (`tg`, `email`, `phone`,
-   `dm_author`); the post address is offered once per post. Contacts are the code's, from every
-   `tg` and `email` anchor of the post and the author — the reader only says how one applies,
-   recorded as `apply_via`. A named marked link is not offered and is listed under "the reader
-   chose a marked link"; a named known link stays known; a `url` link named in no vacancy is
-   `not_cited`. Fates are accounted once per post, on its first card.
-7. **Discrepancies** — the report's list of places where the reader saw no vacancy and a word of
-   `strong_role_words` stands: for a post said no (and its reposts of the sweep) in the first two
-   lines that carry a word or in an anchor; for a card of a general source in an anchor the reader
-   named in no vacancy, in that anchor's line, or in one of the first two word-lines not named as a
-   title — a tag row is skipped there, as no second vacancy. An anchor is read by its text and by
-   its line; a contact anchor (`tg`, `email`) by its line with the name taken out, since a name is
-   not a role; a hashtag anchor not at all. Each place once, in line order.
+   At most twenty vacancies per post, five apply routes per vacancy. `description_kind` is
+   `full_description`, `summary` or `unknown`. Boundaries are inclusive, disjoint, inside the full
+   post, and contain the actual title line. There is no title-number repair in this epoch.
+   Every offered anchor is assigned explicitly; a card cannot quietly discard an uncited URL.
+   Roles follow surrounding text: `company_context`, `details`, `apply`, `contact`, `unknown`.
+   Code adds the derived `original_post` membership. Only company context may be shared between
+   cards or sit outside their own boundaries. A details/apply/contact anchor of a sibling is
+   rejected; a button without a line may belong to one card only. A link that provides both full
+   details and an explicit application route uses `apply`. `unknown` stays reviewable.
+   `apply` keeps the existing `url`, `tg`, `email`, `phone`, `dm_author`, `unspecified` codes;
+   numbered routes must match their anchor type and role. Reader order does not control identity.
 
-**The worst case, stated.** A QA vacancy of a general source is lost with no trace in the report
-in exactly three cases: (a) no word of `role_words` stands in its text or its anchor texts — it is
-`not_candidate`, in the count only; (b) the reader said no, and no strong role word stands in the
-first two word-lines or in an anchor — it is in the `no_vacancy` count, not in the discrepancy
-list; (c) the reader found another vacancy in the post, and the missed one stands below the first
-two lines with no anchor of its own carrying a strong word in its text or its line — a vacancy
-without a link or a contact, or whose link sits on a line without the role word, inside a post
-where another was found. A repost of such a post in the same sweep is listed as a repost with the
-original's outcome; next sweep a repost of (b) is read again, a repost of (c) is a repost of a card.
-A picture-only vacancy is `empty`, listed per source. Nothing else is lost silently: posts
-`empty`, `repost` and `answer_invalid` and every card are listed.
+4. **Cards.** Code sorts vacancies by their own start/title lines and assigns `vacancy_no` only
+   for display. `source_snapshot_ref` binds handle, post id, publication instant, and the digest
+   of full code-extracted lines/anchors. `card_ref` binds that snapshot, title line and the card's
+   own boundaries. Adding/reordering a sibling never changes an unchanged card reference;
+   editing the post or remapping its own boundaries changes it and requires fresh reconciliation.
+   Source roles do not prove the identity of a fetched target page. Contacts come from captured
+   anchors in the card's boundaries and author metadata; the author does not replace a form.
+5. **Validation and discrepancies.** Existing bounded answer rejection, duplicate/missing/stray
+   post handling, rejected-file retention and `--accept-invalid` behavior remain. Strong-word
+   discrepancies now apply to both types of read post. Structural validation proves references,
+   coverage and source integrity; semantic mistakes by the reader remain possible and require
+   operational smoke/review. A general source can still miss a role without a role-word match.
+   A reader's false negative or a missed role without a strong-word discrepancy is a named residual,
+   including roles without their own anchor in a digest. Oversize mapping is always explicit.
+6. **Historical epoch.** `checkAnswer` accepts answer1 only with a version-1 batch descriptor and
+   retains its `details_link`/apply semantics and single-line title repair. Stage1 finalization
+   retains card3 and historical collection behavior; old fixtures and files are unchanged.
+   The internal `readerVersion: 1` test/compatibility entrypoint executes that epoch explicitly;
+   CLI production defaults are answer2/stage2/card4/state3. `cardProblem` reads both card3 and
+   card4 without treating a historical ordinal as durable identity.
 
 **The boundary.** The reader is a generated Claude Code subagent, `.claude/agents/telegram-reader.md`,
 whose canon is [instructions/agents/telegram-reader.md](../../instructions/agents/telegram-reader.md)
@@ -377,18 +331,37 @@ an unavailable independent reader stops the skill instead of falling back to par
 Must be absolute and empty or absent; it is append-only. Inside the repository it may stand only
 under `telegram-sweeps/` or `.rehearsal/` — the cards carry people's contacts; the check resolves
 the symlinks of the existing part of both paths (letter case too, where the file system folds it). Write order:
-`NNN.page.html` captures as fetched, `vacancies.jsonl`, `collection.links.txt`, `sweep-report.md`,
+`NNN.page.html` captures as fetched, `vacancies.jsonl`, `collection.links.txt`, `source-set.json`,
+`sweep-report.md`,
 `sweep-manifest.json` with the digests of the cards and the collection and `completed: true`, the
 state last. With nothing to emit no collection file is written; with no card, no cards file.
 
 - **`collection.links.txt`** — addresses and `# collected:`, `# order:`,
   `# via: <handle>/<id> <instant>` comments only; not a word of a post, no contact.
-- **`vacancies.jsonl`** — one card per line, `schema_version` 3: `handle`, `post_id`, `instant`,
-  `title`, `score_urls`, `known_urls`, `contacts`, `author_tg`, `vacancy_no` (the vacancy's number
-  in its post; `1` for a thematic card), `apply_via` (the ways to apply the reader named; empty for
-  a thematic card), `marked_urls`, `unusable_links`, `held_by`. Today its reader is the user;
-  `cards.mjs#cardProblem` is its schema. Files of earlier sweeps keep their older lines and are not
-  rewritten.
+- **`vacancies.jsonl`** — one card per line, `schema_version` 4: the historical metadata
+  (`handle`, `post_id`, `instant`, `title`, `score_urls`, `known_urls`, `contacts`, `author_tg`,
+  `vacancy_no`, `apply_via`, `marked_urls`, `unusable_links`, `held_by`) plus `source_snapshot_ref`,
+  `card_ref`, `title_line`, `start_line`, `end_line`, `description_kind`, `mapping_status` and
+  `source_links`. The ordinal is display only. `cards.mjs#cardProblem` reads versions 3 and 4;
+  historical records are not rewritten.
+- **`source-set.json`** — schema version 1, immutable, adjacent to the collection. The contract
+  owner is [source-set.mjs](../triage-sources/source-set.mjs). It binds exact collection bytes by
+  `collection_sha256`; snapshots preserve handle/post/date, original URL, saved HTML
+  `{file, sha256, captured_at}`, every full numbered source line and every code-extracted anchor.
+  `captured_at` is code-owned capture time, distinct from the post's publication instant. Cards
+  retain their title/boundaries/completeness, all semantic link roles and source-order display
+  ordinal. The original post remains a source when absent from flat inputs. Snapshot refs are
+  `tg-snapshot:sha256:<64 lowercase hex>`; card refs `tg-card:sha256:<64 lowercase hex>`.
+  `validateSourceSet(set,{collectionText,captureRoot})` checks closed keys, limits, derived refs,
+  coverage, disjoint bounds, anchor roles/URLs, exact collection/capture digests and reparses
+  saved HTML to reject rewritten source text. Capture paths must be relative and non-symlink.
+  `readSourceSet` returns `{sourceSet,digest,text}` and reparses by default from its directory.
+  `sourceSetMemberships` preserves all card memberships on URL normalization; `cardBody` renders
+  only that card's own lines. Object serialization is `JSON.stringify(set,null,2) + "\n"`;
+  `sourceSetDigest` hashes those bytes for objects and exact bytes for strings/Buffers. Limits
+  are code-owned; reader oversize is unresolved rather than truncation. HTML cannot independently
+  attest the capture clock or semantic mapping; metadata integrity is digest-bound and the
+  same-UID filesystem residual remains.
 - **`sweep-report.md`** — per source the stop and the unwalked range (for a group: the id range
   checked, the stop and its reason, the position, `longest_gap`, the last live instant and the
   verdict on the previous stop), then the lists: emitted cards, cards whose address stands at a
@@ -401,7 +374,7 @@ state last. With nothing to emit no collection file is written; with no card, no
   sweep built them, and a group's record carries `kind`, `checked`, `stop`, `verdict` and the other
   group fields; a two-step sweep adds `stage` (the stage file's digest), `batches`, `answers`,
   `rejected_answers` (files with digests), `accepted_invalid`, `title_line_repaired` and
-  `stray_answers` — additive extensions; the file has no reader besides the tests. Each capture
+  `stray_answers`, and `source_set` (file/digest/snapshot/card counts) — additive extensions; the file has no reader besides the tests. Each capture
   entry carries `message_id` (the id a group request asked for, `null` for a channel page).
 
 `reset-cursor <handle>` forgets the source's cursor — a group's position, `last_stop` and

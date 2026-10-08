@@ -35,7 +35,7 @@ function requiresCapture(record) {
 }
 
 export function run(context) {
-  const findings = [];
+  const findings = [...(context.sourceVerification?.chainFindings ?? [])];
   let capturesVerified = 0;
   let recordsWithCapture = 0;
   let httpFetched = 0;
@@ -43,6 +43,10 @@ export function run(context) {
 
   for (const record of context.records) {
     if (record.captures.length === 0) {
+      if (record.sourceScope?.original === true) {
+        recordsWithCapture += 1;
+        continue;
+      }
       if (requiresCapture(record)) {
         findings.push({ code: "capture_absent", index: record.index });
       }
@@ -67,7 +71,7 @@ export function run(context) {
       if (capture.provenance === "http_fetch") httpFetched += 1;
       else transcribed += 1;
       const header = capture.verified.header ?? {};
-      if (Number(header.index) !== record.index) {
+      if (Number(header.index) !== (record.transportIndex ?? record.index)) {
         findings.push({ code: "capture_index_mismatch", index: record.index, file: capture.file });
       }
       if (
@@ -117,6 +121,9 @@ export function run(context) {
       capturesSeen: context.batch.captures.length,
       httpFetched,
       transcribed,
+      ...(context.sourceVerification?.active
+        ? { htmlCapturesVerified: context.sourceVerification.htmlCaptures }
+        : {}),
     },
   };
 }

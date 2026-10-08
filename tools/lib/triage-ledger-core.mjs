@@ -22,8 +22,9 @@
  * - **The core reads no clock.** Every timestamp is supplied by the caller, so a batch replay and
  *   a test produce byte-identical ledgers.
  *
- * The ledger is the operational index — one mutable row per vacancy, the single truth about what
- * is live now. The history beside it is the batch store: `recordBatch` writes one immutable
+ * The ledger is the operational index: version 1 retains URL observations, and version 2 adds
+ * logical vacancy rows and card-scoped source memberships to that same index. The history beside
+ * it is the batch store: each recorder writes one immutable
  * `ledger-record.json` into the batch's own directory, and a re-score of the same vacancy adds a
  * record under a new batch id rather than replacing the first. `docs/runbooks/triage-review.md`
  * docs/runbooks/triage-review.md#11-batch-store-the-history-beside-the-index owns where that store lives and what happens to it over time; this file owns the
@@ -33,6 +34,7 @@
 import {
   closeSync,
   mkdirSync,
+  lstatSync,
   openSync,
   readFileSync,
   readdirSync,
@@ -48,8 +50,21 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { detectJobSource } from "../job-sources/registry.mjs";
 import { OpsTreeError, verifyFolder } from "../ops-tree/manifest.mjs";
+import {
+  cardRefPattern,
+  readSourceSet,
+  snapshotRefPattern,
+  sourceRoles,
+  sourceSetDigest,
+  validateSourceSet,
+} from "../triage-sources/source-set.mjs";
+import { validateSourceResolution } from "../triage-sources/reconcile.mjs";
 
-export const triageLedgerSchemaVersion = 1;
+export const triageLedgerSchemaVersion = 2;
+export const triageLegacyLedgerSchemaVersion = 1;
+export const triageSourceBatchRecordSchemaVersion = 2;
+export const triageSourceSetFileName = "source-set.json";
+export const triageSourceResolutionFileName = "source-resolution.json";
 
 /** Schema of the immutable per-batch record this module writes into a batch's own directory. */
 export const triageBatchRecordSchemaVersion = 1;
@@ -272,8 +287,17 @@ export function vacancyIdentity(value) {
   return { source, jobId, url: normalized, key: `${source}:${jobId}` };
 }
 
-export function emptyLedger() {
-  return { schema_version: triageLedgerSchemaVersion, batches: [], entries: [] };
+export function emptyLedger({ schemaVersion = triageLegacyLedgerSchemaVersion } = {}) {
+  if (![1, 2].includes(schemaVersion))
+    fail("triage_ledger_schema_version", "This build reads ledger versions 1 and 2.");
+  return {
+    schema_version: schemaVersion,
+    batches: [],
+    entries: [],
+    ...(schemaVersion === 2
+      ? { logical_entries: [], source_records: [], aliases: [], corrections: [] }
+      : {}),
+  };
 }
 
 function validateEntry(entry, index) {
@@ -355,16 +379,22 @@ function validateEntry(entry, index) {
 export function validateLedger(raw) {
   assertExactKeys(
     raw,
-    ["schema_version", "batches", "entries"],
+    [
+      "schema_version",
+      "batches",
+      "entries",
+      ...(raw?.schema_version === 2
+        ? ["logical_entries", "source_records", "aliases", "corrections"]
+        : []),
+    ],
     [],
     "triage_ledger_invalid",
     "The ledger",
   );
-  if (raw.schema_version !== triageLedgerSchemaVersion) {
+  if (![1, 2].includes(raw.schema_version)) {
     fail(
       "triage_ledger_schema_version",
-      `The ledger declares schema_version ${String(raw.schema_version)}; this build reads ` +
-        `${triageLedgerSchemaVersion}.`,
+      `The ledger declares schema_version ${String(raw.schema_version)}; this build reads 1 and 2.`,
     );
   }
   if (!Array.isArray(raw.batches) || !Array.isArray(raw.entries)) {
@@ -378,7 +408,17 @@ export function validateLedger(raw) {
     assertExactKeys(
       batch,
       ["batch_id", "recorded_at", "entry_count", "entries_digest"],
-      ["policy_id"],
+      [
+        "policy_id",
+        ...(raw.schema_version === 2
+          ? [
+              "record_schema_version",
+              "source_set_sha256",
+              "source_resolution_sha256",
+              "plan_sha256",
+            ]
+          : []),
+      ],
       "triage_ledger_invalid",
       label,
     );
@@ -396,6 +436,18 @@ export function validateLedger(raw) {
     if (Object.hasOwn(batch, "policy_id")) {
       assertBoundedText(batch.policy_id, "policy_id", "triage_ledger_invalid", label);
     }
+    if (Object.hasOwn(batch, "record_schema_version")) {
+      if (batch.record_schema_version !== 2)
+        fail("triage_ledger_invalid", `${label} declares an unsupported record version.`);
+      for (const key of ["source_set_sha256", "source_resolution_sha256", "plan_sha256"])
+        assertDigest(batch[key], "triage_ledger_invalid", `${label}.${key}`);
+    } else if (
+      ["source_set_sha256", "source_resolution_sha256", "plan_sha256"].some((key) =>
+        Object.hasOwn(batch, key),
+      )
+    ) {
+      fail("triage_ledger_invalid", `${label} has source digests without a version 2 record.`);
+    }
   });
   raw.entries.forEach(validateEntry);
   const keys = new Set();
@@ -403,6 +455,7 @@ export function validateLedger(raw) {
     if (keys.has(entry.key)) fail("triage_ledger_invalid", `Duplicate ledger key ${entry.key}.`);
     keys.add(entry.key);
   }
+  if (raw.schema_version === 2) validateSourceLedgerCollections(raw);
   return raw;
 }
 
@@ -444,7 +497,8 @@ function serializeLedger(ledger) {
   return `${JSON.stringify(ledger, null, 2)}\n`;
 }
 
-export function initLedger(path) {
+export function initLedger(path, options = {}) {
+  const initial = emptyLedger(options);
   let descriptor;
   try {
     descriptor = openSync(path, "wx", 0o600);
@@ -456,7 +510,7 @@ export function initLedger(path) {
     );
   }
   try {
-    writeSync(descriptor, serializeLedger(emptyLedger()));
+    writeSync(descriptor, serializeLedger(initial));
   } finally {
     closeSync(descriptor);
   }
@@ -606,6 +660,7 @@ function digestEntries(entries) {
  * its own `entries` is not a record of anything, and it is the shape a torn write leaves behind.
  */
 export function validateBatchRecord(raw) {
+  if (raw?.schema_version === 2) return validateSourceBatchRecord(raw);
   assertExactKeys(
     raw,
     ["schema_version", "batch_id", "observed_at", "policy_id", "entries_digest", "entries"],
@@ -1225,6 +1280,1429 @@ export function planBatch(ledger, links, { asOf } = {}) {
   };
 }
 
+// Version 2 adds card identities alongside the unchanged URL observations. It never rewrites a
+// URL key, gives vacancy_no identity semantics, or infers a contextual role from a bare URL.
+const logicalKeyPattern = /^logical:[0-9a-f]{64}$/u;
+const maxSourceRecords = 16384;
+const identityStatuses = ["confirmed", "linked_unconfirmed", "different"];
+
+function hashBytes(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function assertDigest(value, code, label) {
+  if (typeof value !== "string" || !digestPattern.test(value))
+    fail(code, `${label} must be a sha-256 hex digest.`);
+}
+
+/** Also accepts the explicit card + source seed used for separately identified publications. */
+export function logicalVacancyKey(cardRef) {
+  if (typeof cardRef !== "string" || cardRef.length === 0 || Buffer.byteLength(cardRef) > 8192) {
+    fail("triage_ledger_source_identity", "A bounded immutable card identity is required.");
+  }
+  return `logical:${hashBytes(cardRef)}`;
+}
+
+function assertCardReference(value, code, label) {
+  if (typeof value !== "string" || !cardRefPattern.test(value))
+    fail(code, `${label} is not an immutable card reference.`);
+}
+
+function validateLogicalEntry(entry, index, code = "triage_ledger_invalid") {
+  const label = `logical_entries[${index}]`;
+  assertExactKeys(
+    entry,
+    [
+      "key",
+      "card_refs",
+      "identity_status",
+      "primary_ref",
+      "first_seen",
+      "last_checked",
+      "status",
+      "batch_id",
+      "decision",
+      "flags",
+      "policy_id",
+    ],
+    ["title", "company", "priority_class"],
+    code,
+    label,
+  );
+  if (!logicalKeyPattern.test(entry.key ?? "") || !identityStatuses.includes(entry.identity_status))
+    fail(code, `${label} has an invalid logical identity.`);
+  if (
+    !Array.isArray(entry.card_refs) ||
+    entry.card_refs.length === 0 ||
+    entry.card_refs.length > maxEntries ||
+    new Set(entry.card_refs).size !== entry.card_refs.length
+  )
+    fail(code, `${label} must name unique immutable cards.`);
+  for (const ref of entry.card_refs) assertCardReference(ref, code, label);
+  if (entry.primary_ref !== null) assertBoundedText(entry.primary_ref, "primary_ref", code, label);
+  // The liveness/decision contract is shared with URL observations, but its identity is not.
+  const url = "https://ledger.example/validation";
+  const legacy = { key: `url:${url}`, source: "url", job_id: url, url };
+  for (const key of [
+    "first_seen",
+    "last_checked",
+    "status",
+    "batch_id",
+    "decision",
+    "flags",
+    "policy_id",
+    "title",
+    "company",
+    "priority_class",
+  ]) {
+    if (Object.hasOwn(entry, key)) legacy[key] = entry[key];
+  }
+  try {
+    validateEntry(legacy, index);
+  } catch (error) {
+    if (!(error instanceof TriageLedgerError)) throw error;
+    fail(code, `${label} has an invalid observation: ${error.message}`);
+  }
+}
+
+function membershipKey(record) {
+  return hashBytes(
+    JSON.stringify([record.logical_key, record.card_ref, record.anchor, record.role, record.url]),
+  );
+}
+
+function validateSourceRecord(record, index, code = "triage_ledger_invalid") {
+  const label = `source_records[${index}]`;
+  assertExactKeys(
+    record,
+    [
+      "membership_key",
+      "logical_key",
+      "card_ref",
+      "snapshot_ref",
+      "anchor",
+      "role",
+      "url",
+      "disposition",
+      "observation_ref",
+      "batch_id",
+      "observed_at",
+    ],
+    ["observation_decision", "observation_status"],
+    code,
+    label,
+  );
+  assertCardReference(record.card_ref, code, label);
+  if (
+    !logicalKeyPattern.test(record.logical_key ?? "") ||
+    !snapshotRefPattern.test(record.snapshot_ref ?? "") ||
+    !sourceRoles.includes(record.role) ||
+    (record.anchor !== null && (!Number.isSafeInteger(record.anchor) || record.anchor < 1))
+  )
+    fail(code, `${label} has invalid membership fields.`);
+  for (const key of ["url", "disposition", "batch_id"])
+    assertBoundedText(record[key], key, code, label);
+  if (!record.url.startsWith("mailto:")) {
+    try {
+      normalizeVacancyUrl(record.url);
+    } catch (error) {
+      if (!(error instanceof TriageLedgerError)) throw error;
+      fail(code, `${label} has an unsupported source URL.`);
+    }
+  }
+  if (!identifierPattern.test(record.batch_id) || !flagPattern.test(record.disposition))
+    fail(code, `${label} has invalid bounded tokens.`);
+  if (record.observation_ref !== null)
+    assertBoundedText(record.observation_ref, "observation_ref", code, label);
+  const decision = record.observation_decision;
+  const status = record.observation_status;
+  if (Object.hasOwn(record, "observation_decision") !== Object.hasOwn(record, "observation_status"))
+    fail(code, `${label} has an incomplete source observation.`);
+  if (Object.hasOwn(record, "observation_decision")) {
+    if (
+      (decision === null) !== (status === null) ||
+      (decision !== null &&
+        (typeof decision !== "string" ||
+          !decisionPattern.test(decision) ||
+          !["open", "closed"].includes(status) ||
+          record.observation_ref === null ||
+          ["company_context", "contact"].includes(record.role)))
+    )
+      fail(code, `${label} has invalid source decision or liveness.`);
+    if (
+      decision === triageRetryDecision &&
+      (status !== "open" || record.disposition !== "technical_unavailable")
+    )
+      fail(code, `${label} cannot claim a BLOCKED source without a typed technical failure.`);
+    if (status === "closed" && (decision !== "SKIP" || record.disposition !== "closed"))
+      fail(code, `${label} cannot claim a closed source without its terminal disposition.`);
+  }
+  parseInstant(record.observed_at, code);
+  if (record.membership_key !== membershipKey(record))
+    fail(code, `${label} does not match its own membership key.`);
+}
+
+function validateAlias(alias, index, code = "triage_ledger_invalid") {
+  const label = `aliases[${index}]`;
+  assertExactKeys(
+    alias,
+    [
+      "card_ref",
+      "logical_key",
+      "batch_id",
+      "parent_batch_id",
+      "parent_entries_digest",
+      "parent_record_sha256",
+      "observation_ref",
+      "parent_observation_ref",
+    ],
+    [],
+    code,
+    label,
+  );
+  assertCardReference(alias.card_ref, code, label);
+  if (!logicalKeyPattern.test(alias.logical_key ?? ""))
+    fail(code, `${label} has an invalid logical key.`);
+  for (const key of ["batch_id", "parent_batch_id", "observation_ref", "parent_observation_ref"])
+    assertBoundedText(alias[key], key, code, label);
+  if (!identifierPattern.test(alias.batch_id) || !identifierPattern.test(alias.parent_batch_id))
+    fail(code, `${label} has an invalid batch reference.`);
+  for (const key of ["parent_entries_digest", "parent_record_sha256"])
+    assertDigest(alias[key], code, `${label}.${key}`);
+}
+
+function correctionKey(record) {
+  return hashBytes(
+    JSON.stringify([
+      record.entry_key,
+      record.parent_batch_id,
+      record.parent_entries_digest,
+      record.card_ref,
+      record.anchor,
+    ]),
+  );
+}
+
+function validateCorrection(correction, index, code = "triage_ledger_invalid") {
+  const label = `corrections[${index}]`;
+  assertExactKeys(
+    correction,
+    [
+      "correction_key",
+      "entry_key",
+      "parent_batch_id",
+      "parent_entries_digest",
+      "parent_record_sha256",
+      "parent_last_checked",
+      "card_ref",
+      "logical_key",
+      "snapshot_ref",
+      "anchor",
+      "url",
+      "batch_id",
+      "recorded_at",
+    ],
+    [],
+    code,
+    label,
+  );
+  assertCardReference(correction.card_ref, code, label);
+  if (
+    !snapshotRefPattern.test(correction.snapshot_ref ?? "") ||
+    !logicalKeyPattern.test(correction.logical_key ?? "") ||
+    !Number.isSafeInteger(correction.anchor) ||
+    correction.anchor < 1
+  )
+    fail(code, `${label} has invalid source evidence.`);
+  for (const key of ["entry_key", "url", "batch_id", "parent_batch_id"])
+    assertBoundedText(correction[key], key, code, label);
+  if (
+    !identifierPattern.test(correction.batch_id) ||
+    !identifierPattern.test(correction.parent_batch_id) ||
+    correction.entry_key !== vacancyIdentity(correction.url).key
+  )
+    fail(code, `${label} has an invalid parent observation identity.`);
+  for (const key of ["parent_entries_digest", "parent_record_sha256"])
+    assertDigest(correction[key], code, `${label}.${key}`);
+  parseInstant(correction.parent_last_checked, code);
+  parseInstant(correction.recorded_at, code);
+  if (correction.correction_key !== correctionKey(correction))
+    fail(code, `${label} does not match its own correction key.`);
+}
+
+function assertUnique(records, key, code, label) {
+  const values = new Set();
+  for (const record of records) {
+    if (values.has(record[key])) fail(code, `${label} repeats ${key}.`);
+    values.add(record[key]);
+  }
+}
+
+function validateSourceLedgerCollections(raw, code = "triage_ledger_invalid") {
+  for (const [key, validator, limit, unique] of [
+    ["logical_entries", validateLogicalEntry, maxEntries, "key"],
+    ["source_records", validateSourceRecord, maxSourceRecords, "membership_key"],
+    ["aliases", validateAlias, maxSourceRecords, "card_ref"],
+    ["corrections", validateCorrection, maxSourceRecords, "correction_key"],
+  ]) {
+    if (!Array.isArray(raw[key]) || raw[key].length > limit)
+      fail(code, `${key} must be an array of at most ${limit} records.`);
+    raw[key].forEach((item, index) => validator(item, index, code));
+    assertUnique(raw[key], unique, code, key);
+  }
+}
+
+/** An explicit contract upgrade. Every v1 URL row and batch digest remains byte-for-byte data. */
+export function upgradeLedger(path) {
+  verifyOperationalFolder();
+  return withLedgerLock(path, (ledger) => {
+    if (ledger.schema_version === 2)
+      return { changed: false, result: { upgraded: false, schema_version: 2 } };
+    return {
+      ledger: {
+        ...ledger,
+        schema_version: 2,
+        logical_entries: [],
+        source_records: [],
+        aliases: [],
+        corrections: [],
+      },
+      result: { upgraded: true, schema_version: 2, retained_url_entries: ledger.entries.length },
+    };
+  });
+}
+
+function requireSourceLedger(ledger) {
+  validateLedger(ledger);
+  if (ledger.schema_version !== 2)
+    fail(
+      "triage_ledger_upgrade_required",
+      "Source-aware triage requires an explicit upgradeLedger(path) from ledger version 1 to 2.",
+    );
+  return ledger;
+}
+
+function checkedSourceSet(set, options) {
+  try {
+    return validateSourceSet(set, options);
+  } catch (error) {
+    if (!error?.code) throw error;
+    fail(
+      "triage_ledger_source_identity",
+      `The source identity guard refused the source set: ${error.message}`,
+    );
+  }
+}
+
+function checkedResolution(resolution, sourceSet, options = {}) {
+  try {
+    return validateSourceResolution(resolution, { sourceSet, ...options });
+  } catch (error) {
+    if (!error?.code) throw error;
+    fail(
+      "triage_ledger_source_resolution_invalid",
+      `The source-resolution guard refused the artifact: ${error.message}`,
+    );
+  }
+}
+
+export function ledgerSnapshotDigest(ledger) {
+  return hashBytes(serializeLedger(validateLedger(ledger)));
+}
+
+function cardGroups(sourceSet, resolution) {
+  if (resolution !== undefined) return resolution.groups;
+  return sourceSet.cards.map((card) => ({
+    logical_key: logicalVacancyKey(card.card_ref),
+    card_refs: [card.card_ref],
+    identity_status: "linked_unconfirmed",
+    primary: null,
+    conflicts: [],
+    result: null,
+    sources: card.links.map((link) => ({
+      card_ref: card.card_ref,
+      anchor: link.anchor,
+      source_ref: link.url,
+      role: link.role,
+      disposition: link.role,
+      observation_ref: null,
+    })),
+  }));
+}
+
+function sourceBaseline(ledger, member) {
+  const matches = ledger.source_records.filter(
+    (record) =>
+      record.card_ref === member.card_ref &&
+      record.snapshot_ref === member.snapshot_ref &&
+      record.anchor === member.anchor &&
+      record.role === member.role &&
+      record.url === member.url,
+  );
+  matches.sort(
+    (left, right) =>
+      parseInstant(right.observed_at) - parseInstant(left.observed_at) ||
+      left.membership_key.localeCompare(right.membership_key),
+  );
+  return matches[0] ?? null;
+}
+
+function sourcePlanItem(group, ledger, sourceSet) {
+  const byCard = new Map(sourceSet.cards.map((card) => [card.card_ref, card]));
+  const aliasKeys =
+    group.identity_status !== "different"
+      ? [
+          ...new Set(
+            ledger.aliases
+              .filter((alias) => group.card_refs.includes(alias.card_ref))
+              .map((alias) => alias.logical_key),
+          ),
+        ]
+      : [];
+  const key = aliasKeys.length === 1 ? aliasKeys[0] : group.logical_key;
+  const baseline = ledger.logical_entries.find((entry) => entry.key === key);
+  // A supplied group key is never enough: the immutable cards must still be the cards this row
+  // observed or aliases the lifecycle independently confirmed. Posting URL/ordinal are irrelevant.
+  const guarded =
+    baseline !== undefined &&
+    group.card_refs.every(
+      (ref) =>
+        baseline.card_refs.includes(ref) ||
+        ledger.aliases.some(
+          (alias) => alias.card_ref === ref && alias.logical_key === baseline.key,
+        ),
+    );
+  let action = "fetch_new";
+  let reason = "The immutable card has no confirmed logical baseline.";
+  if (aliasKeys.length > 1 || (baseline !== undefined && !guarded)) {
+    action = "source_review";
+    reason = "The card boundaries or snapshot do not match the logical baseline.";
+  } else if (guarded && baseline.status === "open" && baseline.decision === triageRetryDecision) {
+    action = "retry_blocked";
+    reason = "The last guarded source observation was blocked.";
+  } else if (
+    guarded &&
+    group.identity_status === "confirmed" &&
+    baseline.identity_status === "confirmed"
+  ) {
+    action =
+      baseline.status !== "open"
+        ? "skip_closed"
+        : baseline.decision === triageRetryDecision
+          ? "retry_blocked"
+          : "skip_known";
+    reason =
+      action === "skip_closed"
+        ? `Ledger status ${baseline.status}.`
+        : action === "retry_blocked"
+          ? "The last confirmed observation was blocked."
+          : "The confirmed logical vacancy was already triaged.";
+  } else if (baseline !== undefined) {
+    action = "source_review";
+    reason = "The linked sources have not confirmed one vacancy identity.";
+  }
+  const sources = group.sources.map((source) => {
+    const card = byCard.get(source.card_ref);
+    const link = card?.links.find(
+      (item) =>
+        item.url === source.source_ref &&
+        item.role === source.role &&
+        item.anchor === source.anchor,
+    );
+    if (link === undefined)
+      fail(
+        "triage_ledger_source_identity",
+        "A group source does not belong to its immutable card.",
+      );
+    const member = {
+      card_ref: card.card_ref,
+      snapshot_ref: card.snapshot_ref,
+      anchor: link.anchor,
+      source_ref: link.url,
+      url: link.url,
+      role: link.role,
+    };
+    const sourceKnown = sourceBaseline(ledger, member);
+    return {
+      ...member,
+      baseline: sourceKnown,
+      action:
+        link.role === "company_context"
+          ? "company_context"
+          : link.role === "contact"
+            ? "contact"
+            : sourceKnown?.observation_decision === triageRetryDecision &&
+                sourceKnown.observation_status === "open"
+              ? "retry_blocked"
+              : action,
+    };
+  });
+  return {
+    group_key: group.logical_key,
+    logical_key: key,
+    card_refs: [...group.card_refs],
+    identity_status: group.identity_status,
+    action,
+    reason,
+    baseline: guarded ? baseline : null,
+    sources,
+  };
+}
+
+/** Source-set validation runs before the ledger is read or any cached decision is inspected. */
+export function planSourceBatch(
+  ledgerOrPath,
+  sourceSet,
+  { asOf, resolution, collectionText, captureRoot, selection, validation = {} } = {},
+) {
+  verifyOperationalFolder();
+  checkedSourceSet(sourceSet, { collectionText, captureRoot });
+  if (resolution !== undefined)
+    checkedResolution(resolution, sourceSet, { collectionText, captureRoot, ...validation });
+  parseInstant(asOf);
+  const ledger = requireSourceLedger(
+    typeof ledgerOrPath === "string" ? readLedger(ledgerOrPath) : ledgerOrPath,
+  );
+  let groups = cardGroups(sourceSet, resolution);
+  if (resolution === undefined && selection !== undefined) {
+    if (
+      !isRecord(selection) ||
+      !Array.isArray(selection.card_refs) ||
+      new Set(selection.card_refs).size !== selection.card_refs.length ||
+      selection.card_refs.some((ref) => !sourceSet.cards.some((card) => card.card_ref === ref))
+    )
+      fail(
+        "triage_ledger_source_identity",
+        "The source selection names an unknown or repeated immutable card.",
+      );
+    groups = groups.filter((group) => selection.card_refs.includes(group.card_refs[0]));
+  }
+  if (groups.length > maxEntries)
+    fail(
+      "triage_ledger_invalid_links",
+      `At most ${maxEntries} logical vacancies can be planned at once.`,
+    );
+  const items = groups.map((group) => sourcePlanItem(group, ledger, sourceSet));
+  const actions = [...triagePlanActions, "source_review"];
+  return {
+    schema_version: 2,
+    as_of: asOf,
+    source_set_sha256: sourceSetDigest(sourceSet),
+    ledger_snapshot_sha256: ledgerSnapshotDigest(ledger),
+    counts: Object.fromEntries(
+      actions.map((action) => [action, items.filter((item) => item.action === action).length]),
+    ),
+    items,
+  };
+}
+
+function sourceRecordDigest(record) {
+  const { entries_digest: ignored, ...payload } = record;
+  return hashBytes(JSON.stringify(payload));
+}
+
+function validateSourceBatchRecord(record) {
+  const code = "triage_ledger_record_unreadable";
+  assertExactKeys(
+    record,
+    [
+      "schema_version",
+      "batch_id",
+      "observed_at",
+      "policy_id",
+      "entries_digest",
+      "source_set_sha256",
+      "source_resolution_sha256",
+      "plan_sha256",
+      "entries",
+      "logical_entries",
+      "source_records",
+      "aliases",
+      "corrections",
+      "parents",
+    ],
+    [],
+    code,
+    "The version 2 batch record",
+  );
+  for (const key of ["batch_id", "policy_id"])
+    assertBoundedText(record[key], key, code, "The version 2 batch record");
+  if (!identifierPattern.test(record.batch_id))
+    fail(code, "The version 2 batch record has an invalid batch id.");
+  parseInstant(record.observed_at, code);
+  for (const key of [
+    "entries_digest",
+    "source_set_sha256",
+    "source_resolution_sha256",
+    "plan_sha256",
+  ])
+    assertDigest(record[key], code, key);
+  if (!Array.isArray(record.entries) || record.entries.length > maxEntries)
+    fail(code, "The version 2 batch record has invalid URL observations.");
+  record.entries.forEach((entry, index) => {
+    try {
+      validateEntry(entry, index);
+    } catch (error) {
+      if (!(error instanceof TriageLedgerError)) throw error;
+      fail(code, error.message);
+    }
+  });
+  assertUnique(record.entries, "key", code, "entries");
+  validateSourceLedgerCollections(record, code);
+  if (!Array.isArray(record.parents) || record.parents.length > maxEntries)
+    fail(code, "The version 2 batch record has invalid parent references.");
+  for (const parent of record.parents) {
+    assertExactKeys(
+      parent,
+      ["batch_id", "entries_digest", "record_sha256"],
+      [],
+      code,
+      "The parent batch reference",
+    );
+    if (!identifierPattern.test(parent.batch_id ?? "")) fail(code, "A parent batch id is invalid.");
+    assertDigest(parent.entries_digest, code, "parent.entries_digest");
+    assertDigest(parent.record_sha256, code, "parent.record_sha256");
+  }
+  assertUnique(record.parents, "batch_id", code, "parents");
+  for (const key of ["entries", "logical_entries", "source_records", "aliases", "corrections"]) {
+    for (const item of record[key])
+      if (item.batch_id !== record.batch_id)
+        fail(code, "The record carries an observation from another batch.");
+  }
+  if (sourceRecordDigest(record) !== record.entries_digest)
+    fail(code, "The version 2 record does not match its own entries_digest.");
+  return record;
+}
+
+function readArtifact(path, code) {
+  try {
+    const stats = lstatSync(path);
+    if (!stats.isFile() || stats.isSymbolicLink() || stats.size > maxRecordBytes)
+      fail(code, `${path} is not a bounded regular artifact.`);
+    const bytes = readFileSync(path);
+    return { value: JSON.parse(bytes.toString("utf8")), digest: hashBytes(bytes), bytes };
+  } catch (error) {
+    if (error instanceof TriageLedgerError) throw error;
+    fail(code, `${path} could not be read as a bounded JSON artifact.`);
+  }
+}
+
+function loadSourceArtifacts(artifactsDir, batch, validation) {
+  let collectionText;
+  try {
+    const collectionPath = join(artifactsDir, "collection.links.txt");
+    const stats = lstatSync(collectionPath);
+    if (!stats.isFile() || stats.isSymbolicLink() || stats.size > maxRecordBytes)
+      fail(
+        "triage_ledger_source_identity",
+        "The collection must be a bounded regular file without a symlink.",
+      );
+    collectionText = readFileSync(collectionPath, "utf8");
+  } catch (error) {
+    if (error instanceof TriageLedgerError) throw error;
+    fail(
+      "triage_ledger_source_identity",
+      "The source batch has no readable exact collection bytes.",
+    );
+  }
+  let stored;
+  try {
+    stored = readSourceSet(join(artifactsDir, triageSourceSetFileName), {
+      captureRoot: artifactsDir,
+      collectionText,
+    });
+  } catch (error) {
+    if (!error?.code) throw error;
+    fail("triage_ledger_source_identity", error.message);
+  }
+  const resolved = readArtifact(
+    join(artifactsDir, triageSourceResolutionFileName),
+    "triage_ledger_source_resolution_invalid",
+  );
+  const planned = readArtifact(
+    join(artifactsDir, triageBatchPlanFileName),
+    "triage_ledger_plan_invalid",
+  );
+  for (const [actual, expected, label] of [
+    [stored.digest, batch.source_set_sha256, "source set"],
+    [resolved.digest, batch.source_resolution_sha256, "source resolution"],
+    [planned.digest, batch.plan_sha256, "plan"],
+  ]) {
+    if (actual !== expected)
+      fail(
+        "triage_ledger_source_artifact_digest",
+        `The ${label} bytes differ from the declared batch digest.`,
+      );
+  }
+  checkedResolution(resolved.value, stored.sourceSet, {
+    captureRoot: artifactsDir,
+    collectionText,
+    ...validation,
+  });
+  if (resolved.value.policy_id !== batch.policy_id)
+    fail(
+      "triage_ledger_source_resolution_invalid",
+      "The declared source batch policy differs from its validated resolution epoch.",
+    );
+  const plan = planned.value.source_plan ?? planned.value;
+  if (
+    !isRecord(plan) ||
+    plan.schema_version !== 2 ||
+    plan.source_set_sha256 !== stored.digest ||
+    !Array.isArray(plan.items)
+  )
+    fail("triage_ledger_plan_invalid", "The source plan does not bind this immutable source set.");
+  assertDigest(
+    plan.ledger_snapshot_sha256,
+    "triage_ledger_plan_invalid",
+    "The plan's ledger snapshot",
+  );
+  if (parseInstant(plan.as_of, "triage_ledger_plan_invalid") > parseInstant(batch.observed_at))
+    fail("triage_ledger_plan_invalid", "The source plan postdates this observation.");
+  return { sourceSet: stored.sourceSet, resolution: resolved.value, plan };
+}
+
+function flagsOfResult(result) {
+  const flags = [...(Array.isArray(result.data_gaps) ? result.data_gaps : [])];
+  const reason = result.review_code ?? result.review_reason ?? result.blocker_code;
+  if (typeof reason === "string" && reason.length > 0) flags.push(reason);
+  return [...new Set(flags)].sort();
+}
+
+function logicalStatus(group, observations) {
+  if (group.result?.decision !== "SKIP" || group.result.skip_code !== "vacancy_unavailable")
+    return "open";
+  const sourceRefs = new Set(
+    group.sources
+      .filter((source) => !["company_context", "contact"].includes(source.role))
+      .map((source) => source.observation_ref),
+  );
+  const scoped = observations.filter((observation) => sourceRefs.has(observation.observation_ref));
+  if (scoped.some((observation) => observation.input?.source.accessOutcome === "usable"))
+    return "open";
+  return scoped.some(
+    (observation) =>
+      observation.input?.source.accessOutcome === "closed" &&
+      JSON.stringify(observation.trace) === JSON.stringify(group.result),
+  )
+    ? "closed"
+    : "open";
+}
+
+function normalizeLogicalGroups(resolution, batch, aliases) {
+  return resolution.groups
+    .filter((group) => group.result !== null)
+    .map((group, index) => {
+      const result = group.result;
+      const aliased =
+        group.identity_status !== "different"
+          ? aliases.filter((alias) => group.card_refs.includes(alias.card_ref))
+          : [];
+      const aliasKeys = [...new Set(aliased.map((alias) => alias.logical_key))];
+      if (aliasKeys.length > 1)
+        fail(
+          "triage_ledger_source_identity",
+          "One confirmed group cannot alias two logical vacancies.",
+        );
+      const entry = {
+        key: aliasKeys[0] ?? group.logical_key,
+        card_refs: [...group.card_refs].sort(),
+        identity_status: group.identity_status,
+        primary_ref: group.primary,
+        first_seen: batch.observed_at,
+        last_checked: batch.observed_at,
+        status: logicalStatus(group, resolution.observations),
+        batch_id: batch.batch_id,
+        decision: result.decision,
+        flags: flagsOfResult(result),
+        policy_id: batch.policy_id,
+      };
+      for (const [target, source] of [
+        ["title", "job_title"],
+        ["company", "company"],
+      ]) {
+        if (typeof result[source] === "string" && result[source].length > 0)
+          entry[target] = result[source];
+      }
+      validateLogicalEntry(entry, index, "triage_ledger_invalid_batch");
+      return entry;
+    })
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function normalizeSourceMemberships(sourceSet, resolution, batch, aliases) {
+  const cards = new Map(sourceSet.cards.map((card) => [card.card_ref, card]));
+  return resolution.groups
+    .flatMap((group) =>
+      group.sources.map((source) => {
+        const card = cards.get(source.card_ref);
+        const link = card.links.find(
+          (item) =>
+            item.role === source.role &&
+            item.url === source.source_ref &&
+            item.anchor === source.anchor,
+        );
+        if (link === undefined)
+          fail(
+            "triage_ledger_source_identity",
+            "A source disposition does not match its immutable membership.",
+          );
+        const observation = resolution.observations.find(
+          (item) => item.observation_ref === source.observation_ref,
+        );
+        const result = !["company_context", "contact"].includes(link.role)
+          ? observation?.trace
+          : undefined;
+        const record = {
+          membership_key: "",
+          logical_key:
+            (group.identity_status !== "different"
+              ? aliases.find((alias) => alias.card_ref === card.card_ref)?.logical_key
+              : undefined) ?? group.logical_key,
+          card_ref: card.card_ref,
+          snapshot_ref: card.snapshot_ref,
+          anchor: link.anchor,
+          role: link.role,
+          url: link.url,
+          disposition: source.disposition,
+          observation_ref: source.observation_ref,
+          batch_id: batch.batch_id,
+          observed_at: batch.observed_at,
+          observation_decision: result?.decision ?? null,
+          observation_status:
+            result === undefined || result === null
+              ? null
+              : observation.input.source.accessOutcome === "closed"
+                ? "closed"
+                : "open",
+        };
+        record.membership_key = membershipKey(record);
+        validateSourceRecord(record, 0, "triage_ledger_invalid_batch");
+        return record;
+      }),
+    )
+    .sort((a, b) => a.membership_key.localeCompare(b.membership_key));
+}
+
+function readParent(artifactsDir, batchId, expectedDigest, parents) {
+  if (!identifierPattern.test(batchId ?? ""))
+    fail(
+      "triage_ledger_source_parent_invalid",
+      "A parent batch id must be a bounded machine token.",
+    );
+  const parentDir = join(dirname(artifactsDir), batchId);
+  try {
+    const stats = lstatSync(parentDir);
+    if (!stats.isDirectory() || stats.isSymbolicLink())
+      fail(
+        "triage_ledger_source_parent_invalid",
+        "A parent batch must be a real directory in the same store.",
+      );
+  } catch (error) {
+    if (error instanceof TriageLedgerError) throw error;
+    fail("triage_ledger_source_parent_invalid", "The parent batch directory cannot be read.");
+  }
+  const record = readBatchRecord(parentDir);
+  if (record.batch_id !== batchId || record.entries_digest !== expectedDigest)
+    fail(
+      "triage_ledger_source_parent_invalid",
+      "The parent reference differs from its immutable batch record.",
+    );
+  const reference = {
+    batch_id: batchId,
+    entries_digest: expectedDigest,
+    record_sha256: hashBytes(readFileSync(join(parentDir, triageBatchRecordFileName))),
+  };
+  parents.set(batchId, reference);
+  return { record, parentDir, reference };
+}
+
+function normalizeCorrections(rawCorrections, sourceSet, resolution, batch, artifactsDir, parents) {
+  return rawCorrections
+    .map((raw, index) => {
+      assertExactKeys(
+        raw,
+        ["parent_batch_id", "parent_entries_digest", "card_ref", "url"],
+        [],
+        "triage_ledger_source_correction_invalid",
+        `corrections[${index}]`,
+      );
+      const card = sourceSet.cards.find((item) => item.card_ref === raw.card_ref);
+      const link = card?.links.find(
+        (item) =>
+          item.role === "company_context" &&
+          normalizeVacancyUrl(item.url) === normalizeVacancyUrl(raw.url),
+      );
+      const group = resolution.groups.find((item) =>
+        item.sources.some(
+          (source) =>
+            source.card_ref === raw.card_ref &&
+            source.role === "company_context" &&
+            source.source_ref === link?.url &&
+            source.disposition === "company_context",
+        ),
+      );
+      if (!card || !link || !group || card.mapping_status !== "resolved")
+        fail(
+          "triage_ledger_source_correction_invalid",
+          "A context correction needs verified company_context evidence in its own immutable card.",
+        );
+      const parent = readParent(
+        artifactsDir,
+        raw.parent_batch_id,
+        raw.parent_entries_digest,
+        parents,
+      );
+      const key = vacancyIdentity(raw.url).key;
+      const observed = parent.record.entries.find((item) => item.key === key);
+      if (!observed || observed.decision !== triageRetryDecision || observed.status !== "open")
+        fail(
+          "triage_ledger_source_correction_invalid",
+          "The referenced parent did not record this open BLOCKED URL observation.",
+        );
+      const correction = {
+        correction_key: "",
+        entry_key: key,
+        parent_batch_id: raw.parent_batch_id,
+        parent_entries_digest: raw.parent_entries_digest,
+        parent_record_sha256: parent.reference.record_sha256,
+        parent_last_checked: observed.last_checked,
+        card_ref: card.card_ref,
+        logical_key: group.logical_key,
+        snapshot_ref: card.snapshot_ref,
+        anchor: link.anchor,
+        url: observed.url,
+        batch_id: batch.batch_id,
+        recorded_at: batch.observed_at,
+      };
+      correction.correction_key = correctionKey(correction);
+      validateCorrection(correction, index, "triage_ledger_source_correction_invalid");
+      return correction;
+    })
+    .sort((a, b) => a.correction_key.localeCompare(b.correction_key));
+}
+
+function observationIdentity(observation, group) {
+  // Only independently checked direct posting observations can support an alias. A title, author,
+  // hostname or Telegram post URL alone cannot confirm an edited card's identity.
+  const input = observation?.input;
+  const company = observation?.facts?.company?.value;
+  const title = observation?.facts?.title?.value;
+  const role = observation?.facts?.role?.value;
+  const member = group.sources.find(
+    (source) =>
+      source.observation_ref === observation?.observation_ref &&
+      ["details", "apply"].includes(source.role),
+  );
+  if (
+    !input ||
+    input.source.accessOutcome !== "usable" ||
+    observation.identity_status !== "confirmed" ||
+    !member ||
+    [company, title, role].some((value) => typeof value !== "string" || !value.trim())
+  )
+    return null;
+  const ref = input.source.finalUrl ?? observation.source_ref;
+  if (typeof ref !== "string") return null;
+  return {
+    key: vacancyIdentity(ref).key,
+    company: company.trim().toLowerCase(),
+    title: title.trim().toLowerCase(),
+    role: role.trim().toLowerCase(),
+  };
+}
+
+function normalizeAliases(
+  rawAliases,
+  sourceSet,
+  resolution,
+  batch,
+  artifactsDir,
+  parents,
+  validation,
+) {
+  return rawAliases
+    .map((raw, index) => {
+      assertExactKeys(
+        raw,
+        [
+          "card_ref",
+          "logical_key",
+          "parent_batch_id",
+          "parent_entries_digest",
+          "observation_ref",
+          "parent_observation_ref",
+        ],
+        [],
+        "triage_ledger_source_alias_invalid",
+        `aliases[${index}]`,
+      );
+      assertCardReference(raw.card_ref, "triage_ledger_source_alias_invalid", "The new card");
+      const group = resolution.groups.find(
+        (item) => item.identity_status === "confirmed" && item.card_refs.includes(raw.card_ref),
+      );
+      const current = resolution.observations.find(
+        (item) => item.observation_ref === raw.observation_ref && item.card_ref === raw.card_ref,
+      );
+      if (!group || !sourceSet.cards.some((card) => card.card_ref === raw.card_ref))
+        fail(
+          "triage_ledger_source_alias_invalid",
+          "An alias needs a currently confirmed immutable card.",
+        );
+      const parent = readParent(
+        artifactsDir,
+        raw.parent_batch_id,
+        raw.parent_entries_digest,
+        parents,
+      );
+      if (
+        parent.record.schema_version !== 2 ||
+        !parent.record.logical_entries.some(
+          (entry) => entry.key === raw.logical_key && entry.identity_status === "confirmed",
+        )
+      )
+        fail(
+          "triage_ledger_source_alias_invalid",
+          "An alias needs a confirmed logical observation in a version 2 parent record.",
+        );
+      const prior = loadSourceArtifacts(parent.parentDir, parent.record, validation).resolution;
+      const priorEntry = parent.record.logical_entries.find(
+        (entry) => entry.key === raw.logical_key,
+      );
+      const priorGroup = prior.groups.find(
+        (item) =>
+          item.card_refs.some((ref) => priorEntry.card_refs.includes(ref)) &&
+          item.identity_status === "confirmed" &&
+          item.sources.some((source) => source.observation_ref === raw.parent_observation_ref),
+      );
+      const previous = prior.observations.find(
+        (item) => item.observation_ref === raw.parent_observation_ref,
+      );
+      const left = group && observationIdentity(current, group),
+        right = priorGroup && observationIdentity(previous, priorGroup);
+      if (!priorGroup || !left || !right || JSON.stringify(left) !== JSON.stringify(right))
+        fail(
+          "triage_ledger_source_alias_invalid",
+          "Alias evidence must independently confirm the same direct posting, explicit company and role in both immutable observations.",
+        );
+      const alias = {
+        card_ref: raw.card_ref,
+        logical_key: raw.logical_key,
+        batch_id: batch.batch_id,
+        parent_batch_id: raw.parent_batch_id,
+        parent_entries_digest: raw.parent_entries_digest,
+        parent_record_sha256: parent.reference.record_sha256,
+        observation_ref: raw.observation_ref,
+        parent_observation_ref: raw.parent_observation_ref,
+      };
+      validateAlias(alias, index, "triage_ledger_source_alias_invalid");
+      return alias;
+    })
+    .sort((a, b) => a.card_ref.localeCompare(b.card_ref));
+}
+
+function assertSourcePlanUnmoved(ledger, plan, groups) {
+  if (ledgerSnapshotDigest(ledger) !== plan.ledger_snapshot_sha256) {
+    for (const item of plan.items) {
+      const current = ledger.logical_entries.find((entry) => entry.key === item.logical_key);
+      if (
+        item.baseline === null
+          ? current !== undefined
+          : current === undefined || JSON.stringify(current) !== JSON.stringify(item.baseline)
+      )
+        fail(
+          "triage_ledger_concurrent_observation",
+          "A selected logical observation changed after this source batch planned; its immutable observations remain in the batch directory.",
+        );
+      for (const member of item.sources ?? []) {
+        if (
+          !Object.hasOwn(member, "baseline") ||
+          ["company_context", "contact"].includes(member.role)
+        )
+          continue;
+        if (JSON.stringify(sourceBaseline(ledger, member)) !== JSON.stringify(member.baseline))
+          fail(
+            "triage_ledger_concurrent_observation",
+            "A scoped job source observation changed after the batch planned.",
+          );
+      }
+    }
+  }
+  const plannedKeys = new Set(plan.items.map((item) => item.group_key ?? item.logical_key));
+  for (const group of groups)
+    if (
+      !plannedKeys.has(group.logical_key) &&
+      ledger.logical_entries.some((entry) => entry.key === group.logical_key)
+    )
+      fail(
+        "triage_ledger_entry_unplanned",
+        "A derived source group has a preexisting logical row absent from the batch's source plan.",
+      );
+  const plannedCards = new Set(plan.items.flatMap((item) => item.card_refs ?? []));
+  for (const group of groups)
+    if (group.card_refs.some((ref) => !plannedCards.has(ref)))
+      fail(
+        "triage_ledger_entry_unplanned",
+        "A source resolution card is outside the batch's source plan.",
+      );
+  for (const group of groups)
+    for (const source of group.sources)
+      if (
+        !plan.items.some((item) =>
+          item.sources?.some(
+            (member) =>
+              member.card_ref === source.card_ref &&
+              member.anchor === source.anchor &&
+              member.role === source.role &&
+              member.source_ref === source.source_ref,
+          ),
+        )
+      )
+        fail(
+          "triage_ledger_entry_unplanned",
+          "A source resolution membership is outside the batch's source plan.",
+        );
+}
+
+function mergeObservedRows(previous, observed, key) {
+  const byKey = new Map(previous.map((item) => [item[key], item]));
+  for (const item of observed) {
+    const known = byKey.get(item[key]);
+    if (known && parseInstant(known.last_checked) > parseInstant(item.last_checked)) continue;
+    if (!known) {
+      byKey.set(item[key], item);
+      continue;
+    }
+    const carried = {};
+    for (const field of ["title", "company", "priority_class"])
+      if (!Object.hasOwn(item, field) && Object.hasOwn(known, field)) carried[field] = known[field];
+    byKey.set(item[key], {
+      ...item,
+      ...carried,
+      first_seen:
+        parseInstant(known.first_seen) < parseInstant(item.first_seen)
+          ? known.first_seen
+          : item.first_seen,
+      ...(Object.hasOwn(item, "card_refs")
+        ? { card_refs: [...new Set([...known.card_refs, ...item.card_refs])].sort() }
+        : {}),
+    });
+  }
+  return [...byKey.values()].sort((a, b) => a[key].localeCompare(b[key]));
+}
+
+function mergeImmutable(previous, additions, key, code) {
+  const byKey = new Map(previous.map((item) => [item[key], item]));
+  for (const item of additions) {
+    const known = byKey.get(item[key]);
+    if (known && JSON.stringify(known) !== JSON.stringify(item))
+      fail(code, "An immutable source association is already recorded with different evidence.");
+    if (!known) byKey.set(item[key], item);
+  }
+  return [...byKey.values()].sort((a, b) => a[key].localeCompare(b[key]));
+}
+
+/**
+ * Source-aware archive-before-index write. Every decision comes from the validated resolution;
+ * correction timestamps describe a bookkeeping correction and never become a fresh network view.
+ */
+export function recordSourceBatch(path, batch, options) {
+  verifyOperationalFolder();
+  assertExactKeys(
+    batch,
+    [
+      "batch_id",
+      "observed_at",
+      "policy_id",
+      "source_set_sha256",
+      "source_resolution_sha256",
+      "plan_sha256",
+    ],
+    ["entries", "aliases", "corrections", "correction_only"],
+    "triage_ledger_invalid_batch",
+    "The source batch",
+  );
+  assertBoundedText(
+    batch.policy_id,
+    "policy_id",
+    "triage_ledger_invalid_batch",
+    "The source batch",
+  );
+  if (!identifierPattern.test(batch.batch_id ?? ""))
+    fail("triage_ledger_invalid_batch", "The source batch has an invalid batch id.");
+  parseInstant(batch.observed_at, "triage_ledger_invalid_batch");
+  for (const key of ["source_set_sha256", "source_resolution_sha256", "plan_sha256"])
+    assertDigest(batch[key], "triage_ledger_invalid_batch", key);
+  assertExactKeys(
+    options,
+    ["artifactsDir"],
+    ["validation"],
+    "triage_ledger_record_undeclared",
+    "The source batch options",
+  );
+  const archiveDir = resolveArchiveTarget(batch, { artifactsDir: options.artifactsDir });
+  if (archiveDir === null)
+    fail(
+      "triage_ledger_record_undeclared",
+      "A version 2 source batch always keeps an immutable archive.",
+    );
+  for (const key of ["entries", "aliases", "corrections"])
+    if (Object.hasOwn(batch, key) && (!Array.isArray(batch[key]) || batch[key].length > maxEntries))
+      fail("triage_ledger_invalid_batch", `${key} must be a bounded array.`);
+  const validation = options.validation ?? {};
+  const { sourceSet, resolution, plan } = loadSourceArtifacts(archiveDir, batch, validation);
+  if (Object.hasOwn(batch, "correction_only") && batch.correction_only !== true)
+    fail("triage_ledger_invalid_batch", "correction_only is an explicit true declaration.");
+  if (
+    batch.correction_only &&
+    ((batch.entries?.length ?? 0) > 0 ||
+      (batch.corrections?.length ?? 0) === 0 ||
+      (batch.aliases?.length ?? 0) > 0)
+  )
+    fail(
+      "triage_ledger_source_correction_invalid",
+      "A correction-only batch cannot pretend to observe fresh URL or logical decisions.",
+    );
+  const parents = new Map();
+  const aliases = normalizeAliases(
+    batch.aliases ?? [],
+    sourceSet,
+    resolution,
+    batch,
+    archiveDir,
+    parents,
+    validation,
+  );
+  const corrections = normalizeCorrections(
+    batch.corrections ?? [],
+    sourceSet,
+    resolution,
+    batch,
+    archiveDir,
+    parents,
+  );
+  const startingLedger = requireSourceLedger(readLedger(path));
+  const allAliases = [...startingLedger.aliases, ...aliases];
+  const entries = (batch.entries ?? [])
+    .map((item, index) => normalizeBatchEntry(item, index, batch))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  for (const entry of entries) {
+    const observed = resolution.observations.filter(
+      (observation) =>
+        observation.trace?.source_ref &&
+        vacancyIdentity(observation.trace.source_ref).key === entry.key,
+    );
+    if (
+      !observed.some(
+        (observation) =>
+          observation.trace.decision === entry.decision &&
+          sameFlags(flagsOfResult(observation.trace), entry.flags) &&
+          entry.status ===
+            (observation.input.source.accessOutcome === "closed" ? "closed" : "open") &&
+          (!Object.hasOwn(entry, "title") || entry.title === observation.trace.job_title) &&
+          (!Object.hasOwn(entry, "company") || entry.company === observation.trace.company),
+      )
+    )
+      fail(
+        "triage_ledger_entry_without_trace",
+        "A URL observation has no matching independently validated liveness and Decision Trace in the source resolution.",
+      );
+  }
+  const record = {
+    schema_version: 2,
+    batch_id: batch.batch_id,
+    observed_at: batch.observed_at,
+    policy_id: batch.policy_id,
+    entries_digest: "",
+    source_set_sha256: batch.source_set_sha256,
+    source_resolution_sha256: batch.source_resolution_sha256,
+    plan_sha256: batch.plan_sha256,
+    entries,
+    logical_entries: batch.correction_only
+      ? []
+      : normalizeLogicalGroups(resolution, batch, allAliases),
+    source_records: normalizeSourceMemberships(sourceSet, resolution, batch, allAliases).filter(
+      (member) =>
+        !batch.correction_only ||
+        corrections.some(
+          (correction) =>
+            correction.card_ref === member.card_ref &&
+            correction.anchor === member.anchor &&
+            correction.url === member.url &&
+            member.role === "company_context",
+        ),
+    ),
+    aliases,
+    corrections,
+    parents: [...parents.values()].sort((a, b) => a.batch_id.localeCompare(b.batch_id)),
+  };
+  record.entries_digest = sourceRecordDigest(record);
+  validateSourceBatchRecord(record);
+  return withLedgerLock(path, (rawLedger) => {
+    const ledger = requireSourceLedger(rawLedger);
+    const previous = ledger.batches.find((known) => known.batch_id === batch.batch_id);
+    if (previous && previous.entries_digest !== record.entries_digest)
+      fail(
+        "triage_ledger_batch_id_reused",
+        "The source batch id is already recorded with different immutable content.",
+      );
+    const existing = persistedRecordState(archiveDir, batch.batch_id, record.entries_digest);
+    if (!previous && existing === "absent") {
+      assertSourcePlanUnmoved(ledger, plan, resolution.groups);
+      for (const correction of corrections) {
+        const known = ledger.entries.find((entry) => entry.key === correction.entry_key);
+        if (
+          !known ||
+          known.batch_id !== correction.parent_batch_id ||
+          known.last_checked !== correction.parent_last_checked ||
+          known.decision !== triageRetryDecision ||
+          known.status !== "open"
+        )
+          fail(
+            "triage_ledger_concurrent_observation",
+            "The URL observation moved since its correction parent was recorded.",
+          );
+      }
+      for (const alias of aliases)
+        if (
+          !ledger.logical_entries.some(
+            (entry) => entry.key === alias.logical_key && entry.identity_status === "confirmed",
+          )
+        )
+          fail(
+            "triage_ledger_source_alias_invalid",
+            "The alias target has no current confirmed logical baseline.",
+          );
+      for (const alias of aliases) {
+        const target = ledger.logical_entries.find((entry) => entry.key === alias.logical_key);
+        if (target.batch_id !== alias.parent_batch_id)
+          fail(
+            "triage_ledger_concurrent_observation",
+            "The confirmed alias target moved after its parent observation.",
+          );
+      }
+      for (const entry of record.logical_entries) {
+        const known = ledger.logical_entries.find((item) => item.key === entry.key);
+        if (
+          known &&
+          entry.card_refs.some(
+            (ref) =>
+              !known.card_refs.includes(ref) &&
+              !allAliases.some(
+                (alias) => alias.card_ref === ref && alias.logical_key === entry.key,
+              ),
+          )
+        )
+          fail(
+            "triage_ledger_source_identity",
+            "A new card cannot inherit another card's logical decision without an independently confirmed alias.",
+          );
+      }
+      mergeImmutable(ledger.aliases, aliases, "card_ref", "triage_ledger_source_alias_invalid");
+      mergeImmutable(
+        ledger.corrections,
+        corrections,
+        "correction_key",
+        "triage_ledger_source_correction_invalid",
+      );
+    }
+    const archived = persistBatchRecord(archiveDir, record);
+    if (previous)
+      return {
+        changed: false,
+        result: {
+          batch_id: batch.batch_id,
+          replayed: true,
+          added: [],
+          updated: [],
+          ledger_entries: ledger.logical_entries.length,
+          record: archived,
+        },
+      };
+    const logicalEntries = mergeObservedRows(ledger.logical_entries, record.logical_entries, "key");
+    const sourceByKey = new Map(ledger.source_records.map((item) => [item.membership_key, item]));
+    for (const item of record.source_records) {
+      const known = sourceByKey.get(item.membership_key);
+      // Accounting an unfetched alternative again cannot erase its last real source outcome.
+      if (
+        known &&
+        item.observation_ref === null &&
+        typeof known.observation_decision === "string" &&
+        !["company_context", "contact"].includes(item.role)
+      )
+        continue;
+      if (!known || parseInstant(known.observed_at) <= parseInstant(item.observed_at))
+        sourceByKey.set(item.membership_key, item);
+    }
+    const batches = [
+      ...ledger.batches,
+      {
+        batch_id: batch.batch_id,
+        recorded_at: batch.observed_at,
+        entry_count: record.logical_entries.length,
+        entries_digest: record.entries_digest,
+        policy_id: batch.policy_id,
+        record_schema_version: 2,
+        source_set_sha256: batch.source_set_sha256,
+        source_resolution_sha256: batch.source_resolution_sha256,
+        plan_sha256: batch.plan_sha256,
+      },
+    ].sort(
+      (a, b) =>
+        parseInstant(a.recorded_at) - parseInstant(b.recorded_at) ||
+        a.batch_id.localeCompare(b.batch_id),
+    );
+    const knownKeys = new Set(ledger.logical_entries.map((item) => item.key));
+    return {
+      ledger: {
+        ...ledger,
+        batches,
+        entries: mergeObservedRows(ledger.entries, record.entries, "key"),
+        logical_entries: logicalEntries,
+        source_records: [...sourceByKey.values()].sort((a, b) =>
+          a.membership_key.localeCompare(b.membership_key),
+        ),
+        aliases: mergeImmutable(
+          ledger.aliases,
+          aliases,
+          "card_ref",
+          "triage_ledger_source_alias_invalid",
+        ),
+        corrections: mergeImmutable(
+          ledger.corrections,
+          corrections,
+          "correction_key",
+          "triage_ledger_source_correction_invalid",
+        ),
+      },
+      result: {
+        batch_id: batch.batch_id,
+        replayed: false,
+        added: record.logical_entries
+          .filter((item) => !knownKeys.has(item.key))
+          .map((item) => item.key),
+        updated: record.logical_entries
+          .filter((item) => knownKeys.has(item.key))
+          .map((item) => item.key),
+        ledger_entries: logicalEntries.length,
+        source_records: record.source_records.length,
+        corrections: corrections.length,
+        record: archived,
+      },
+    };
+  });
+}
+
+/** A separate immutable correction batch; no URL row or historical batch is rewritten. */
+export function correctSourceObservations(path, batch, options) {
+  if (!Array.isArray(batch?.corrections) || batch.corrections.length === 0)
+    fail(
+      "triage_ledger_source_correction_invalid",
+      "A correction batch must name its verified parent observations.",
+    );
+  return recordSourceBatch(path, { ...batch, correction_only: true }, options);
+}
+
 /**
  * The review runbook's mechanical half: every open ledger entry that still carries a flag, grouped
  * by that flag. One group is one decision — `docs/runbooks/triage-review.md` owns the mapping from
@@ -1234,14 +2712,59 @@ export function planBatch(ledger, links, { asOf } = {}) {
 export function reviewLedger(ledger, { asOf } = {}) {
   validateLedger(ledger);
   parseInstant(asOf, "triage_ledger_invalid_instant");
-  const open = ledger.entries.filter((entry) => entry.status === "open");
+  const sourceAware = ledger.schema_version === 2;
+  const urlEntries = sourceAware
+    ? ledger.entries.filter(
+        (entry) =>
+          !ledger.corrections.some(
+            (correction) =>
+              correction.entry_key === entry.key &&
+              correction.parent_batch_id === entry.batch_id &&
+              correction.parent_last_checked === entry.last_checked,
+          ) &&
+          !ledger.source_records.some(
+            (source) =>
+              source.batch_id === entry.batch_id &&
+              /^https?:\/\//u.test(source.url) &&
+              source.role !== "contact" &&
+              vacancyIdentity(source.url).key === entry.key &&
+              ledger.logical_entries.some((logical) => logical.key === source.logical_key),
+          ),
+      )
+    : ledger.entries;
+  const logicalEntries = sourceAware
+    ? ledger.logical_entries.filter(
+        (entry) =>
+          !entry.card_refs.every((ref) =>
+            ledger.aliases.some(
+              (alias) => alias.card_ref === ref && alias.logical_key !== entry.key,
+            ),
+          ),
+      )
+    : [];
+  const entries = [...urlEntries, ...logicalEntries];
+  const open = entries.filter((entry) => entry.status === "open");
   const groups = new Map();
   for (const entry of open) {
     for (const flag of entry.flags) {
       if (!groups.has(flag)) groups.set(flag, []);
       groups.get(flag).push({
         key: entry.key,
-        url: entry.url,
+        ...(Object.hasOwn(entry, "url")
+          ? { url: entry.url }
+          : {
+              card_refs: entry.card_refs,
+              identity_status: entry.identity_status,
+              primary_ref: entry.primary_ref,
+              sources: ledger.source_records
+                .filter((source) => source.logical_key === entry.key)
+                .map((source) => ({
+                  card_ref: source.card_ref,
+                  url: source.url,
+                  role: source.role,
+                  disposition: source.disposition,
+                })),
+            }),
         ...(Object.hasOwn(entry, "title") ? { title: entry.title } : {}),
         ...(Object.hasOwn(entry, "company") ? { company: entry.company } : {}),
         decision: entry.decision,
@@ -1267,14 +2790,25 @@ export function reviewLedger(ledger, { asOf } = {}) {
   return {
     as_of: asOf,
     totals: {
-      entries: ledger.entries.length,
+      entries: entries.length,
       open: open.length,
-      closed: ledger.entries.length - open.length,
+      closed: entries.length - open.length,
       flagged_open: open.filter((entry) => entry.flags.length > 0).length,
       unflagged_open: open.filter((entry) => entry.flags.length === 0).length,
       fast_lane_open: open.filter((entry) => entry.priority_class === 1).length,
       decision_groups: rendered.length,
+      ...(sourceAware
+        ? {
+            url_observations: ledger.entries.length,
+            logical_vacancies: logicalEntries.length,
+            retained_logical_records: ledger.logical_entries.length,
+            excluded_url_observations: ledger.entries.length - urlEntries.length,
+            source_memberships: ledger.source_records.length,
+            corrections: ledger.corrections.length,
+          }
+        : {}),
     },
     groups: rendered,
+    ...(sourceAware ? { sources: ledger.source_records, corrections: ledger.corrections } : {}),
   };
 }

@@ -137,8 +137,11 @@ export function run(context) {
       findings.push({ code: "rescue_contradicts_declaration", index: record.index, declared });
     }
 
-    if (byIndex === null) continue;
-    const manifestRecord = byIndex.get(record.index);
+    // An original-post extraction is backed by the checked saved HTML, not an HTTP transcript.
+    // Other source-mode extractions join their actual transport index, independently of ordinal.
+    if (record.sourceScope?.original === true || byIndex === null) continue;
+    const transportIndex = record.transportIndex ?? record.index;
+    const manifestRecord = byIndex.get(transportIndex);
     if (manifestRecord === undefined) {
       findings.push({ code: "manifest_record_missing", index: record.index });
       continue;
@@ -235,14 +238,27 @@ export function run(context) {
     // batch has no record for is that drop: `link_uncovered` cannot see it when the plan claims the
     // link was skipped, and the plan is the session's own word. A row the fetcher never attempted
     // is left to `link_uncovered`, which owns that case and says it better.
-    const recorded = new Set(context.records.map((record) => record.index));
+    const recorded = new Set(
+      context.records
+        .filter((record) => record.sourceScope?.original !== true)
+        .map((record) => record.transportIndex ?? record.index),
+    );
+    if (context.sourceVerification?.valid) {
+      for (const index of context.sourceVerification.transportIndices) recorded.add(index);
+    }
     for (const [index, manifestRecord] of byIndex) {
       if (recorded.has(index) || manifestRecord.skipped === true) continue;
       findings.push({ code: "manifest_record_unaccounted", index });
     }
     const closedByManifest = new Set(
       context.records
-        .filter((record) => TERMINAL_MANIFEST_OUTCOMES.has(byIndex.get(record.index)?.outcome))
+        .filter(
+          (record) =>
+            record.sourceScope?.original !== true &&
+            TERMINAL_MANIFEST_OUTCOMES.has(
+              byIndex.get(record.transportIndex ?? record.index)?.outcome,
+            ),
+        )
         .map((record) => record.index),
     );
     manifestClosed = closedByManifest.size;

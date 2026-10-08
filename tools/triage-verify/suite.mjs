@@ -9,6 +9,7 @@
 // The report carries no timestamp and reads no clock. Two runs over the same directory produce
 // byte-identical bytes, which is what makes a report worth attaching to a batch.
 
+import { readSourceArtifacts } from "./source-verification.mjs";
 import { discoverEvidence } from "./evidence.mjs";
 import { fail } from "./errors.mjs";
 import { loadBatchArtifacts } from "./artifacts.mjs";
@@ -17,7 +18,7 @@ import { captureProvenance, captureProvenanceClasses, readManifestRecords } from
 import { normalizeVacancyUrl, readLedger } from "../lib/triage-ledger-core.mjs";
 import { readLinksFile, sliceRange } from "./links.mjs";
 import { sha256 } from "./text-scan.mjs";
-import { TRIAGE_POLICY_ID } from "../job-scorer/normalized-input.mjs";
+import { TRIAGE_POLICY_ID, isSupportedInputEpoch } from "../job-scorer/normalized-input.mjs";
 import { verifyCaptureFile } from "../vacancy-fetch/persist.mjs";
 import * as baselineDiff from "./checks/baseline-diff.mjs";
 import * as chainOfCustody from "./checks/chain-of-custody.mjs";
@@ -59,7 +60,13 @@ function safeNormalizeUrl(value) {
 }
 
 function buildRecords(batch, manifestRecords) {
-  return batch.indices.map((index) => {
+  const indices =
+    batch.sourceSet.present ||
+    batch.sourceResolution.present ||
+    batch.plan.value?.schema_version === 2
+      ? batch.indices.filter((index) => batch.inputs.has(index) || batch.traces.has(index))
+      : batch.indices;
+  return indices.map((index) => {
     const inputEntry = batch.inputs.get(index) ?? null;
     const traceEntry = batch.traces.get(index) ?? null;
     const input =
@@ -117,7 +124,8 @@ export function buildContext({
   ledgerPath,
   languages,
 }) {
-  const links = sliceRange(readLinksFile(linksFile), from, to);
+  const allLinks = readLinksFile(linksFile);
+  const links = sliceRange(allLinks, from, to);
   const batch = loadBatchArtifacts(artifactsDir);
   const vocabulary = loadVocabulary(vocabularyPath);
   let ledger = null;
@@ -132,7 +140,7 @@ export function buildContext({
     }
   }
   const manifest = readManifestRecords(batch);
-  return {
+  const context = {
     batch,
     languages,
     ledger,
@@ -143,6 +151,10 @@ export function buildContext({
     records: buildRecords(batch, manifest.records),
     vocabulary,
   };
+  context.sourceVerification = readSourceArtifacts(context, {
+    collectionText: allLinks.collectionText,
+  });
+  return context;
 }
 
 /** Per outcome class, so the class that owes neither a capture nor a quote stays visible. */
@@ -195,7 +207,15 @@ export function runSuite(context, cadence) {
     reportVersion,
     suite: "triage-verify",
     cadence,
-    policyId: TRIAGE_POLICY_ID,
+    policyId:
+      context.records.length > 0 &&
+      context.records.every(
+        (record) =>
+          isSupportedInputEpoch(record.input) &&
+          record.input?.policyId === context.records[0].input?.policyId,
+      )
+        ? (context.records[0].input?.policyId ?? TRIAGE_POLICY_ID)
+        : TRIAGE_POLICY_ID,
     vocabularyId: context.vocabulary.vocabularyId,
     range: context.range,
     counts: {
@@ -213,6 +233,14 @@ export function runSuite(context, cadence) {
         ]),
       ),
       accessOutcomes: countAccessOutcomes(context.records),
+      ...(context.sourceVerification?.active
+        ? {
+            sourceCards: context.sourceVerification.resolution?.selection.card_refs.length ?? 0,
+            logicalVacancies: context.sourceVerification.resolution?.groups.length ?? 0,
+            sourceUrlsAccounted: context.sourceVerification.accountedUrls.size,
+            sourceHtmlCaptures: context.sourceVerification.htmlCaptures,
+          }
+        : {}),
     },
     checks: results,
     findingCodes: codes,

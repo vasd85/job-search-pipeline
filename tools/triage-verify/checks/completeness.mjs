@@ -11,10 +11,7 @@
 // carrying a superseded `policyId` is a finding rather than something to re-score silently.
 
 import { buildDecisionTrace } from "../../job-scorer/trace.mjs";
-import {
-  TRIAGE_POLICY_ID,
-  NORMALIZED_INPUT_SCHEMA_VERSION,
-} from "../../job-scorer/normalized-input.mjs";
+import { isSupportedInputEpoch } from "../../job-scorer/normalized-input.mjs";
 import { TOOLMATCH_TAXONOMY_ID } from "../../job-scorer/tool-taxonomy.mjs";
 import { normalizeVacancyUrl } from "../../lib/triage-ledger-core.mjs";
 import {
@@ -22,6 +19,7 @@ import {
   TERMINAL_PLAN_ACTIONS,
   batchInstant,
   readPlan,
+  readSourcePlan,
   skipSupported,
 } from "../plan.mjs";
 
@@ -124,7 +122,8 @@ function planAccountedLinks(context, findings, claimedByUrl) {
 }
 
 export function run(context) {
-  const findings = [];
+  const sourceMode = context.sourceVerification?.active === true;
+  const findings = [...(context.sourceVerification?.findings ?? [])];
   for (const name of context.batch.unexpected) {
     findings.push({ code: "unexpected_artifact", file: name });
   }
@@ -154,7 +153,9 @@ export function run(context) {
     // the session under verification does not write - through the record's URL: the one-based
     // position of its link inside the verified range, the first occurrence where two raw lines
     // normalize to one URL. A record outside the range has its own finding below.
-    const expectedIndex = rangePosition(context.links, record.sourceRef);
+    const expectedIndex = sourceMode
+      ? record.input.inputIndex
+      : rangePosition(context.links, record.sourceRef);
     if (expectedIndex !== null && record.input.inputIndex !== expectedIndex) {
       findings.push({ code: "input_index_mismatch", index: record.index });
     }
@@ -166,10 +167,9 @@ export function run(context) {
       else existing.push(record.index);
     }
     if (
-      record.input.policyId !== TRIAGE_POLICY_ID ||
-      record.input.schemaVersion !== NORMALIZED_INPUT_SCHEMA_VERSION ||
+      !isSupportedInputEpoch(record.input) ||
       (record.trace !== null &&
-        (record.trace.policy_id !== TRIAGE_POLICY_ID ||
+        (record.trace.policy_id !== record.input.policyId ||
           (record.trace.decision === "EVALUATED" &&
             typeof record.trace.toolmatch_taxonomy_id === "string" &&
             record.trace.toolmatch_taxonomy_id !== TOOLMATCH_TAXONOMY_ID)))
@@ -201,21 +201,27 @@ export function run(context) {
   }
 
   for (const [url, indices] of claimedByUrl) {
-    if (indices.length > 1) {
+    if (!sourceMode && indices.length > 1) {
       findings.push({
         code: "duplicate_record_for_link",
         indices: [...indices].sort((a, b) => a - b),
       });
     }
-    if (!context.links.some((link) => link.normalizedUrl === url)) {
+    if (!sourceMode && !context.links.some((link) => link.normalizedUrl === url)) {
       findings.push({ code: "record_outside_range", indices: [...indices].sort((a, b) => a - b) });
     }
   }
 
-  const accounted = planAccountedLinks(context, findings, claimedByUrl);
+  if (sourceMode) findings.push(...readSourcePlan(context).problems);
+  const accounted = sourceMode
+    ? context.sourceVerification.accountedUrls
+    : planAccountedLinks(context, findings, claimedByUrl);
   let covered = 0;
   for (const link of context.links) {
-    if (claimedByUrl.has(link.normalizedUrl)) {
+    if (
+      (!sourceMode && claimedByUrl.has(link.normalizedUrl)) ||
+      (sourceMode && accounted.has(link.normalizedUrl))
+    ) {
       covered += 1;
       continue;
     }
@@ -231,6 +237,9 @@ export function run(context) {
       records: context.records.length,
       tracesRecomputed,
       planPresent: context.batch.plan.present,
+      ...(sourceMode
+        ? { logicalVacancies: context.sourceVerification.resolution?.groups.length ?? 0 }
+        : {}),
     },
   };
 }

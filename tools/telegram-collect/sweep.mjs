@@ -55,6 +55,7 @@ import { detectMessagePage, detectPage } from "./detect.mjs";
 import { boilerplateOf, linksOf, markBoilerplate } from "./links.mjs";
 import { fingerprintOf, firstDifferingLine, isExpired, repostIndex } from "./reposts.mjs";
 import { hasText, titleLineOf } from "./text.mjs";
+import { renderPost } from "./batches.mjs";
 
 const DAY_MS = 86_400_000;
 // A message whose time lies this far before the previous pass began is taken to have existed then.
@@ -536,7 +537,7 @@ export async function walkSources({
  * the candidates of general ones, oldest first within each: a repost group that holds a thematic
  * post is never read, and its original is that post even when a candidate of the group is older.
  */
-export function resolveSweep({ config, state, walk, answers = null }) {
+export function resolveSweep({ config, state, walk, answers = null, readerVersion = 2 }) {
   const startedAt = walk.started_at;
   const startedMs = Date.parse(startedAt);
   const memoryDays = config.repostMemoryDays;
@@ -552,7 +553,11 @@ export function resolveSweep({ config, state, walk, answers = null }) {
     ),
   );
   const seenKnown = new Set();
-  const index = repostIndex(state.fingerprints, { nowMs: startedMs, memoryDays });
+  const index = repostIndex(state.fingerprints, {
+    nowMs: startedMs,
+    memoryDays,
+    exactSource: readerVersion === 2,
+  });
   const empties = [];
   const notCandidates = [];
   const reposts = [];
@@ -589,7 +594,12 @@ export function resolveSweep({ config, state, walk, answers = null }) {
       .filter((entry) => entry.type === "url" && entry.marks.length === 0)
       .map((entry) => entry.key);
     for (const key of urlKeys) if (knownUrls.has(key)) seenKnown.add(key);
-    const fingerprint = fingerprintOf(post, { handle, urlKeys, seenAt: startedAt });
+    const fingerprint = fingerprintOf(post, {
+      handle,
+      urlKeys,
+      seenAt: startedAt,
+      sourceMapping: readerVersion === 2,
+    });
     const original = index.find(fingerprint);
     if (original !== null) {
       index.touch(original, startedAt);
@@ -607,7 +617,7 @@ export function resolveSweep({ config, state, walk, answers = null }) {
       continue;
     }
     index.add(fingerprint);
-    if (thematic) {
+    if (thematic && readerVersion === 1) {
       cards.push(cardOf(post, { handle, entries, knownUrls }));
       continue;
     }
@@ -645,7 +655,26 @@ export function resolveSweep({ config, state, walk, answers = null }) {
   for (const item of pending) {
     const { handle, post, entries, fingerprint } = item;
     const key = keyOf(item);
-    const answer = answers.get(key) ?? { kind: "invalid", code: "post_missing" };
+    let answer = answers.get(key) ?? { kind: "invalid", code: "post_missing" };
+    if (readerVersion === 2 && answer.descriptor?.complete === false) {
+      const descriptor = renderPost(item, 1, config.roleWords, { sourceMapping: true }).descriptor;
+      answer = {
+        kind: "vacancy",
+        descriptor,
+        repairs: [],
+        vacancies: [
+          {
+            title_line: 1,
+            start_line: 1,
+            end_line: descriptor.shown.length,
+            description_kind: "unknown",
+            mapping_status: "unresolved_oversize",
+            links: descriptor.links.map((link) => ({ anchor: link.j, role: "unknown" })),
+            apply: [],
+          },
+        ],
+      };
+    }
     if (answer.kind === "vacancy") {
       const citedEntries = new Set();
       const citedLines = new Set();
@@ -654,7 +683,13 @@ export function resolveSweep({ config, state, walk, answers = null }) {
         citedLines.add(vacancy.title_line);
       }
       const decided = readerPostFates(entries, { citedEntries, knownUrls });
-      answer.vacancies.forEach((vacancy, at) => {
+      const vacancies =
+        readerVersion === 2
+          ? [...answer.vacancies].sort(
+              (a, b) => a.start_line - b.start_line || a.title_line - b.title_line,
+            )
+          : answer.vacancies;
+      vacancies.forEach((vacancy, at) => {
         const cited = citedEntriesOf(vacancy, answer.descriptor);
         const card = readerCardOf(post, {
           handle,
@@ -664,6 +699,7 @@ export function resolveSweep({ config, state, walk, answers = null }) {
           cited,
           vacancyNo: at + 1,
           first: at === 0,
+          descriptor: answer.descriptor,
         });
         cards.push(card);
         for (const entry of card.marked)
@@ -673,7 +709,7 @@ export function resolveSweep({ config, state, walk, answers = null }) {
       // The answer named a line the post does not have, and the post showed one line: the code took
       // the title from it (`answers.mjs`). The post is a card like any other, and the correction is
       // printed, because a reader corrected in silence is a reader nobody can check.
-      if (answer.repairs.length > 0) {
+      if ((answer.repairs ?? []).length > 0) {
         titleLineRepaired.push({
           handle,
           postId: post.id,
@@ -815,6 +851,7 @@ export function resolveSweep({ config, state, walk, answers = null }) {
     collection,
     nextState: {
       ...state,
+      ...(readerVersion === 2 ? { schema_version: 3 } : {}),
       channels: { ...state.channels, ...walk.next_channels },
       fingerprints: index.all(),
       emitted_urls: emittedUrls,
@@ -834,9 +871,10 @@ export async function runSweep({
   fetchImpl,
   capture = async () => {},
   answers = null,
+  readerVersion = 2,
 }) {
   const walk = await walkSources({ config, state, now, sleep, fetchImpl, capture });
-  return { ...resolveSweep({ config, state, walk, answers }), walk };
+  return { ...resolveSweep({ config, state, walk, answers, readerVersion }), walk };
 }
 
 /**

@@ -11,7 +11,7 @@
  * this is the human-readable view of it.
  */
 import { compositionBuckets } from "./composition.mjs";
-import { dispositions } from "./plan.mjs";
+import { dispositions, sourceDispositions } from "./plan.mjs";
 import { fail } from "./errors.mjs";
 
 // `typeof null === "object"`, so a guard written on `typeof` alone lets a null field through and
@@ -60,6 +60,9 @@ const WITHHELD = new Set([
   "duplicate_in_batch",
   "unreadable_link",
   "terminal_gone",
+  "company_context",
+  "source_contact",
+  "source_summary",
 ]);
 
 function block(lines, heading, rows) {
@@ -108,10 +111,14 @@ export function renderPreTriagePlan(plan) {
       ` ${spend.avoided_by_ledger} by the ledger,` +
       ` ${spend.unreadable_link} are unreadable. Never fetched at all: ${spend.never_fetched}.`,
     `Dispositions: ${Object.keys(spend)
-      .filter((key) => dispositions.includes(key))
+      .filter((key) => [...dispositions, ...sourceDispositions].includes(key))
       .map((key) => `${key} ${spend[key]}`)
       .join(", ")}.`,
   ];
+  if (plan.logical !== undefined)
+    lines.push(
+      `Logical vacancies: ${plan.logical.supplied}. Collector descriptions: ${spend.source_snapshot}; company context: ${spend.company_context}.`,
+    );
   block(
     lines,
     "Not reaching the expensive lane:",

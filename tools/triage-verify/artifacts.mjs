@@ -11,6 +11,12 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { fail } from "./errors.mjs";
+import { MAX_RESOLUTION_BYTES } from "../triage-sources/reconcile.mjs";
+import {
+  MAX_SOURCE_SET_BYTES,
+  MAX_SOURCE_CAPTURE_BYTES,
+  sourceSetBasename,
+} from "../triage-sources/source-set.mjs";
 import {
   triageBatchPlanFileName,
   triageBatchRecordFileName,
@@ -36,6 +42,9 @@ export const manifestFileName = "fetch-manifest.json";
  * are one file by construction.
  */
 export const planFileName = triageBatchPlanFileName;
+export const collectionFileName = "collection.links.txt";
+export const sourceSetFileName = sourceSetBasename;
+export const sourceResolutionFileName = "source-resolution.json";
 export const dispositionFileName = "disposition.json";
 export const attestationFileName = "attestation.json";
 export const reportFileName = "verification-report.json";
@@ -48,6 +57,7 @@ export const reportFileName = "verification-report.json";
  */
 export const ledgerRecordFileName = triageBatchRecordFileName;
 
+const SOURCE_CAPTURE = /^\d{3}\.page\.html$/u;
 const PRIMARY_CAPTURE = /^(\d{3})\.capture\.txt$/u;
 const PART_CAPTURE = /^(\d{3})\.([a-z0-9][a-z0-9-]{0,31})\.capture\.txt$/u;
 const INPUT_FILE = /^(\d{3})\.input\.json$/u;
@@ -75,17 +85,17 @@ function readTextFile(path, limit) {
   }
 }
 
-function readJsonFile(path) {
-  const { text, error } = readTextFile(path, MAX_JSON_BYTES);
-  if (error !== null) return { value: null, error };
+function readJsonFile(path, limit = MAX_JSON_BYTES) {
+  const { text, error } = readTextFile(path, limit);
+  if (error !== null) return { value: null, error, text: null };
   try {
-    return { value: JSON.parse(text), error: null };
+    return { value: JSON.parse(text), error: null, text };
   } catch {
-    return { value: null, error: "json_malformed" };
+    return { value: null, error: "json_malformed", text };
   }
 }
 
-function optionalJsonFile(dir, name) {
+function optionalJsonFile(dir, name, limit = MAX_JSON_BYTES) {
   let stats;
   try {
     stats = statSync(join(dir, name));
@@ -93,8 +103,8 @@ function optionalJsonFile(dir, name) {
     return { present: false, value: null, error: null };
   }
   if (!stats.isFile()) return { present: true, value: null, error: "not_a_regular_file" };
-  const { value, error } = readJsonFile(join(dir, name));
-  return { present: true, value, error };
+  const { value, error, text } = readJsonFile(join(dir, name), limit);
+  return { present: true, value, error, text };
 }
 
 function listDirectory(dir) {
@@ -112,6 +122,9 @@ const OPTIONAL_FILE_NAMES = Object.freeze([
   attestationFileName,
   reportFileName,
   ledgerRecordFileName,
+  sourceSetFileName,
+  sourceResolutionFileName,
+  collectionFileName,
 ]);
 
 /**
@@ -135,16 +148,56 @@ export function loadBatchArtifacts(artifactsDir) {
   if (entries === null)
     fail("artifacts_unreadable", "The artifacts directory could not be listed.");
 
+  const sourceSet = optionalJsonFile(artifactsDir, sourceSetFileName, MAX_SOURCE_SET_BYTES);
+  const sourcePaths = new Set(
+    (Array.isArray(sourceSet.value?.snapshots) ? sourceSet.value.snapshots : [])
+      .map((snapshot) => snapshot?.capture?.file)
+      .filter(
+        (file) =>
+          typeof file === "string" &&
+          file.length <= 256 &&
+          /^[A-Za-z0-9._/-]+$/u.test(file) &&
+          !file.split("/").some((part) => ["", ".", ".."].includes(part)),
+      ),
+  );
   const captures = [];
+  const sourceCaptures = [];
   const unexpected = [];
+  const scanSourceDirectory = (path) => {
+    const children = listDirectory(join(artifactsDir, path));
+    if (children === null) {
+      unexpected.push(`${path}/`);
+      return;
+    }
+    for (const child of children) {
+      const file = `${path}/${child.name}`;
+      if (
+        child.isDirectory() &&
+        [...sourcePaths].some((declared) => declared.startsWith(`${file}/`))
+      )
+        scanSourceDirectory(file);
+      else if (child.isFile() && sourcePaths.has(file)) {
+        const { text, error } = readTextFile(join(artifactsDir, file), MAX_SOURCE_CAPTURE_BYTES);
+        sourceCaptures.push({ file, text, error });
+      } else unexpected.push(`${file}${child.isDirectory() ? "/" : ""}`);
+    }
+  };
   for (const entry of entries) {
     const { name } = entry;
     if (entry.isDirectory()) {
-      if (![inputsDirName, tracesDirName, blindDirName].includes(name)) unexpected.push(`${name}/`);
+      if (![inputsDirName, tracesDirName, blindDirName].includes(name)) {
+        if ([...sourcePaths].some((file) => file.startsWith(`${name}/`))) scanSourceDirectory(name);
+        else unexpected.push(`${name}/`);
+      }
       continue;
     }
     if (!entry.isFile()) {
       unexpected.push(name);
+      continue;
+    }
+    if (SOURCE_CAPTURE.test(name) || sourcePaths.has(name)) {
+      const { text, error } = readTextFile(join(artifactsDir, name), MAX_SOURCE_CAPTURE_BYTES);
+      sourceCaptures.push({ file: name, text, error });
       continue;
     }
     const primary = name.match(PRIMARY_CAPTURE);
@@ -208,6 +261,17 @@ export function loadBatchArtifacts(artifactsDir) {
     ),
     inputs,
     traces,
+    sourceCaptures: sourceCaptures.sort((left, right) => left.file.localeCompare(right.file)),
+    sourceSet,
+    sourceResolution: optionalJsonFile(
+      artifactsDir,
+      sourceResolutionFileName,
+      MAX_RESOLUTION_BYTES,
+    ),
+    collection: {
+      present: entries.some((entry) => entry.name === collectionFileName),
+      ...readTextFile(join(artifactsDir, collectionFileName), 1024 * 1024),
+    },
     manifest: optionalJsonFile(artifactsDir, manifestFileName),
     plan: optionalJsonFile(artifactsDir, planFileName),
     disposition: optionalJsonFile(artifactsDir, dispositionFileName),

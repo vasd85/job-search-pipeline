@@ -1,3 +1,5 @@
+import { resolveSourceSet } from "../tools/triage-sources/reconcile.mjs";
+import { sourceCompositionObservations } from "../tools/triage-sources/report.mjs";
 // Pre-triage stage: collection freshness, the liveness sweep, the composition report and the
 // spend accounting that ties them together.
 //
@@ -46,10 +48,15 @@ import { candidateExampleRootFor, candidateScoringValues } from "../tools/candid
 import { candidatePrioritiesFrom } from "../tools/candidate/priorities.mjs";
 import {
   initLedger,
+  emptyLedger,
   planBatch,
   readLedger,
   recordBatch,
+  planSourceBatch,
+  upgradeLedger,
 } from "../tools/lib/triage-ledger-core.mjs";
+import { createSourceSet, serializeSourceSet } from "../tools/triage-sources/source-set.mjs";
+import { fictionalSourceFixture } from "./fixtures/triage-source-context/cases.mjs";
 import {
   claimGroup,
   collectionGroup,
@@ -64,6 +71,132 @@ const EXPECTED_STALE_AFTER_DAYS = 7;
 const LINK_ONE = "https://www.linkedin.com/jobs/view/4418544694/";
 const LINK_TWO = "https://www.linkedin.com/jobs/view/4449892212/";
 const LINK_THREE = "https://www.linkedin.com/jobs/view/4455248338/";
+
+test("source pretriage excludes proven company context and keeps full original and apply sources", (t) => {
+  const fixture = fictionalSourceFixture();
+  const root = disposableRoot(t, "source-pretriage-");
+  const text = `# collected: 2026-10-08T08:00:00.000Z\n# order: newest-first\n${fixture.collectionText}`;
+  const set = createSourceSet({
+    collectionText: text,
+    snapshots: fixture.sourceSet.snapshots,
+    cards: fixture.sourceSet.cards,
+  });
+  writeFileSync(join(root, "001.page.html"), fixture.html);
+  writeFileSync(join(root, "source-set.json"), serializeSourceSet(set));
+  writeFileSync(join(root, "collection.links.txt"), text);
+  const source = readCollection(join(root, "collection.links.txt"), {
+    sourceSetPath: join(root, "source-set.json"),
+  });
+  assert.equal(source.links[0].memberships[0].role, "company_context");
+  assert.equal(source.links.collectionText, text);
+  const path = join(root, "triage-ledger.json");
+  initLedger(path);
+  upgradeLedger(path);
+  const ledgerPlan = planBatch(
+    readLedger(path),
+    source.links.map((link) => link.url),
+    { asOf: "2026-10-08T09:00:00Z" },
+  );
+  // Legacy URL cache claims cannot suppress a different immutable source card.
+  ledgerPlan.items[1].action = "skip_closed";
+  const sourcePlan = planSourceBatch(path, set, {
+    asOf: "2026-10-08T09:00:00Z",
+    collectionText: text,
+    captureRoot: root,
+  });
+  const plan = planPreTriage({
+    collection: source,
+    ledgerPlan,
+    sourcePlan,
+    asOf: "2026-10-08T09:00:00Z",
+  });
+  assert.equal(plan.schema_version, 2);
+  assert.deepEqual(
+    plan.links.map((row) => row.disposition),
+    ["company_context", "pending_sweep", "source_snapshot"],
+  );
+  assert.deepEqual(plan.sweep.links, ["https://jobs.example.test/qa/101"]);
+  assert.equal(plan.spend.never_fetched, 2);
+  assert.equal(plan.logical.supplied, 1);
+  assert.match(renderPreTriagePlan(plan), /Logical vacancies: 1/u);
+  assert.throws(
+    () => planPreTriage({ collection: source, ledgerPlan, asOf: "2026-10-08T09:00:00Z" }),
+    (error) => error.code === "pretriage_invalid_source_plan",
+  );
+  const bare = readCollection(join(root, "collection.links.txt"));
+  assert.equal(
+    bare.source_set,
+    undefined,
+    "via comments or adjacent files do not imply source identity",
+  );
+});
+
+test("source units stay whole and shared company context does not join different jobs", () => {
+  const first = fictionalSourceFixture();
+  const second = fictionalSourceFixture({
+    postId: 102,
+    jobUrl: "https://jobs.example.test/qa/102",
+  });
+  const text =
+    [...new Set(`${first.collectionText}${second.collectionText}`.trim().split("\n"))].join("\n") +
+    "\n";
+  const set = createSourceSet({
+    collectionText: text,
+    snapshots: [first.snapshot, second.snapshot],
+    cards: [first.card, second.card],
+  });
+  const collection = collectionOf(text.trim().split("\n"), {
+    source_set: set,
+    collection_text: text,
+  });
+  const split = splitCollection(collection, { groupSize: 3 });
+  assert.equal(split.schema_version, 2);
+  assert.deepEqual(
+    split.groups.map((group) => [group.from, group.to, group.size]),
+    [
+      [1, 3, 3],
+      [4, 5, 2],
+    ],
+  );
+  assert.equal(split.groups[0].card_refs.length, 1);
+  assert.equal(split.groups[1].card_refs.length, 1);
+  assert.notEqual(split.groups[0].card_refs[0], split.groups[1].card_refs[0]);
+  const secondGroup = collectionGroup(collection, split.groups[1]);
+  assert.deepEqual(secondGroup.source_selection.card_refs, split.groups[1].card_refs);
+  assert.deepEqual(
+    secondGroup.links.map((link) => link.position),
+    [4, 5],
+  );
+  const small = splitCollection(collection, { groupSize: 1 });
+  assert.ok(
+    small.groups.every((group) => group.oversize),
+    "source units are explicit oversize rather than silently split",
+  );
+});
+
+test("source collection rejects mismatched bytes and missing or changed HTML provenance", (t) => {
+  const fixture = fictionalSourceFixture();
+  const root = disposableRoot(t, "source-links-");
+  writeFileSync(join(root, "001.page.html"), fixture.html);
+  writeFileSync(join(root, "source-set.json"), serializeSourceSet(fixture.sourceSet));
+  const path = join(root, "collection.links.txt");
+  writeFileSync(path, fixture.collectionText);
+  assert.equal(
+    readCollection(path, { sourceSetPath: join(root, "source-set.json") }).links.length,
+    3,
+  );
+  writeFileSync(path, `${fixture.collectionText}# changed\n`);
+  assert.throws(
+    () => readCollection(path, { sourceSetPath: join(root, "source-set.json") }),
+    (error) => error.code === "links_source_set_invalid",
+  );
+  writeFileSync(path, fixture.collectionText);
+  writeFileSync(join(root, "001.page.html"), fixture.html.replace("Senior", "Junior"));
+  assert.throws(
+    () => readCollection(path, { sourceSetPath: join(root, "source-set.json") }),
+    (error) => error.code === "links_source_set_invalid",
+  );
+});
 
 function disposableRoot(t, prefix = "pretriage-") {
   const root = mkdtempSync(join(realpathSync(tmpdir()), prefix));
@@ -1822,4 +1955,59 @@ test("every group planned and recorded leaves one row per vacancy and one batch 
     { asOf: "2026-09-20T11:00:00Z" },
   );
   assert.equal(closing.counts.fetch_new, 0);
+});
+
+test("source composition counts logical vacancies once and keeps unresolved sources unknown", () => {
+  const fixture = fictionalSourceFixture();
+  const resolved = resolveSourceSet(fixture);
+  const priorities = {
+    remoteCompanyRegions: ["WEST"],
+    relocationWest: false,
+    relocationCountries: [],
+  };
+  const composition = composeBatch(sourceCompositionObservations(resolved), { priorities });
+  assert.equal(resolved.observations.length, 2);
+  assert.equal(composition.total, 1);
+  fixture.target.identity_status = "linked_unconfirmed";
+  const unresolved = resolveSourceSet(fixture);
+  const review = composeBatch(sourceCompositionObservations(unresolved), { priorities });
+  assert.equal(review.total, 1);
+  assert.equal(review.by_priority_class.unknown, 1);
+  assert.equal(review.by_work_format.Unknown, 1);
+});
+
+test("pretriage retries a failed job source despite a confirmed known logical vacancy", () => {
+  const fixture = fictionalSourceFixture();
+  const collection = collectionOf(fixture.collectionText.trim().split("\n"), {
+    source_set: fixture.sourceSet,
+    collection_text: fixture.collectionText,
+  });
+  const ledgerPlan = planBatch(
+    emptyLedger(),
+    collection.links.map((link) => link.url),
+    { asOf: "2026-10-08T09:00:00Z" },
+  );
+  const sourcePlan = planSourceBatch(emptyLedger({ schemaVersion: 2 }), fixture.sourceSet, {
+    asOf: "2026-10-08T09:00:00Z",
+    collectionText: fixture.collectionText,
+  });
+  for (const item of sourcePlan.items) {
+    item.action = "skip_known";
+    for (const source of item.sources)
+      if (!["company_context", "contact"].includes(source.role)) source.action = "skip_known";
+    item.sources.find((source) => source.role === "apply").action = "retry_blocked";
+  }
+  const plan = planPreTriage({ collection, ledgerPlan, sourcePlan, asOf: "2026-10-08T09:00:00Z" });
+  assert.equal(
+    plan.links.find((link) => link.url === fixture.target.source_ref).disposition,
+    "pending_sweep",
+  );
+  assert.equal(
+    plan.links.find((link) => link.url === fixture.original.source_ref).disposition,
+    "skipped_by_ledger",
+  );
+  assert.equal(
+    plan.links.find((link) => link.url === "https://fictional-labs.example.test/").disposition,
+    "company_context",
+  );
 });

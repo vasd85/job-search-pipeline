@@ -37,7 +37,11 @@ node tools/triage-ledger.mjs init
 node tools/triage-ledger.mjs validate
 ```
 
-The key of a row is `source:job_id` (`linkedin:4418544694`). The source is determined by the
+Version 1 remains readable and writable through the original URL API. `init` retains its version
+1 creation contract; `upgrade` explicitly adds version 2's source accounting to the same file.
+It does not reinterpret old rows or alter their stored keys, timestamps or batch digests.
+
+The key of a URL observation is `source:job_id` (`linkedin:4418544694`). The source is determined by the
 registry `tools/job-sources/registry.mjs`; if the id cannot be read from the URL, the job id is the
 normalized URL, so the ledger works for arbitrary links too.
 
@@ -252,6 +256,79 @@ between machines.
 
 Only a source **able to change a batch that already has a record** counts; the mere appearance of a
 writer does not meet the condition.
+
+## 1.2. Version 2: logical vacancies and source memberships
+
+```sh
+node tools/triage-ledger.mjs upgrade
+node tools/triage-ledger.mjs validate
+```
+
+There is still one mutable ledger. Its `entries` retain the URL observations under the version 1
+contract. Version 2 adds `logical_entries`, `source_records`, immutable confirmed `aliases` and
+`corrections`. A logical entry has a current decision and immutable `card_refs`; a source record
+has a role and disposition scoped to a particular card. A company-context source has no vacancy
+liveness or fabricated Decision Trace. Its URL may still be an ordinary standalone input in a
+different run: `planBatch` reads URL observations and never inherits a context role globally.
+
+`planSourceBatch(ledgerOrPath, sourceSet, options)` validates snapshot, title anchor and the card's
+own boundaries before reading a baseline. `logicalVacancyKey(card_ref)` hashes the immutable card
+reference; `vacancy_no` is display-only. Supplying a new snapshot or changing the card's own
+boundaries therefore does not inherit a previous role's `skip_known` or `skip_closed`. Reader
+permutations and added cards leave unchanged card references intact. Confirmed aliases require
+old and new immutable observations with the same direct posting identity and explicit company
+and role; a homepage, author, post URL or caller-supplied key cannot prove that association.
+Unconfirmed sources retain a visible source review and remain eligible for reading.
+
+The source plan binds `source_set_sha256` and `ledger_snapshot_sha256`. A confirmed logical
+baseline supplies the usual four actions; `source_review` preserves unresolved identity. An
+unchanged guarded card with an open BLOCKED baseline remains `retry_blocked` even when a failure
+cannot confirm its JD. Unconfirmed sources never inherit `skip_known` or `skip_closed`. Each
+item also retains its card-scoped sources. `company_context` and `contact` dispositions avoid JD
+fetching, while details/apply and unknown sources remain accounted for. Shared context URLs
+neither merge logical rows nor couple their caches.
+
+Each source retains its own checked decision and liveness when it has an actual observation.
+A typed BLOCKED job source therefore remains `retry_blocked` for that exact card, snapshot,
+anchor and URL even if a usable full original already supplies the logical result. Accounting an
+unfetched alternative again does not erase its previous failure. Context/contact dispositions
+remain outside job retry, and edited cards do not inherit another card's source outcome.
+
+`recordSourceBatch(path, batch, {artifactsDir, validation})` is an in-process mutation, with no
+shell-facing source values. It reads `source-set.json`, `source-resolution.json` and `plan.json`
+from the existing batch directory, verifies the declared byte digests and the independent source
+resolution contract, then derives the logical rows and source dispositions. `validation` carries
+the supported languages and scoring snapshot when the archived epoch requires them. The batch
+payload names `batch_id`, `observed_at`, `policy_id`, `source_set_sha256`,
+`source_resolution_sha256` and `plan_sha256`; optional `entries` are actual URL observations
+with a matching validated trace. Version 2 always declares an archive.
+
+The immutable version 2 `ledger-record.json` binds all three artifacts, logical results, URL
+observations, memberships and verified parent references. It is written before the ledger. A
+selected logical row or correction parent that moved after planning refuses the first write with
+`triage_ledger_concurrent_observation` without writing a record; unrelated concurrent observations
+can both land. A matching orphan record bypasses the snapshot guard for recovery;
+replay completes its index while preserving any later observation. An already indexed replay
+returns without changing the ledger. A different payload under the same batch id is refused.
+Historical version 1 records retain their original schema and digest calculation.
+
+**Correcting a proven old company-homepage BLOCKED.** Run this only in the updated operational
+runtime after release and cutover, with a new correction batch. Development tests use disposable
+roots. `correctSourceObservations` accepts the ordinary source-batch digest fields and
+`corrections: [{parent_batch_id, parent_entries_digest, card_ref, url}]`. The named parent is read
+from the same batch store and its immutable record/digest must confirm that open BLOCKED URL
+observation. The new source set and resolution must prove `company_context` for the named card.
+The archive retains the parent record's byte digest, old observation time and exact source
+anchor. Archive-before-ledger, concurrency, orphan recovery and replay guards all apply.
+
+A correction leaves the original URL row, `first_seen`, `last_checked`, status and decision
+intact, and creates no fresh logical or job-source observation. Its new memberships describe
+only the corrected context sources. Review excludes only that referenced old URL
+observation from vacancy counting; it exposes its correction and source membership separately.
+A later standalone observation of the same URL is counted under its own batch. Nothing is
+declared closed, and no old capture, trace, input or batch record is rewritten. Genuine failures
+and bare URLs retain their retry behavior. General standalone not-a-vacancy codes remain outside
+this source-context contract.
 
 ## 2. Batch start: a plan instead of a repeated spend
 
@@ -474,6 +551,7 @@ read:
 | `gap:*`                              | By the token's class ([the rubric's decision record](../../knowledge/job-match-rules.md#22-accepted-triage-decision-record), the rule above): class A — a counter, needs no decision; class B — per vacancy, the one decision is what the "What would price it" column names, and it has two exits under [where a decision goes](#5-where-a-decision-goes): a backlog task (the rubric's table or an extraction step) or an input to the next run                                                                                                                                                                                                               |
 | `assumption:*`                       | Not presented: class C under [the rubric's decision record](../../knowledge/job-match-rules.md#22-accepted-triage-decision-record), not written into flags ([the ledger](#1-ledger)). A row with such a flag is left over from a batch recorded under the earlier rule of [the ledger](#1-ledger), and it leaves the group when the vacancy is recomputed — by a re-check at the user's request ([when a known vacancy is fetched again](#3-when-a-known-vacancy-is-fetched-again))                                                                                                                                                                             |
 | `vacancy_unavailable`                | A technical failure of the fetch (BLOCKED), not a rejection. It needs no decision: it is presented per vacancy — the link and the `symptom` from its trace in the batch store — without a question. The row stays `open` and leaves the group when the link is submitted again and opens, or the source names the vacancy closed ([when a known vacancy is fetched again](#3-when-a-known-vacancy-is-fetched-again))                                                                                                                                                                                                                                            |
+| `source_review`                      | Reconcile the linked card sources using their immutable boundaries, captures, explicit facts and posting identity. Present the alternatives and conflicts in one linked row. A confirmed primary JD with supported evidence is recorded in a new batch; context links and a user's preference cannot waive identity, manual_role or junior_role guards.                                                                                                                                                                                                                                                                                                         |
 
 A group missing from the table never exists "just this once": either a row is added to the table in
 the same commit as the new flag, or a backlog task is filed. An answer from the user of the form
