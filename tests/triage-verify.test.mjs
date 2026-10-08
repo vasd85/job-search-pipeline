@@ -5380,3 +5380,134 @@ test("source cross-transport independently refuses closure declared over its own
     JSON.stringify(checked),
   );
 });
+
+// R: separation requires observed job identity, rather than the caller's different label alone.
+function assertUnprovenSourceSeparationRefused(t, fixture, options) {
+  fixture.target.identity_status = "different";
+  assert.throws(
+    () => {
+      const prepared = publishFileBackedSourceCase(t, fixture, options);
+      const report = verifySource(prepared);
+      assert.equal(report.status, "pass", codes(report).join(","));
+      assert.equal(prepared.resolution.groups.length, 2);
+      assert.equal(report.counts.logicalVacancies, 2);
+    },
+    { code: "source_resolution_invalid" },
+  );
+}
+
+test("file-backed source compiler refuses different asserted for the same employer role and exact body", (t) => {
+  const fixture = fictionalSourceFixture();
+  fixture.target.body = fixture.original.body;
+  fixture.target.input.sourceContext.endLine = fixture.target.body.split("\n").length;
+  assertUnprovenSourceSeparationRefused(t, fixture);
+});
+
+test("file-backed source compiler refuses different used to hide original Junior versus target Senior", (t) => {
+  assertUnprovenSourceSeparationRefused(t, juniorOriginalWithSeniorTarget());
+});
+
+test("file-backed source compiler refuses different used to bypass a full manual original", (t) => {
+  const fixture = fictionalSourceFixture({ manual: true });
+  fixture.target.body = fixture.target.body.replace(
+    "Manual testing only",
+    "Primary test automation",
+  );
+  fixture.target.input.role.automation = "primary";
+  fixture.target.input.role.evidence.automation = "Primary test automation";
+  assertUnprovenSourceSeparationRefused(t, fixture);
+});
+
+test("file-backed source compiler refuses different asserted across meaningful posting query loss", (t) => {
+  const fixture = fictionalSourceFixture({
+    jobUrl: "https://jobs.example.test/qa/101?posting=101",
+  });
+  fixture.target.input.source.finalUrl = "https://jobs.example.test/qa/101";
+  assertUnprovenSourceSeparationRefused(t, fixture, {
+    captureFinalUrl: "https://jobs.example.test/qa/101",
+    manifestFinalUrl: "https://jobs.example.test/qa/101",
+  });
+});
+
+test("file-backed source compiler separates a genuinely different explicit target employer", (t) => {
+  const fixture = fictionalSourceFixture();
+  fixture.target.identity_status = "different";
+  fixture.target.body = fixture.target.body.replaceAll("Fictional Labs", "Beta Labs");
+  fixture.target.facts.company = { value: "Beta Labs", evidence_quote: "Company Beta Labs" };
+  fixture.target.input.source.company = "Beta Labs";
+  const prepared = publishFileBackedSourceCase(t, fixture);
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups.length, 2);
+  assert.equal(report.counts.logicalVacancies, 2);
+  const separate = prepared.resolution.groups.find(
+    (group) => group.identity_status === "different",
+  );
+  assert.ok(separate);
+  assert.equal(separate.result.decision, "EVALUATED");
+  assert.deepEqual(separate.conflicts, []);
+  const raw = prepared.resolution.observations.find(
+    (entry) => entry.source_ref === fixture.target.source_ref,
+  );
+  assert.equal(raw.input.source.company, "Beta Labs");
+  assert.ok(raw.body.includes(raw.facts.company.evidence_quote));
+});
+
+test("file-backed source compiler separates a genuinely different known role family with both own role facts", (t) => {
+  const fixture = fictionalSourceFixture();
+  fixture.target.identity_status = "different";
+  fixture.target.body = fixture.target.body.replaceAll("QA Engineer", "Software Developer");
+  fixture.target.facts.title = {
+    value: "Software Developer",
+    evidence_quote: "Software Developer",
+  };
+  fixture.target.facts.role = { value: "Software Developer", evidence_quote: "Software Developer" };
+  fixture.target.facts.seniority = {
+    value: "Senior Software Developer",
+    evidence_quote: "Senior Software Developer",
+  };
+  Object.assign(fixture.target.input.source, {
+    jobTitle: "Software Developer",
+    evidenceQuote: "Software Developer",
+  });
+  fixture.target.input.role.family = "other";
+  fixture.target.input.role.evidence.role = "Software Developer";
+  fixture.target.input.role.evidence.seniority = "Senior Software Developer";
+  const prepared = publishFileBackedSourceCase(t, fixture);
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups.length, 2);
+  assert.equal(report.counts.logicalVacancies, 2);
+  const separate = prepared.resolution.groups.find(
+    (group) => group.identity_status === "different",
+  );
+  assert.ok(separate);
+  assert.equal(separate.result.skip_code, "not_qa_or_testing_role");
+  assert.deepEqual(separate.conflicts, []);
+  for (const raw of prepared.resolution.observations)
+    assert.ok(raw.body.includes(raw.facts.role.evidence_quote));
+});
+
+test("file-backed source compiler retains unresolved posting query identity in one source review", (t) => {
+  const fixture = fictionalSourceFixture({
+    jobUrl: "https://jobs.example.test/qa/101?posting=101",
+  });
+  fixture.target.identity_status = "linked_unconfirmed";
+  fixture.target.input.source.finalUrl = "https://jobs.example.test/qa/101";
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    captureFinalUrl: "https://jobs.example.test/qa/101",
+    manifestFinalUrl: "https://jobs.example.test/qa/101",
+  });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups.length, 1);
+  assert.equal(report.counts.logicalVacancies, 1);
+  assert.equal(prepared.resolution.groups[0].result.review_code, "source_review");
+  assert.ok(prepared.resolution.groups[0].conflicts.includes("identity_unconfirmed"));
+  assert.equal(prepared.resolution.groups[0].alternatives.length, 2);
+  assert.ok(
+    prepared.resolution.groups[0].alternatives.every(
+      (entry) => entry.trace.decision === "EVALUATED",
+    ),
+  );
+});

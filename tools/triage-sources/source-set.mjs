@@ -384,7 +384,7 @@ export function validateSourceSet(set, { collectionText, captureRoot } = {}) {
       )
         refuse("Source link does not match its code-extracted anchor.");
       if (
-        !["company_context", "unknown"].includes(link.role) &&
+        link.role !== "company_context" &&
         anchor.line !== null &&
         (anchor.line < card.start_line || anchor.line > card.end_line)
       )

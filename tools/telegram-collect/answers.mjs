@@ -142,7 +142,7 @@ function checkMappedVacancy(vacancy, descriptor) {
     )
       return null;
     if (
-      !["company_context", "unknown"].includes(mapping.role) &&
+      mapping.role !== "company_context" &&
       anchor.line !== null &&
       (anchor.line < vacancy.start_line || anchor.line > vacancy.end_line)
     )

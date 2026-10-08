@@ -85,6 +85,9 @@ Independently confirmed cards merge through a common job posting and matching em
 observation in the union is compared, including nonprimary alternatives. A contradiction keeps
 one linked `source_review` row and all raw outcomes; an absent primary fact cannot bridge conflicting
 alternatives. A `different` target is a separate logical group, with its own result and key.
+It requires a usable full target, checked destination identity and an explicit employer mismatch,
+or a different known role family supported by both sources' own role facts. Title, seniority, salary
+and date changes alone remain publication conflicts; a `different` label cannot waive them.
 
 Each group contains its logical key/cards, identity status, primary observation reference, every
 source disposition, conflicts, result and all raw alternatives. `url_accounting` covers every

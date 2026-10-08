@@ -4232,6 +4232,188 @@ test("source mapping2 reads complete thematic/general posts and rejects omitted 
   assert.ok(!full.text.includes("lines hidden"));
 });
 
+function boundaryMappingFixture({ floating = false } = {}) {
+  const company = "https://meadow.example.test/";
+  const unknown = "https://recruit.example.test/postings/alpha";
+  const lines = [
+    `Company <a href="${company}">Meadow Metrics</a>`,
+    "QA Alpha Engineer",
+    "Company Meadow Metrics",
+    "English description",
+    "Remote worldwide",
+    "Primary test automation",
+    "Senior QA Engineer",
+    "B2B data platform",
+    floating ? "Application available" : `Application <a href="${unknown}">Apply online</a>`,
+    "QA Beta Engineer",
+    "Company Meadow Metrics",
+    "English description",
+    "Remote worldwide",
+    "Primary test automation",
+    "Senior QA Engineer",
+    "B2B data platform",
+    "More information",
+  ];
+  const preview = floating
+    ? `<a class="tgme_widget_message_link_preview" href="${unknown}">Preview</a>`
+    : "";
+  const html = `<div class="tgme_widget_message" data-post="meadowqajobs/751"><div class="tgme_widget_message_text">${lines.join("<br/>")}</div>${preview}<div class="tgme_widget_message_footer"><a class="tgme_widget_message_date"><time datetime="2026-10-07T14:00:00+00:00">date</time></a></div></div>`;
+  const post = parsePage(html, { handle: "meadowqajobs" }).posts[0];
+  const item = { post, entries: linksOf(post) };
+  const snapshot = snapshotFromHtml(html, {
+    handle: "meadowqajobs",
+    postId: 751,
+    file: "001.page.html",
+    capturedAt: "2026-10-08T06:00:00.000Z",
+  });
+  const vacancies = (owner, role = "unknown") =>
+    [
+      [2, 9],
+      [10, 17],
+    ].map(([start, end], at) =>
+      mappedVac(start, start, end, [
+        { anchor: 1, role: "company_context" },
+        ...(at === owner ? [{ anchor: 2, role }] : []),
+      ]),
+    );
+  const cards = (owner) =>
+    vacancies(owner).map((vacancy) => ({
+      snapshot_ref: snapshot.snapshot_ref,
+      title_line: vacancy.title_line,
+      start_line: vacancy.start_line,
+      end_line: vacancy.end_line,
+      description_kind: vacancy.description_kind,
+      links: [
+        ...vacancy.links.map((link) => ({
+          ...link,
+          url: link.anchor === 1 ? company : unknown,
+        })),
+        { anchor: null, role: "original_post", url: snapshot.original_url },
+      ],
+    }));
+  return {
+    html,
+    item,
+    snapshot,
+    vacancies,
+    cards,
+    company,
+    unknown,
+    collectionText: `${snapshot.original_url}\n${unknown}\n${company}\n`,
+  };
+}
+
+test("source mapping2 rejects a known-line unknown anchor assigned to a sibling and keeps global context and unique floating anchors", () => {
+  const fixture = boundaryMappingFixture();
+  assert.equal(fixture.snapshot.anchors[1].line, 9);
+  assert.equal(
+    mappedAnswer(fixture.item, fixture.vacancies(1)).checked.results.get(1).kind,
+    "invalid",
+    "unknown at line 9 belongs to 2..9, not the sibling at 10..17",
+  );
+  assert.equal(
+    mappedAnswer(fixture.item, fixture.vacancies(0)).checked.results.get(1).kind,
+    "vacancy",
+  );
+  assert.equal(
+    mappedAnswer(fixture.item, fixture.vacancies(1, "details")).checked.results.get(1).kind,
+    "invalid",
+  );
+  const floating = boundaryMappingFixture({ floating: true });
+  assert.equal(floating.snapshot.anchors[1].line, null);
+  assert.equal(
+    mappedAnswer(floating.item, floating.vacancies(1)).checked.results.get(1).kind,
+    "vacancy",
+  );
+  const duplicate = floating.vacancies(1);
+  duplicate[0].links.push({ anchor: 2, role: "unknown" });
+  assert.equal(mappedAnswer(floating.item, duplicate).checked.results.get(1).kind, "invalid");
+  const legacy = renderPost(fixture.item, 1, ROLE);
+  const batch = { name: "boundary-legacy", schema_version: 1, posts: [legacy.descriptor] };
+  const answer = {
+    schema_version: 1,
+    batch: batch.name,
+    posts: [
+      {
+        post: 1,
+        vacancies: [{ title_line: 10, details_link: 2, apply: [] }],
+      },
+    ],
+  };
+  assert.equal(
+    checkAnswer(answer, batch).results.get(1).kind,
+    "vacancy",
+    "answer1 retains its own contract",
+  );
+});
+
+test("file-backed source-set validation rejects a sibling's known-line unknown anchor and accepts one floating owner", (t) => {
+  const root = disposableRoot(t, "source-boundary-custody-");
+  const fixture = boundaryMappingFixture();
+  const correct = createSourceSet({
+    collectionText: fixture.collectionText,
+    snapshots: [fixture.snapshot],
+    cards: fixture.cards(0),
+  });
+  writeFileSync(join(root, "001.page.html"), fixture.html);
+  const path = join(root, "source-set.json");
+  writeFileSync(path, serializeSourceSet(correct));
+  assert.equal(
+    readSourceSet(path, { collectionText: fixture.collectionText }).sourceSet.cards.length,
+    2,
+  );
+  assert.equal(
+    sourceSetMemberships(correct, fixture.company).length,
+    2,
+    "company_context at line 1 may stay outside and shared by both cards",
+  );
+  const misplaced = structuredClone(correct);
+  const first = misplaced.cards.find((card) => card.start_line === 2);
+  const sibling = misplaced.cards.find((card) => card.start_line === 10);
+  const unknown = first.links.find((link) => link.anchor === 2);
+  first.links = first.links.filter((link) => link.anchor !== 2);
+  sibling.links.push(unknown);
+  writeFileSync(path, serializeSourceSet(misplaced));
+  assert.throws(
+    () => readSourceSet(path, { collectionText: fixture.collectionText }),
+    (error) => error.code === "source_set_invalid",
+    "saved HTML proves line 9 is outside the mapped sibling",
+  );
+  assert.throws(
+    () =>
+      createSourceSet({
+        collectionText: fixture.collectionText,
+        snapshots: [fixture.snapshot],
+        cards: fixture.cards(1),
+      }),
+    (error) => error.code === "source_set_invalid",
+  );
+  const floating = boundaryMappingFixture({ floating: true });
+  const singleOwner = createSourceSet({
+    collectionText: floating.collectionText,
+    snapshots: [floating.snapshot],
+    cards: floating.cards(1),
+  });
+  writeFileSync(join(root, "001.page.html"), floating.html);
+  writeFileSync(path, serializeSourceSet(singleOwner));
+  assert.equal(
+    readSourceSet(path, { collectionText: floating.collectionText }).sourceSet.cards.length,
+    2,
+  );
+  const duplicate = structuredClone(singleOwner);
+  duplicate.cards
+    .find((card) => card.start_line === 2)
+    .links.push({
+      anchor: 2,
+      role: "unknown",
+      url: floating.unknown,
+    });
+  assert.throws(
+    () => validateSourceSet(duplicate),
+    (error) => error.code === "source_set_invalid",
+  );
+});
+
 test("immutable card refs survive answer permutations and adding a missed sibling, but own remapping and edited body change refs", async () => {
   const cfg = genConfig();
   const state = emptyState();

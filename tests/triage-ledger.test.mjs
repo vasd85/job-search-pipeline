@@ -279,11 +279,11 @@ function multiRoleFixture() {
   return { html, collectionText, sourceSet, company: "Acme", cards, snapshot };
 }
 
-function detailsObservation(fixture) {
+function detailsObservation(fixture, { company = fixture.company } = {}) {
   const sourceRef = fixture.sourceSet.cards[0].links.find((link) => link.role === "details").url;
-  const body = `${fixture.title}\nCompany: ${fixture.company}\nManual testing and Java.`;
+  const body = `${fixture.title}\nCompany: ${company}\nManual testing and Java.`;
   const capture = { file: "001.capture.txt", sha256: digest(body) };
-  const raw = sourceObservation(fixture, undefined, { sourceRef, body, capture });
+  const raw = sourceObservation({ ...fixture, company }, undefined, { sourceRef, body, capture });
   const bytes = renderCaptureFile({
     body,
     header: {
@@ -379,9 +379,10 @@ function linkedSourceObservations(fixture) {
     for (const link of card.links.filter((source) => ["details", "apply"].includes(source.role))) {
       const sourceRef = link.url;
       const title = link.role === "apply" ? "Junior QA Engineer" : fixture.title;
-      const body = `${title}\nCompany: ${fixture.company}\nManual testing and Java.`;
+      const company = link.role === "apply" ? "Beta" : fixture.company;
+      const body = `${title}\nCompany: ${company}\nManual testing and Java.`;
       const file = `${String(captureIndex).padStart(3, "0")}.capture.txt`;
-      const raw = sourceObservation(fixture, card, {
+      const raw = sourceObservation({ ...fixture, company }, card, {
         inputIndex: inputIndex++,
         sourceRef,
         body,
@@ -414,7 +415,7 @@ function linkedSourceObservations(fixture) {
   return { observations, captures };
 }
 
-function verifySourceBatch(context, staged, fixture) {
+function verifySourceBatch(context, staged, fixture, cadence = "per-batch") {
   return runSuite(
     buildContext({
       artifactsDir: staged.dir,
@@ -423,7 +424,7 @@ function verifySourceBatch(context, staged, fixture) {
       to: fixture.collectionText.trim().split("\n").length,
       ledgerPath: context.path,
     }),
-    "per-batch",
+    cadence,
   );
 }
 
@@ -431,6 +432,105 @@ function overwriteSourcePlan(staged, plan) {
   const text = `${JSON.stringify(plan, null, 2)}\n`;
   writeFileSync(join(staged.dir, "plan.json"), text);
   staged.payload.plan_sha256 = digest(text);
+}
+
+function capturedDetailsOutcome(fixture, { outcome = "active", observedAt = sourceInstant } = {}) {
+  const sourceRef = fixture.sourceSet.cards[0].links.find((link) => link.role === "details").url;
+  const unread = outcome !== "active";
+  const body =
+    outcome === "closed"
+      ? "This posting is closed."
+      : unread
+        ? "Request failed, no vacancy content available."
+        : `${fixture.title}\nCompany: ${fixture.company}\nPrimary test automation and Java.\nEnglish description.`;
+  const capture = { file: "002.capture.txt", sha256: digest(body) };
+  const raw = unread
+    ? unreadSourceObservation(fixture, { sourceRef, inputIndex: 2, closed: outcome === "closed" })
+        .raw
+    : sourceObservation(fixture, undefined, { sourceRef, inputIndex: 2, body, capture });
+  delete raw.transport;
+  raw.capture = capture;
+  raw.body = body;
+  raw.input.sourceContext = {
+    ...raw.input.sourceContext,
+    primaryCaptureSha256: capture.sha256,
+    startLine: 1,
+    endLine: body.split("\n").length,
+  };
+  if (outcome === "closed") raw.input.source.evidenceQuote = body;
+  if (!unread) {
+    raw.input.role.automation = "primary";
+    raw.input.role.evidence.automation = "Primary test automation";
+  }
+  const bytes = renderCaptureFile({
+    body,
+    header: {
+      index: 2,
+      adapter: "fictional",
+      "source-id": "url",
+      "requested-url": sourceRef,
+      "final-url": sourceRef,
+      "fetched-at": observedAt,
+      "http-status": outcome === "closed" ? 404 : 200,
+      outcome,
+      ...(outcome === "access_failure" ? { "access-barrier": "network_error" } : {}),
+      "normalized-sha256": digest(body),
+      "body-bytes": Buffer.byteLength(body),
+      normalization: "none",
+    },
+  });
+  return { observations: [sourceObservation(fixture), raw], captures: [[capture.file, bytes]] };
+}
+
+function sourceFullEvidence(staged, observedAt) {
+  mkdirSync(join(staged.dir, "blind"));
+  const blind = structuredClone(
+    staged.resolution.observations.find((observation) => observation.input?.inputIndex === 1).input,
+  );
+  blind.source.evidenceQuote = "Company: Acme";
+  writeFileSync(join(staged.dir, "blind", "001.input.json"), JSON.stringify(blind));
+  writeFileSync(
+    join(staged.dir, "attestation.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      probes: ["phase0_capability_probe", "transport_hypotheses"].map((probe) => ({
+        probe,
+        ranAt: observedAt,
+        verdict: "held",
+      })),
+    }),
+  );
+}
+
+function terminalSourceScenario(t) {
+  const context = sourceLedger(t);
+  const fixture = fictionalSourceSet({ details: "https://acme.example/jobs/terminal-qa" });
+  const closure = capturedDetailsOutcome(fixture, { outcome: "closed" });
+  const first = sourceBatchDir(context, fixture, "terminal-source-first", {
+    ...closure,
+    prefetchPlan: true,
+  });
+  sourceFullEvidence(first, sourceInstant);
+  for (const cadence of ["per-batch", "full"]) {
+    const report = verifySourceBatch(context, first, fixture, cadence);
+    assert.equal(report.status, "pass", `${cadence}: ${report.findingCodes.join(",")}`);
+  }
+  recordSource(context.path, first);
+  const prior = readLedger(context.path).source_records.find((source) => source.role === "details");
+  assert.equal(prior.observation_status, "closed");
+  const observedAt = "2026-10-09T09:00:00Z";
+  const frozen = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+    asOf: observedAt,
+    collectionText: fixture.collectionText,
+    resolution: first.resolution,
+    captureRoot: first.dir,
+  });
+  assert.equal(frozen.items[0].action, "source_review");
+  assert.equal(
+    frozen.items[0].sources.find((source) => source.role === "details").action,
+    "skip_closed",
+  );
+  return { context, fixture, closure, first, prior, observedAt, frozen };
 }
 
 function disposableRoot(t, prefix = "triage-ledger-") {
@@ -2852,7 +2952,7 @@ test("rechecking existing merged and different groups requires and accepts a val
 
   const differentContext = sourceLedger(t);
   const fixture = fictionalSourceSet({ details: "https://jobs.acme.example/vacancy/311" });
-  const external = detailsObservation(fixture);
+  const external = detailsObservation(fixture, { company: "Beta" });
   external.raw.input.inputIndex = 2;
   external.raw.identity_status = "different";
   const observationPair = [sourceObservation(fixture), external.raw];
@@ -3126,7 +3226,7 @@ test("archived source plan provenance cannot be spoofed or replace the frozen ba
 test("a different target identity can record a new derived group from a complete initial card plan", (t) => {
   const context = sourceLedger(t);
   const fixture = fictionalSourceSet({ details: "https://jobs.acme.example/vacancy/91" });
-  const observation = detailsObservation(fixture);
+  const observation = detailsObservation(fixture, { company: "Beta" });
   observation.raw.input.inputIndex = 2;
   observation.raw.identity_status = "different";
   const staged = sourceBatchDir(context, fixture, "different-target", {
@@ -3142,6 +3242,176 @@ test("a different target identity can record a new derived group from a complete
   assert.equal(new Set(entries.map((entry) => entry.key)).size, 2);
   assert.equal(entries.find((entry) => entry.identity_status === "different").decision, "SKIP");
   assert.equal(entries.find((entry) => entry.identity_status === "confirmed").decision, "SKIP");
+});
+
+test("baseline verification refuses a fresh active capture for an exact terminal source inside an open logical review", (t) => {
+  const { context, fixture, observedAt, frozen } = terminalSourceScenario(t);
+  const reopened = sourceBatchDir(context, fixture, "terminal-source-refetch", {
+    ...capturedDetailsOutcome(fixture, { observedAt }),
+    observedAt,
+    prefetchPlan: true,
+  });
+  overwriteSourcePlan(reopened, frozen);
+  sourceFullEvidence(reopened, observedAt);
+  assert.equal(
+    reopened.resolution.observations.find((observation) => observation.input?.inputIndex === 2)
+      .trace.decision,
+    "EVALUATED",
+  );
+  const findings = ["per-batch", "full"].map((cadence) => {
+    const report = verifySourceBatch(context, reopened, fixture, cadence);
+    return {
+      cadence,
+      refetchFound: report.findingCodes.includes("refetched_closed_vacancy"),
+      baseline: (report.checks.find((check) => check.id === "baseline-diff")?.findings ?? [])
+        .filter((finding) => finding.code === "refetched_closed_vacancy")
+        .map((finding) => finding.index),
+    };
+  });
+  assert.deepEqual(
+    findings,
+    [
+      { cadence: "per-batch", refetchFound: true, baseline: [] },
+      { cadence: "full", refetchFound: true, baseline: [2] },
+    ],
+    "a nonprimary exact job source must obey its own terminal disposition",
+  );
+});
+
+test("the source recorder refuses a fresh terminal-member observation before archive or index mutation", (t) => {
+  const { context, fixture, observedAt, frozen } = terminalSourceScenario(t);
+  const reopened = sourceBatchDir(context, fixture, "terminal-recorder-refetch", {
+    ...capturedDetailsOutcome(fixture, { observedAt }),
+    observedAt,
+    prefetchPlan: true,
+  });
+  overwriteSourcePlan(reopened, frozen);
+  const before = readFileSync(context.path, "utf8");
+  const code = errorCode(() => recordSource(context.path, reopened));
+  assert.deepEqual(
+    {
+      code,
+      archived: existsSync(join(reopened.dir, "ledger-record.json")),
+      unchanged: readFileSync(context.path, "utf8") === before,
+    },
+    { code: "triage_ledger_refetched_closed_source", archived: false, unchanged: true },
+  );
+});
+
+test("carried closure reuses immutable source evidence and retains its actual checked clock", (t) => {
+  const { context, fixture, closure, first, prior, observedAt, frozen } = terminalSourceScenario(t);
+  const carried = sourceBatchDir(context, fixture, "terminal-copied-closure", {
+    ...closure,
+    observedAt,
+    prefetchPlan: true,
+  });
+  overwriteSourcePlan(carried, frozen);
+  sourceFullEvidence(carried, observedAt);
+  for (const cadence of ["per-batch", "full"])
+    assert.equal(verifySourceBatch(context, carried, fixture, cadence).status, "pass");
+  recordSource(context.path, carried);
+  const archived = readBatchRecord(carried.dir);
+  assert.deepEqual(
+    readLedger(context.path).source_records.find((source) => source.role === "details"),
+    prior,
+    "reusing a closed capture cannot pretend to fetch that source again",
+  );
+  assert.equal(
+    archived.source_records.find((source) => source.role === "details").observed_at,
+    prior.observed_at,
+  );
+  assert.ok(archived.parents.some((parent) => parent.batch_id === first.payload.batch_id));
+  const bytes = readFileSync(context.path, "utf8");
+  assert.equal(recordSource(context.path, carried).replayed, true);
+  assert.equal(readFileSync(context.path, "utf8"), bytes);
+});
+
+test("a fresh closed capture stamp cannot masquerade as carried terminal history", (t) => {
+  const { context, fixture, closure, first, observedAt, frozen } = terminalSourceScenario(t);
+  const refreshed = capturedDetailsOutcome(fixture, { outcome: "closed", observedAt });
+  const staged = sourceBatchDir(context, fixture, "terminal-new-closed-stamp", {
+    ...refreshed,
+    observedAt,
+    prefetchPlan: true,
+  });
+  overwriteSourcePlan(staged, frozen);
+  sourceFullEvidence(staged, observedAt);
+  const before = readFileSync(context.path, "utf8");
+  for (const cadence of ["per-batch", "full"])
+    assert.ok(
+      verifySourceBatch(context, staged, fixture, cadence).findingCodes.includes(
+        "refetched_closed_vacancy",
+      ),
+    );
+  assert.equal(
+    errorCode(() => recordSource(context.path, staged)),
+    "triage_ledger_refetched_closed_source",
+  );
+  const [captureFile, oldBytes] = closure.captures[0];
+  writeFileSync(join(first.dir, captureFile), refreshed.captures[0][1]);
+  try {
+    for (const cadence of ["per-batch", "full"])
+      assert.ok(
+        verifySourceBatch(context, staged, fixture, cadence).findingCodes.includes(
+          "refetched_closed_vacancy",
+        ),
+        "matching rewritten archive/new headers cannot postdate the checked terminal source",
+      );
+    assert.equal(
+      errorCode(() => recordSource(context.path, staged)),
+      "triage_ledger_refetched_closed_source",
+    );
+  } finally {
+    writeFileSync(join(first.dir, captureFile), oldBytes);
+  }
+  assert.equal(existsSync(join(staged.dir, "ledger-record.json")), false);
+  assert.equal(readFileSync(context.path, "utf8"), before);
+});
+
+test("changed immutable cards and blocked source retries may fetch the same URL", (t) => {
+  const { context, fixture, observedAt } = terminalSourceScenario(t);
+  const edited = fictionalSourceSet({
+    details: fixture.sourceSet.cards[0].links[2].url,
+    extra: " Updated post.",
+  });
+  const changed = sourceBatchDir(context, edited, "terminal-edited-card", {
+    ...capturedDetailsOutcome(edited, { observedAt }),
+    observedAt,
+    prefetchPlan: true,
+  });
+  sourceFullEvidence(changed, observedAt);
+  assert.equal(
+    changed.plan.items[0].sources.find((source) => source.role === "details").action,
+    "fetch_new",
+  );
+  for (const cadence of ["per-batch", "full"])
+    assert.equal(verifySourceBatch(context, changed, edited, cadence).status, "pass");
+  recordSource(context.path, changed);
+
+  const retryContext = sourceLedger(t);
+  const blocked = sourceBatchDir(retryContext, fixture, "blocked-source-first", {
+    ...capturedDetailsOutcome(fixture, { outcome: "access_failure" }),
+    prefetchPlan: true,
+  });
+  recordSource(retryContext.path, blocked);
+  const retry = sourceBatchDir(retryContext, fixture, "blocked-source-retry", {
+    ...capturedDetailsOutcome(fixture, { observedAt }),
+    observedAt,
+    prefetchPlan: true,
+  });
+  sourceFullEvidence(retry, observedAt);
+  assert.equal(
+    retry.plan.items[0].sources.find((source) => source.role === "details").action,
+    "retry_blocked",
+  );
+  for (const cadence of ["per-batch", "full"])
+    assert.equal(verifySourceBatch(retryContext, retry, fixture, cadence).status, "pass");
+  recordSource(retryContext.path, retry);
+  assert.equal(
+    readLedger(retryContext.path).source_records.find((source) => source.role === "details")
+      .observation_status,
+    "open",
+  );
 });
 
 test("two source writers sharing a logical row serialize and retain only the winning observation", async (t) => {

@@ -499,6 +499,8 @@ for upgrade, recording and correction APIs. All observations and payloads remain
    rules above: `skip_closed` is never fetched; `skip_known` is fetched only for an explicit re-check;
    `retry_blocked` is fetched like a new source. A failed job source is retryable even when the full original supplied a usable logical result. Context is never
    recorded as a BLOCKED vacancy. Retain typed manifest evidence when no capture could be written.
+   Never publish a new observation for a `skip_closed` source. A carried closure requires matching
+   archived observation, capture and transport proof and retains its original source clock.
 4. Extract each source independently. Every selected card requires its original observation,
    including an unscored summary. A full description requires its own scoring or typed unread input;
    a failed/closed capture or manifest cannot use `input: null`. A summary is an unscored observation,
@@ -515,6 +517,9 @@ for upgrade, recording and correction APIs. All observations and payloads remain
    its own identity evidence. An unread captured source can claim `closed` only with its own
    terminal posting stamp; `access_failure` never proves closure. Use `linked_unconfirmed` when
    identity cannot be established; use `different` only for an observed different job publication.
+   A separate target needs a usable full JD, checked destination identity and an explicit employer
+   mismatch, or a different known role family supported by both sources' own role facts. Title,
+   seniority, salary and date differences alone remain publication conflicts.
    Do not transfer salary, Junior+, work format or any field between descriptions.
 5. Call `resolveSourceSet`/`publishSourceResolution` with the exact full collection bytes, selected
    card/range, observations and candidate validation options. The publisher copies saved Telegram

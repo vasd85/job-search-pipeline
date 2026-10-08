@@ -3534,3 +3534,108 @@ test("unread inputs cannot carry concrete stack observations", () => {
     );
   }
 });
+
+function differentClaimFixture(variant) {
+  const fixture = fictionalSourceFixture({
+    junior: variant === "junior_conflict",
+    manual: variant === "manual_original",
+    jobUrl: variant === "query_identity" ? "https://jobs.example.test/view?id=101" : undefined,
+  });
+  const target = fixture.target;
+  if (variant === "junior_conflict") {
+    target.body = target.body.replace("Junior+", "Senior QA Engineer");
+    target.facts.seniority = { value: "Senior QA Engineer", evidence_quote: "Senior QA Engineer" };
+    target.input.role.seniority = "senior";
+    target.input.role.evidence.seniority = "Senior QA Engineer";
+  } else if (variant === "manual_original") {
+    target.body = target.body.replace("Manual testing only", "Primary test automation");
+    target.input.role.automation = "primary";
+    target.input.role.evidence.automation = "Primary test automation";
+  } else if (variant === "title_conflict") {
+    target.body = target.body.replace("QA Engineer", "QA Automation Engineer");
+    target.facts.title = {
+      value: "QA Automation Engineer",
+      evidence_quote: "QA Automation Engineer",
+    };
+    target.input.source.jobTitle = "QA Automation Engineer";
+    target.input.source.evidenceQuote = "QA Automation Engineer";
+  } else if (variant === "other_employer") {
+    target.body = target.body.replaceAll("Fictional Labs", "Beta Labs");
+    target.facts.company = { value: "Beta Labs", evidence_quote: "Company Beta Labs" };
+    target.input.source.company = "Beta Labs";
+  } else if (variant === "other_family") {
+    target.body = target.body.replaceAll("QA Engineer", "Software Developer");
+    target.facts.title = { value: "Software Developer", evidence_quote: "Software Developer" };
+    target.facts.role = { value: "Software Developer", evidence_quote: "Software Developer" };
+    target.facts.seniority = {
+      value: "Senior Software Developer",
+      evidence_quote: "Senior Software Developer",
+    };
+    Object.assign(target.input.source, {
+      jobTitle: "Software Developer",
+      evidenceQuote: "Software Developer",
+    });
+    target.input.role.family = "other";
+    target.input.role.evidence.role = "Software Developer";
+    target.input.role.evidence.seniority = "Senior Software Developer";
+  }
+  target.capture.sha256 = sourceSetDigest(target.body);
+  Object.assign(target.input.sourceContext, {
+    primaryCaptureSha256: target.capture.sha256,
+    endLine: target.body.split("\n").length,
+  });
+  return fixture;
+}
+
+for (const variant of [
+  "same_job",
+  "junior_conflict",
+  "manual_original",
+  "title_conflict",
+  "query_identity",
+]) {
+  test(`source different label requires observable distinction: ${variant}`, () => {
+    const fixture = differentClaimFixture(variant);
+    const control = resolveSourceSet({
+      sourceSet: fixture.sourceSet,
+      collectionText: fixture.collectionText,
+      observations: fixture.observations,
+    });
+    assert.equal(control.groups.length, 1);
+    if (variant === "manual_original")
+      assert.equal(control.groups[0].result.skip_code, "manual_role");
+    else if (variant === "same_job") assert.equal(control.groups[0].result.decision, "EVALUATED");
+    else assert.equal(control.groups[0].result.review_code, "source_review");
+    fixture.target.identity_status = "different";
+    assert.throws(
+      () =>
+        resolveSourceSet({
+          sourceSet: fixture.sourceSet,
+          collectionText: fixture.collectionText,
+          observations: fixture.observations,
+        }),
+      { code: "source_resolution_invalid" },
+    );
+  });
+}
+
+for (const variant of ["other_employer", "other_family"]) {
+  test(`source different publication preserves its own observed distinction: ${variant}`, () => {
+    const fixture = differentClaimFixture(variant);
+    fixture.target.identity_status = "different";
+    const resolution = resolveSourceSet({
+      sourceSet: fixture.sourceSet,
+      collectionText: fixture.collectionText,
+      observations: fixture.observations,
+    });
+    assert.equal(resolution.groups.length, 2);
+    const different = resolution.groups.find((group) => group.identity_status === "different");
+    assert.equal(
+      different.primary,
+      resolution.observations.find(
+        (observation) => observation.source_ref === fixture.target.source_ref,
+      ).observation_ref,
+    );
+    assert.deepEqual(different.conflicts, []);
+  });
+}

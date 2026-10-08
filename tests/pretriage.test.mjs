@@ -12,6 +12,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readdirSync,
   realpathSync,
   rmSync,
@@ -55,7 +56,14 @@ import {
   planSourceBatch,
   upgradeLedger,
 } from "../tools/lib/triage-ledger-core.mjs";
-import { createSourceSet, serializeSourceSet } from "../tools/triage-sources/source-set.mjs";
+import {
+  cardBody,
+  createSourceSet,
+  serializeSourceSet,
+  sourceSetMemberships,
+} from "../tools/triage-sources/source-set.mjs";
+import { executeFinalize, executeSweep } from "../tools/telegram-collect/persist.mjs";
+import { initState } from "../tools/telegram-collect/state.mjs";
 import { fictionalSourceFixture } from "./fixtures/triage-source-context/cases.mjs";
 import {
   claimGroup,
@@ -171,6 +179,231 @@ test("source units stay whole and shared company context does not join different
   assert.ok(
     small.groups.every((group) => group.oversize),
     "source units are explicit oversize rather than silently split",
+  );
+});
+
+test("source session groups keep a collector-emitted shared company footer near its job holder", async (t) => {
+  const root = disposableRoot(t, "source-session-footer-");
+  const configPath = join(root, "telegram-sources.json");
+  const statePath = join(root, "telegram-sweep-state.json");
+  const outDir = join(root, "telegram-sweeps", "footer");
+  const company = "https://meadow.example.test/";
+  const jobUrl = (id) => `https://recruit.example.test/roles/${id}`;
+  writeFileSync(
+    configPath,
+    JSON.stringify({
+      schema_version: 4,
+      channels: [
+        { handle: "meadowjobs", thematic: true },
+        { handle: "cedarjobs", thematic: true },
+      ],
+      exclusions: [],
+      role_words: ["QA", "test*"],
+      strong_role_words: ["QA", "tester*"],
+      resume_hints: ["#resume"],
+      backfill_days: 7,
+      page_cap: 1,
+      delay_ms: 500,
+      repost_memory_days: 30,
+    }),
+  );
+  initState(statePath);
+  const page = (handle, posts) =>
+    `<html><body><div class="tgme_channel_info"><div class="tgme_channel_info_counter"><span class="counter_value">17K</span><span class="counter_type">subscribers</span></div></div><section class="tgme_channel_history">${posts
+      .map(
+        ({ id, name, instant }) =>
+          `<div class="tgme_widget_message" data-post="${handle}/${id}"><div class="tgme_widget_message_text">QA Automation Engineer ${name}<br/>Apply <a href="${jobUrl(id)}">open role</a><br/>Company <a href="${company}">Meadow Metrics</a></div><div class="tgme_widget_message_footer"><a class="tgme_widget_message_date"><time datetime="${instant}">date</time></a></div></div>`,
+      )
+      .join("\n")}</section></body></html>`;
+  const pages = new Map([
+    [
+      "https://t.me/s/meadowjobs",
+      page("meadowjobs", [
+        { id: 501, name: "Alpha", instant: "2026-10-07T08:00:00+00:00" },
+        { id: 502, name: "Beta", instant: "2026-10-07T09:00:00+00:00" },
+        { id: 503, name: "Gamma", instant: "2026-10-07T10:00:00+00:00" },
+      ]),
+    ],
+    [
+      "https://t.me/s/cedarjobs",
+      page("cedarjobs", [{ id: 601, name: "Delta", instant: "2026-10-06T08:00:00+00:00" }]),
+    ],
+  ]);
+  const requests = [];
+  const run = await executeSweep({
+    configPath,
+    statePath,
+    outDir,
+    repoRoot: root,
+    now: () => Date.parse("2026-10-08T05:00:00Z"),
+    sleep: async () => {},
+    fetchImpl: async (url) => {
+      requests.push(String(url));
+      assert.ok(pages.has(String(url)), "every request uses the injected fictional pages");
+      return new Response(pages.get(String(url)), {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    },
+  });
+  assert.equal(run.awaiting, true);
+  assert.equal(run.posts_to_read, 4);
+  assert.deepEqual(requests, ["https://t.me/s/meadowjobs", "https://t.me/s/cedarjobs"]);
+  mkdirSync(join(outDir, "reader-out"));
+  for (const batch of run.batches)
+    writeFileSync(
+      join(outDir, "reader-out", batch.file.replace(/\.txt$/u, ".json")),
+      JSON.stringify({
+        schema_version: 2,
+        batch: batch.file.replace(/\.txt$/u, ""),
+        posts: batch.posts.map((descriptor) => ({
+          post: descriptor.post,
+          vacancies: [
+            {
+              title_line: 1,
+              start_line: 1,
+              end_line: 3,
+              description_kind: "summary",
+              links: [
+                { anchor: 1, role: "apply" },
+                { anchor: 2, role: "company_context" },
+              ],
+              apply: [{ via: "url", link: 1 }],
+            },
+          ],
+        })),
+      }),
+    );
+  const finished = executeFinalize({ outDir, statePath, repoRoot: root });
+  const collection = readCollection(finished.collectionPath, {
+    sourceSetPath: join(outDir, "source-set.json"),
+  });
+  assert.deepEqual(
+    collection.links.map((link) => link.url),
+    [jobUrl(503), jobUrl(502), jobUrl(501), jobUrl(601), company],
+  );
+  assert.equal(collection.source_set.cards.length, 4);
+  assert.equal(sourceSetMemberships(collection.source_set, company).length, 4);
+  const records = readFileSync(join(outDir, "vacancies.jsonl"), "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  assert.equal(
+    records.filter((record) =>
+      record.marked_urls.some((link) => link.url === company && link.marks.includes("boilerplate")),
+    ).length,
+    3,
+    "the actual collector emits the shared footer only from the older channel",
+  );
+  const split = splitCollection(collection, { groupSize: 1 });
+  assert.deepEqual(
+    split.groups.map((group) => [
+      group.from,
+      group.to,
+      group.size,
+      group.card_refs.length,
+      group.oversize,
+    ]),
+    [
+      [1, 1, 1, 1, false],
+      [2, 2, 1, 1, false],
+      [3, 3, 1, 1, false],
+      [4, 5, 2, 1, true],
+    ],
+  );
+  assert.equal(split.logical_vacancies, 4);
+  const cardAt = (url) =>
+    collection.source_set.cards.find((card) => card.links.some((link) => link.url === url));
+  for (const [at, group] of split.groups.entries()) {
+    const card = cardAt(collection.links[at].url);
+    assert.deepEqual(group.card_refs, [card.card_ref]);
+    const selected = collectionGroup(collection, group);
+    const snapshot = collection.source_set.snapshots.find(
+      (item) => item.snapshot_ref === card.snapshot_ref,
+    );
+    const resolution = resolveSourceSet({
+      sourceSet: collection.source_set,
+      collectionText: collection.collection_text,
+      captureRoot: outDir,
+      selection: selected.source_selection,
+      observations: [
+        {
+          card_ref: card.card_ref,
+          source_ref: snapshot.original_url,
+          description_kind: "summary",
+          identity_status: "confirmed",
+          capture: { file: snapshot.capture.file, sha256: snapshot.capture.sha256 },
+          body: cardBody(collection.source_set, card),
+          facts: {
+            company: null,
+            title: null,
+            role: null,
+            seniority: null,
+            salary: null,
+            published_at: null,
+          },
+          input: null,
+        },
+      ],
+    });
+    assert.equal(resolution.groups.length, 1);
+    assert.equal(
+      resolution.url_accounting.filter((row) => row.disposition !== "not_selected").length,
+      group.size,
+    );
+  }
+  const store = join(root, "triage-batches");
+  mkdirSync(store);
+  const claimed = Array.from({ length: 4 }, () =>
+    claimGroup({
+      storeDir: store,
+      split,
+      labelPrefix: "footer-proof",
+    }),
+  );
+  assert.deepEqual(
+    claimed.map((group) => [group.from, group.to]),
+    [
+      [1, 1],
+      [2, 2],
+      [3, 3],
+      [4, 5],
+    ],
+  );
+  assert.throws(
+    () => claimGroup({ storeDir: store, split, labelPrefix: "footer-proof" }),
+    (error) => error.code === "pretriage_no_free_group",
+  );
+
+  const controlUrls = [
+    jobUrl(503),
+    jobUrl(502),
+    cardAt(jobUrl(503)).links.find((link) => link.role === "original_post").url,
+    jobUrl(501),
+    jobUrl(601),
+    company,
+  ];
+  const controlText = `${controlUrls.join("\n")}\n`;
+  const controlSet = createSourceSet({
+    collectionText: controlText,
+    snapshots: collection.source_set.snapshots,
+    cards: collection.source_set.cards,
+  });
+  const indivisible = splitCollection(
+    collectionOf(controlUrls, {
+      source_set: controlSet,
+      collection_text: controlText,
+    }),
+    { groupSize: 1 },
+  );
+  assert.deepEqual(
+    indivisible.groups.map((group) => [group.from, group.to, group.size, group.card_refs.length]),
+    [
+      [1, 3, 3, 2],
+      [4, 4, 1, 1],
+      [5, 6, 2, 1],
+    ],
+    "an original and apply source of the same card still form one indivisible source unit",
   );
 });
 

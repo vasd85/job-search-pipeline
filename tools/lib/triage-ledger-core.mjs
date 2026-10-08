@@ -59,6 +59,7 @@ import {
   validateSourceSet,
 } from "../triage-sources/source-set.mjs";
 import { sourceResolutionDigest, validateSourceResolution } from "../triage-sources/reconcile.mjs";
+import { verifyCaptureFile } from "../vacancy-fetch/persist.mjs";
 
 export const triageLedgerSchemaVersion = 2;
 export const triageLegacyLedgerSchemaVersion = 1;
@@ -2054,7 +2055,7 @@ function loadSourceArtifacts(artifactsDir, batch, validation) {
   );
   if (parseInstant(plan.as_of, "triage_ledger_plan_invalid") > parseInstant(batch.observed_at))
     fail("triage_ledger_plan_invalid", "The source plan postdates this observation.");
-  return { sourceSet: stored.sourceSet, resolution: resolved.value, plan };
+  return { sourceSet: stored.sourceSet, resolution: resolved.value, plan, collectionText };
 }
 
 function flagsOfResult(result) {
@@ -2133,7 +2134,7 @@ function normalizeLogicalGroups(resolution, batch, aliases) {
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
-function normalizeSourceMemberships(sourceSet, resolution, batch, aliases) {
+function normalizeSourceMemberships(sourceSet, resolution, batch, aliases, carried = []) {
   const cards = new Map(sourceSet.cards.map((card) => [card.card_ref, card]));
   return resolution.groups
     .flatMap((group) =>
@@ -2167,7 +2168,16 @@ function normalizeSourceMemberships(sourceSet, resolution, batch, aliases) {
           disposition: source.disposition,
           observation_ref: source.observation_ref,
           batch_id: batch.batch_id,
-          observed_at: batch.observed_at,
+          observed_at:
+            carried.find((reuse) =>
+              sameSourceScope(reuse.baseline, {
+                card_ref: card.card_ref,
+                snapshot_ref: card.snapshot_ref,
+                anchor: link.anchor,
+                role: link.role,
+                url: link.url,
+              }),
+            )?.baseline.observed_at ?? batch.observed_at,
           observation_decision: result?.decision ?? null,
           observation_status:
             result === undefined || result === null
@@ -2182,6 +2192,149 @@ function normalizeSourceMemberships(sourceSet, resolution, batch, aliases) {
       }),
     )
     .sort((a, b) => a.membership_key.localeCompare(b.membership_key));
+}
+
+function sameSourceScope(left, right) {
+  return ["card_ref", "snapshot_ref", "anchor", "role", "url"].every(
+    (key) => left?.[key] === right?.[key],
+  );
+}
+
+function sourceEvidenceBytes(root, file) {
+  const code = "triage_ledger_refetched_closed_source";
+  if (
+    typeof file !== "string" ||
+    file.length > 256 ||
+    isAbsolute(file) ||
+    !/^[A-Za-z0-9._/-]+$/u.test(file) ||
+    file.split("/").some((part) => ["", ".", ".."].includes(part))
+  )
+    fail(code, "A carried source has an invalid evidence path.");
+  try {
+    let path = resolve(root);
+    for (const part of file.split("/")) {
+      path = join(path, part);
+      if (lstatSync(path).isSymbolicLink())
+        fail(code, "Carried source evidence cannot contain a symlink.");
+    }
+    const stats = lstatSync(path);
+    if (!stats.isFile() || stats.size > maxRecordBytes)
+      fail(code, "Carried source evidence must be a bounded regular file.");
+    return readFileSync(path);
+  } catch (error) {
+    if (error instanceof TriageLedgerError) throw error;
+    fail(code, "The carried source evidence cannot be read.");
+  }
+}
+
+function carriedClosureProof(ledger, sourceSet, baseline, observation, options) {
+  const parentDir = join(dirname(options.artifactsDir), baseline.batch_id);
+  if (!identifierPattern.test(baseline.batch_id ?? "")) return null;
+  const prior = readSourcePlanPriorResolution(ledger, sourceSet, {
+    asOf: options.asOf,
+    collectionText: options.collectionText,
+    captureRoot: parentDir,
+    validation: options.validation,
+  });
+  if (prior === null || observation.observation_ref !== baseline.observation_ref) return null;
+  const parentBytes = readArtifact(
+    join(parentDir, triageBatchRecordFileName),
+    "triage_ledger_refetched_closed_source",
+  );
+  const parentRecord = validateBatchRecord(parentBytes.value);
+  if (parentBytes.digest !== prior.reference.record_sha256) return null;
+  if (
+    !parentRecord.source_records.some(
+      (record) => JSON.stringify(record) === JSON.stringify(baseline),
+    )
+  )
+    return null;
+  const archived = prior.resolution.observations.find(
+    (item) => item.observation_ref === baseline.observation_ref,
+  );
+  if (JSON.stringify(archived) !== JSON.stringify(observation)) return null;
+  for (const binding of [observation.capture, observation.transport]) {
+    if (binding === null || binding === undefined) continue;
+    const bytes = sourceEvidenceBytes(options.artifactsDir, binding.file);
+    if (!bytes.equals(sourceEvidenceBytes(parentDir, binding.file))) return null;
+    if (binding === observation.capture) {
+      const snapshot = sourceSet.snapshots.find(
+        (item) => item.snapshot_ref === baseline.snapshot_ref,
+      );
+      const observedAt =
+        binding.file === snapshot.capture.file
+          ? snapshot.capture.captured_at
+          : verifyCaptureFile(bytes.toString("utf8")).header?.["fetched-at"];
+      if (parseInstant(observedAt) > parseInstant(baseline.observed_at)) return null;
+    }
+  }
+  // A fetch manifest may bind the observation implicitly. A new manifest is not the old fetch,
+  // even when it points to a byte-identical body, so presence and complete bytes must agree.
+  const manifests = [options.artifactsDir, parentDir].map((root) => {
+    try {
+      lstatSync(join(root, "fetch-manifest.json"));
+    } catch (error) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
+    return sourceEvidenceBytes(root, "fetch-manifest.json");
+  });
+  if (
+    manifests[0] === null
+      ? manifests[1] !== null
+      : manifests[1] === null || !manifests[0].equals(manifests[1])
+  )
+    return null;
+  const { batch_id, entries_digest, record_sha256 } = prior.reference;
+  return { batch_id, entries_digest, record_sha256 };
+}
+
+function terminalSourceResults(ledger, sourceSet, resolution, options, baselineFor) {
+  const reused = [];
+  const violations = [];
+  for (const group of resolution.groups)
+    for (const source of group.sources) {
+      if (["company_context", "contact"].includes(source.role) || source.observation_ref === null)
+        continue;
+      const card = sourceSet.cards.find((item) => item.card_ref === source.card_ref);
+      const member = {
+        card_ref: source.card_ref,
+        snapshot_ref: card.snapshot_ref,
+        anchor: source.anchor,
+        role: source.role,
+        url: source.source_ref,
+      };
+      const baseline = baselineFor(member);
+      if (baseline?.observation_decision !== "SKIP" || baseline.observation_status !== "closed")
+        continue;
+      const observation = resolution.observations.find(
+        (item) => item.observation_ref === source.observation_ref,
+      );
+      let parent = null;
+      try {
+        parent = carriedClosureProof(ledger, sourceSet, baseline, observation, options);
+      } catch {
+        /* A missing or changed archive never proves historical reuse. */
+      }
+      if (parent === null)
+        violations.push({
+          ...member,
+          ...(observation?.input?.inputIndex === undefined
+            ? {}
+            : { index: observation.input.inputIndex }),
+        });
+      else reused.push({ baseline, parent });
+    }
+  return { reused, violations };
+}
+
+/** Terminal job sources can only carry proven historical evidence, never a new fetch. */
+export function inspectTerminalSourceObservations(ledger, sourceSet, resolution, options) {
+  checkedSourceSet(sourceSet, { collectionText: options.collectionText });
+  requireSourceLedger(ledger);
+  return terminalSourceResults(ledger, sourceSet, resolution, options, (member) =>
+    sourceBaseline(ledger, member),
+  );
 }
 
 function readParent(artifactsDir, batchId, expectedDigest, parents) {
@@ -2622,7 +2775,11 @@ export function recordSourceBatch(path, batch, options) {
     if (Object.hasOwn(batch, key) && (!Array.isArray(batch[key]) || batch[key].length > maxEntries))
       fail("triage_ledger_invalid_batch", `${key} must be a bounded array.`);
   const validation = options.validation ?? {};
-  const { sourceSet, resolution, plan } = loadSourceArtifacts(archiveDir, batch, validation);
+  const { sourceSet, resolution, plan, collectionText } = loadSourceArtifacts(
+    archiveDir,
+    batch,
+    validation,
+  );
   if (Object.hasOwn(batch, "correction_only") && batch.correction_only !== true)
     fail("triage_ledger_invalid_batch", "correction_only is an explicit true declaration.");
   if (
@@ -2673,6 +2830,26 @@ export function recordSourceBatch(path, batch, options) {
                 source.logical_key === alias.logical_key && source.card_ref === alias.card_ref,
             ),
         );
+  const terminalOptions = {
+    artifactsDir: archiveDir,
+    asOf: plan.as_of,
+    collectionText,
+    validation,
+  };
+  const plannedSources = plan.items.flatMap((item) => item.sources ?? []);
+  const carried = terminalSourceResults(
+    startingLedger,
+    sourceSet,
+    resolution,
+    terminalOptions,
+    (member) => plannedSources.find((source) => sameSourceScope(source, member))?.baseline,
+  );
+  if (carried.violations.length)
+    fail(
+      "triage_ledger_refetched_closed_source",
+      "A terminal job source has a fresh or unproven observation.",
+    );
+  for (const reuse of carried.reused) parents.set(reuse.parent.batch_id, reuse.parent);
   const entries = (batch.entries ?? [])
     .map((item, index) => normalizeBatchEntry(item, index, batch))
     .sort((a, b) => a.key.localeCompare(b.key));
@@ -2711,7 +2888,13 @@ export function recordSourceBatch(path, batch, options) {
     logical_entries: batch.correction_only
       ? []
       : normalizeLogicalGroups(resolution, batch, recordAliases),
-    source_records: normalizeSourceMemberships(sourceSet, resolution, batch, recordAliases).filter(
+    source_records: normalizeSourceMemberships(
+      sourceSet,
+      resolution,
+      batch,
+      recordAliases,
+      carried.reused,
+    ).filter(
       (member) =>
         !batch.correction_only ||
         corrections.some(
@@ -2739,6 +2922,29 @@ export function recordSourceBatch(path, batch, options) {
     const existing = persistedRecordState(archiveDir, batch.batch_id, record.entries_digest);
     if (!previous && existing === "absent") {
       assertSourcePlanUnmoved(ledger, plan, resolution.groups);
+      const terminal = inspectTerminalSourceObservations(
+        ledger,
+        sourceSet,
+        resolution,
+        terminalOptions,
+      );
+      if (terminal.violations.length)
+        fail(
+          "triage_ledger_refetched_closed_source",
+          "A terminal job source has a fresh or unproven observation.",
+        );
+      if (
+        terminal.reused.length !== carried.reused.length ||
+        carried.reused.some(
+          (reuse) =>
+            JSON.stringify(sourceBaseline(ledger, reuse.baseline)) !==
+            JSON.stringify(reuse.baseline),
+        )
+      )
+        fail(
+          "triage_ledger_plan_invalid",
+          "A carried closure does not match the checked source baseline.",
+        );
       for (const correction of corrections) {
         const known = ledger.entries.find((entry) => entry.key === correction.entry_key);
         if (
@@ -2814,6 +3020,7 @@ export function recordSourceBatch(path, batch, options) {
     const sourceByKey = new Map(ledger.source_records.map((item) => [item.membership_key, item]));
     for (const item of record.source_records) {
       const known = sourceByKey.get(item.membership_key);
+      if (known && carried.reused.some((reuse) => sameSourceScope(reuse.baseline, item))) continue;
       // Accounting an unfetched alternative again cannot erase its last real source outcome.
       if (
         known &&

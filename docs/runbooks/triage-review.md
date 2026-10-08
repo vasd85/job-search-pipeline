@@ -296,6 +296,16 @@ remain outside job retry, and edited cards do not inherit another card's source 
 A corroborated closed job source keeps its own `skip_closed` under the same exact membership,
 even when an active original and that closed alternative leave the logical group open in source
 review. This terminal source disposition never transfers to a bare URL or a different card.
+The terminal member remains terminal even when it is an alternative to a usable primary JD.
+Verification and the recorder reject a new observation for that exact member before the recorder
+writes its archive. A copied closure is permitted only when its checked source baseline matches
+an indexed immutable parent record, the same source set and reproduced resolution, and the complete
+capture and transport bytes. A new fetched-at header with the same closed body is still a new
+fetch. Proven reuse adds the parent record reference to the new batch, retains the source's old
+observation time in that archive, and leaves its mutable checked record unchanged. Replay derives
+that time from the frozen baseline rather than current state. If the complete old observation
+cannot be carried, retain the terminal baseline and explicit source accounting without publishing
+a replacement observation; a changed card remains eligible for its own fetch.
 
 An existing merged or different-target group requires a resolution-aware source plan before its
 next fetch. Read its immutable prior `source-resolution.json`, validate it against the same exact

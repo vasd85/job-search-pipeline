@@ -33,6 +33,7 @@ import {
   planSourceBatch,
   ledgerSnapshotDigest,
   readSourcePlanPriorResolution,
+  inspectTerminalSourceObservations,
   triageBatchIdPattern,
 } from "../lib/triage-ledger-core.mjs";
 import { normalizeVacancyUrl } from "../lib/triage-ledger-core.mjs";
@@ -325,6 +326,22 @@ export function readSourcePlan(context) {
   }
   if (!candidates.some((candidate) => deepEqual(candidate, value)))
     problems.push({ code: "source_plan_uncorroborated" });
+  const terminal = inspectTerminalSourceObservations(
+    context.ledger,
+    source.sourceSet,
+    source.resolution,
+    {
+      asOf: value.as_of,
+      collectionText: context.batch.collection.text,
+      artifactsDir: context.batch.dir,
+      validation: { languages: context.languages },
+    },
+  );
+  for (const member of terminal.violations)
+    problems.push({
+      code: "refetched_closed_vacancy",
+      ...(member.index === undefined ? {} : { index: member.index }),
+    });
   const plannedAt = usableInstant(value.as_of);
   for (const [at, item] of value.items.entries()) {
     if (item.baseline === null || item.baseline === undefined) continue;

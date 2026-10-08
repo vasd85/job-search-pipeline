@@ -29,7 +29,10 @@
 // the record index.
 
 import { usableInstant } from "../instants.mjs";
-import { vacancyIdentity } from "../../lib/triage-ledger-core.mjs";
+import {
+  vacancyIdentity,
+  inspectTerminalSourceObservations,
+} from "../../lib/triage-ledger-core.mjs";
 import {
   SKIP_PLAN_ACTIONS,
   TERMINAL_PLAN_ACTIONS,
@@ -76,6 +79,25 @@ function runSource(context) {
   const diffs = [];
   const plan = readSourcePlan(context);
   if (!plan.present) findings.push({ code: "plan_absent" });
+  if (context.ledger?.schema_version === 2 && context.sourceVerification.valid) {
+    const value = context.batch.plan.value?.source_plan ?? context.batch.plan.value;
+    const terminal = inspectTerminalSourceObservations(
+      context.ledger,
+      context.sourceVerification.sourceSet,
+      context.sourceVerification.resolution,
+      {
+        asOf: value?.as_of,
+        collectionText: context.batch.collection.text,
+        artifactsDir: context.batch.dir,
+        validation: { languages: context.languages },
+      },
+    );
+    for (const source of terminal.violations)
+      findings.push({
+        code: "refetched_closed_vacancy",
+        ...(source.index === undefined ? {} : { index: source.index }),
+      });
+  }
   // Plan shape, snapshot and card coverage failures are already per-batch completeness findings.
   const rows = plan.rows ?? [];
   let known = 0;
@@ -96,13 +118,6 @@ function runSource(context) {
       (observation) => observation.observation_ref === group.primary,
     );
     const index = primary?.input?.inputIndex;
-    if (item.action === "skip_closed" && primary?.input !== null && primary?.input !== undefined) {
-      findings.push({
-        code: "refetched_closed_vacancy",
-        ...(index === undefined ? {} : { index }),
-        planPosition: item.planPosition,
-      });
-    }
     if (item.action === "skip_known" || item.action === "skip_closed") skipsCorroborated += 1;
     const prior = item.baseline;
     if (prior === null || prior === undefined) {

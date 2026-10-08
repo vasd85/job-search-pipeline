@@ -132,7 +132,7 @@ export function collectionGroup(collection, group) {
   };
 }
 
-// Cut only between source units. Shared context is assigned once, and never joins two jobs.
+// Cut only between source units. Assign shared context once to its nearest legitimate job holder.
 function splitSourceCollection(collection, size) {
   const set = validateSourceSet(collection.source_set, {
     collectionText: collection.collection_text,
@@ -151,12 +151,21 @@ function splitSourceCollection(collection, size) {
         "pretriage_source_unit_unpositioned",
         "A source card needs a supplied job or original-post URL before grouping.",
       );
-  const owners = memberships.map((members) => {
+  const owners = memberships.map((members, at) => {
     const job = members.filter((member) => !["company_context", "contact"].includes(member.role));
     const candidates = job.length ? job : members;
-    return [...new Set(candidates.map((member) => member.card_ref))].sort(
+    const refs = [...new Set(candidates.map((member) => member.card_ref))];
+    const distances = new Map(
+      refs.map((ref) => [
+        ref,
+        Math.min(...jobPositions.get(ref).map((position) => Math.abs(position - (at + 1)))),
+      ]),
+    );
+    return refs.sort(
       (a, b) =>
-        Math.min(...jobPositions.get(a)) - Math.min(...jobPositions.get(b)) || a.localeCompare(b),
+        distances.get(a) - distances.get(b) ||
+        Math.min(...jobPositions.get(a)) - Math.min(...jobPositions.get(b)) ||
+        a.localeCompare(b),
     );
   });
   const positions = new Map([...jobPositions].map(([ref, values]) => [ref, [...values]]));

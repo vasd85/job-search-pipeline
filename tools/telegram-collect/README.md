@@ -282,7 +282,7 @@ never supplies title/URL/contact text.
    Every offered anchor is assigned explicitly; a card cannot quietly discard an uncited URL.
    Roles follow surrounding text: `company_context`, `details`, `apply`, `contact`, `unknown`.
    Code adds the derived `original_post` membership. Only company context may be shared between
-   cards or sit outside their own boundaries. A details/apply/contact anchor of a sibling is
+   cards or sit outside their own boundaries. A details/apply/contact/unknown anchor of a sibling is
    rejected; a button without a line may belong to one card only. A link that provides both full
    details and an explicit application route uses `apply`. `unknown` stays reviewable.
    `apply` keeps the existing `url`, `tg`, `email`, `phone`, `dm_author`, `unspecified` codes;

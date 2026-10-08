@@ -3886,6 +3886,10 @@ test("source-aware scoring has explicit artifact and logical-result boundaries",
     "Bind the primary capture's final URL to its actual manifest; a separate browser rescue retains its own identity evidence.",
     "Mixed technical unavailability and closed sources remain an open source review rather than closing an unconfirmed logical vacancy.",
     "An unread captured source can claim `closed` only with its own terminal posting stamp; `access_failure` never proves closure.",
+    "A separate target needs a usable full JD, checked destination identity and an explicit employer mismatch, or a different known role family supported by both sources' own role facts.",
+    "Title, seniority, salary and date differences alone remain publication conflicts.",
+    "Never publish a new observation for a `skip_closed` source.",
+    "A carried closure requires matching archived observation, capture and transport proof and retains its original source clock.",
   ])
     assert.ok(flatSkill.includes(clause), clause);
 });

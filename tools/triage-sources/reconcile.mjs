@@ -518,16 +518,41 @@ function materialConflicts(observations) {
     reasons.push("conflicting_liveness");
   return [...new Set(reasons)].sort();
 }
-function relationConfirmed(observation, original, set, card) {
-  if (observation.identity_status !== "confirmed") return false;
-  if (observationRole(card, observation.source_ref) === "original_post") return true;
-  if (!["details", "apply"].includes(observationRole(card, observation.source_ref))) return false;
+function checkedTargetIdentity(observation) {
   if (observation.input?.source.finalUrl === null || observation.input === null) return false;
   const requestedIdentity = vacancyIdentity(observation.source_ref);
   // Final URLs deliberately retain only origin/path. That projection cannot prove a posting
   // selected by a meaningful query parameter, even when the caller repeats the requested query.
   const finalIdentity = vacancyIdentity(serverSuppliedUrl(observation.input.source.finalUrl));
-  if (requestedIdentity.key !== finalIdentity.key) return false;
+  return requestedIdentity.key === finalIdentity.key;
+}
+function observedDifferentPublication(observation, original) {
+  if (
+    observation.description_kind !== "full_description" ||
+    observation.input?.source.accessOutcome !== "usable" ||
+    !checkedTargetIdentity(observation) ||
+    ["company", "role"].some(
+      (field) => observation.facts[field] === null || original?.facts[field] == null,
+    )
+  )
+    return false;
+  const differentEmployer =
+    fold(observation.facts.company.value) !== fold(original.facts.company.value);
+  const targetFamily = observation.input.role.family;
+  const originalFamily = original.input?.role.family;
+  const differentFamily =
+    original.input?.source.accessOutcome === "usable" &&
+    ["qa_testing", "other"].includes(targetFamily) &&
+    ["qa_testing", "other"].includes(originalFamily) &&
+    targetFamily !== originalFamily &&
+    fold(observation.facts.role.value) !== fold(original.facts.role.value);
+  return differentEmployer || differentFamily;
+}
+function relationConfirmed(observation, original, set, card) {
+  if (observation.identity_status !== "confirmed") return false;
+  if (observationRole(card, observation.source_ref) === "original_post") return true;
+  if (!["details", "apply"].includes(observationRole(card, observation.source_ref))) return false;
+  if (!checkedTargetIdentity(observation)) return false;
   for (const field of ["company", "role"]) {
     const fact = observation.facts[field];
     if (fact === null) return false;
@@ -795,7 +820,14 @@ export function resolveSourceSet({
       refuse(
         "Every selected card requires its original observation, including an unscored summary.",
       );
+    const original = own.find(
+      (observation) => observationRole(card, observation.source_ref) === "original_post",
+    );
     const different = own.filter((observation) => observation.identity_status === "different");
+    if (different.some((observation) => !observedDifferentPublication(observation, original)))
+      refuse(
+        "A different publication requires checked full-target identity and its own explicit employer or role-family distinction.",
+      );
     const base = groupFor(
       card,
       sourceSet,
