@@ -54,6 +54,10 @@ A direct link plus checked target identity and matching explicit employer/role c
 relation. Shared hostname, author, contact or post ordinal cannot. Unknown identity or contradictory
 explicit title/seniority/salary/publication dates/liveness produce `MANUAL_REVIEW: source_review` in the
 source-resolution artifact, with all raw publication outcomes visible and no score or apply bucket.
+Explicit facts from an unscored summary still constrain its linked descriptions. A confirmed common
+posting combines cards only with matching employer/role; the complete union of observations must be
+checked for contradictions, including nonprimary alternatives. Absence never conceals an explicit
+conflict between two other descriptions.
 Missing ordinary scoring fields still use the middles below; missing a complete JD or its identity
 is an unresolved source boundary. Source publication date and capture time are separate facts.
 Genuinely different publications have separate logical results. Bare links keep URL triage.

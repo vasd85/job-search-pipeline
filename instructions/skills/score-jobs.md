@@ -483,16 +483,23 @@ for upgrade, recording and correction APIs. All observations and payloads remain
    root and the candidate languages/scoring. If a previously validated resolution of the exact
    source set is supplied, pass it as `resolution` for a guarded logical baseline. An initial plan
    without that evidence treats identity as unconfirmed and cannot borrow a standalone URL skip.
+   An existing merged or different-target group requires that resolution-aware plan before its next
+   fetch; validate the prior artifact against the same exact source set and retained captures as
+   the source ledger contract prescribes. A changed source set needs its own validated resolution.
    Before fetching, archive that source plan in `plan.json` (directly or as `source_plan` alongside
    the standalone `planBatch` snapshot). Run `planPreTriage` over the selected collection with both
    `ledgerPlan` and `sourcePlan`, then report its URL dispositions and logical counts.
 3. `company_context`, contacts and original summaries enter no JD lane. A fresh original full JD
    uses the collector's code-extracted `cardBody`, HTML digest and own bounds; it costs no second
    HTTP request. Apply the usual stale-collection liveness gate when required. Every scoped
-   details/apply/unknown job route still uses the fetch/retry rules above. A failed job source is
-   retryable even when the full original supplied a usable logical result. Context is never
+   details/apply/unknown job route uses its exact membership's source-plan action and the fetch/retry
+   rules above: `skip_closed` is never fetched; `skip_known` is fetched only for an explicit re-check;
+   `retry_blocked` is fetched like a new source. A failed job source is retryable even when the full original supplied a usable logical result. Context is never
    recorded as a BLOCKED vacancy. Retain typed manifest evidence when no capture could be written.
-4. Extract each source independently. A summary is an unscored observation, not a shortened JD.
+4. Extract each source independently. Every selected card requires its original observation,
+   including an unscored summary. A full description requires its own scoring or typed unread input;
+   a failed/closed capture or manifest cannot use `input: null`. A summary is an unscored observation,
+   not a shortened JD, and its explicit material facts still constrain the linked sources.
    Every usable input uses schema 10/policy v9 and non-null `sourceContext`; its quotes and facts
    must occur within that one observation's body. Assign unique extraction ordinals in 1..999 for
    input/trace filenames; URL indices, logical indices and reader display numbers are separate.
@@ -506,7 +513,9 @@ for upgrade, recording and correction APIs. All observations and payloads remain
    HTML from `sourceCaptureRoot` into the claimed batch, validates fetched captures/manifests and
    writes source-set/resolution plus raw inputs/traces exclusively. A full original is primary;
    a summary needs a full details/apply JD. Explicit contradictions and unconfirmed identity remain
-   `source_review` with every alternative outcome. A common homepage is no identity evidence.
+   `source_review` with every alternative outcome. Reconcile every observation after merging cards,
+   including nonprimary alternatives; an absent primary fact cannot bridge explicit contradictions.
+   A common homepage is no identity evidence.
    Count composition once per logical group with `sourceCompositionObservations` and `composeBatch`,
    from its own primary header facts; unresolved or
    conflicting facts remain unknown. Never count every URL or assemble a composite offer from

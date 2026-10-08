@@ -283,7 +283,7 @@ Unconfirmed sources retain a visible source review and remain eligible for readi
 The source plan binds `source_set_sha256` and `ledger_snapshot_sha256`. A confirmed logical
 baseline supplies the usual four actions; `source_review` preserves unresolved identity. An
 unchanged guarded card with an open BLOCKED baseline remains `retry_blocked` even when a failure
-cannot confirm its JD. Unconfirmed sources never inherit `skip_known` or `skip_closed`. Each
+cannot confirm its JD. Unconfirmed logical groups never inherit `skip_known` or `skip_closed`. Each
 item also retains its card-scoped sources. `company_context` and `contact` dispositions avoid JD
 fetching, while details/apply and unknown sources remain accounted for. Shared context URLs
 neither merge logical rows nor couple their caches.
@@ -293,6 +293,19 @@ A typed BLOCKED job source therefore remains `retry_blocked` for that exact card
 anchor and URL even if a usable full original already supplies the logical result. Accounting an
 unfetched alternative again does not erase its previous failure. Context/contact dispositions
 remain outside job retry, and edited cards do not inherit another card's source outcome.
+A corroborated closed job source keeps its own `skip_closed` under the same exact membership,
+even when an active original and that closed alternative leave the logical group open in source
+review. This terminal source disposition never transfers to a bare URL or a different card.
+
+An existing merged or different-target group requires a resolution-aware source plan before its
+next fetch. Read its immutable prior `source-resolution.json`, validate it against the same exact
+source set, collection bytes and retained captures, then call
+`planSourceBatch(ledgerPath, sourceSet, {asOf: runStartedAt, resolution: priorResolution, collectionText, captureRoot: priorBatchDir, validation})`.
+Save that returned plan (or its `source_plan` wrapper) as the new batch's `plan.json` before
+fetching. It declares the complete derived group and its current ledger baseline; ordinary
+per-card planning cannot borrow that group's cached state. Newly derived groups absent from the
+ledger can still be recorded from a complete initial card/membership plan. A changed source set
+needs its own validated resolution rather than a prior artifact with another source-set digest.
 
 `recordSourceBatch(path, batch, {artifactsDir, validation})` is an in-process mutation, with no
 shell-facing source values. It reads `source-set.json`, `source-resolution.json` and `plan.json`
@@ -310,7 +323,17 @@ selected logical row or correction parent that moved after planning refuses the 
 can both land. A matching orphan record bypasses the snapshot guard for recovery;
 replay completes its index while preserving any later observation. An already indexed replay
 returns without changing the ledger. A different payload under the same batch id is refused.
-Historical version 1 records retain their original schema and digest calculation.
+Historical version 1 records retain their original schema and digest calculation. Replay compares
+the actual payload and bound artifacts with the frozen archive; a later confirmed alias cannot
+reinterpret that historical record's logical key or digest.
+
+Before a first archive write, a non-different immutable card may not overlap another current
+logical row under a new key. Adding a lexically smaller card to a confirmed group therefore
+cannot create a second counted vacancy. Independently confirmed parent-bound aliases can retain
+the established group key, including every source membership; they do not consolidate or rewrite
+historical rows. Genuinely different target groups may retain the same card reference.
+Review excludes a superseded row only for the aliased same-vacancy identity; a separately recorded
+`different` target remains counted even when its card has a confirmed alias for another vacancy.
 
 **Correcting a proven old company-homepage BLOCKED.** Run this only in the updated operational
 runtime after release and cutover, with a new correction batch. Development tests use disposable

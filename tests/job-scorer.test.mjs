@@ -39,6 +39,12 @@ import {
 import { resolveSourceSet, validateSourceResolution } from "../tools/triage-sources/reconcile.mjs";
 import { fictionalSourceFixture } from "./fixtures/triage-source-context/cases.mjs";
 import {
+  cardBody,
+  createSourceSet,
+  snapshotFromHtml,
+  sourceSetDigest,
+} from "../tools/triage-sources/source-set.mjs";
+import {
   annotationCases,
   baseInput,
   baseObservedTool,
@@ -69,6 +75,74 @@ const buildDecisionTrace = (input, options = {}) =>
   buildDecisionTraceWith(input, { languages: exampleLanguageNames, ...options });
 const EXPECTED_DECISION_CASE_COUNT = 517;
 const executedDecisionCases = new Set();
+
+function rebindSourceFixture(fixture) {
+  const snapshot = snapshotFromHtml(fixture.html, {
+    handle: fixture.snapshot.handle,
+    postId: fixture.snapshot.post_id,
+    file: fixture.snapshot.capture.file,
+    capturedAt: fixture.snapshot.capture.captured_at,
+  });
+  fixture.sourceSet = createSourceSet({
+    collectionText: fixture.collectionText,
+    snapshots: [snapshot],
+    cards: [
+      { ...fixture.card, snapshot_ref: snapshot.snapshot_ref, end_line: snapshot.lines.length },
+    ],
+  });
+  fixture.card = fixture.sourceSet.cards[0];
+  fixture.snapshot = snapshot;
+  Object.assign(fixture.original, {
+    card_ref: fixture.card.card_ref,
+    body: cardBody(fixture.sourceSet, fixture.card),
+    capture: { file: snapshot.capture.file, sha256: snapshot.capture.sha256 },
+  });
+  fixture.target.card_ref = fixture.card.card_ref;
+  for (const observation of fixture.observations) {
+    if (observation.input === null) continue;
+    Object.assign(observation.input.sourceContext, {
+      sourceSetSha256: sourceSetDigest(fixture.sourceSet),
+      cardRef: fixture.card.card_ref,
+      snapshotRef: snapshot.snapshot_ref,
+      primaryCaptureSha256: observation.capture.sha256,
+      startLine: observation === fixture.original ? fixture.card.start_line : 1,
+      endLine:
+        observation === fixture.original
+          ? fixture.card.end_line
+          : observation.body.split("\n").length,
+    });
+  }
+}
+
+function combineSourceFixtures(fixtures) {
+  const collectionText =
+    [...new Set(fixtures.flatMap((fixture) => fixture.collectionText.trim().split("\n")))].join(
+      "\n",
+    ) + "\n";
+  const snapshots = fixtures.map((fixture, at) => ({
+    ...fixture.snapshot,
+    capture: { ...fixture.snapshot.capture, file: `${String(at + 1).padStart(3, "0")}.page.html` },
+  }));
+  const sourceSet = createSourceSet({
+    collectionText,
+    snapshots,
+    cards: fixtures.map((fixture) => fixture.card),
+  });
+  const digest = sourceSetDigest(sourceSet);
+  let index = 0;
+  const observations = fixtures.flatMap((fixture, at) =>
+    structuredClone(fixture.observations).map((observation) => {
+      if (observation.source_ref === fixture.snapshot.original_url)
+        observation.capture.file = snapshots[at].capture.file;
+      if (observation.input !== null) {
+        observation.input.inputIndex = ++index;
+        observation.input.sourceContext.sourceSetSha256 = digest;
+      }
+      return observation;
+    }),
+  );
+  return { sourceSet, collectionText, observations };
+}
 
 test("full post/company/contact yields one manual SKIP with explicit source accounting", () => {
   const fixture = fictionalSourceFixture({ manual: true, contact: true, details: false });
@@ -181,6 +255,125 @@ test("summary cannot pass to scoring and source resolution cannot forge the prim
     () => resolveSourceSet(fixture),
     (error) => error.code === "source_resolution_invalid",
   );
+});
+
+test("explicit facts in an unscored summary constrain the full linked JD", async (t) => {
+  for (const [field, value, targetValue, code] of [
+    ["title", "QA Lead", "QA Engineer", "conflicting_title"],
+    ["seniority", "Junior+", "Senior QA Engineer", "conflicting_seniority"],
+    ["salary", "USD 1000 per month", "USD 2000 per month", "conflicting_salary"],
+    ["published_at", "2026-10-01", "2026-10-07", "conflicting_publication_date"],
+  ]) {
+    await t.test(field, () => {
+      const fixture = fictionalSourceFixture({
+        kind: "summary",
+        salary: field === "salary" ? targetValue : null,
+      });
+      fixture.html = fixture.html.replace(
+        "Read the full description below",
+        `${value}<br/>Read the full description below`,
+      );
+      fixture.original.facts[field] = { value, evidence_quote: value };
+      if (field === "published_at") {
+        fixture.target.body += `\n${targetValue}`;
+        fixture.target.facts[field] = { value: targetValue, evidence_quote: targetValue };
+      }
+      rebindSourceFixture(fixture);
+      const resolution = resolveSourceSet(fixture);
+      assert.equal(resolution.groups.length, 1);
+      assert.equal(resolution.groups[0].result.review_code, "source_review");
+      assert.ok(resolution.groups[0].conflicts.includes(code));
+      assert.equal(resolution.groups[0].alternatives.length, 1);
+      assert.equal(
+        resolution.observations.find(
+          (observation) => observation.source_ref === fixture.original.source_ref,
+        ).trace,
+        null,
+      );
+    });
+  }
+});
+
+test("merged posting compares every alternate description, including a nonprimary salary", () => {
+  const first = fictionalSourceFixture({ postId: 4001, salary: "USD 1000 per month" });
+  first.html = first.html.replace("USD 1000 per month<br/>", "");
+  first.original.facts.salary = null;
+  first.original.input.source.salaryRaw = null;
+  first.original.input.compensation = null;
+  rebindSourceFixture(first);
+  const second = fictionalSourceFixture({ postId: 4002, salary: "USD 2000 per month" });
+  const fixture = combineSourceFixtures([first, second]);
+  const resolution = resolveSourceSet(fixture);
+  assert.equal(resolution.groups.length, 1);
+  assert.equal(resolution.groups[0].result.review_code, "source_review");
+  assert.ok(resolution.groups[0].conflicts.includes("conflicting_salary"));
+  assert.equal(resolution.groups[0].card_refs.length, 2);
+  assert.equal(resolution.groups[0].alternatives.length, 4);
+});
+
+test("a silent primary cannot bridge explicit Senior and Junior in a three-card posting", () => {
+  const fixtures = [
+    fictionalSourceFixture({ postId: 4011 }),
+    fictionalSourceFixture({ postId: 4012 }),
+    fictionalSourceFixture({ postId: 4013, junior: true }),
+  ];
+  const silent = fixtures[0];
+  silent.html = silent.html.replace("Senior QA Engineer", "Experience discussed later");
+  silent.original.facts.seniority = null;
+  silent.original.input.role.seniority = "unknown";
+  silent.original.input.role.evidence.seniority = null;
+  rebindSourceFixture(silent);
+  for (const fixture of fixtures) {
+    fixture.target.body = fixture.target.body.replace(
+      fixture.target.facts.seniority.value,
+      "Experience discussed later",
+    );
+    fixture.target.facts.seniority = null;
+    fixture.target.input.role.seniority = "unknown";
+    fixture.target.input.role.evidence.seniority = null;
+    fixture.target.input.sourceContext.endLine = fixture.target.body.split("\n").length;
+  }
+  const combined = combineSourceFixtures(fixtures);
+  // Start with the absence-bearing card, regardless of digest ordering. Primary selection may
+  // choose any original, but all six descriptions must constrain the one linked result.
+  combined.sourceSet.cards.sort(
+    (a, b) =>
+      Number(b.card_ref === silent.card.card_ref) - Number(a.card_ref === silent.card.card_ref),
+  );
+  for (const observation of combined.observations)
+    observation.input.sourceContext.sourceSetSha256 = sourceSetDigest(combined.sourceSet);
+  const resolution = resolveSourceSet(combined);
+  assert.equal(resolution.groups.length, 1);
+  assert.equal(resolution.groups[0].result.review_code, "source_review");
+  assert.ok(resolution.groups[0].conflicts.includes("conflicting_seniority"));
+  assert.equal(resolution.groups[0].card_refs.length, 3);
+  assert.equal(resolution.groups[0].alternatives.length, 6);
+  assert.ok(
+    resolution.groups[0].alternatives.some(
+      (alternative) => alternative.trace.skip_code === "junior_role",
+    ),
+  );
+});
+
+test("selected original observations and full-description inputs cannot be omitted", async (t) => {
+  await t.test("original absent", () => {
+    const fixture = fictionalSourceFixture({ junior: true });
+    fixture.observations = [fixture.target];
+    assert.throws(
+      () => resolveSourceSet(fixture),
+      (error) => error.code === "source_resolution_invalid",
+    );
+  });
+  for (const source of ["original", "target"]) {
+    await t.test(`${source} full input absent`, () => {
+      const fixture = fictionalSourceFixture();
+      fixture[source].input = null;
+      assert.throws(
+        () => resolveSourceSet(fixture),
+        (error) => error.code === "source_resolution_invalid",
+      );
+    });
+  }
 });
 
 test("source context epoch preserves manual and junior filters and the legacy epoch", () => {

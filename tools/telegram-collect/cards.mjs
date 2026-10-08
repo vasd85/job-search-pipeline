@@ -195,10 +195,11 @@ export function citedEntriesOf(vacancy, descriptor) {
 }
 
 /**
- * The card of one vacancy the reader named in a post of a general source. `decided` are the
+ * The card of one vacancy the reader named in a post. `decided` are the
  * post's entries with their post-level fates; `cited` the entry indexes this vacancy names. The
  * card offers the links it names that are new and unmarked, plus the post address when it names
- * none or applies through a person; a named marked link is not offered and is listed.
+ * none or applies through a person; a named marked link is not offered and is listed. A mapped
+ * summary needs its original post unless an offered URL positions its own job source.
  */
 export function readerCardOf(
   post,
@@ -226,10 +227,18 @@ export function readerCardOf(
   const applyVia = [...new Set(vacancy.apply.map((apply) => apply.via))];
   const byPerson = applyVia.some((via) => contactVias.includes(via));
   const mapped = vacancy.links !== undefined;
-  const postAddress =
-    newUrls.length === 0 || byPerson || (mapped && vacancy.description_kind !== "summary")
-      ? embedUrl(handle, post.id)
-      : null;
+  const offeredKeys = new Set(newUrls.map((entry) => entry.key));
+  const hasOfferedJobUrl =
+    mapped &&
+    vacancy.links.some((mapping) => {
+      if (["company_context", "contact"].includes(mapping.role)) return false;
+      const at = descriptor.links[mapping.anchor - 1].entryIndex;
+      return offeredKeys.has(normalizeVacancyUrl(sourceAnchorUrl(post.anchors[at])));
+    });
+  const needsPostAddress = mapped
+    ? !hasOfferedJobUrl || vacancy.description_kind !== "summary"
+    : newUrls.length === 0;
+  const postAddress = needsPostAddress || byPerson ? embedUrl(handle, post.id) : null;
   const contactEntries = mapped
     ? decided.filter((entry, at) => {
         const explicit = vacancy.links.some(

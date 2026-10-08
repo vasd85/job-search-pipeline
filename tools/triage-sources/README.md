@@ -45,7 +45,10 @@ An observation supplies `card_ref`, `source_ref`, `description_kind`, `identity_
 `{value, evidence_quote}` supported by its own body. Absence differs from an explicit contradiction.
 Publication dates are source facts; capture time never chooses the newer edition.
 
-The original body is the code-extracted `cardBody`, pinned to the HTML digest and card boundaries.
+Every selected card requires its original observation, including an unscored summary. A
+`full_description` observation requires its own scoring or unread input; it cannot disappear behind
+`input: null`. The original body is the code-extracted `cardBody`, pinned to the HTML digest and
+card boundaries. An unreachable original uses a typed unread observation instead.
 Details/apply bodies use the verified stamped vacancy-fetch capture and its normalized body digest.
 A usable input must be schema 10, policy v9 and a full description. Its `sourceContext` binds
 `sourceSetSha256`, `cardRef`, `snapshotRef`, `primarySourceRef`, `primaryCaptureSha256`, `startLine`
@@ -56,7 +59,9 @@ A failed request with no capture supplies `capture: null`, `body: null`, all fac
 `transport: {file, sha256, index}` binding its exact fetch manifest record. The input is unread;
 context digest/range are null, evidence is absent and no usable JD is asserted. Manifest versions
 1/2 and their existing outcomes are read. True failures remain BLOCKED/retryable; existing terminal
-404/closure behavior keeps its own contract. General homepage/not-a-vacancy codes belong elsewhere.
+404/closure behavior keeps its own contract. A failed or closed saved capture or manifest record
+also requires its unread input; unscored observations cannot hide transport failure or closure.
+General homepage/not-a-vacancy codes belong elsewhere.
 
 Membership alone does not confirm identity. A direct details/apply link also needs checked target
 identity and matching explicit employer/role. Redirects to another posting, unknown roles,
@@ -64,8 +69,11 @@ unconfirmed targets and conflicting explicit title/seniority/salary/date/livenes
 `source_review`. A readable original plus a closed linked job route does not silently become an
 apply recommendation; the raw observations remain visible.
 For confirmed sources a full original is primary; for a summary a full details/apply JD is primary.
-Two independently confirmed cards merge only through a common job posting and compatible explicit
-facts. A `different` target is a separate logical group, with its own result and key.
+Explicit material facts in summaries also constrain the linked full JD without scoring the summary.
+Independently confirmed cards merge through a common job posting and matching employer/role. Every
+observation in the union is compared, including nonprimary alternatives. A contradiction keeps
+one linked `source_review` row and all raw outcomes; an absent primary fact cannot bridge conflicting
+alternatives. A `different` target is a separate logical group, with its own result and key.
 
 Each group contains its logical key/cards, identity status, primary observation reference, every
 source disposition, conflicts, result and all raw alternatives. `url_accounting` covers every

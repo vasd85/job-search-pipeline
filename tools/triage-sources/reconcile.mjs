@@ -268,6 +268,12 @@ function verifyTransport(observation, captureRoot) {
   )
     refuse("A body-less closure needs the existing confirmed 404 contract.");
   if (
+    observation.input === null &&
+    record.usable === false &&
+    ["access_failure", "absent", "private", "closed"].includes(record.outcome)
+  )
+    refuse("A failed or closed transport record requires its unread input.");
+  if (
     observation.capture !== null &&
     record.persisted !== null &&
     record.persisted !== undefined &&
@@ -310,6 +316,8 @@ function normalizedObservation(raw, set, { languages, scoring, captureRoot }) {
     FACT_KEYS.map((field) => [field, normalizeFact(raw.facts[field], raw.body, field)]),
   );
   const input = raw.input === null ? null : normalizeScorerInput(raw.input, { languages, scoring });
+  if (raw.description_kind === "full_description" && input === null)
+    refuse("A full description requires its own scoring or unread input.");
   if (input !== null && (input.schemaVersion !== 10 || input.sourceContext === null))
     refuse("A source observation requires a version 10 input with its source context.");
   if (input !== null && input.inputIndex > MAX_OBSERVATIONS)
@@ -324,8 +332,12 @@ function normalizedObservation(raw, set, { languages, scoring, captureRoot }) {
     (raw.body !== cardBody(set, card) || raw.description_kind !== card.description_kind)
   )
     refuse("Original description differs from its immutable card body or kind.");
-  if (role === "original_post" && !originalHtml && input?.source.accessOutcome === "usable")
-    refuse("A usable original post must use its code-extracted immutable card body.");
+  if (
+    role === "original_post" &&
+    !originalHtml &&
+    (input === null || input.source.accessOutcome === "usable")
+  )
+    refuse("An original post must retain its immutable card body or a typed unread observation.");
   if (
     noBody &&
     (raw.description_kind !== "unknown" ||
@@ -391,6 +403,11 @@ function normalizedObservation(raw, set, { languages, scoring, captureRoot }) {
     )
       refuse("Input final identity differs from its capture.");
     if (
+      input === null &&
+      ["access_failure", "absent", "private", "closed", "unknown"].includes(captured.header.outcome)
+    )
+      refuse("A failed or closed capture requires its unread input.");
+    if (
       input?.source.accessOutcome === "usable" &&
       ["access_failure", "absent", "private", "closed", "unknown"].includes(captured.header.outcome)
     )
@@ -425,6 +442,33 @@ function explicitCompatible(a, b, field) {
     right === undefined ||
     fold(left.value) === fold(right.value)
   );
+}
+const materialConflictCodes = new Set([
+  "conflicting_title",
+  "conflicting_seniority",
+  "conflicting_salary",
+  "conflicting_publication_date",
+  "conflicting_liveness",
+]);
+function materialConflicts(observations) {
+  const reasons = [];
+  for (const field of ["title", "seniority", "salary", "published_at"]) {
+    for (let at = 0; at < observations.length; at += 1)
+      if (
+        observations
+          .slice(at + 1)
+          .some((other) => !explicitCompatible(observations[at], other, field))
+      )
+        reasons.push(
+          field === "published_at" ? "conflicting_publication_date" : `conflicting_${field}`,
+        );
+  }
+  if (
+    observations.some((observation) => observation.input?.source.accessOutcome === "usable") &&
+    observations.some((observation) => observation.input?.source.accessOutcome === "closed")
+  )
+    reasons.push("conflicting_liveness");
+  return [...new Set(reasons)].sort();
 }
 function relationConfirmed(observation, original, set, card) {
   if (observation.identity_status !== "confirmed") return false;
@@ -530,18 +574,7 @@ function groupFor(card, set, observations, { separate = false, excludedSources =
     )
   )
     reasons.push("identity_unconfirmed");
-  if (
-    full.length &&
-    observations.some((observation) => observation.input?.source.accessOutcome === "closed")
-  )
-    reasons.push("conflicting_liveness");
-  for (const field of ["title", "seniority", "salary", "published_at"]) {
-    for (let at = 0; at < full.length; at += 1)
-      if (full.slice(at + 1).some((other) => !explicitCompatible(full[at], other, field)))
-        reasons.push(
-          field === "published_at" ? "conflicting_publication_date" : `conflicting_${field}`,
-        );
-  }
+  reasons.push(...materialConflicts(observations));
   const conflicts = [...new Set(reasons)].sort();
   let result = primary?.trace ?? null;
   if (primary === null) {
@@ -585,71 +618,89 @@ function groupFor(card, set, observations, { separate = false, excludedSources =
       })),
   };
 }
-function postingSources(group, observations) {
+function postingSources(group, observations, set) {
   return group.sources
-    .filter(
-      (source) =>
-        ["details", "apply"].includes(source.role) &&
-        observations.find((observation) => observation.observation_ref === source.observation_ref)
-          ?.identity_status === "confirmed",
-    )
+    .filter((source) => {
+      if (!["details", "apply"].includes(source.role)) return false;
+      const observation = observations.find(
+        (item) => item.observation_ref === source.observation_ref,
+      );
+      if (observation?.input?.source.accessOutcome !== "usable") return false;
+      const card = set.cards.find((item) => item.card_ref === source.card_ref);
+      const original = observations.find(
+        (item) =>
+          item.card_ref === source.card_ref &&
+          observationRole(card, item.source_ref) === "original_post",
+      );
+      return relationConfirmed(observation, original, set, card);
+    })
     .map((source) => vacancyIdentity(source.source_ref).key);
 }
-function mergeConfirmed(groups, observations) {
+function mergeConfirmed(groups, observations, set) {
   const result = [];
-  for (const group of groups) {
-    const primary = observations.find(
-      (observation) => observation.observation_ref === group.primary,
+  const eligible = (group) =>
+    group.identity_status !== "different" &&
+    group.primary !== null &&
+    group.conflicts.every((code) => materialConflictCodes.has(code));
+  const related = (left, right) => {
+    if (!eligible(left) || !eligible(right)) return false;
+    const postings = postingSources(left, observations, set);
+    if (
+      !postings.length ||
+      !postingSources(right, observations, set).some((key) => postings.includes(key))
+    )
+      return false;
+    const primary = observations.find((item) => item.observation_ref === left.primary);
+    const prior = observations.find((item) => item.observation_ref === right.primary);
+    return ["company", "role"].every(
+      (field) =>
+        primary?.facts[field] !== null &&
+        prior?.facts[field] !== null &&
+        primary?.facts[field] !== undefined &&
+        prior?.facts[field] !== undefined &&
+        fold(primary.facts[field].value) === fold(prior.facts[field].value),
     );
-    const postings = postingSources(group, observations);
-    const previous =
-      group.identity_status === "confirmed" && postings.length
-        ? result.find((candidate) => {
-            if (
-              candidate.identity_status !== "confirmed" ||
-              !postingSources(candidate, observations).some((key) => postings.includes(key))
-            )
-              return false;
-            const prior = observations.find(
-              (observation) => observation.observation_ref === candidate.primary,
-            );
-            return (
-              ["company", "role"].every(
-                (field) =>
-                  primary?.facts[field] !== null &&
-                  prior?.facts[field] !== null &&
-                  primary?.facts[field] !== undefined &&
-                  prior?.facts[field] !== undefined &&
-                  fold(primary.facts[field].value) === fold(prior.facts[field].value),
-              ) &&
-              ["title", "seniority", "salary", "published_at"].every((field) =>
-                explicitCompatible(primary, prior, field),
-              )
-            );
-          })
-        : undefined;
-    if (previous === undefined) {
-      result.push(group);
-      continue;
-    }
-    previous.card_refs = [...previous.card_refs, ...group.card_refs].sort();
-    previous.logical_key = logicalVacancyKey(previous.card_refs[0]);
-    previous.sources.push(...group.sources);
-    previous.alternatives.push(...group.alternatives);
-    // Both primary descriptions remain visible; deterministic preference for a full original.
-    const choices = [previous.primary, group.primary].map((ref) =>
-      observations.find((observation) => observation.observation_ref === ref),
+  };
+  const merge = (left, right) => {
+    left.card_refs = [...left.card_refs, ...right.card_refs].sort();
+    left.logical_key = logicalVacancyKey(left.card_refs[0]);
+    left.sources.push(...right.sources);
+    left.alternatives.push(...right.alternatives);
+    const choices = [left.primary, right.primary].map((ref) =>
+      observations.find((item) => item.observation_ref === ref),
     );
     const original = (observation) =>
-      previous.sources.some(
+      left.sources.some(
         (source) =>
           source.observation_ref === observation.observation_ref && source.role === "original_post",
       );
     choices.sort(
       (a, b) => Number(original(b)) - Number(original(a)) || a.card_ref.localeCompare(b.card_ref),
     );
-    previous.primary = choices[0].observation_ref;
-    previous.result = choices[0].trace;
+    left.primary = choices[0].observation_ref;
+    const refs = new Set(left.sources.map((source) => source.observation_ref));
+    // Recheck all bodies after every union. A null primary fact cannot bridge two contradictory
+    // alternatives, and material review does not break their independently confirmed posting link.
+    left.conflicts = materialConflicts(
+      observations.filter((item) => refs.has(item.observation_ref)),
+    );
+    left.identity_status = left.conflicts.length ? "linked_unconfirmed" : "confirmed";
+    left.result = left.conflicts.length
+      ? { decision: "MANUAL_REVIEW", review_code: "source_review", reason_codes: left.conflicts }
+      : choices[0].trace;
+  };
+  for (const group of groups) {
+    let at = 0;
+    while (at < result.length) {
+      if (!related(group, result[at])) {
+        at += 1;
+        continue;
+      }
+      merge(group, result.splice(at, 1)[0]);
+      // The union can connect components that did not previously share a posting.
+      at = 0;
+    }
+    result.push(group);
   }
   return result;
 }
@@ -693,6 +744,12 @@ export function resolveSourceSet({
   const groups = [];
   for (const card of sourceSet.cards.filter((item) => selected.card_refs.includes(item.card_ref))) {
     const own = normalized.filter((observation) => observation.card_ref === card.card_ref);
+    if (
+      !own.some((observation) => observationRole(card, observation.source_ref) === "original_post")
+    )
+      refuse(
+        "Every selected card requires its original observation, including an unscored summary.",
+      );
     const different = own.filter((observation) => observation.identity_status === "different");
     const base = groupFor(
       card,
@@ -715,7 +772,7 @@ export function resolveSourceSet({
       groups.push(extra);
     }
   }
-  const resolved = mergeConfirmed(groups, normalized);
+  const resolved = mergeConfirmed(groups, normalized, sourceSet);
   const url_accounting = links.slice(selected.from - 1, selected.to).map((url, offset) => {
     const memberships = sourceSetMemberships(sourceSet, url);
     const active = memberships.filter((member) => selected.card_refs.includes(member.card_ref));

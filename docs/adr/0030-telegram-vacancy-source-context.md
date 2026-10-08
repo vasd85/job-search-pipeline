@@ -26,8 +26,10 @@ jobs. Unknown mappings and oversize input are visible rather than silently dropp
 
 Compile an immutable source-resolution artifact. Direct link evidence, checked target identity
 and matching explicit employer/role establish a relation. The complete original is primary; a
-summary needs a complete details/apply JD. Compare explicit material facts, keep absence distinct,
-and never mix salary/seniority or any other fields across descriptions. Unknown publication dates
+summary needs a complete details/apply JD. Every card retains its original observation and every
+full description retains its own input. Failed/closed sources keep typed outcomes even when no JD
+can be scored. Compare explicit material facts from summaries and every alternative in a merged
+posting, keep absence distinct, and never mix salary/seniority or any other fields across descriptions. Unknown publication dates
 do not gain precedence from fetch time. Conflicts/unconfirmed identity yield source review with all
 raw alternatives; different jobs stay separate. Manual/junior filters and scoring prices/formulas
 remain unchanged.

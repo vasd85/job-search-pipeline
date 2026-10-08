@@ -69,20 +69,21 @@ function fictionalSourceSet({
   title = "Senior QA Engineer",
   postId = 7,
   details = null,
+  apply = null,
   extra = "",
 } = {}) {
   const html =
     `<div class="tgme_widget_message" data-post="fiction_jobs/${postId}">` +
     `<div class="tgme_widget_message_text">${title}<br>` +
     `Company: <a href="${homepage}">${company}</a><br>` +
-    `Manual testing and Java.${extra}${details === null ? "" : `<br>Read details: <a href="${details}">QA Engineer</a>`}</div>` +
+    `Manual testing and Java.${extra}${details === null ? "" : `<br>Read details: <a href="${details}">QA Engineer</a>`}${apply === null ? "" : `<br>Other role: <a href="${apply}">Junior QA Engineer</a>`}</div>` +
     '<a class="tgme_widget_message_date"><time datetime="2026-10-08T08:00:00Z"></time></a></div>';
   const snapshot = snapshotFromHtml(html, {
     handle: "fiction_jobs",
     postId,
     capturedAt: "2026-10-08T08:30:00.000Z",
   });
-  const collectionText = `${homepage}\n${snapshot.original_url}\n${details === null ? "" : `${details}\n`}`;
+  const collectionText = `${homepage}\n${snapshot.original_url}\n${details === null ? "" : `${details}\n`}${apply === null ? "" : `${apply}\n`}`;
   const sourceSet = createSourceSet({
     collectionText,
     snapshots: [snapshot],
@@ -97,6 +98,9 @@ function fictionalSourceSet({
           { anchor: 1, role: "company_context", url: homepage },
           { anchor: null, role: "original_post", url: snapshot.original_url },
           ...(details === null ? [] : [{ anchor: 2, role: "details", url: details }]),
+          ...(apply === null
+            ? []
+            : [{ anchor: details === null ? 2 : 3, role: "apply", url: apply }]),
         ],
       },
     ],
@@ -111,14 +115,14 @@ const digest = (value) => createHash("sha256").update(value).digest("hex");
 function sourceObservation(
   fixture,
   card = fixture.sourceSet.cards[0],
-  { inputIndex = 1, sourceRef, body, capture } = {},
+  { inputIndex = 1, sourceRef, body, capture, jobTitle } = {},
 ) {
   const set = fixture.sourceSet;
   const snapshot = set.snapshots.find((item) => item.snapshot_ref === card.snapshot_ref);
   const original = sourceRef === undefined;
   const ref = sourceRef ?? snapshot.original_url;
   const text = body ?? cardBody(set, card);
-  const title = snapshot.lines[card.title_line - 1].text;
+  const title = jobTitle ?? snapshot.lines[card.title_line - 1].text;
   const input = baseInput();
   input.schemaVersion = 10;
   input.policyId = sourcePolicy;
@@ -203,6 +207,7 @@ function sourceBatchDir(
     sourceSelection,
     captures = [],
     prefetchPlan = false,
+    planResolution,
   } = {},
 ) {
   const dir = join(context.store, batchId);
@@ -219,7 +224,11 @@ function sourceBatchDir(
   const plan = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
     asOf: observedAt,
     collectionText: fixture.collectionText,
-    ...(prefetchPlan ? {} : { resolution }),
+    ...(planResolution !== undefined
+      ? { resolution: planResolution, captureRoot: dir }
+      : prefetchPlan
+        ? {}
+        : { resolution }),
   });
   const planText = `${JSON.stringify(plan, null, 2)}\n`;
   writeFileSync(join(dir, "plan.json"), planText);
@@ -327,6 +336,79 @@ function unreadSourceObservation(fixture, { sourceRef, inputIndex = 1, closed = 
   const manifest = `${JSON.stringify({ schemaVersion: 1, tool: "vacancy-fetch", records: [{ index: inputIndex, requestedUrl: raw.source_ref, outcome: closed ? "absent" : "access_failure", usable: false, ...(closed ? { httpStatus: 404 } : {}) }] })}\n`;
   raw.transport = { file: "fetch-manifest.json", sha256: digest(manifest), index: inputIndex };
   return { raw, captures: [["fetch-manifest.json", manifest]] };
+}
+
+function combinedSourceFixture(first, second) {
+  const snapshots = [
+    structuredClone(first.sourceSet.snapshots[0]),
+    structuredClone(second.sourceSet.snapshots[0]),
+  ];
+  snapshots[0].capture.file = "101.page.html";
+  snapshots[1].capture.file = "102.page.html";
+  const collectionText =
+    [
+      ...new Set([
+        ...first.collectionText.trim().split("\n"),
+        ...second.collectionText.trim().split("\n"),
+      ]),
+    ].join("\n") + "\n";
+  const sourceSet = createSourceSet({
+    collectionText,
+    snapshots,
+    cards: [...first.sourceSet.cards, ...second.sourceSet.cards],
+  });
+  return {
+    sourceSet,
+    collectionText,
+    html: first.html,
+    company: first.company,
+    title: first.title,
+    captures: [["102.page.html", second.html]],
+  };
+}
+
+function linkedSourceObservations(fixture) {
+  const observations = [];
+  const captures = [...(fixture.captures ?? [])];
+  let inputIndex = 1;
+  let captureIndex = 1;
+  for (const card of fixture.sourceSet.cards) {
+    observations.push(sourceObservation(fixture, card, { inputIndex: inputIndex++ }));
+    for (const link of card.links.filter((source) => ["details", "apply"].includes(source.role))) {
+      const sourceRef = link.url;
+      const title = link.role === "apply" ? "Junior QA Engineer" : fixture.title;
+      const body = `${title}\nCompany: ${fixture.company}\nManual testing and Java.`;
+      const file = `${String(captureIndex).padStart(3, "0")}.capture.txt`;
+      const raw = sourceObservation(fixture, card, {
+        inputIndex: inputIndex++,
+        sourceRef,
+        body,
+        jobTitle: title,
+        capture: { file, sha256: digest(body) },
+      });
+      if (link.role === "apply") raw.identity_status = "different";
+      observations.push(raw);
+      captures.push([
+        file,
+        renderCaptureFile({
+          body,
+          header: {
+            index: captureIndex++,
+            adapter: "fictional",
+            "source-id": "url",
+            "requested-url": sourceRef,
+            "final-url": sourceRef,
+            "fetched-at": sourceInstant,
+            "http-status": 200,
+            outcome: "active",
+            "normalized-sha256": digest(body),
+            "body-bytes": Buffer.byteLength(body),
+          },
+        }),
+      ]);
+    }
+  }
+  return { observations, captures };
 }
 
 function disposableRoot(t, prefix = "triage-ledger-") {
@@ -2433,6 +2515,7 @@ test("a version 2 orphan survives index failure and replays without replacing a 
       logical_entries: Array.from({ length: 4096 }, (_, at) => ({
         ...template,
         key: ledgerSourceApi.logicalVacancyKey(`synthetic-${at}`),
+        card_refs: [`tg-card:sha256:${digest(`synthetic-card-${at}`)}`],
       })),
     },
   }));
@@ -2468,8 +2551,9 @@ test("an explicit confirmed revision alias adds immutable membership without re-
   const details = "https://jobs.acme.example/vacancy/71";
   const original = fictionalSourceSet({ details });
   const firstObservation = detailsObservation(original);
+  firstObservation.raw.input.inputIndex = 2;
   const first = sourceBatchDir(context, original, "before-edit", {
-    observations: [firstObservation.raw],
+    observations: [sourceObservation(original), firstObservation.raw],
     captures: firstObservation.captures,
   });
   recordSource(context.path, first);
@@ -2477,8 +2561,9 @@ test("an explicit confirmed revision alias adds immutable membership without re-
   const oldBytes = readFileSync(join(first.dir, "ledger-record.json"), "utf8");
   const edited = fictionalSourceSet({ details, extra: " Updated publication." });
   const secondObservation = detailsObservation(edited);
+  secondObservation.raw.input.inputIndex = 2;
   const second = sourceBatchDir(context, edited, "confirmed-edit", {
-    observations: [secondObservation.raw],
+    observations: [sourceObservation(edited), secondObservation.raw],
     captures: secondObservation.captures,
     observedAt: "2026-10-09T09:00:00Z",
     prefetchPlan: true,
@@ -2489,8 +2574,12 @@ test("an explicit confirmed revision alias adds immutable membership without re-
       logical_key: oldRecord.logical_entries[0].key,
       parent_batch_id: "before-edit",
       parent_entries_digest: oldRecord.entries_digest,
-      observation_ref: second.resolution.observations[0].observation_ref,
-      parent_observation_ref: first.resolution.observations[0].observation_ref,
+      observation_ref: second.resolution.observations.find(
+        (observation) => observation.source_ref === details,
+      ).observation_ref,
+      parent_observation_ref: first.resolution.observations.find(
+        (observation) => observation.source_ref === details,
+      ).observation_ref,
     },
   ];
   recordSource(context.path, second);
@@ -2532,13 +2621,264 @@ test("an explicit confirmed revision alias adds immutable membership without re-
   assert.equal(existsSync(join(unsupported.dir, "ledger-record.json")), false);
 });
 
+test("adding a smaller confirmed card cannot create a second logical row for an already indexed immutable card", (t) => {
+  const context = sourceLedger(t);
+  const details = "https://jobs.acme.example/vacancy/101";
+  let first = fictionalSourceSet({ postId: 101, details });
+  let second = fictionalSourceSet({ postId: 102, details });
+  if (first.sourceSet.cards[0].card_ref < second.sourceSet.cards[0].card_ref)
+    [first, second] = [second, first];
+  const original = sourceBatchDir(context, first, "single-confirmed-card", {
+    ...linkedSourceObservations(first),
+    prefetchPlan: true,
+  });
+  recordSource(context.path, original);
+  const combined = combinedSourceFixture(first, second);
+  const merged = sourceBatchDir(context, combined, "added-smaller-card", {
+    ...linkedSourceObservations(combined),
+    observedAt: "2026-10-09T09:00:00Z",
+    prefetchPlan: true,
+  });
+  assert.equal(merged.resolution.groups.length, 1);
+  assert.equal(merged.resolution.groups[0].identity_status, "confirmed");
+  assert.equal(
+    merged.resolution.groups[0].logical_key,
+    ledgerSourceApi.logicalVacancyKey(second.sourceSet.cards[0].card_ref),
+  );
+  const ledgerBytes = readFileSync(context.path, "utf8");
+  assert.equal(
+    errorCode(() => recordSource(context.path, merged)),
+    "triage_ledger_source_identity",
+  );
+  assert.equal(
+    existsSync(join(merged.dir, "ledger-record.json")),
+    false,
+    "overlapping card re-keying is refused before archive",
+  );
+  assert.equal(readFileSync(context.path, "utf8"), ledgerBytes);
+  assert.equal(
+    reviewLedger(readLedger(context.path), { asOf: "2026-10-09T09:00:00Z" }).totals
+      .logical_vacancies,
+    1,
+  );
+  const parent = readBatchRecord(original.dir);
+  const linked = sourceBatchDir(context, combined, "added-smaller-card-with-alias", {
+    ...linkedSourceObservations(combined),
+    observedAt: "2026-10-09T09:00:00Z",
+    prefetchPlan: true,
+  });
+  linked.payload.aliases = [
+    {
+      card_ref: second.sourceSet.cards[0].card_ref,
+      logical_key: parent.logical_entries[0].key,
+      parent_batch_id: original.payload.batch_id,
+      parent_entries_digest: parent.entries_digest,
+      observation_ref: linked.resolution.observations.find(
+        (observation) =>
+          observation.card_ref === second.sourceSet.cards[0].card_ref &&
+          observation.source_ref === details,
+      ).observation_ref,
+      parent_observation_ref: original.resolution.observations.find(
+        (observation) => observation.source_ref === details,
+      ).observation_ref,
+    },
+  ];
+  recordSource(context.path, linked);
+  const ledger = readLedger(context.path);
+  assert.equal(ledger.logical_entries.length, 1);
+  assert.equal(ledger.logical_entries[0].key, parent.logical_entries[0].key);
+  assert.ok(
+    ledger.source_records
+      .filter((source) => source.batch_id === linked.payload.batch_id)
+      .every((source) => source.logical_key === parent.logical_entries[0].key),
+    "all confirmed merged memberships retain the established group key",
+  );
+  assert.equal(reviewLedger(ledger, { asOf: "2026-10-09T09:00:00Z" }).totals.logical_vacancies, 1);
+});
+
+test("an indexed batch replays its frozen identity after a later confirmed alias changes the current card key", (t) => {
+  const context = sourceLedger(t);
+  const details = "https://jobs.acme.example/vacancy/211";
+  const first = fictionalSourceSet({ details });
+  const original = sourceBatchDir(context, first, "replay-alias-parent", {
+    ...linkedSourceObservations(first),
+    prefetchPlan: true,
+  });
+  recordSource(context.path, original);
+  const differentRef = "https://jobs.acme.example/vacancy/212";
+  const edited = fictionalSourceSet({
+    details,
+    apply: differentRef,
+    extra: " Updated publication.",
+  });
+  const separate = sourceBatchDir(context, edited, "replay-before-alias", {
+    ...linkedSourceObservations(edited),
+    observedAt: "2026-10-09T09:00:00Z",
+    prefetchPlan: true,
+  });
+  recordSource(context.path, separate);
+  const frozenBytes = readFileSync(join(separate.dir, "ledger-record.json"), "utf8");
+  const parent = readBatchRecord(original.dir);
+  const linked = sourceBatchDir(context, edited, "replay-later-alias", {
+    ...linkedSourceObservations(edited),
+    observedAt: "2026-10-10T09:00:00Z",
+    prefetchPlan: true,
+    planResolution: separate.resolution,
+  });
+  linked.payload.aliases = [
+    {
+      card_ref: edited.sourceSet.cards[0].card_ref,
+      logical_key: parent.logical_entries[0].key,
+      parent_batch_id: original.payload.batch_id,
+      parent_entries_digest: parent.entries_digest,
+      observation_ref: linked.resolution.observations.find(
+        (observation) => observation.source_ref === details,
+      ).observation_ref,
+      parent_observation_ref: original.resolution.observations.find(
+        (observation) => observation.source_ref === details,
+      ).observation_ref,
+    },
+  ];
+  recordSource(context.path, linked);
+  const ledgerBytes = readFileSync(context.path, "utf8");
+  assert.equal(recordSource(context.path, separate).replayed, true);
+  assert.equal(readFileSync(join(separate.dir, "ledger-record.json"), "utf8"), frozenBytes);
+  assert.equal(readFileSync(context.path, "utf8"), ledgerBytes);
+  assert.equal(
+    readBatchRecord(separate.dir).entries_digest,
+    readLedger(context.path).batches.find((batch) => batch.batch_id === separate.payload.batch_id)
+      .entries_digest,
+  );
+  const changed = {
+    ...separate,
+    payload: {
+      ...separate.payload,
+      aliases: [
+        {
+          ...linked.payload.aliases[0],
+          observation_ref: separate.resolution.observations.find(
+            (observation) => observation.source_ref === details,
+          ).observation_ref,
+        },
+      ],
+    },
+  };
+  assert.equal(
+    errorCode(() => recordSource(context.path, changed)),
+    "triage_ledger_batch_id_reused",
+    "an indexed replay still refuses a changed actual payload after aliases evolve",
+  );
+  assert.equal(readFileSync(context.path, "utf8"), ledgerBytes);
+  const withDifferent = readLedger(context.path);
+  assert.equal(
+    withDifferent.logical_entries.filter((entry) => entry.identity_status === "different").length,
+    1,
+  );
+  const differentRow = withDifferent.logical_entries.find(
+    (entry) => entry.identity_status === "different",
+  );
+  assert.equal(differentRow.title, "Junior QA Engineer");
+  assert.ok(
+    withDifferent.source_records.some(
+      (source) => source.logical_key === differentRow.key && source.url === differentRef,
+    ),
+  );
+  assert.equal(
+    reviewLedger(withDifferent, { asOf: "2026-10-11T09:00:00Z" }).totals.logical_vacancies,
+    2,
+    "a confirmed card alias cannot hide a genuinely different target group sharing that card",
+  );
+});
+
+test("rechecking existing merged and different groups requires and accepts a validated frozen group plan", (t) => {
+  const mergeContext = sourceLedger(t);
+  const details = "https://jobs.acme.example/vacancy/301";
+  const combined = combinedSourceFixture(
+    fictionalSourceSet({ postId: 301, details }),
+    fictionalSourceSet({ postId: 302, details }),
+  );
+  const observed = linkedSourceObservations(combined);
+  const first = sourceBatchDir(mergeContext, combined, "frozen-merged-first", {
+    ...observed,
+    prefetchPlan: true,
+  });
+  recordSource(mergeContext.path, first);
+  const unplanned = sourceBatchDir(mergeContext, combined, "merged-per-card-repeat", {
+    ...observed,
+    observedAt: "2026-10-09T09:00:00Z",
+    prefetchPlan: true,
+  });
+  assert.equal(
+    errorCode(() => recordSource(mergeContext.path, unplanned)),
+    "triage_ledger_entry_unplanned",
+  );
+  assert.equal(existsSync(join(unplanned.dir, "ledger-record.json")), false);
+  const planned = sourceBatchDir(mergeContext, combined, "merged-frozen-repeat", {
+    ...observed,
+    observedAt: "2026-10-09T09:00:00Z",
+    prefetchPlan: true,
+    planResolution: first.resolution,
+  });
+  assert.equal(planned.plan.items.length, 1);
+  assert.equal(planned.plan.items[0].baseline.key, first.resolution.groups[0].logical_key);
+  recordSource(mergeContext.path, planned);
+  assert.equal(
+    reviewLedger(readLedger(mergeContext.path), { asOf: "2026-10-09T09:00:00Z" }).totals
+      .logical_vacancies,
+    1,
+  );
+
+  const differentContext = sourceLedger(t);
+  const fixture = fictionalSourceSet({ details: "https://jobs.acme.example/vacancy/311" });
+  const external = detailsObservation(fixture);
+  external.raw.input.inputIndex = 2;
+  external.raw.identity_status = "different";
+  const observationPair = [sourceObservation(fixture), external.raw];
+  const separate = sourceBatchDir(differentContext, fixture, "frozen-different-first", {
+    observations: observationPair,
+    captures: external.captures,
+    prefetchPlan: true,
+  });
+  recordSource(differentContext.path, separate);
+  assert.equal(separate.resolution.groups.length, 2);
+  const repeated = sourceBatchDir(differentContext, fixture, "different-per-card-repeat", {
+    observations: observationPair,
+    captures: external.captures,
+    observedAt: "2026-10-09T09:00:00Z",
+    prefetchPlan: true,
+  });
+  assert.equal(
+    errorCode(() => recordSource(differentContext.path, repeated)),
+    "triage_ledger_entry_unplanned",
+  );
+  assert.equal(existsSync(join(repeated.dir, "ledger-record.json")), false);
+  const plannedDifferent = sourceBatchDir(differentContext, fixture, "different-frozen-repeat", {
+    observations: observationPair,
+    captures: external.captures,
+    observedAt: "2026-10-09T09:00:00Z",
+    prefetchPlan: true,
+    planResolution: separate.resolution,
+  });
+  recordSource(differentContext.path, plannedDifferent);
+  const ledger = readLedger(differentContext.path);
+  assert.equal(
+    ledger.logical_entries.length,
+    2,
+    "genuinely different targets may share the immutable card reference",
+  );
+  assert.ok(
+    ledger.logical_entries.every((entry) => entry.batch_id === plannedDifferent.payload.batch_id),
+  );
+});
+
 test("a different target identity can record a new derived group from a complete initial card plan", (t) => {
   const context = sourceLedger(t);
   const fixture = fictionalSourceSet({ details: "https://jobs.acme.example/vacancy/91" });
   const observation = detailsObservation(fixture);
+  observation.raw.input.inputIndex = 2;
   observation.raw.identity_status = "different";
   const staged = sourceBatchDir(context, fixture, "different-target", {
-    observations: [observation.raw],
+    observations: [sourceObservation(fixture), observation.raw],
     captures: observation.captures,
     prefetchPlan: true,
   });
@@ -2549,10 +2889,7 @@ test("a different target identity can record a new derived group from a complete
   assert.equal(entries.length, 2);
   assert.equal(new Set(entries.map((entry) => entry.key)).size, 2);
   assert.equal(entries.find((entry) => entry.identity_status === "different").decision, "SKIP");
-  assert.equal(
-    entries.find((entry) => entry.identity_status === "linked_unconfirmed").decision,
-    "MANUAL_REVIEW",
-  );
+  assert.equal(entries.find((entry) => entry.identity_status === "confirmed").decision, "SKIP");
 });
 
 test("two source writers sharing a logical row serialize and retain only the winning observation", async (t) => {
@@ -2776,6 +3113,46 @@ test("a pure corroborated closed source result has closed liveness while mixed a
       entry.card_refs.includes(active.sourceSet.cards[0].card_ref),
     ).status,
     "open",
+  );
+  const mixedPlan = ledgerSourceApi.planSourceBatch(context.path, active.sourceSet, {
+    asOf: "2026-10-09T09:00:00Z",
+    resolution: mixed.resolution,
+    collectionText: active.collectionText,
+  });
+  assert.equal(mixedPlan.items[0].action, "source_review");
+  assert.equal(
+    mixedPlan.items[0].sources.find((source) => source.role === "details").action,
+    "skip_closed",
+  );
+  assert.equal(
+    mixedPlan.items[0].sources.find((source) => source.role === "original_post").action,
+    "source_review",
+  );
+  assert.equal(
+    ledgerSourceApi
+      .planSourceBatch(context.path, active.sourceSet, { asOf: "2026-10-09T09:00:00Z" })
+      .items[0].sources.find((source) => source.role === "details").action,
+    "skip_closed",
+    "the default card plan also preserves its exact terminal source",
+  );
+  const edited = fictionalSourceSet({
+    postId: 8,
+    details: closedDetails.raw.source_ref,
+    title: "Junior QA Engineer",
+  });
+  assert.equal(
+    ledgerSourceApi
+      .planSourceBatch(context.path, edited.sourceSet, { asOf: "2026-10-09T09:00:00Z" })
+      .items[0].sources.find((source) => source.role === "details").action,
+    "fetch_new",
+    "an edited card cannot inherit the closed source outcome",
+  );
+  assert.equal(
+    planBatch(readLedger(context.path), [closedDetails.raw.source_ref], {
+      asOf: "2026-10-09T09:00:00Z",
+    }).items[0].action,
+    "fetch_new",
+    "a closed card source never becomes a global URL disposition",
   );
 });
 

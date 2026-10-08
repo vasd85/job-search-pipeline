@@ -80,6 +80,7 @@ import {
   verdictKinds,
 } from "../tools/telegram-collect/sweep.mjs";
 import { readCollection } from "../tools/pretriage/collection.mjs";
+import { splitCollection } from "../tools/pretriage/groups.mjs";
 import { readLinksFile } from "../tools/triage-verify/links.mjs";
 import {
   cardBody,
@@ -4033,6 +4034,113 @@ test("source context regression: a thematic summary keeps company and apply role
     finished.manifest.source_set.sha256,
   );
   assert.equal(cardProblem(record), null);
+});
+
+test("source context handoff: a summary with only new company/contact links retains a positioned original when its apply URL is known", async (t) => {
+  for (const kind of ["company only", "known apply", "contact"]) {
+    await t.test(kind, async (t) => {
+      const root = disposableRoot(t, "telegram-summary-handoff-");
+      const configPath = join(root, "telegram-sources.json");
+      const statePath = join(root, "telegram-sweep-state.json");
+      const outDir = join(root, "telegram-sweeps", "summary");
+      const company = "https://studio.example.test/";
+      const apply = "https://jobs.example.test/mobile/apply";
+      const original = "https://t.me/examplejobs/702?embed=1";
+      writeFileSync(configPath, JSON.stringify(rawConfig()));
+      initStateCurrent(statePath);
+      if (kind === "known apply") {
+        const state = readState(statePath);
+        state.emitted_urls[apply] = {
+          handle: "examplejobs",
+          post_id: 700,
+          first_at: "2026-09-12T12:00:00.000Z",
+          last_seen: "2026-09-12T12:00:00.000Z",
+        };
+        writeState(statePath, state);
+      }
+      const ending =
+        kind === "known apply"
+          ? 'Read the full role and <a href="https://jobs.example.test/mobile/apply">apply here</a>'
+          : kind === "contact"
+            ? 'Contact <a href="mailto:hiring@studio.example.test">hiring</a>'
+            : "Remote, mobile games.";
+      const html = pageHtml({
+        posts: [
+          post(
+            702,
+            day(13),
+            `Senior QA Tester<br/>About <a href="https://studio.example.test/">Example Studio</a><br/>${ending}`,
+          ),
+        ],
+        older: false,
+      });
+      const run = await executeSweepCurrent({
+        configPath,
+        statePath,
+        outDir,
+        repoRoot: root,
+        ...sweepDeps({ [P1]: { body: html } }),
+      });
+      const batch = run.batches[0];
+      const mappings = [{ anchor: 1, role: "company_context" }];
+      if (kind !== "company only")
+        mappings.push({ anchor: 2, role: kind === "known apply" ? "apply" : "contact" });
+      mkdirSync(join(outDir, "reader-out"));
+      writeFileSync(
+        join(outDir, "reader-out", batch.file.replace(/\.txt$/u, ".json")),
+        JSON.stringify({
+          schema_version: 2,
+          batch: batch.file.replace(/\.txt$/u, ""),
+          posts: [
+            {
+              post: 1,
+              vacancies: [
+                mappedVac(
+                  1,
+                  1,
+                  3,
+                  mappings,
+                  "summary",
+                  kind === "known apply" ? [{ via: "url", link: 2 }] : [],
+                ),
+              ],
+            },
+          ],
+        }),
+      );
+      const finished = executeFinalize({ outDir, statePath, repoRoot: root });
+      const collection = readCollection(finished.collectionPath, {
+        sourceSetPath: join(outDir, "source-set.json"),
+      });
+      const grouped = splitCollection(collection);
+      assert.equal(grouped.schema_version, 2);
+      assert.equal(grouped.logical_vacancies, 1);
+      assert.deepEqual(
+        collection.links.map((link) => link.url),
+        [company, original],
+      );
+      const set = collection.source_set;
+      const record = JSON.parse(readFileSync(join(outDir, "vacancies.jsonl"), "utf8").trim());
+      assert.equal(record.schema_version, 4);
+      assert.equal(record.description_kind, "summary");
+      assert.equal(set.cards[0].description_kind, "summary");
+      assert.equal(set.cards[0].mapping_status, "resolved");
+      assert.equal(sourceSetMemberships(set, company)[0].role, "company_context");
+      assert.equal(sourceSetMemberships(set, original)[0].role, "original_post");
+      assert.ok(record.score_urls.includes(original));
+      if (kind === "known apply") {
+        assert.equal(sourceSetMemberships(set, apply)[0].role, "apply");
+        assert.equal(record.known_urls[0].url, apply);
+        assert.ok(!record.score_urls.includes(apply));
+      }
+      if (kind === "contact")
+        assert.equal(
+          set.cards[0].links.find((link) => link.url === "mailto:hiring@studio.example.test").role,
+          "contact",
+        );
+      assert.equal(cardProblem(record), null);
+    });
+  }
 });
 
 function mappedAnswer(item, vacancies) {

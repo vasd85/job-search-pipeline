@@ -3850,7 +3850,35 @@ test("source-aware scoring has explicit artifact and logical-result boundaries",
   assert.match(rubric, /`source_context` - present only on schema 10/);
   assert.match(rubric, /`sourceContext`/);
   assert.match(rubric, /`MANUAL_REVIEW: source_review`/);
-  assert.match(rubric, /Capture|capture time/);
+  const flatSkill = skill.replace(/\s+/g, " ");
+  const flatRubric = rubric.replace(/\s+/g, " ");
+  assert.ok(
+    flatSkill.includes(
+      "Every selected card requires its original observation, including an unscored summary.",
+    ),
+  );
+  assert.ok(flatSkill.includes("a failed/closed capture or manifest cannot use `input: null`."));
+  assert.ok(
+    flatSkill.includes(
+      "Reconcile every observation after merging cards, including nonprimary alternatives;",
+    ),
+  );
+  assert.ok(
+    flatSkill.includes(
+      "An existing merged or different-target group requires that resolution-aware plan before its next fetch;",
+    ),
+  );
+  assert.ok(
+    flatRubric.includes(
+      "Explicit facts from an unscored summary still constrain its linked descriptions.",
+    ),
+  );
+  assert.ok(
+    flatRubric.includes(
+      "the complete union of observations must be checked for contradictions, including nonprimary alternatives.",
+    ),
+  );
+  assert.ok(flatRubric.includes("Source publication date and capture time are separate facts."));
 });
 
 test("every annotation token declares one class, and the review reads the class", () => {

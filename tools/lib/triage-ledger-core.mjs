@@ -1731,10 +1731,13 @@ function sourcePlanItem(group, ledger, sourceSet) {
           ? "company_context"
           : link.role === "contact"
             ? "contact"
-            : sourceKnown?.observation_decision === triageRetryDecision &&
-                sourceKnown.observation_status === "open"
-              ? "retry_blocked"
-              : action,
+            : sourceKnown?.observation_decision === "SKIP" &&
+                sourceKnown.observation_status === "closed"
+              ? "skip_closed"
+              : sourceKnown?.observation_decision === triageRetryDecision &&
+                  sourceKnown.observation_status === "open"
+                ? "retry_blocked"
+                : action,
     };
   });
   return {
@@ -1989,23 +1992,31 @@ function logicalStatus(group, observations) {
     : "open";
 }
 
+function logicalGroupKey(group, aliases) {
+  const keys = [
+    ...new Set(
+      group.identity_status === "different"
+        ? []
+        : aliases
+            .filter((alias) => group.card_refs.includes(alias.card_ref))
+            .map((alias) => alias.logical_key),
+    ),
+  ];
+  if (keys.length > 1)
+    fail(
+      "triage_ledger_source_identity",
+      "One confirmed group cannot alias two logical vacancies.",
+    );
+  return keys[0] ?? group.logical_key;
+}
+
 function normalizeLogicalGroups(resolution, batch, aliases) {
   return resolution.groups
     .filter((group) => group.result !== null)
     .map((group, index) => {
       const result = group.result;
-      const aliased =
-        group.identity_status !== "different"
-          ? aliases.filter((alias) => group.card_refs.includes(alias.card_ref))
-          : [];
-      const aliasKeys = [...new Set(aliased.map((alias) => alias.logical_key))];
-      if (aliasKeys.length > 1)
-        fail(
-          "triage_ledger_source_identity",
-          "One confirmed group cannot alias two logical vacancies.",
-        );
       const entry = {
-        key: aliasKeys[0] ?? group.logical_key,
+        key: logicalGroupKey(group, aliases),
         card_refs: [...group.card_refs].sort(),
         identity_status: group.identity_status,
         primary_ref: group.primary,
@@ -2055,10 +2066,7 @@ function normalizeSourceMemberships(sourceSet, resolution, batch, aliases) {
           : undefined;
         const record = {
           membership_key: "",
-          logical_key:
-            (group.identity_status !== "different"
-              ? aliases.find((alias) => alias.card_ref === card.card_ref)?.logical_key
-              : undefined) ?? group.logical_key,
+          logical_key: logicalGroupKey(group, aliases),
           card_ref: card.card_ref,
           snapshot_ref: card.snapshot_ref,
           anchor: link.anchor,
@@ -2338,6 +2346,26 @@ function assertSourcePlanUnmoved(ledger, plan, groups) {
         "triage_ledger_entry_unplanned",
         "A derived source group has a preexisting logical row absent from the batch's source plan.",
       );
+  for (const group of groups) {
+    if (
+      group.card_refs.length < 2 ||
+      !ledger.logical_entries.some((entry) => entry.key === group.logical_key)
+    )
+      continue;
+    if (
+      !plan.items.some(
+        (item) =>
+          (item.group_key ?? item.logical_key) === group.logical_key &&
+          JSON.stringify([...item.card_refs].sort()) ===
+            JSON.stringify([...group.card_refs].sort()) &&
+          item.baseline !== null,
+      )
+    )
+      fail(
+        "triage_ledger_entry_unplanned",
+        "An existing merged group requires its validated frozen group baseline before refetch.",
+      );
+  }
   const plannedCards = new Set(plan.items.flatMap((item) => item.card_refs ?? []));
   for (const group of groups)
     if (group.card_refs.some((ref) => !plannedCards.has(ref)))
@@ -2400,6 +2428,58 @@ function mergeImmutable(previous, additions, key, code) {
     if (!known) byKey.set(item[key], item);
   }
   return [...byKey.values()].sort((a, b) => a[key].localeCompare(b[key]));
+}
+
+function frozenSourceRecord(artifactsDir, batchId) {
+  try {
+    const path = join(artifactsDir, triageBatchRecordFileName);
+    const stats = lstatSync(path);
+    if (!stats.isFile() || stats.isSymbolicLink())
+      fail(
+        "triage_ledger_record_unreadable",
+        "The frozen source record must be a regular file without a symlink.",
+      );
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return null;
+    if (error instanceof TriageLedgerError) throw error;
+    fail(
+      "triage_ledger_record_unreadable",
+      `The frozen source record could not be read (${error?.code ?? "unknown error"}).`,
+    );
+  }
+  const record = readBatchRecord(artifactsDir);
+  if (record.schema_version !== 2 || record.batch_id !== batchId)
+    fail(
+      "triage_ledger_record_conflict",
+      "The source directory already holds a different immutable batch record.",
+    );
+  return record;
+}
+
+function assertNoLogicalCardOverlap(ledger, entries, aliases) {
+  for (const entry of entries) {
+    if (entry.identity_status === "different") continue;
+    for (const known of ledger.logical_entries) {
+      if (
+        known.identity_status === "different" ||
+        known.key === entry.key ||
+        !known.card_refs.some((ref) => entry.card_refs.includes(ref))
+      )
+        continue;
+      // A verified alias may supersede a separately observed old card, but it must account for
+      // every card of that retained row. Neither adding a smaller card nor a partial alias rekeys it.
+      if (
+        known.card_refs.every((ref) =>
+          aliases.some((alias) => alias.card_ref === ref && alias.logical_key === entry.key),
+        )
+      )
+        continue;
+      fail(
+        "triage_ledger_source_identity",
+        "An immutable card already belongs to another logical vacancy; retain its established key using independently confirmed parent-bound aliases.",
+      );
+    }
+  }
 }
 
 /**
@@ -2483,6 +2563,24 @@ export function recordSourceBatch(path, batch, options) {
   );
   const startingLedger = requireSourceLedger(readLedger(path));
   const allAliases = [...startingLedger.aliases, ...aliases];
+  const frozen = frozenSourceRecord(archiveDir, batch.batch_id);
+  // Replay derives the original payload again, but later aliases may not reinterpret its key.
+  // A frozen key is accepted only when derived from the resolution or a still-confirmed alias;
+  // the complete recomputed record must then match the archive and index digests below.
+  const recordAliases =
+    frozen === null
+      ? allAliases
+      : allAliases.filter(
+          (alias) =>
+            frozen.logical_entries.some(
+              (entry) =>
+                entry.key === alias.logical_key && entry.card_refs.includes(alias.card_ref),
+            ) ||
+            frozen.source_records.some(
+              (source) =>
+                source.logical_key === alias.logical_key && source.card_ref === alias.card_ref,
+            ),
+        );
   const entries = (batch.entries ?? [])
     .map((item, index) => normalizeBatchEntry(item, index, batch))
     .sort((a, b) => a.key.localeCompare(b.key));
@@ -2520,8 +2618,8 @@ export function recordSourceBatch(path, batch, options) {
     entries,
     logical_entries: batch.correction_only
       ? []
-      : normalizeLogicalGroups(resolution, batch, allAliases),
-    source_records: normalizeSourceMemberships(sourceSet, resolution, batch, allAliases).filter(
+      : normalizeLogicalGroups(resolution, batch, recordAliases),
+    source_records: normalizeSourceMemberships(sourceSet, resolution, batch, recordAliases).filter(
       (member) =>
         !batch.correction_only ||
         corrections.some(
@@ -2598,6 +2696,7 @@ export function recordSourceBatch(path, batch, options) {
             "A new card cannot inherit another card's logical decision without an independently confirmed alias.",
           );
       }
+      assertNoLogicalCardOverlap(ledger, record.logical_entries, allAliases);
       mergeImmutable(ledger.aliases, aliases, "card_ref", "triage_ledger_source_alias_invalid");
       mergeImmutable(
         ledger.corrections,
@@ -2735,6 +2834,7 @@ export function reviewLedger(ledger, { asOf } = {}) {
   const logicalEntries = sourceAware
     ? ledger.logical_entries.filter(
         (entry) =>
+          entry.identity_status === "different" ||
           !entry.card_refs.every((ref) =>
             ledger.aliases.some(
               (alias) => alias.card_ref === ref && alias.logical_key !== entry.key,

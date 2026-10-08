@@ -23,11 +23,16 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
+  cardBody,
   createSourceSet,
   snapshotFromHtml,
   sourceSetDigest,
 } from "../tools/triage-sources/source-set.mjs";
 import { publishSourceResolution } from "../tools/triage-sources/reconcile.mjs";
+import {
+  fictionalSourceFixture,
+  fixtureCaptureAt,
+} from "./fixtures/triage-source-context/cases.mjs";
 import { TriageVerifyError } from "../tools/triage-verify/errors.mjs";
 import { presentButUnusable, usableInstant } from "../tools/triage-verify/instants.mjs";
 import {
@@ -4685,3 +4690,185 @@ test("standalone input 10 retains strict legacy quote and cross-transport guards
   });
   assert.ok(codes(stamped.report).includes("capture_source_ref_mismatch"));
 });
+
+// These cases reconstruct the compiler's actual custody path. The retained HTML, target stamp
+// and manifest exist before publication; a pure fixture resolution cannot stand in for them.
+function publishFileBackedSourceCase(t, fixture, { outcome = "active" } = {}) {
+  const root = disposableRoot(t);
+  const artifactsDir = join(root, "artifacts");
+  const collectorDir = join(root, "collector");
+  mkdirSync(artifactsDir);
+  mkdirSync(collectorDir);
+  writeFileSync(join(collectorDir, fixture.snapshot.capture.file), fixture.html);
+  const target = fixture.target;
+  const digest = sha256Utf8(target.body);
+  target.capture = { file: "007.capture.txt", sha256: digest };
+  if (target.input !== null) target.input.sourceContext.primaryCaptureSha256 = digest;
+  writeFileSync(
+    join(artifactsDir, target.capture.file),
+    renderCaptureFile({
+      body: target.body,
+      header: {
+        index: 7,
+        adapter: "generic-html@1",
+        "source-id": "generic",
+        "requested-url": target.source_ref,
+        "final-url": target.source_ref,
+        "fetched-at": fixtureCaptureAt,
+        "http-status": 200,
+        outcome,
+        "access-barrier": null,
+        "response-sha256": digest,
+        "response-bytes": Buffer.byteLength(target.body),
+        "extracted-sha256": digest,
+        "normalized-sha256": digest,
+        "body-bytes": Buffer.byteLength(target.body),
+        normalization: "none",
+      },
+    }),
+  );
+  const manifest = `${JSON.stringify(
+    {
+      schemaVersion: 2,
+      tool: "vacancy-fetch",
+      startedAt: fixtureCaptureAt,
+      records: [
+        {
+          index: 7,
+          requestedUrl: target.source_ref,
+          finalUrl: target.source_ref,
+          fetchedAt: fixtureCaptureAt,
+          outcome,
+          usable: outcome === "active",
+          fallback: null,
+          skipped: false,
+          response: { sha256: digest },
+          persisted: { file: target.capture.file, sha256: digest },
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`;
+  writeFileSync(join(artifactsDir, "fetch-manifest.json"), manifest);
+  target.transport = { file: "fetch-manifest.json", sha256: sha256Utf8(manifest), index: 7 };
+  const resolution = publishSourceResolution({
+    artifactsDir,
+    sourceCaptureRoot: collectorDir,
+    sourceSet: fixture.sourceSet,
+    collectionText: fixture.collectionText,
+    observations: fixture.observations,
+  });
+  const linksFile = join(root, "links.txt");
+  writeFileSync(linksFile, fixture.collectionText);
+  return {
+    root,
+    artifactsDir,
+    linksFile,
+    sourceSet: fixture.sourceSet,
+    resolution,
+    from: 1,
+    to: new Set(fixture.collectionText.trim().split("\n")).size,
+  };
+}
+
+function summaryWithExplicitJuniorConflict() {
+  const fixture = fictionalSourceFixture({ kind: "summary" });
+  fixture.html = fixture.html.replace(
+    "Read the full description below",
+    "Junior+<br/>Read the full description below",
+  );
+  const snapshot = snapshotFromHtml(fixture.html, {
+    handle: fixture.snapshot.handle,
+    postId: fixture.snapshot.post_id,
+    file: fixture.snapshot.capture.file,
+    capturedAt: fixture.snapshot.capture.captured_at,
+  });
+  fixture.sourceSet = createSourceSet({
+    collectionText: fixture.collectionText,
+    snapshots: [snapshot],
+    cards: [
+      { ...fixture.card, snapshot_ref: snapshot.snapshot_ref, end_line: snapshot.lines.length },
+    ],
+  });
+  fixture.card = fixture.sourceSet.cards[0];
+  fixture.snapshot = snapshot;
+  Object.assign(fixture.original, {
+    card_ref: fixture.card.card_ref,
+    body: cardBody(fixture.sourceSet, fixture.card),
+    capture: { file: snapshot.capture.file, sha256: snapshot.capture.sha256 },
+  });
+  fixture.original.facts.seniority = { value: "Junior+", evidence_quote: "Junior+" };
+  fixture.target.card_ref = fixture.card.card_ref;
+  Object.assign(fixture.target.input.sourceContext, {
+    sourceSetSha256: sourceSetDigest(fixture.sourceSet),
+    cardRef: fixture.card.card_ref,
+    snapshotRef: snapshot.snapshot_ref,
+  });
+  return fixture;
+}
+
+function juniorOriginalWithSeniorTarget() {
+  const fixture = fictionalSourceFixture({ junior: true });
+  fixture.target.body = fixture.target.body.replace("Junior+", "Senior QA Engineer");
+  fixture.target.facts.seniority = {
+    value: "Senior QA Engineer",
+    evidence_quote: "Senior QA Engineer",
+  };
+  fixture.target.input = fixture.inputFor(fixture.target.source_ref, fixture.target.body, {
+    index: 2,
+    primary: false,
+    captureSha256: sha256Utf8(fixture.target.body),
+    seniority: "senior",
+  });
+  return fixture;
+}
+
+test("file-backed source compiler preserves explicit summary Junior+ versus full target Senior as source_review", (t) => {
+  const prepared = publishFileBackedSourceCase(t, summaryWithExplicitJuniorConflict());
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups.length, 1);
+  const group = prepared.resolution.groups[0];
+  assert.equal(group.result.decision, "MANUAL_REVIEW");
+  assert.equal(group.result.review_code, "source_review");
+  assert.ok(group.conflicts.includes("conflicting_seniority"));
+  assert.ok(group.alternatives.some((alternative) => alternative.trace?.decision === "EVALUATED"));
+  const raw = JSON.parse(
+    readFileSync(join(prepared.artifactsDir, "traces", "002.trace.json"), "utf8"),
+  );
+  assert.equal(raw.decision, "EVALUATED");
+  assert.equal(report.counts.records, 1);
+  assert.equal(report.counts.logicalVacancies, 1);
+});
+
+test("file-backed source compiler refuses omission of the selected full original observation", (t) => {
+  const fixture = juniorOriginalWithSeniorTarget();
+  fixture.observations = [fixture.target];
+  assert.throws(() => publishFileBackedSourceCase(t, fixture), {
+    code: "source_resolution_invalid",
+  });
+});
+
+test("file-backed source compiler requires the full original description's raw scorer input", (t) => {
+  const fixture = juniorOriginalWithSeniorTarget();
+  fixture.original.input = null;
+  assert.throws(() => publishFileBackedSourceCase(t, fixture), {
+    code: "source_resolution_invalid",
+  });
+});
+
+for (const outcome of ["closed", "access_failure"]) {
+  test(`file-backed source compiler cannot hide a target capture marked ${outcome} behind input null`, (t) => {
+    const fixture = fictionalSourceFixture();
+    fixture.target.body = `QA Engineer\nCompany Fictional Labs\n${outcome === "closed" ? "This vacancy is closed." : "Posting could not be loaded."}`;
+    fixture.target.description_kind = "unknown";
+    fixture.target.identity_status = "linked_unconfirmed";
+    fixture.target.input = null;
+    fixture.target.facts.seniority = null;
+    fixture.target.facts.salary = null;
+    assert.throws(() => publishFileBackedSourceCase(t, fixture, { outcome }), {
+      code: "source_resolution_invalid",
+    });
+  });
+}
