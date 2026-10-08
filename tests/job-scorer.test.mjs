@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -390,7 +398,7 @@ test("sanitized final URLs cannot confirm query-discriminated job identity", asy
         jobUrl: "https://jobs.example.test/view?jobId=101",
       });
       fixture.target.input.source.finalUrl = finalUrl;
-      const root = mkdtempSync("/private/tmp/source-query-identity-");
+      const root = mkdtempSync(join(realpathSync(tmpdir()), "source-query-identity-"));
       t.after(() => rmSync(root, { recursive: true, force: true }));
       writeFileSync(join(root, fixture.snapshot.capture.file), fixture.html);
       writeFileSync(
