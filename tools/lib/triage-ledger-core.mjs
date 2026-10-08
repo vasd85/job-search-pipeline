@@ -58,7 +58,7 @@ import {
   sourceSetDigest,
   validateSourceSet,
 } from "../triage-sources/source-set.mjs";
-import { validateSourceResolution } from "../triage-sources/reconcile.mjs";
+import { sourceResolutionDigest, validateSourceResolution } from "../triage-sources/reconcile.mjs";
 
 export const triageLedgerSchemaVersion = 2;
 export const triageLegacyLedgerSchemaVersion = 1;
@@ -1610,6 +1610,80 @@ export function ledgerSnapshotDigest(ledger) {
   return hashBytes(serializeLedger(validateLedger(ledger)));
 }
 
+/**
+ * A prior resolution is evidence only through its immutable, indexed batch. The returned
+ * reference carries machine tokens and digests; a later verifier locates that batch as a sibling
+ * in the same store, without believing a path supplied by the plan.
+ */
+export function readSourcePlanPriorResolution(
+  ledger,
+  sourceSet,
+  { asOf, collectionText, captureRoot, validation = {} } = {},
+) {
+  checkedSourceSet(sourceSet, { collectionText });
+  requireSourceLedger(ledger);
+  if (captureRoot === undefined) return null;
+  const code = "triage_ledger_source_plan_prior_invalid";
+  if (typeof captureRoot !== "string" || captureRoot.length === 0)
+    fail(code, "The prior resolution requires a real batch directory.");
+  const root = resolve(captureRoot);
+  try {
+    for (let path = root; ; path = dirname(path)) {
+      const stats = lstatSync(path);
+      if (!stats.isDirectory() || stats.isSymbolicLink())
+        fail(code, "The prior batch path must contain real directories without symlinks.");
+      if (dirname(path) === path) break;
+    }
+  } catch (error) {
+    if (error instanceof TriageLedgerError) throw error;
+    fail(code, "The prior batch directory cannot be read.");
+  }
+  const recordPath = join(root, triageBatchRecordFileName);
+  try {
+    lstatSync(recordPath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    fail(code, "The prior batch record cannot be read.");
+  }
+  const archived = readArtifact(recordPath, code);
+  let record;
+  let stored;
+  try {
+    record = validateSourceBatchRecord(archived.value);
+    stored = loadSourceArtifacts(root, record, validation);
+  } catch (error) {
+    if (!(error instanceof TriageLedgerError)) throw error;
+    fail(code, "The prior batch record or its bound source artifacts are invalid.");
+  }
+  const indexed = ledger.batches.filter((batch) => batch.batch_id === record.batch_id);
+  if (
+    basename(root) !== record.batch_id ||
+    indexed.length !== 1 ||
+    indexed[0].record_schema_version !== 2 ||
+    indexed[0].recorded_at !== record.observed_at ||
+    indexed[0].entry_count !== record.logical_entries.length ||
+    indexed[0].policy_id !== record.policy_id ||
+    ["entries_digest", "source_set_sha256", "source_resolution_sha256", "plan_sha256"].some(
+      (key) => indexed[0][key] !== record[key],
+    ) ||
+    parseInstant(record.observed_at, code) >= parseInstant(asOf, code) ||
+    record.source_set_sha256 !== sourceSetDigest(sourceSet) ||
+    typeof collectionText !== "string" ||
+    hashBytes(collectionText) !== stored.sourceSet.collection_sha256
+  )
+    fail(code, "The prior resolution is not a matching indexed batch from before this plan.");
+  return {
+    resolution: stored.resolution,
+    reference: {
+      batch_id: record.batch_id,
+      entries_digest: record.entries_digest,
+      record_sha256: archived.digest,
+      source_set_sha256: record.source_set_sha256,
+      source_resolution_sha256: record.source_resolution_sha256,
+    },
+  };
+}
+
 function cardGroups(sourceSet, resolution) {
   if (resolution !== undefined) return resolution.groups;
   return sourceSet.cards.map((card) => ({
@@ -1766,6 +1840,23 @@ export function planSourceBatch(
   const ledger = requireSourceLedger(
     typeof ledgerOrPath === "string" ? readLedger(ledgerOrPath) : ledgerOrPath,
   );
+  const prior =
+    resolution === undefined
+      ? null
+      : readSourcePlanPriorResolution(ledger, sourceSet, {
+          asOf,
+          collectionText,
+          captureRoot,
+          validation,
+        });
+  if (
+    prior !== null &&
+    sourceResolutionDigest(resolution) !== prior.reference.source_resolution_sha256
+  )
+    fail(
+      "triage_ledger_source_plan_prior_invalid",
+      "The supplied planning resolution differs from its immutable prior batch.",
+    );
   let groups = cardGroups(sourceSet, resolution);
   if (resolution === undefined && selection !== undefined) {
     if (
@@ -1792,6 +1883,7 @@ export function planSourceBatch(
     as_of: asOf,
     source_set_sha256: sourceSetDigest(sourceSet),
     ledger_snapshot_sha256: ledgerSnapshotDigest(ledger),
+    ...(prior === null ? {} : { prior_resolution: prior.reference }),
     counts: Object.fromEntries(
       actions.map((action) => [action, items.filter((item) => item.action === action).length]),
     ),

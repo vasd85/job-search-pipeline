@@ -486,6 +486,9 @@ for upgrade, recording and correction APIs. All observations and payloads remain
    An existing merged or different-target group requires that resolution-aware plan before its next
    fetch; validate the prior artifact against the same exact source set and retained captures as
    the source ledger contract prescribes. A changed source set needs its own validated resolution.
+   Use the indexed prior batch directory as `captureRoot`; the planner emits a bounded
+   `prior_resolution` reference and verification reads its sibling archive. Keep the plan bytes
+   unchanged after fetching; newly observed facts cannot replace the prior proof.
    Before fetching, archive that source plan in `plan.json` (directly or as `source_plan` alongside
    the standalone `planBatch` snapshot). Run `planPreTriage` over the selected collection with both
    `ledgerPlan` and `sourcePlan`, then report its URL dispositions and logical counts.
@@ -505,7 +508,12 @@ for upgrade, recording and correction APIs. All observations and payloads remain
    input/trace filenames; URL indices, logical indices and reader display numbers are separate.
    Preserve explicit employer, role/title, seniority, salary and publication-date observations with
    their own quotes, recording absence as null. Capture/fetch time is never publication time.
-   Check target identity and employer/role for direct job links. Use `linked_unconfirmed` when
+   A saved full original cannot be relabeled unread; a new liveness failure uses its own failed
+   capture or manifest observation. Check target identity and employer/role for direct job links.
+   A sanitized final URL cannot confirm an identity carried only in a meaningful query parameter.
+   Bind the primary capture's final URL to its actual manifest; a separate browser rescue retains
+   its own identity evidence. An unread captured source can claim `closed` only with its own
+   terminal posting stamp; `access_failure` never proves closure. Use `linked_unconfirmed` when
    identity cannot be established; use `different` only for an observed different job publication.
    Do not transfer salary, Junior+, work format or any field between descriptions.
 5. Call `resolveSourceSet`/`publishSourceResolution` with the exact full collection bytes, selected
@@ -515,7 +523,8 @@ for upgrade, recording and correction APIs. All observations and payloads remain
    a summary needs a full details/apply JD. Explicit contradictions and unconfirmed identity remain
    `source_review` with every alternative outcome. Reconcile every observation after merging cards,
    including nonprimary alternatives; an absent primary fact cannot bridge explicit contradictions.
-   A common homepage is no identity evidence.
+   A common homepage is no identity evidence. Mixed technical unavailability and closed sources
+   remain an open source review rather than closing an unconfirmed logical vacancy.
    Count composition once per logical group with `sourceCompositionObservations` and `composeBatch`,
    from its own primary header facts; unresolved or
    conflicting facts remain unknown. Never count every URL or assemble a composite offer from

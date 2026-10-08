@@ -210,10 +210,20 @@ function observedScope(context, source, observation, findings) {
       observation,
     };
   }
-  if (link.role === "original_post") {
+  const originalHtml =
+    link.role === "original_post" &&
+    observation.capture?.file === snapshot.capture.file &&
+    observation.capture?.sha256 === snapshot.capture.sha256;
+  if (
+    link.role === "original_post" &&
+    !originalHtml &&
+    !["technical_unavailable", "closed"].includes(observation.input?.source?.accessOutcome)
+  ) {
+    findings.push({ code: "source_primary_mismatch" });
+    return null;
+  }
+  if (originalHtml) {
     if (
-      observation.capture?.file !== snapshot.capture.file ||
-      observation.capture?.sha256 !== snapshot.capture.sha256 ||
       observation.body !== cardBody(source.sourceSet, card) ||
       observation.description_kind !== card.description_kind
     ) {

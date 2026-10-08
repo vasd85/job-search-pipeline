@@ -12,6 +12,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   realpathSync,
   rmSync,
   statSync,
@@ -36,6 +37,7 @@ import {
 } from "../tools/triage-sources/reconcile.mjs";
 import { baseInput } from "./fixtures/job-scorer/decision-table.mjs";
 import { renderCaptureFile } from "../tools/vacancy-fetch/persist.mjs";
+import { buildContext, runSuite } from "../tools/triage-verify/suite.mjs";
 import {
   TriageLedgerError,
   emptyLedger,
@@ -403,12 +405,32 @@ function linkedSourceObservations(fixture) {
             outcome: "active",
             "normalized-sha256": digest(body),
             "body-bytes": Buffer.byteLength(body),
+            normalization: "none",
           },
         }),
       ]);
     }
   }
   return { observations, captures };
+}
+
+function verifySourceBatch(context, staged, fixture) {
+  return runSuite(
+    buildContext({
+      artifactsDir: staged.dir,
+      linksFile: join(staged.dir, "collection.links.txt"),
+      from: 1,
+      to: fixture.collectionText.trim().split("\n").length,
+      ledgerPath: context.path,
+    }),
+    "per-batch",
+  );
+}
+
+function overwriteSourcePlan(staged, plan) {
+  const text = `${JSON.stringify(plan, null, 2)}\n`;
+  writeFileSync(join(staged.dir, "plan.json"), text);
+  staged.payload.plan_sha256 = digest(text);
 }
 
 function disposableRoot(t, prefix = "triage-ledger-") {
@@ -2869,6 +2891,236 @@ test("rechecking existing merged and different groups requires and accepts a val
   assert.ok(
     ledger.logical_entries.every((entry) => entry.batch_id === plannedDifferent.payload.batch_id),
   );
+});
+
+test("a frozen archived merged plan remains corroborated after new source observations produce a title conflict", (t) => {
+  const context = sourceLedger(t);
+  const details = "https://jobs.acme.example/vacancy/981";
+  const fixture = combinedSourceFixture(
+    fictionalSourceSet({ postId: 981, details }),
+    fictionalSourceSet({ postId: 982, details }),
+  );
+  const original = sourceBatchDir(context, fixture, "prior-confirmed-merged", {
+    ...linkedSourceObservations(fixture),
+    prefetchPlan: true,
+  });
+  assert.equal(verifySourceBatch(context, original, fixture).status, "pass");
+  recordSource(context.path, original);
+  const asOf = "2026-10-09T09:00:00Z";
+  const frozen = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+    asOf,
+    resolution: original.resolution,
+    collectionText: fixture.collectionText,
+    captureRoot: original.dir,
+  });
+  assert.equal(frozen.items[0].action, "skip_known");
+  assert.deepEqual(frozen.prior_resolution, {
+    batch_id: original.payload.batch_id,
+    entries_digest: readLedger(context.path).batches[0].entries_digest,
+    record_sha256: digest(readFileSync(join(original.dir, "ledger-record.json"))),
+    source_set_sha256: original.payload.source_set_sha256,
+    source_resolution_sha256: original.payload.source_resolution_sha256,
+  });
+  const stable = sourceBatchDir(context, fixture, "stable-frozen-control", {
+    ...linkedSourceObservations(fixture),
+    observedAt: asOf,
+    prefetchPlan: true,
+  });
+  overwriteSourcePlan(stable, frozen);
+  assert.equal(verifySourceBatch(context, stable, fixture).status, "pass");
+  const changed = linkedSourceObservations(fixture);
+  changed.observations = changed.observations.map((raw) => {
+    if (raw.source_ref !== details) return raw;
+    const card = fixture.sourceSet.cards.find((item) => item.card_ref === raw.card_ref);
+    const body = "Junior QA Engineer\nCompany: Acme\nManual testing and Java.";
+    const capture = { file: raw.capture.file, sha256: digest(body) };
+    const at = changed.captures.findIndex(([file]) => file === capture.file);
+    changed.captures[at] = [
+      capture.file,
+      renderCaptureFile({
+        body,
+        header: {
+          index: Number(capture.file.slice(0, 3)),
+          adapter: "fictional",
+          "source-id": "url",
+          "requested-url": details,
+          "final-url": details,
+          "fetched-at": asOf,
+          "http-status": 200,
+          outcome: "active",
+          "normalized-sha256": digest(body),
+          "body-bytes": Buffer.byteLength(body),
+          normalization: "none",
+        },
+      }),
+    ];
+    return sourceObservation(fixture, card, {
+      inputIndex: raw.input.inputIndex,
+      sourceRef: details,
+      body,
+      capture,
+      jobTitle: "Junior QA Engineer",
+    });
+  });
+  const conflicted = sourceBatchDir(context, fixture, "changed-frozen-title", {
+    ...changed,
+    observedAt: asOf,
+    prefetchPlan: true,
+  });
+  overwriteSourcePlan(conflicted, frozen);
+  assert.equal(conflicted.resolution.groups[0].result.review_code, "source_review");
+  const before = readFileSync(join(conflicted.dir, "plan.json"), "utf8");
+  const report = verifySourceBatch(context, conflicted, fixture);
+  assert.equal(report.status, "pass", report.findingCodes.join(","));
+  assert.equal(
+    readFileSync(join(conflicted.dir, "plan.json"), "utf8"),
+    before,
+    "new conflicting observations never rewrite the prefetch plan",
+  );
+  const unproven = structuredClone(frozen);
+  delete unproven.prior_resolution;
+  overwriteSourcePlan(conflicted, unproven);
+  assert.ok(
+    verifySourceBatch(context, conflicted, fixture).findingCodes.includes(
+      "source_plan_uncorroborated",
+    ),
+    "new observations cannot corroborate the old merged identity without independent prior evidence",
+  );
+  overwriteSourcePlan(conflicted, frozen);
+  recordSource(context.path, conflicted);
+  assert.equal(readLedger(context.path).logical_entries.length, 1);
+  assert.equal(readLedger(context.path).logical_entries[0].decision, "MANUAL_REVIEW");
+});
+
+test("archived source plan provenance cannot be spoofed or replace the frozen baseline", (t) => {
+  const context = sourceLedger(t);
+  const details = "https://jobs.acme.example/vacancy/991";
+  const fixture = combinedSourceFixture(
+    fictionalSourceSet({ postId: 991, details }),
+    fictionalSourceSet({ postId: 992, details }),
+  );
+  const first = sourceBatchDir(context, fixture, "proof-prior-merged", {
+    ...linkedSourceObservations(fixture),
+    prefetchPlan: true,
+  });
+  recordSource(context.path, first);
+  const asOf = "2026-10-09T09:00:00Z";
+  const options = {
+    asOf,
+    resolution: first.resolution,
+    collectionText: fixture.collectionText,
+    captureRoot: first.dir,
+  };
+  const frozen = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, options);
+  const refresh = sourceBatchDir(context, fixture, "proof-new-merged", {
+    ...linkedSourceObservations(fixture),
+    observedAt: asOf,
+    prefetchPlan: true,
+  });
+  overwriteSourcePlan(refresh, frozen);
+  assert.equal(verifySourceBatch(context, refresh, fixture).status, "pass");
+  const spoofed = [
+    (plan) => {
+      plan.prior_resolution.batch_id = "../proof-prior-merged";
+    },
+    (plan) => {
+      plan.prior_resolution.batch_id = "absent-prior";
+    },
+    (plan) => {
+      plan.prior_resolution.record_sha256 = "0".repeat(64);
+    },
+    (plan) => {
+      plan.prior_resolution.entries_digest = "0".repeat(64);
+    },
+    (plan) => {
+      plan.prior_resolution.archive_dir = first.dir;
+    },
+    (plan) => {
+      plan.items[0].baseline.decision = "BLOCKED";
+    },
+    (plan) => {
+      plan.items[0].sources.find((source) => source.role === "details").action = "skip_closed";
+    },
+  ];
+  for (const mutate of spoofed) {
+    const fake = structuredClone(frozen);
+    mutate(fake);
+    overwriteSourcePlan(refresh, fake);
+    assert.ok(
+      verifySourceBatch(context, refresh, fixture).findingCodes.includes(
+        "source_plan_uncorroborated",
+      ),
+      "a capsule or baseline claim is corroborated from the archive and current ledger",
+    );
+  }
+  const staleSnapshot = { ...frozen, ledger_snapshot_sha256: "0".repeat(64) };
+  overwriteSourcePlan(refresh, staleSnapshot);
+  assert.ok(
+    verifySourceBatch(context, refresh, fixture).findingCodes.includes(
+      "source_plan_snapshot_mismatch",
+    ),
+  );
+  overwriteSourcePlan(refresh, frozen);
+
+  const recordPath = join(first.dir, "ledger-record.json");
+  const recordBytes = readFileSync(recordPath);
+  rmSync(recordPath);
+  try {
+    assert.ok(
+      verifySourceBatch(context, refresh, fixture).findingCodes.includes(
+        "source_plan_uncorroborated",
+      ),
+      "a missing prior archive cannot fall back to a matching current resolution",
+    );
+    const currentOnly = ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, options);
+    assert.equal(
+      Object.hasOwn(currentOnly, "prior_resolution"),
+      false,
+      "unarchived current-resolution planning remains readable under the initial contract",
+    );
+  } finally {
+    writeFileSync(recordPath, recordBytes);
+  }
+
+  const resolutionPath = join(first.dir, "source-resolution.json");
+  const resolutionBytes = readFileSync(resolutionPath);
+  const reformatted = JSON.stringify(first.resolution);
+  writeFileSync(resolutionPath, reformatted);
+  try {
+    const fake = structuredClone(frozen);
+    fake.prior_resolution.source_resolution_sha256 = digest(reformatted);
+    overwriteSourcePlan(refresh, fake);
+    assert.ok(
+      verifySourceBatch(context, refresh, fixture).findingCodes.includes(
+        "source_plan_uncorroborated",
+      ),
+      "redeclaring a valid resolution's byte digest cannot overwrite the indexed immutable binding",
+    );
+    assert.equal(
+      errorCode(() => ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, options)),
+      "triage_ledger_source_plan_prior_invalid",
+    );
+  } finally {
+    writeFileSync(resolutionPath, resolutionBytes);
+    overwriteSourcePlan(refresh, frozen);
+  }
+  const noncanonical = join(context.store, "not-the-recorded-batch-id");
+  renameSync(first.dir, noncanonical);
+  try {
+    assert.equal(
+      errorCode(() =>
+        ledgerSourceApi.planSourceBatch(context.path, fixture.sourceSet, {
+          ...options,
+          captureRoot: noncanonical,
+        }),
+      ),
+      "triage_ledger_source_plan_prior_invalid",
+      "a prior archive must remain addressable by its bounded sibling batch id",
+    );
+  } finally {
+    renameSync(noncanonical, first.dir);
+  }
+  assert.equal(verifySourceBatch(context, refresh, fixture).status, "pass");
 });
 
 test("a different target identity can record a new derived group from a complete initial card plan", (t) => {

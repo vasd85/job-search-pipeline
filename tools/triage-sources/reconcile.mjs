@@ -223,23 +223,7 @@ function observationRole(card, ref) {
         ? "apply"
         : "unknown";
 }
-function verifyTransport(observation, captureRoot) {
-  const transport = observation.transport;
-  if (transport === null) {
-    if (observation.capture === null) refuse("A body-less failure needs a manifest record.");
-    return;
-  }
-  if (
-    !keys(transport, ["file", "sha256", "index"]) ||
-    !HEX.test(transport.sha256 ?? "") ||
-    !Number.isSafeInteger(transport.index) ||
-    transport.index < 1
-  )
-    refuse("Transport reference is invalid.");
-  artifactName(transport.file);
-  if (captureRoot === undefined) return;
-  const bytes = safeArtifact(captureRoot, transport.file, 8 * 1024 * 1024);
-  if (hash(bytes) !== transport.sha256) refuse("Transport artifact digest differs.");
+function fetchManifest(bytes) {
   let manifest;
   try {
     manifest = JSON.parse(bytes);
@@ -252,7 +236,45 @@ function verifyTransport(observation, captureRoot) {
     !Array.isArray(manifest.records)
   )
     refuse("Transport artifact is not a fetch manifest.");
-  const record = manifest.records.find((row) => row.index === transport.index);
+  return manifest;
+}
+function verifyTransport(observation, captureRoot) {
+  const transport = observation.transport;
+  let manifest, record;
+  if (transport === null) {
+    if (observation.capture === null) refuse("A body-less failure needs a manifest record.");
+    if (captureRoot === undefined) return;
+    // A primary capture already names its manifest record by file. Omitting the optional explicit
+    // reference cannot hide that record's redirect. A separate browser transcript is a rescue,
+    // so it does not inherit the adapter capture's final URL.
+    try {
+      lstatSync(join(captureRoot, "fetch-manifest.json"));
+    } catch (error) {
+      if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return;
+      refuse("Transport artifact cannot be inspected.");
+    }
+    manifest = fetchManifest(safeArtifact(captureRoot, "fetch-manifest.json", 8 * 1024 * 1024));
+    const matches = manifest.records.filter(
+      (row) => row.persisted?.file === observation.capture.file,
+    );
+    if (matches.length === 0) return;
+    if (matches.length !== 1) refuse("A primary capture has ambiguous transport records.");
+    record = matches[0];
+  } else {
+    if (
+      !keys(transport, ["file", "sha256", "index"]) ||
+      !HEX.test(transport.sha256 ?? "") ||
+      !Number.isSafeInteger(transport.index) ||
+      transport.index < 1
+    )
+      refuse("Transport reference is invalid.");
+    artifactName(transport.file);
+    if (captureRoot === undefined) return;
+    const bytes = safeArtifact(captureRoot, transport.file, 8 * 1024 * 1024);
+    if (hash(bytes) !== transport.sha256) refuse("Transport artifact digest differs.");
+    manifest = fetchManifest(bytes);
+    record = manifest.records.find((row) => row.index === transport.index);
+  }
   if (record?.requestedUrl !== requestedUrl(observation.source_ref))
     refuse("Transport record identifies another source.");
   if (
@@ -280,6 +302,17 @@ function verifyTransport(observation, captureRoot) {
     record.persisted.file !== observation.capture.file
   )
     refuse("Transport record identifies another capture.");
+  if (observation.capture !== null && record.persisted?.file === observation.capture.file) {
+    const captured = verifyCaptureFile(
+      safeArtifact(captureRoot, observation.capture.file).toString("utf8"),
+    );
+    if (
+      !captured.ok ||
+      Number(captured.header.index) !== record.index ||
+      serverSuppliedUrl(captured.header["final-url"]) !== serverSuppliedUrl(record.finalUrl)
+    )
+      refuse("The primary capture's final identity differs from its transport record.");
+  }
 }
 function normalizedObservation(raw, set, { languages, scoring, captureRoot }) {
   if (!plain(raw)) refuse("Observation must be an object.");
@@ -332,6 +365,14 @@ function normalizedObservation(raw, set, { languages, scoring, captureRoot }) {
     (raw.body !== cardBody(set, card) || raw.description_kind !== card.description_kind)
   )
     refuse("Original description differs from its immutable card body or kind.");
+  if (
+    originalHtml &&
+    raw.description_kind === "full_description" &&
+    input?.source.accessOutcome !== "usable"
+  )
+    refuse(
+      "A retained full original cannot be relabeled unread; a new failure needs its own capture or manifest observation.",
+    );
   if (
     role === "original_post" &&
     !originalHtml &&
@@ -412,6 +453,11 @@ function normalizedObservation(raw, set, { languages, scoring, captureRoot }) {
       ["access_failure", "absent", "private", "closed", "unknown"].includes(captured.header.outcome)
     )
       refuse("Failed or closed capture cannot be a usable description.");
+    if (
+      input?.source.accessOutcome === "closed" &&
+      !["absent", "private", "closed"].includes(captured.header.outcome)
+    )
+      refuse("A captured closed source requires its own terminal posting stamp.");
   }
   const value = {
     card_ref: card.card_ref,
@@ -464,7 +510,9 @@ function materialConflicts(observations) {
         );
   }
   if (
-    observations.some((observation) => observation.input?.source.accessOutcome === "usable") &&
+    observations.some((observation) =>
+      ["usable", "technical_unavailable"].includes(observation.input?.source.accessOutcome),
+    ) &&
     observations.some((observation) => observation.input?.source.accessOutcome === "closed")
   )
     reasons.push("conflicting_liveness");
@@ -476,13 +524,10 @@ function relationConfirmed(observation, original, set, card) {
   if (!["details", "apply"].includes(observationRole(card, observation.source_ref))) return false;
   if (observation.input?.source.finalUrl === null || observation.input === null) return false;
   const requestedIdentity = vacancyIdentity(observation.source_ref);
-  const finalIdentity = vacancyIdentity(observation.input.source.finalUrl);
-  if (
-    requestedIdentity.key !== finalIdentity.key &&
-    serverSuppliedUrl(observation.source_ref) !==
-      serverSuppliedUrl(observation.input.source.finalUrl)
-  )
-    return false;
+  // Final URLs deliberately retain only origin/path. That projection cannot prove a posting
+  // selected by a meaningful query parameter, even when the caller repeats the requested query.
+  const finalIdentity = vacancyIdentity(serverSuppliedUrl(observation.input.source.finalUrl));
+  if (requestedIdentity.key !== finalIdentity.key) return false;
   for (const field of ["company", "role"]) {
     const fact = observation.facts[field];
     if (fact === null) return false;

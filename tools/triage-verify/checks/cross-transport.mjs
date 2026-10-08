@@ -137,6 +137,18 @@ export function run(context) {
       findings.push({ code: "rescue_contradicts_declaration", index: record.index, declared });
     }
 
+    // Source mode binds the selected observation to one body. Its own capture must establish
+    // closure; a verified challenge only proves a failed request. A different browser body can
+    // close the posting with its own terminal stamp. Historical standalone rescue rules remain
+    // scoped to their original contract; body-less source failures are checked against the manifest.
+    if (declared === "closed" && typeof record.sourceScope?.file === "string") {
+      const ownCapture = verifiedCaptures.find(
+        (capture) => capture.file === record.sourceScope.file,
+      );
+      if (!TERMINAL_MANIFEST_OUTCOMES.has(ownCapture?.verified.header.outcome))
+        findings.push({ code: "closure_not_corroborated", index: record.index });
+    }
+
     // An original-post extraction is backed by the checked saved HTML, not an HTTP transcript.
     // Other source-mode extractions join their actual transport index, independently of ordinal.
     if (record.sourceScope?.original === true || byIndex === null) continue;

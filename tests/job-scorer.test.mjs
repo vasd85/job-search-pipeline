@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -37,6 +37,7 @@ import {
   resolveToolName,
 } from "../tools/job-scorer/tool-taxonomy.mjs";
 import { resolveSourceSet, validateSourceResolution } from "../tools/triage-sources/reconcile.mjs";
+import { renderCaptureFile } from "../tools/vacancy-fetch/persist.mjs";
 import { fictionalSourceFixture } from "./fixtures/triage-source-context/cases.mjs";
 import {
   cardBody,
@@ -374,6 +375,83 @@ test("selected original observations and full-description inputs cannot be omitt
       );
     });
   }
+});
+
+test("sanitized final URLs cannot confirm query-discriminated job identity", async (t) => {
+  for (const finalUrl of [
+    "https://jobs.example.test/view?jobId=202",
+    "https://jobs.example.test/view?jobId=101",
+    "https://jobs.example.test/view",
+  ]) {
+    await t.test(finalUrl, (t) => {
+      const fixture = fictionalSourceFixture({
+        kind: "summary",
+        jobUrl: "https://jobs.example.test/view?jobId=101",
+      });
+      fixture.target.input.source.finalUrl = finalUrl;
+      const root = mkdtempSync("/private/tmp/source-query-identity-");
+      t.after(() => rmSync(root, { recursive: true, force: true }));
+      writeFileSync(join(root, fixture.snapshot.capture.file), fixture.html);
+      writeFileSync(
+        join(root, fixture.target.capture.file),
+        renderCaptureFile({
+          body: fixture.target.body,
+          header: {
+            index: 2,
+            "requested-url": fixture.target.source_ref,
+            "final-url": "https://jobs.example.test/view",
+            outcome: "active",
+            "normalized-sha256": fixture.target.capture.sha256,
+            "body-bytes": Buffer.byteLength(fixture.target.body),
+          },
+        }),
+      );
+      const options = { ...fixture, captureRoot: root };
+      const resolution = resolveSourceSet(options);
+      assert.equal(resolution.groups[0].identity_status, "linked_unconfirmed");
+      assert.equal(resolution.groups[0].result.review_code, "source_review");
+      assert.ok(resolution.groups[0].conflicts.includes("identity_unconfirmed"));
+      validateSourceResolution(resolution, options);
+    });
+  }
+});
+
+test("mixed unavailable original and closed target cannot close the logical vacancy", () => {
+  const fixture = fictionalSourceFixture();
+  for (const [at, observation] of fixture.observations.entries()) {
+    observation.capture = null;
+    observation.body = null;
+    observation.description_kind = "unknown";
+    observation.identity_status = "linked_unconfirmed";
+    observation.facts = Object.fromEntries(
+      Object.keys(observation.facts).map((key) => [key, null]),
+    );
+    markUnread(
+      observation.input,
+      at === 0 ? "technical_unavailable" : "closed",
+      at === 0 ? "Challenge after retry" : "HTTP 404 after retry",
+    );
+    observation.input.source.evidenceQuote = null;
+    observation.input.role.evidence = Object.fromEntries(
+      Object.keys(observation.input.role.evidence).map((key) => [key, null]),
+    );
+    observation.input.offers = [];
+    observation.input.compensation = null;
+    Object.assign(observation.input.sourceContext, {
+      primaryCaptureSha256: null,
+      startLine: null,
+      endLine: null,
+    });
+    observation.transport = { file: "fetch-manifest.json", sha256: "a".repeat(64), index: at + 1 };
+  }
+  const resolution = resolveSourceSet(fixture);
+  const group = resolution.groups[0];
+  assert.equal(group.result.review_code, "source_review");
+  assert.ok(group.conflicts.includes("conflicting_liveness"));
+  assert.ok(group.alternatives.some((alternative) => alternative.trace.decision === "BLOCKED"));
+  assert.ok(
+    group.alternatives.some((alternative) => alternative.trace.skip_code === "vacancy_unavailable"),
+  );
 });
 
 test("source context epoch preserves manual and junior filters and the legacy epoch", () => {

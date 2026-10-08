@@ -48,7 +48,9 @@ Publication dates are source facts; capture time never chooses the newer edition
 Every selected card requires its original observation, including an unscored summary. A
 `full_description` observation requires its own scoring or unread input; it cannot disappear behind
 `input: null`. The original body is the code-extracted `cardBody`, pinned to the HTML digest and
-card boundaries. An unreachable original uses a typed unread observation instead.
+card boundaries. A retained full original cannot be relabeled unread: a new access/closure outcome
+needs its own failed capture or manifest-bound observation. An unreachable original uses that typed
+unread observation instead.
 Details/apply bodies use the verified stamped vacancy-fetch capture and its normalized body digest.
 A usable input must be schema 10, policy v9 and a full description. Its `sourceContext` binds
 `sourceSetSha256`, `cardRef`, `snapshotRef`, `primarySourceRef`, `primaryCaptureSha256`, `startLine`
@@ -61,10 +63,19 @@ context digest/range are null, evidence is absent and no usable JD is asserted. 
 1/2 and their existing outcomes are read. True failures remain BLOCKED/retryable; existing terminal
 404/closure behavior keeps its own contract. A failed or closed saved capture or manifest record
 also requires its unread input; unscored observations cannot hide transport failure or closure.
-General homepage/not-a-vacancy codes belong elsewhere.
+A captured unread source can declare closure only with its own terminal posting stamp. A challenge
+or other `access_failure` proves retryable unavailability; a separate browser closure requires its
+own body and terminal stamp.
+A mixed unread original and closed linked source stays open in `source_review`; one failed route
+cannot prove closure of an unconfirmed logical vacancy. All-closed observations keep their existing
+terminal behavior. General homepage/not-a-vacancy codes belong elsewhere.
 
 Membership alone does not confirm identity. A direct details/apply link also needs checked target
-identity and matching explicit employer/role. Redirects to another posting, unknown roles,
+identity and matching explicit employer/role. Final URLs retain only origin/path under the URL
+privacy rule; that projection cannot confirm a posting distinguished by a meaningful query parameter.
+Do not restore a filtered query to manufacture identity. A primary HTTP capture must agree with its
+actual manifest record's final URL even when the optional `transport` reference is omitted. A
+separate browser rescue keeps its own transcript and may differ from the adapter's final URL. Redirects to another posting, unknown roles,
 unconfirmed targets and conflicting explicit title/seniority/salary/date/liveness produce
 `source_review`. A readable original plus a closed linked job route does not silently become an
 apply recommendation; the raw observations remain visible.
@@ -98,8 +109,13 @@ validation; fetched captures/manifests already belong to the batch. It writes ex
 URL positions and the logical job count. Summaries and company/contact sources produce no fake
 input. A failed/partial publication is retained for diagnosis, never overwritten.
 
-Archive the pre-fetch source/pretriage plan as `plan.json`. Run triage verification before
-`recordSourceBatch`, with the source selection's original URL range and ledger. Use the module
+Archive the pre-fetch source/pretriage plan as `plan.json`. For an existing derived group, supply
+the validated indexed prior resolution and its batch directory as `captureRoot` to `planSourceBatch`.
+Its bounded `prior_resolution` reference contains no filesystem path; verification reads the sibling
+archive in the same batch store and binds its record, exact set, resolution and captures to the
+ledger index. New observations cannot replace that prior proof or rewrite the prefetch plan.
+Run triage verification before `recordSourceBatch`, with the source selection's original URL range
+and ledger. Use the module
 APIs in the review runbook for an explicit ledger v1→v2 upgrade, revision aliases and corrections.
 The mutable file stays one ledger; URL history, logical results and source-scoped memberships have
 separate fields. Corrections add a new parent-bound immutable batch and retain old observations and

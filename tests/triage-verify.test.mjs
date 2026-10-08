@@ -29,6 +29,7 @@ import {
   sourceSetDigest,
 } from "../tools/triage-sources/source-set.mjs";
 import { publishSourceResolution } from "../tools/triage-sources/reconcile.mjs";
+import { markUnread } from "./fixtures/job-scorer/decision-table.mjs";
 import {
   fictionalSourceFixture,
   fixtureCaptureAt,
@@ -54,6 +55,7 @@ import {
   validateVocabulary,
   vocabularyPhrases,
 } from "../tools/triage-verify/vocabulary.mjs";
+import * as crossTransport from "../tools/triage-verify/checks/cross-transport.mjs";
 import * as quoteIntegrity from "../tools/triage-verify/checks/quote-integrity.mjs";
 import { familyClaimRules } from "../tools/triage-verify/checks/negative-space.mjs";
 import { readLinksFile, sliceRange } from "../tools/triage-verify/links.mjs";
@@ -4693,7 +4695,20 @@ test("standalone input 10 retains strict legacy quote and cross-transport guards
 
 // These cases reconstruct the compiler's actual custody path. The retained HTML, target stamp
 // and manifest exist before publication; a pure fixture resolution cannot stand in for them.
-function publishFileBackedSourceCase(t, fixture, { outcome = "active" } = {}) {
+function publishFileBackedSourceCase(
+  t,
+  fixture,
+  {
+    outcome = "active",
+    captureFinalUrl = fixture.target.source_ref,
+    manifestFinalUrl = captureFinalUrl,
+    includeTransport = true,
+    originalFailureRecord = null,
+    targetFailureRecord = null,
+    browserRescue = false,
+    originalBrowserClosure = false,
+  } = {},
+) {
   const root = disposableRoot(t);
   const artifactsDir = join(root, "artifacts");
   const collectorDir = join(root, "collector");
@@ -4701,57 +4716,102 @@ function publishFileBackedSourceCase(t, fixture, { outcome = "active" } = {}) {
   mkdirSync(collectorDir);
   writeFileSync(join(collectorDir, fixture.snapshot.capture.file), fixture.html);
   const target = fixture.target;
-  const digest = sha256Utf8(target.body);
-  target.capture = { file: "007.capture.txt", sha256: digest };
-  if (target.input !== null) target.input.sourceContext.primaryCaptureSha256 = digest;
-  writeFileSync(
-    join(artifactsDir, target.capture.file),
-    renderCaptureFile({
-      body: target.body,
-      header: {
-        index: 7,
-        adapter: "generic-html@1",
-        "source-id": "generic",
-        "requested-url": target.source_ref,
-        "final-url": target.source_ref,
-        "fetched-at": fixtureCaptureAt,
-        "http-status": 200,
-        outcome,
-        "access-barrier": null,
-        "response-sha256": digest,
-        "response-bytes": Buffer.byteLength(target.body),
-        "extracted-sha256": digest,
-        "normalized-sha256": digest,
-        "body-bytes": Buffer.byteLength(target.body),
-        normalization: "none",
-      },
-    }),
-  );
+  let targetRecord = targetFailureRecord;
+  if (targetRecord === null) {
+    const digest = sha256Utf8(target.body);
+    target.capture = {
+      file: browserRescue ? "007.browser.capture.txt" : "007.capture.txt",
+      sha256: digest,
+    };
+    if (target.input !== null) target.input.sourceContext.primaryCaptureSha256 = digest;
+    writeFileSync(
+      join(artifactsDir, target.capture.file),
+      renderCaptureFile({
+        body: target.body,
+        header: {
+          index: 7,
+          adapter: browserRescue ? "in-app-browser@1" : "generic-html@1",
+          "source-id": "generic",
+          "requested-url": target.source_ref,
+          "final-url": captureFinalUrl,
+          "fetched-at": fixtureCaptureAt,
+          "http-status": outcome === "access_failure" ? 403 : 200,
+          outcome,
+          "access-barrier": outcome === "access_failure" ? "challenge" : null,
+          "response-sha256": digest,
+          "response-bytes": Buffer.byteLength(target.body),
+          "extracted-sha256": digest,
+          "normalized-sha256": digest,
+          "body-bytes": Buffer.byteLength(target.body),
+          normalization: "none",
+        },
+      }),
+    );
+    targetRecord = {
+      index: 7,
+      requestedUrl: target.source_ref,
+      finalUrl: manifestFinalUrl,
+      fetchedAt: fixtureCaptureAt,
+      outcome: browserRescue ? "access_failure" : outcome,
+      usable: !browserRescue && outcome === "active",
+      fallback: browserRescue || outcome === "access_failure" ? "browser" : null,
+      skipped: false,
+      response: browserRescue ? null : { sha256: digest },
+      persisted: browserRescue ? null : { file: target.capture.file, sha256: digest },
+    };
+  } else {
+    assert.equal(targetRecord.index, 7);
+    assert.equal(target.capture, null);
+    assert.equal(target.body, null);
+  }
+  if (originalFailureRecord !== null && fixture.original.capture !== null) {
+    const original = fixture.original;
+    const digest = sha256Utf8(original.body);
+    assert.equal(original.capture.sha256, digest);
+    writeFileSync(
+      join(artifactsDir, original.capture.file),
+      renderCaptureFile({
+        body: original.body,
+        header: {
+          index: originalFailureRecord.index,
+          adapter: originalBrowserClosure ? "in-app-browser@1" : "generic-html@1",
+          "source-id": "generic",
+          "requested-url": original.source_ref,
+          "final-url": originalFailureRecord.finalUrl,
+          "fetched-at": originalFailureRecord.fetchedAt,
+          "http-status": originalBrowserClosure ? 200 : 403,
+          outcome: originalBrowserClosure ? "closed" : "access_failure",
+          "access-barrier": originalBrowserClosure ? null : "challenge",
+          "response-sha256": digest,
+          "response-bytes": Buffer.byteLength(original.body),
+          "extracted-sha256": digest,
+          "normalized-sha256": digest,
+          "body-bytes": Buffer.byteLength(original.body),
+          normalization: "none",
+        },
+      }),
+    );
+  }
   const manifest = `${JSON.stringify(
     {
       schemaVersion: 2,
       tool: "vacancy-fetch",
       startedAt: fixtureCaptureAt,
-      records: [
-        {
-          index: 7,
-          requestedUrl: target.source_ref,
-          finalUrl: target.source_ref,
-          fetchedAt: fixtureCaptureAt,
-          outcome,
-          usable: outcome === "active",
-          fallback: null,
-          skipped: false,
-          response: { sha256: digest },
-          persisted: { file: target.capture.file, sha256: digest },
-        },
-      ],
+      records: [targetRecord, ...(originalFailureRecord === null ? [] : [originalFailureRecord])],
     },
     null,
     2,
   )}\n`;
   writeFileSync(join(artifactsDir, "fetch-manifest.json"), manifest);
-  target.transport = { file: "fetch-manifest.json", sha256: sha256Utf8(manifest), index: 7 };
+  if (includeTransport)
+    target.transport = { file: "fetch-manifest.json", sha256: sha256Utf8(manifest), index: 7 };
+  else delete target.transport;
+  if (originalFailureRecord !== null)
+    fixture.original.transport = {
+      file: "fetch-manifest.json",
+      sha256: sha256Utf8(manifest),
+      index: originalFailureRecord.index,
+    };
   const resolution = publishSourceResolution({
     artifactsDir,
     sourceCaptureRoot: collectorDir,
@@ -4872,3 +4932,451 @@ for (const outcome of ["closed", "access_failure"]) {
     });
   });
 }
+
+// L/M: unread classification and redirects are proved for the actual source, transport index
+// and retained bytes. Changing a label or omitting an optional reference cannot suppress them.
+test("file-backed source compiler refuses unread relabeling of an unchanged full manual original", (t) => {
+  const fixture = fictionalSourceFixture({ manual: true });
+  fixture.target.body = fixture.target.body.replace(
+    "Manual testing only",
+    "Primary test automation",
+  );
+  fixture.target.input.role.automation = "primary";
+  fixture.target.input.role.evidence.automation = "Primary test automation";
+  markUnread(fixture.original.input, "technical_unavailable", "Source unavailable after retry");
+  assert.throws(
+    () => {
+      const prepared = publishFileBackedSourceCase(t, fixture);
+      assert.equal(verifySource(prepared).status, "pass");
+      assert.equal(prepared.resolution.groups[0].result.decision, "EVALUATED");
+    },
+    { code: "source_resolution_invalid" },
+  );
+});
+
+for (const includeTransport of [true, false]) {
+  test(`file-backed source compiler binds manifest final identity with ${includeTransport ? "explicit" : "omitted"} transport reference`, (t) => {
+    const fixture = fictionalSourceFixture();
+    assert.throws(
+      () => {
+        const prepared = publishFileBackedSourceCase(t, fixture, {
+          manifestFinalUrl: "https://jobs.example.test/qa/999",
+          includeTransport,
+        });
+        assert.equal(verifySource(prepared).status, "pass");
+        assert.equal(prepared.resolution.groups[0].identity_status, "confirmed");
+      },
+      { code: "source_resolution_invalid" },
+    );
+  });
+}
+
+test("file-backed source compiler keeps an honest redirected target in source review", (t) => {
+  const fixture = fictionalSourceFixture();
+  fixture.target.input.source.finalUrl = "https://jobs.example.test/qa/999";
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    captureFinalUrl: "https://jobs.example.test/qa/999",
+    manifestFinalUrl: "https://jobs.example.test/qa/999",
+  });
+  assert.equal(verifySource(prepared).status, "pass");
+  assert.equal(prepared.resolution.groups[0].result.review_code, "source_review");
+  assert.equal(prepared.resolution.groups[0].identity_status, "linked_unconfirmed");
+  assert.ok(
+    prepared.resolution.groups[0].alternatives.some(
+      (alternative) => alternative.trace?.decision === "EVALUATED",
+    ),
+  );
+});
+
+test("file-backed source compiler accepts a real body-less original access failure with its own manifest record", (t) => {
+  const fixture = fictionalSourceFixture();
+  const original = fixture.original;
+  markUnread(original.input, "technical_unavailable", "Source unavailable after retry");
+  Object.assign(original, {
+    description_kind: "unknown",
+    identity_status: "linked_unconfirmed",
+    capture: null,
+    body: null,
+    facts: Object.fromEntries(Object.keys(original.facts).map((field) => [field, null])),
+  });
+  Object.assign(original.input.source, {
+    company: null,
+    jobTitle: null,
+    evidenceQuote: null,
+    locationRaw: null,
+    workFormatRaw: null,
+    salaryRaw: null,
+  });
+  Object.assign(original.input.role, {
+    family: "unknown",
+    automation: "unknown",
+    seniority: "unknown",
+    language: "unknown",
+    domain: "unclear",
+    evidence: Object.fromEntries(
+      Object.keys(original.input.role.evidence).map((field) => [field, null]),
+    ),
+  });
+  original.input.offers = [];
+  original.input.compensation = null;
+  Object.assign(original.input.sourceContext, {
+    primaryCaptureSha256: null,
+    startLine: null,
+    endLine: null,
+  });
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    originalFailureRecord: {
+      index: 8,
+      requestedUrl: original.source_ref,
+      finalUrl: original.input.source.finalUrl,
+      fetchedAt: fixtureCaptureAt,
+      outcome: "access_failure",
+      usable: false,
+      fallback: "browser",
+      skipped: false,
+      response: null,
+      persisted: null,
+    },
+  });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  const retained = prepared.resolution.observations.find(
+    (observation) => observation.source_ref === original.source_ref,
+  );
+  assert.equal(retained.trace.decision, "BLOCKED");
+  assert.equal(retained.transport.index, 8);
+  assert.equal(report.counts.records, 2);
+});
+
+function fileBackedUnreadObservation(raw, { closed = false, index }) {
+  markUnread(
+    raw.input,
+    closed ? "closed" : "technical_unavailable",
+    closed ? "HTTP 404 after retry" : "Source encountered a challenge after collection",
+  );
+  Object.assign(raw, {
+    description_kind: "unknown",
+    identity_status: "linked_unconfirmed",
+    capture: null,
+    body: null,
+    facts: Object.fromEntries(Object.keys(raw.facts).map((field) => [field, null])),
+  });
+  Object.assign(raw.input.source, {
+    company: null,
+    jobTitle: null,
+    evidenceQuote: null,
+    locationRaw: null,
+    workFormatRaw: null,
+    salaryRaw: null,
+    finalUrl: null,
+  });
+  Object.assign(raw.input.role, {
+    family: "unknown",
+    automation: "unknown",
+    seniority: "unknown",
+    language: "unknown",
+    domain: "unclear",
+    evidence: Object.fromEntries(
+      Object.keys(raw.input.role.evidence).map((field) => [field, null]),
+    ),
+  });
+  raw.input.offers = [];
+  raw.input.compensation = null;
+  Object.assign(raw.input.sourceContext, {
+    primaryCaptureSha256: null,
+    startLine: null,
+    endLine: null,
+  });
+  return {
+    index,
+    requestedUrl: raw.source_ref,
+    finalUrl: raw.source_ref.replace(/\?embed=1$/u, ""),
+    fetchedAt: fixtureCaptureAt,
+    outcome: closed ? "absent" : "access_failure",
+    usable: false,
+    fallback: closed ? null : "browser",
+    skipped: false,
+    response: null,
+    persisted: null,
+    ...(closed ? { httpStatus: 404 } : {}),
+  };
+}
+
+function publishUnavailableSourcePair(t, { originalClosed = false, targetClosed = false } = {}) {
+  const fixture = fictionalSourceFixture();
+  const originalFailureRecord = fileBackedUnreadObservation(fixture.original, {
+    closed: originalClosed,
+    index: 8,
+  });
+  const targetFailureRecord = fileBackedUnreadObservation(fixture.target, {
+    closed: targetClosed,
+    index: 7,
+  });
+  return publishFileBackedSourceCase(t, fixture, { originalFailureRecord, targetFailureRecord });
+}
+
+test("file-backed source compiler keeps blocked original plus closed details in source review", (t) => {
+  const prepared = publishUnavailableSourcePair(t, { targetClosed: true });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  const group = prepared.resolution.groups[0];
+  assert.equal(group.result.decision, "MANUAL_REVIEW");
+  assert.equal(group.result.review_code, "source_review");
+  assert.ok(group.conflicts.includes("conflicting_liveness"));
+  assert.ok(group.alternatives.some((alternative) => alternative.trace?.decision === "BLOCKED"));
+  assert.ok(
+    group.alternatives.some(
+      (alternative) => alternative.trace?.skip_code === "vacancy_unavailable",
+    ),
+  );
+  assert.equal(
+    JSON.parse(readFileSync(join(prepared.artifactsDir, "traces", "001.trace.json"))).decision,
+    "BLOCKED",
+  );
+  assert.equal(
+    JSON.parse(readFileSync(join(prepared.artifactsDir, "traces", "002.trace.json"))).skip_code,
+    "vacancy_unavailable",
+  );
+});
+
+test("file-backed source compiler retains retryable outcome when every source is blocked", (t) => {
+  const prepared = publishUnavailableSourcePair(t);
+  assert.equal(verifySource(prepared).status, "pass");
+  assert.equal(prepared.resolution.groups[0].result.decision, "BLOCKED");
+  assert.deepEqual(prepared.resolution.groups[0].conflicts, []);
+});
+
+test("file-backed source compiler retains terminal outcome when every source confirms closure", (t) => {
+  const prepared = publishUnavailableSourcePair(t, { originalClosed: true, targetClosed: true });
+  assert.equal(verifySource(prepared).status, "pass");
+  assert.equal(prepared.resolution.groups[0].result.skip_code, "vacancy_unavailable");
+  assert.deepEqual(prepared.resolution.groups[0].conflicts, []);
+});
+
+test("file-backed source compiler allows a browser rescue whose live final URL differs from the failed fetch", (t) => {
+  const fixture = fictionalSourceFixture({ kind: "summary" });
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    browserRescue: true,
+    manifestFinalUrl: "https://jobs.example.test/qa/999",
+  });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups[0].result.decision, "EVALUATED");
+  assert.equal(report.counts.capturesByProvenance.http_fetch, 0);
+  assert.equal(report.counts.capturesByProvenance.transcript, 1);
+});
+
+test("file-backed source verification accepts a newly captured original failure without reusing saved JD HTML", (t) => {
+  const fixture = fictionalSourceFixture();
+  const originalFailureRecord = fileBackedUnreadObservation(fixture.original, { index: 8 });
+  const body = "Please complete the browser challenge.";
+  const digest = sha256Utf8(body);
+  fixture.original.body = body;
+  fixture.original.capture = { file: "008.capture.txt", sha256: digest };
+  Object.assign(fixture.original.input.sourceContext, {
+    primaryCaptureSha256: digest,
+    startLine: 1,
+    endLine: 1,
+  });
+  originalFailureRecord.response = { sha256: digest };
+  originalFailureRecord.persisted = { file: "008.capture.txt", sha256: digest };
+  const prepared = publishFileBackedSourceCase(t, fixture, { originalFailureRecord });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  const retained = prepared.resolution.observations.find(
+    (observation) => observation.source_ref === fixture.original.source_ref,
+  );
+  assert.equal(retained.trace.decision, "BLOCKED");
+  assert.equal(retained.capture.file, "008.capture.txt");
+  assert.equal(retained.transport.index, 8);
+  assert.equal(report.counts.sourceHtmlCaptures, 1);
+});
+
+// Q: a new failed response is retry evidence even when a caller labels its raw input closed.
+// A separate browser transcript can establish closure with its own body and closed stamp.
+function fileBackedChallengeObservation(
+  raw,
+  { index, declaredClosed = false, browserClosure = false },
+) {
+  const record = fileBackedUnreadObservation(raw, { index });
+  if (declaredClosed || browserClosure) markUnread(raw.input, "closed", "HTTP 404 after retry");
+  raw.body = browserClosure ? "This vacancy is closed." : "Please complete the browser challenge.";
+  const digest = sha256Utf8(raw.body);
+  raw.capture = {
+    file: `${String(index).padStart(3, "0")}${browserClosure ? ".browser" : ""}.capture.txt`,
+    sha256: digest,
+  };
+  Object.assign(raw.input.sourceContext, {
+    primaryCaptureSha256: digest,
+    startLine: 1,
+    endLine: 1,
+  });
+  if (!browserClosure) {
+    record.response = { sha256: digest };
+    record.persisted = { ...raw.capture };
+  }
+  return record;
+}
+
+test("file-backed source compiler refuses closed relabeling of a new original challenge capture", (t) => {
+  const fixture = fictionalSourceFixture({ manual: true });
+  const originalFailureRecord = fileBackedChallengeObservation(fixture.original, {
+    index: 8,
+    declaredClosed: true,
+  });
+  const targetFailureRecord = fileBackedUnreadObservation(fixture.target, {
+    index: 7,
+    closed: true,
+  });
+  assert.throws(
+    () => {
+      const prepared = publishFileBackedSourceCase(t, fixture, {
+        originalFailureRecord,
+        targetFailureRecord,
+      });
+      const report = verifySource(prepared);
+      assert.equal(report.status, "pass", codes(report).join(","));
+      assert.equal(prepared.resolution.groups[0].result.skip_code, "vacancy_unavailable");
+      const capture = verifyCaptureFile(
+        readFileSync(join(prepared.artifactsDir, "008.capture.txt"), "utf8"),
+      );
+      assert.equal(capture.ok, true);
+      assert.equal(capture.header.outcome, "access_failure");
+      assert.equal(capture.header["http-status"], "403");
+    },
+    { code: "source_resolution_invalid" },
+  );
+});
+
+test("file-backed source compiler refuses closed relabeling of a new target challenge capture", (t) => {
+  const fixture = fictionalSourceFixture();
+  const originalFailureRecord = fileBackedUnreadObservation(fixture.original, {
+    index: 8,
+    closed: true,
+  });
+  fileBackedChallengeObservation(fixture.target, { index: 7, declaredClosed: true });
+  assert.throws(
+    () => {
+      const prepared = publishFileBackedSourceCase(t, fixture, {
+        outcome: "access_failure",
+        originalFailureRecord,
+      });
+      const report = verifySource(prepared);
+      assert.equal(report.status, "pass", codes(report).join(","));
+      assert.equal(prepared.resolution.groups[0].result.skip_code, "vacancy_unavailable");
+      const capture = verifyCaptureFile(
+        readFileSync(join(prepared.artifactsDir, "007.capture.txt"), "utf8"),
+      );
+      assert.equal(capture.ok, true);
+      assert.equal(capture.header.outcome, "access_failure");
+      assert.equal(capture.header["http-status"], "403");
+    },
+    { code: "source_resolution_invalid" },
+  );
+});
+
+test("file-backed source compiler keeps a real target challenge retryable beside confirmed original closure", (t) => {
+  const fixture = fictionalSourceFixture();
+  const originalFailureRecord = fileBackedUnreadObservation(fixture.original, {
+    index: 8,
+    closed: true,
+  });
+  fileBackedChallengeObservation(fixture.target, { index: 7 });
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    outcome: "access_failure",
+    originalFailureRecord,
+  });
+  const report = verifySource(prepared);
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(prepared.resolution.groups[0].result.review_code, "source_review");
+  assert.ok(prepared.resolution.groups[0].conflicts.includes("conflicting_liveness"));
+  assert.equal(
+    prepared.resolution.observations.find((entry) => entry.source_ref === fixture.target.source_ref)
+      .trace.decision,
+    "BLOCKED",
+  );
+});
+
+for (const role of ["original", "target"]) {
+  test(`file-backed source compiler accepts a separate ${role} browser closure with its own closed stamp and body`, (t) => {
+    const fixture = fictionalSourceFixture();
+    let originalFailureRecord;
+    let targetFailureRecord;
+    if (role === "original") {
+      originalFailureRecord = fileBackedChallengeObservation(fixture.original, {
+        index: 8,
+        browserClosure: true,
+      });
+      targetFailureRecord = fileBackedUnreadObservation(fixture.target, { index: 7, closed: true });
+    } else {
+      originalFailureRecord = fileBackedUnreadObservation(fixture.original, {
+        index: 8,
+        closed: true,
+      });
+      fileBackedChallengeObservation(fixture.target, { index: 7, browserClosure: true });
+    }
+    const prepared = publishFileBackedSourceCase(t, fixture, {
+      outcome: role === "target" ? "closed" : "active",
+      originalFailureRecord,
+      targetFailureRecord,
+      browserRescue: role === "target",
+      originalBrowserClosure: role === "original",
+    });
+    const report = verifySource(prepared);
+    assert.equal(report.status, "pass", codes(report).join(","));
+    assert.equal(prepared.resolution.groups[0].result.skip_code, "vacancy_unavailable");
+    assert.deepEqual(prepared.resolution.groups[0].conflicts, []);
+    const raw = fixture[role];
+    const capture = verifyCaptureFile(
+      readFileSync(join(prepared.artifactsDir, raw.capture.file), "utf8"),
+    );
+    assert.equal(capture.ok, true);
+    assert.equal(capture.header.outcome, "closed");
+    assert.equal(capture.body, "This vacancy is closed.");
+    assert.equal(report.counts.capturesByProvenance.transcript, 1);
+  });
+}
+
+test("source cross-transport independently refuses closure declared over its own challenge stamp", (t) => {
+  const fixture = fictionalSourceFixture();
+  const originalFailureRecord = fileBackedChallengeObservation(fixture.original, { index: 8 });
+  const targetFailureRecord = fileBackedUnreadObservation(fixture.target, {
+    index: 7,
+    closed: true,
+  });
+  const prepared = publishFileBackedSourceCase(t, fixture, {
+    originalFailureRecord,
+    targetFailureRecord,
+  });
+  const context = buildContext({
+    artifactsDir: prepared.artifactsDir,
+    linksFile: prepared.linksFile,
+    from: prepared.from,
+    to: prepared.to,
+  });
+  const report = runSuite(context, "per-batch");
+  assert.equal(report.status, "pass", codes(report).join(","));
+  assert.equal(context.sourceVerification.valid, true);
+  const record = context.records.find((entry) => entry.sourceRef === fixture.original.source_ref);
+  assert.ok(record);
+  assert.equal(record.input.source.accessOutcome, "technical_unavailable");
+  assert.equal(record.sourceScope.original, false);
+  assert.equal(record.sourceScope.file, "008.capture.txt");
+  assert.equal(record.transportIndex, 8);
+  const ownCapture = record.captures.find((capture) => capture.file === record.sourceScope.file);
+  assert.equal(ownCapture.verified.ok, true);
+  assert.equal(ownCapture.verified.header.outcome, "access_failure");
+  assert.equal(ownCapture.verified.header["access-barrier"], "challenge");
+  assert.equal(ownCapture.verified.header["http-status"], "403");
+  assert.deepEqual(crossTransport.run(context).findings, []);
+
+  // Exercise this consumer independently: every immutable artifact, binding and trace stays real.
+  record.input.source.accessOutcome = "closed";
+  const checked = crossTransport.run(context);
+  assert.ok(
+    checked.findings.some(
+      (finding) => finding.code === "closure_not_corroborated" && finding.index === record.index,
+    ),
+    JSON.stringify(checked),
+  );
+});

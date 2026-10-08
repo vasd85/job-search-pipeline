@@ -26,11 +26,14 @@
 //   the ledger row this plan snapshotted, so `baseline-diff` compares it against that row and a
 //   plan that declares a policy the ledger does not carry is `plan_disagrees_with_ledger`.
 
+import { dirname, join } from "node:path";
 import {
   triageRetryDecision,
   vacancyIdentity,
   planSourceBatch,
   ledgerSnapshotDigest,
+  readSourcePlanPriorResolution,
+  triageBatchIdPattern,
 } from "../lib/triage-ledger-core.mjs";
 import { normalizeVacancyUrl } from "../lib/triage-ledger-core.mjs";
 import { deepEqual } from "./source-verification.mjs";
@@ -193,6 +196,43 @@ export function batchInstant(records, manifest = null) {
   return candidates.length === 0 ? null : Math.min(...candidates);
 }
 
+function priorResolutionOptions(context, source, value) {
+  const reference = value.prior_resolution;
+  if (
+    reference === null ||
+    typeof reference !== "object" ||
+    Array.isArray(reference) ||
+    !deepEqual(Object.keys(reference).sort(), [
+      "batch_id",
+      "entries_digest",
+      "record_sha256",
+      "source_resolution_sha256",
+      "source_set_sha256",
+    ]) ||
+    typeof reference.batch_id !== "string" ||
+    !triageBatchIdPattern.test(reference.batch_id) ||
+    ["entries_digest", "record_sha256", "source_set_sha256", "source_resolution_sha256"].some(
+      (key) => typeof reference[key] !== "string" || !/^[a-f0-9]{64}$/u.test(reference[key]),
+    )
+  )
+    return null;
+  // A plan cannot choose an arbitrary filesystem root. Its bounded batch id names exactly one
+  // sibling archive, whose index, immutable record and retained source captures prove the past.
+  const captureRoot = join(dirname(context.batch.dir), reference.batch_id);
+  try {
+    const prior = readSourcePlanPriorResolution(context.ledger, source.sourceSet, {
+      asOf: value.as_of,
+      collectionText: context.batch.collection.text,
+      captureRoot,
+      validation: { languages: context.languages },
+    });
+    if (prior === null || !deepEqual(prior.reference, reference)) return null;
+    return { resolution: prior.resolution, captureRoot };
+  } catch {
+    return null;
+  }
+}
+
 /** New plans keep the immutable card guard in front of every baseline lookup.
  * The initial per-card plan and a later plan made with a verified resolution are both legitimate;
  * a final merge/split cannot inherit another card's baseline merely by sharing an ordinal or URL.
@@ -221,11 +261,20 @@ export function readSourcePlan(context) {
     return {
       present: true,
       rows: null,
-      problems: [{ code: "source_plan_unreadable", reason: file.error ?? "shape_unexpected" }],
+      problems: [
+        {
+          code: "source_plan_unreadable",
+          reason: file.error ?? "shape_unexpected",
+        },
+      ],
     };
   }
   if (!source?.valid || source.resolution === null) {
-    return { present: true, rows: null, problems: [{ code: "source_plan_unverifiable" }] };
+    return {
+      present: true,
+      rows: null,
+      problems: [{ code: "source_plan_unverifiable" }],
+    };
   }
   if (context.ledger?.schema_version !== 2) {
     return {
@@ -252,10 +301,14 @@ export function readSourcePlan(context) {
     problems.push({ code: "source_plan_card_coverage_incomplete" });
   }
   const candidates = [];
-  for (const options of [
-    { resolution: source.resolution },
-    { selection: { card_refs: [...new Set(refs)] } },
-  ]) {
+  const hasPrior = Object.hasOwn(value, "prior_resolution");
+  const prior = hasPrior ? priorResolutionOptions(context, source, value) : null;
+  const options = hasPrior
+    ? prior === null
+      ? []
+      : [prior]
+    : [{ resolution: source.resolution }, { selection: { card_refs: [...new Set(refs)] } }];
+  for (const candidateOptions of options) {
     try {
       candidates.push(
         planSourceBatch(context.ledger, source.sourceSet, {
@@ -263,7 +316,7 @@ export function readSourcePlan(context) {
           collectionText: context.batch.collection.text,
           captureRoot: context.batch.dir,
           validation: { languages: context.languages },
-          ...options,
+          ...candidateOptions,
         }),
       );
     } catch {

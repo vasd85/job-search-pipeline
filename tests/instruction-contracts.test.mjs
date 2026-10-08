@@ -3879,6 +3879,15 @@ test("source-aware scoring has explicit artifact and logical-result boundaries",
     ),
   );
   assert.ok(flatRubric.includes("Source publication date and capture time are separate facts."));
+  for (const clause of [
+    "Keep the plan bytes unchanged after fetching; newly observed facts cannot replace the prior proof.",
+    "A saved full original cannot be relabeled unread; a new liveness failure uses its own failed capture or manifest observation.",
+    "A sanitized final URL cannot confirm an identity carried only in a meaningful query parameter.",
+    "Bind the primary capture's final URL to its actual manifest; a separate browser rescue retains its own identity evidence.",
+    "Mixed technical unavailability and closed sources remain an open source review rather than closing an unconfirmed logical vacancy.",
+    "An unread captured source can claim `closed` only with its own terminal posting stamp; `access_failure` never proves closure.",
+  ])
+    assert.ok(flatSkill.includes(clause), clause);
 });
 
 test("every annotation token declares one class, and the review reads the class", () => {

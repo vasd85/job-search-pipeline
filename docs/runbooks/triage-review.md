@@ -307,6 +307,19 @@ per-card planning cannot borrow that group's cached state. Newly derived groups 
 ledger can still be recorded from a complete initial card/membership plan. A changed source set
 needs its own validated resolution rather than a prior artifact with another source-set digest.
 
+The prior directory must be the indexed batch's own `triage-batches/<batch_id>/` directory in
+the same store as the new batch. When that archive exists, `planSourceBatch` adds a bounded
+`prior_resolution` reference: its batch id, entries digest, record byte digest, source-set digest
+and resolution byte digest. No filesystem path is stored in the plan. Per-batch verification
+reads the sibling archive, matches its immutable record to `ledger.batches`, validates the exact
+collection and saved captures, and reproduces the prior resolution before checking the frozen
+plan against the current ledger. New fetched facts may produce a conflict or a different result
+without changing what the prefetch plan knew. Keep the plan's bytes unchanged after fetching.
+A missing, changed or unindexed prior archive cannot corroborate this reference, and the new
+resolution cannot substitute for that proof. Initial plans and plans reproduced from the current
+resolution remain readable without a prior reference; they do not grant an existing derived
+group a missing baseline.
+
 `recordSourceBatch(path, batch, {artifactsDir, validation})` is an in-process mutation, with no
 shell-facing source values. It reads `source-set.json`, `source-resolution.json` and `plan.json`
 from the existing batch directory, verifies the declared byte digests and the independent source
