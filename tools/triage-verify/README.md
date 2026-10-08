@@ -416,7 +416,12 @@ Two probes, closed set, both required under `--cadence full`. `verdict` is `held
 `failed`; `failed` is a finding. Freshness is a window with two sides, both decided against the
 batch's own capture timestamps rather than a clock: a probe more than a day before the first fetch
 is `probe_stale`, one more than a day after the last is `probe_out_of_window`, and re-running the
-suite a month later therefore reaches the same verdict.
+suite a month later therefore reaches the same verdict. In source mode the window includes every
+verified physical capture in the final batch and each selected original observation's checked HTML
+capture clock, including summaries with `input: null`. An original observed through a new failed
+transport does not inherit the saved HTML clock. Unselected snapshots, retained `source-plan/`
+prefetch proof and publication dates do not extend the window. Legacy batches keep their record
+capture clocks.
 
 **This check verifies that the probe was run and recorded. It does not verify the probe.** A
 self-reported record in the batch's own directory is weaker than a measurement and stronger than a

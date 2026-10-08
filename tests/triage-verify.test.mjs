@@ -9,10 +9,12 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -49,7 +51,12 @@ import {
   genericPath,
 } from "../tools/triage-verify/evidence.mjs";
 import { ledgerRecordFileName, loadBatchArtifacts } from "../tools/triage-verify/artifacts.mjs";
-import { recordBatch, emptyLedger, planSourceBatch } from "../tools/lib/triage-ledger-core.mjs";
+import {
+  recordBatch,
+  emptyLedger,
+  planSourceBatch,
+  publishSourcePlan,
+} from "../tools/lib/triage-ledger-core.mjs";
 import {
   loadVocabulary,
   validateVocabulary,
@@ -4089,7 +4096,14 @@ function sourceFacts(title = "Senior QA Engineer", junior = false) {
 
 function prepareSourceBatch(
   t,
-  { details = false, multiple = false, failure = false, partial = false } = {},
+  {
+    details = false,
+    multiple = false,
+    failure = false,
+    partial = false,
+    publishedAt = "2026-10-07T12:00:00.000Z",
+    unselectedCapturedAt = SOURCE_CAPTURED_AT,
+  } = {},
 ) {
   if (failure) details = true;
   const root = disposableRoot(t);
@@ -4105,7 +4119,7 @@ function prepareSourceBatch(
       : `<br/>Contact <a href="https://t.me/fable_recruiter">@fable_recruiter</a>`;
   const html = `<html><div class="tgme_widget_message" data-post="fictionaljobs/100">
     <div class="tgme_widget_message_text">${role}${extra}</div>
-    <a class="tgme_widget_message_date"><time datetime="2026-10-07T12:00:00.000Z"></time></a>
+    <a class="tgme_widget_message_date"><time datetime="${publishedAt}"></time></a>
   </div></html>`;
   writeFileSync(join(captureRoot, "001.page.html"), html);
   const snapshot = snapshotFromHtml(html, {
@@ -4122,7 +4136,7 @@ function prepareSourceBatch(
         handle: "fictionaljobs",
         postId: 101,
         file: "002.page.html",
-        capturedAt: SOURCE_CAPTURED_AT,
+        capturedAt: unselectedCapturedAt,
       }),
     );
   }
@@ -6296,8 +6310,22 @@ test("source capture inventory retains a fetch-produced degraded first pass and 
   }
 });
 
-async function prepareProducedSourceSummary(t, { targetInput = false } = {}) {
-  const fixture = fictionalSourceFixture({ manual: true });
+async function prepareProducedSourceSummary(
+  t,
+  {
+    targetInput = false,
+    originalKind = "full_description",
+    originalCapturedAt = fixtureCaptureAt,
+    originalPublishedAt = "2026-10-07T07:00:00+00:00",
+    fetchedAt = fixtureCaptureAt,
+  } = {},
+) {
+  const fixture = fictionalSourceFixture({ manual: true, kind: originalKind });
+  fixture.snapshot.capture.captured_at = originalCapturedAt;
+  rebindFileBackedSourceHtml(
+    fixture,
+    fixture.html.replace("2026-10-07T07:00:00+00:00", originalPublishedAt),
+  );
   const root = disposableRoot(t);
   const artifactsDir = join(root, "artifacts");
   const collectorDir = join(root, "collector");
@@ -6311,7 +6339,7 @@ async function prepareProducedSourceSummary(t, { targetInput = false } = {}) {
     outDir: artifactsDir,
     batch: "fictional-summary-corroboration",
     delayMs: 0,
-    now: () => new Date(fixtureCaptureAt),
+    now: () => new Date(fetchedAt),
     sleep: async () => {},
     fetchImpl: async () => {
       requests += 1;
@@ -6332,7 +6360,7 @@ async function prepareProducedSourceSummary(t, { targetInput = false } = {}) {
   const captureText = readFileSync(capturePath, "utf8");
   const capture = verifyCaptureFile(captureText);
   assert.equal(capture.ok, true);
-  fixture.original.input.inputIndex = 11;
+  if (fixture.original.input !== null) fixture.original.input.inputIndex = 11;
   fixture.target.description_kind = targetInput ? "full_description" : "summary";
   fixture.target.capture = { file: row.persisted.file, sha256: row.persisted.sha256 };
   fixture.target.body = capture.body;
@@ -6358,7 +6386,7 @@ async function prepareProducedSourceSummary(t, { targetInput = false } = {}) {
     sourceSet: fixture.sourceSet,
     resolution,
     from: 1,
-    to: 3,
+    to: fixture.collectionText.trim().split("\n").length,
     capturePath,
     captureText,
   };
@@ -6411,5 +6439,156 @@ test("source HTTP summary metadata is corroborated without an extraction input a
       corroborated: true,
       findingCount: 1,
     })),
+  );
+});
+
+function sourceProbeVerdicts(prepared, probes) {
+  return probes.flatMap(({ ranAt, expected }) => {
+    editSourceJson(prepared, "attestation.json", (value) => {
+      for (const probe of value.probes) probe.ranAt = ranAt;
+    });
+    return ["per-batch", "full"].map((cadence) => {
+      const report = verifySource(prepared, cadence);
+      const findings = cadence === "full" ? checkOf(report, "periodic-attestation").findings : [];
+      return {
+        ranAt,
+        cadence,
+        status: report.status,
+        codes: codes(report),
+        expected: cadence === "full" ? expected : null,
+        probes: findings.map((finding) => finding.code),
+      };
+    });
+  });
+}
+
+function assertSourceProbeVerdicts(results) {
+  assert.deepEqual(
+    results,
+    results.map((entry) => ({
+      ...entry,
+      status: entry.expected === null ? "pass" : "fail",
+      codes: entry.expected === null ? [] : [entry.expected],
+      probes: entry.expected === null ? [] : [entry.expected, entry.expected],
+    })),
+  );
+}
+
+test("source attestation includes the selected original summary clock without a scored input", async (t) => {
+  const results = [];
+  for (const originalKind of ["summary", "full_description"]) {
+    const prepared = await prepareProducedSourceSummary(t, {
+      targetInput: true,
+      originalKind,
+      originalCapturedAt: "2026-10-05T08:00:00.000Z",
+      originalPublishedAt: "2026-10-04T07:00:00+00:00",
+    });
+    const [snapshot] = prepared.sourceSet.snapshots;
+    assert.ok(Date.parse(snapshot.instant) <= Date.parse(snapshot.capture.captured_at));
+    const controls = verifyFileBackedSourceCadences(prepared);
+    assert.equal(controls[0].counts.records, originalKind === "summary" ? 1 : 2);
+    assert.equal(controls[0].counts.captures, 1);
+    results.push(
+      ...sourceProbeVerdicts(prepared, [
+        { ranAt: "2026-10-05T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-04T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-04T07:59:00.000Z", expected: "probe_stale" },
+        { ranAt: "2026-10-09T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-09T08:01:00.000Z", expected: "probe_out_of_window" },
+      ]),
+    );
+  }
+  assertSourceProbeVerdicts(results);
+});
+
+test("source attestation includes every final physical HTTP summary clock without a scored input", async (t) => {
+  const results = [];
+  const capturedBytes = [];
+  for (const targetInput of [false, true]) {
+    const prepared = await prepareProducedSourceSummary(t, {
+      targetInput,
+      fetchedAt: "2026-10-11T08:00:00.000Z",
+    });
+    capturedBytes.push(prepared.captureText);
+    const controls = verifyFileBackedSourceCadences(prepared);
+    assert.equal(controls[0].counts.records, targetInput ? 2 : 1);
+    assert.equal(controls[0].counts.captures, 1);
+    results.push(
+      ...sourceProbeVerdicts(prepared, [
+        { ranAt: "2026-10-11T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-12T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-12T08:01:00.000Z", expected: "probe_out_of_window" },
+        { ranAt: "2026-10-07T08:00:00.000Z", expected: null },
+        { ranAt: "2026-10-07T07:59:00.000Z", expected: "probe_stale" },
+      ]),
+    );
+  }
+  assert.equal(capturedBytes[0], capturedBytes[1]);
+  assertSourceProbeVerdicts(results);
+});
+
+test("source attestation excludes unselected snapshot and publication clocks", (t) => {
+  const prepared = prepareSourceBatch(t, {
+    partial: true,
+    publishedAt: "2026-09-30T12:00:00.000Z",
+    unselectedCapturedAt: "2026-10-01T09:15:00.000Z",
+  });
+  verifyFileBackedSourceCadences(prepared);
+  assert.equal(prepared.resolution.selection.card_refs.length, 1);
+  assert.equal(prepared.sourceSet.snapshots.length, 2);
+  assertSourceProbeVerdicts(
+    sourceProbeVerdicts(prepared, [
+      { ranAt: "2026-10-08T09:15:00.000Z", expected: null },
+      { ranAt: "2026-10-05T09:15:00.000Z", expected: "probe_stale" },
+      { ranAt: "2026-09-30T12:00:00.000Z", expected: "probe_stale" },
+      { ranAt: "2026-10-10T09:15:00.000Z", expected: "probe_out_of_window" },
+    ]),
+  );
+});
+
+test("source attestation excludes checked retained prefetch capture clocks", async (t) => {
+  const prefetched = await prepareProducedSourceSummary(t, {
+    fetchedAt: "2026-10-11T08:00:00.000Z",
+  });
+  const prepared = await prepareProducedSourceSummary(t);
+  verifyFileBackedSourceCadences(prepared);
+  assert.equal(sourceSetDigest(prefetched.sourceSet), sourceSetDigest(prepared.sourceSet));
+  const finalDir = join(prepared.root, "retained-prefetch");
+  mkdirSync(finalDir);
+  const plan = publishSourcePlan(prepared.ledgerPath, prepared.sourceSet, {
+    asOf: "2026-10-12T08:00:00.000Z",
+    resolution: prefetched.resolution,
+    collectionText: readFileSync(prepared.linksFile, "utf8"),
+    captureRoot: prefetched.artifactsDir,
+    artifactsDir: finalDir,
+  });
+  assert.ok(plan.prefetch_resolution);
+  for (const file of readdirSync(prepared.artifactsDir)) {
+    if (file !== "plan.json")
+      cpSync(join(prepared.artifactsDir, file), join(finalDir, file), { recursive: true });
+  }
+  prepared.artifactsDir = finalDir;
+  const context = buildContext({
+    artifactsDir: prepared.artifactsDir,
+    linksFile: prepared.linksFile,
+    ledgerPath: prepared.ledgerPath,
+    from: prepared.from,
+    to: prepared.to,
+  });
+  assert.equal(context.sourceVerification.valid, true);
+  assert.deepEqual(context.batch.unexpected, []);
+  assert.equal(context.captures.length, 1);
+  assert.equal(context.captures[0].verified.header["fetched-at"], fixtureCaptureAt);
+  const proofCapture = verifyCaptureFile(
+    readFileSync(join(finalDir, "source-plan", "001.capture.txt"), "utf8"),
+  );
+  assert.equal(proofCapture.ok, true);
+  assert.equal(proofCapture.header["fetched-at"], "2026-10-11T08:00:00.000Z");
+  assertSourceProbeVerdicts(
+    sourceProbeVerdicts(prepared, [
+      { ranAt: fixtureCaptureAt, expected: null },
+      { ranAt: "2026-10-11T08:00:00.000Z", expected: "probe_out_of_window" },
+      { ranAt: "2026-10-05T08:00:00.000Z", expected: "probe_stale" },
+    ]),
   );
 });
